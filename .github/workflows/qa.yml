@@ -3,6 +3,20 @@ on:
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
+    inputs:
+      focus:
+        description: 'Focus area'
+        type: choice
+        options:
+          - coverage-sprint
+          - flaky-hunt
+          - integration-gaps
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
 jobs:
   qa:
     runs-on: ubuntu-latest
@@ -11,17 +25,29 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
+        continue-on-error: true
+        
+      - name: Install dependencies
+        run: npm ci || true
+        
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
-            Read CLAUDE.md and .claude/agents/qa-improver.md.
-            Improve test coverage.
-          allowed_tools: "Read,Write,Edit,Bash,Glob,Grep"
+            Read CLAUDE.md and .claude/agents/qa-improver.md first.
+            
+            Focus: ${{ github.event.inputs.focus || 'coverage-sprint' }}
+            
+            Improve test quality:
+            1. Generate coverage report
+            2. Identify gaps
+            3. Write meaningful tests
+            4. Run tests 3x to check for flakiness
+            5. Create PR with improvements
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,19 +3,32 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
 jobs:
   content:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
-            Read CLAUDE.md and .claude/agents/marketing-docs.md.
-            Update content for latest release.
-          allowed_tools: "Read,Write,Edit,Bash,Glob,Grep,WebFetch"
+            Read CLAUDE.md and .claude/agents/marketing-docs.md first.
+            
+            Update content for the latest release:
+            1. Get release info: gh release view
+            2. Update CHANGELOG.md with user-friendly entries
+            3. Check if any new philosophers were added
+            4. Update README if needed
+            5. Create PR with content updates
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

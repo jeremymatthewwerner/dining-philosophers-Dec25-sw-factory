@@ -5,33 +5,63 @@ on:
   workflow_dispatch:
     inputs:
       severity:
+        description: 'Incident severity'
         type: choice
-        options: [SEV1, SEV2, SEV3]
+        options:
+          - SEV1
+          - SEV2
+          - SEV3
       description:
+        description: 'Incident description'
         type: string
+
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+
 jobs:
-  health:
+  health-check:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - run: |
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" https://diningphilosophers.ai/api/health || echo "000")
+      - name: Check health
+        id: health
+        run: |
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://diningphilosophers.ai/api/health 2>/dev/null || echo "000")
+          echo "status=$HTTP" >> $GITHUB_OUTPUT
           if [ "$HTTP" != "200" ]; then
-            gh workflow run devops.yml -f severity=SEV2 -f description="Health check failed"
+            echo "unhealthy=true" >> $GITHUB_OUTPUT
           fi
+          
+      - name: Trigger incident if unhealthy
+        if: steps.health.outputs.unhealthy == 'true'
+        run: |
+          gh workflow run devops.yml -f severity=SEV2 -f description="Health check failed: HTTP ${{ steps.health.outputs.status }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   incident:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
-            Read CLAUDE.md and .claude/agents/devops-sre.md.
-            Handle incident: ${{ github.event.inputs.severity }} - ${{ github.event.inputs.description }}
-          allowed_tools: "Read,Write,Edit,Bash,Glob,Grep,WebFetch"
+            Read CLAUDE.md and .claude/agents/devops-sre.md first.
+            
+            INCIDENT: ${{ github.event.inputs.severity }} - ${{ github.event.inputs.description }}
+            
+            Response:
+            1. Diagnose the issue
+            2. Check logs and recent deployments
+            3. Attempt mitigation (max 2 restarts)
+            4. Create incident issue
+            5. Escalate to @jeremy if SEV1 or can't resolve
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
