@@ -1,6 +1,46 @@
-node_modules/
-.next/
+# Database
+backend/thinkers_chat.db
+*.db
+
+# Environment files (keep .example files)
+backend/.env
+frontend/.env.local
+!backend/.env.example
+!frontend/.env.local.example
 .env
 .env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+
+# Node
+node_modules/
+.next/
+out/
 coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
+
+# Test results
+test-results/
+playwright-report/

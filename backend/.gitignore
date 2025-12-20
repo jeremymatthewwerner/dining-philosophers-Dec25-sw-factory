@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# uv
+.uv/
+# Note: uv.lock is committed for reproducible builds
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+coverage.xml
+
+# mypy
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local

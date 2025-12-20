@@ -1,0 +1,102 @@
+[project]
+name = "thinkers-chat-backend"
+version = "0.1.0"
+description = "Backend API for Dining Philosophers - real-time multi-party chat with AI thinkers"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "websockets>=12.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "aiosqlite>=0.19.0",
+    "greenlet>=3.0.0",
+    "alembic>=1.13.1",
+    "psycopg2-binary>=2.9.9",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "anthropic>=0.18.0",
+    "httpx>=0.26.0",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.0,<4.1.0",
+    "python-jose[cryptography]>=3.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.14",
+    "mypy>=1.8.0",
+    "httpx>=0.26.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["asyncpg.*", "sqlalchemy.*", "passlib.*", "jose.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+# Suppress "Event loop is closed" errors from aiosqlite during test cleanup
+# This occurs when sync TestClient closes before async DB operations complete
+filterwarnings = [
+    "ignore:Exception ignored:pytest.PytestUnraisableExceptionWarning",
+    "ignore:Exception in thread:pytest.PytestUnhandledThreadExceptionWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+

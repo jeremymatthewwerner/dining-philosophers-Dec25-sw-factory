@@ -1,0 +1,185 @@
+/**
+ * iOS Safari-specific CSS fixes for sticky positioning.
+ *
+ * Known Issues:
+ * - iOS Safari < 13: Requires -webkit-sticky prefix
+ * - WebKit bugs with sticky + flexbox interactions
+ * - Safe area (notch/Dynamic Island) compatibility
+ * - Transform interference with sticky positioning (fixed in PR #215)
+ *
+ * References:
+ * - WebKit Bug 179417: position: sticky not working properly
+ * - WebKit Bug 191227: position: sticky fails in flex containers
+ * - Issue #212: Header not visible on iOS Safari after chat selection
+ * - PR #215: Removed WebKit transforms that broke sticky positioning
+ *
+ * This file provides progressive enhancement for iOS Safari to ensure
+ * the chat header remains visible and functional across all iOS devices.
+ */
+
+/**
+ * Add -webkit-sticky prefix for older iOS Safari versions.
+ * Tailwind generates `position: sticky`, but iOS Safari < 13 needs the prefix.
+ * This applies to any element with Tailwind's `sticky` class.
+ */
+@supports (position: -webkit-sticky) {
+  .sticky {
+    position: -webkit-sticky;
+  }
+}
+
+/**
+ * Fallback for browsers that don't support sticky positioning at all.
+ * This is extremely rare (iOS Safari has supported sticky since iOS 6.1),
+ * but we provide a fixed fallback just in case.
+ */
+@supports not ((position: -webkit-sticky) or (position: sticky)) {
+  .sticky {
+    position: fixed;
+  }
+}
+
+/**
+ * Ensure sticky elements in flex containers work correctly.
+ * WebKit has bugs where sticky fails in certain flex contexts.
+ * This targets the chat area container to ensure proper scroll context.
+ */
+@supports (-webkit-overflow-scrolling: touch) {
+  /* iOS Safari detected */
+
+  /*
+   * Ensure flex containers allow sticky children.
+   * The chat area uses flex layout, and sticky needs proper overflow context.
+   */
+  [data-testid="chat-area"] {
+    /*
+     * Prevent iOS Safari from collapsing the container.
+     * This ensures the sticky header has proper scroll context.
+     */
+    min-height: 0;
+
+    /*
+     * Enable smooth scrolling on iOS.
+     * -webkit-overflow-scrolling: touch provides momentum scrolling.
+     */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /*
+   * Performance optimization for sticky header on iOS.
+   * Reduces repaints during scrolling.
+   */
+  [data-testid="chat-area"] > div:first-child {
+    /*
+     * Optimize repainting by isolating the sticky header.
+     * This prevents repainting the entire page during scroll.
+     */
+    contain: layout style;
+
+    /*
+     * Force hardware acceleration for better performance.
+     * Uses translateZ(0) to create a new compositing layer.
+     * This doesn't interfere with sticky positioning (unlike other transforms).
+     */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+}
+
+/**
+ * Safe area inset support for iOS notch/Dynamic Island devices.
+ * This ensures the header doesn't get hidden behind the notch.
+ *
+ * The viewport is configured with viewport-fit=cover (see layout.tsx),
+ * which allows content to extend under the notch. We need to add padding
+ * to prevent the header content from being obscured.
+ */
+@supports (padding: env(safe-area-inset-top)) {
+  /*
+   * Add safe area padding to header elements on iOS devices with notches.
+   * Only applies to touch devices (likely iOS).
+   */
+  @media (hover: none) and (pointer: coarse) {
+    /*
+     * Target the sticky header (first child of chat area).
+     * Add top padding to account for safe area.
+     */
+    [data-testid="chat-area"] > div:first-child {
+      /*
+       * Use max() to ensure minimum padding of 0.75rem (from py-3),
+       * while respecting the safe area inset on notch devices.
+       */
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+  }
+}
+
+/**
+ * Z-index stacking context fixes for iOS Safari.
+ * Ensures dropdowns and modals appear above the sticky header.
+ */
+@supports (-webkit-overflow-scrolling: touch) {
+  /*
+   * Ensure export menu dropdown appears above sticky header.
+   * The header has z-10, so dropdown needs higher z-index.
+   */
+  [data-testid="export-menu"] {
+    /*
+     * Use z-20 to ensure dropdown is above header (z-10).
+     * The absolute positioning relative to button needs this.
+     */
+    z-index: 20;
+  }
+}
+
+/**
+ * Additional iOS Safari rendering optimizations.
+ * Prevents common iOS Safari bugs with sticky positioning.
+ */
+@supports (-webkit-appearance: none) {
+  /* WebKit-based browser (Safari, iOS Safari) */
+
+  /*
+   * IMPORTANT: Do NOT add these properties to sticky elements:
+   *
+   * ❌ -webkit-backface-visibility: hidden
+   * ❌ backface-visibility: hidden
+   * ❌ -webkit-perspective: 1000
+   * ❌ perspective: 1000
+   *
+   * These were removed in PR #215 because they caused the header to
+   * completely disappear on iOS Safari. See Issue #212 for details.
+   */
+}
+
+/**
+ * iOS-specific fixes for touch interactions.
+ * Ensures proper touch target sizing and tap behavior.
+ */
+@media (hover: none) and (pointer: coarse) {
+  /*
+   * iOS HIG recommends minimum 44x44pt touch targets.
+   * The buttons already have inline styles for this, but we ensure
+   * they're properly sized even if inline styles are removed.
+   */
+  [data-testid="pause-resume-button"],
+  [data-testid="export-button"],
+  [data-testid="header-menu-button"] {
+    min-width: 44px;
+    min-height: 44px;
+
+    /*
+     * Add touch-action to optimize iOS Safari touch handling.
+     * manipulation prevents double-tap zoom delay.
+     */
+    touch-action: manipulation;
+  }
+
+  /*
+   * Ensure range slider is touch-friendly on iOS.
+   */
+  [data-testid="speed-slider"] {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+}
