@@ -1,0 +1,27 @@
+name: Release Engineering Agent
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Read CLAUDE.md and .claude/agents/release-engineer.md.
+            Run weekly maintenance.
+          allowed_tools: "Read,Write,Edit,Bash,Glob,Grep,WebFetch"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

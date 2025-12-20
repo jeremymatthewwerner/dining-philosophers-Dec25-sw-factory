@@ -1,0 +1,37 @@
+name: DevOps Agent
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      severity:
+        type: choice
+        options: [SEV1, SEV2, SEV3]
+      description:
+        type: string
+jobs:
+  health:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" https://diningphilosophers.ai/api/health || echo "000")
+          if [ "$HTTP" != "200" ]; then
+            gh workflow run devops.yml -f severity=SEV2 -f description="Health check failed"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  incident:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Read CLAUDE.md and .claude/agents/devops-sre.md.
+            Handle incident: ${{ github.event.inputs.severity }} - ${{ github.event.inputs.description }}
+          allowed_tools: "Read,Write,Edit,Bash,Glob,Grep,WebFetch"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
