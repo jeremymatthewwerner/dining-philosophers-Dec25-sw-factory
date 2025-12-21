@@ -1,4 +1,4 @@
-name: Bug Fix Agent
+name: Code Agent
 on:
   issues:
     types: [labeled]
@@ -17,7 +17,12 @@ permissions:
 
 jobs:
   fix:
-    if: github.event_name == 'workflow_dispatch' || (github.event.label.name == 'ai-ready' && contains(github.event.issue.labels.*.name, 'bug'))
+    # Triggers on ai-ready + (bug OR enhancement)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'ai-ready' &&
+       (contains(github.event.issue.labels.*.name, 'bug') ||
+        contains(github.event.issue.labels.*.name, 'enhancement')))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
