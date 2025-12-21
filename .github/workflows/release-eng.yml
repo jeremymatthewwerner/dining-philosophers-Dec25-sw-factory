@@ -1,7 +1,7 @@
 name: Release Engineering Agent
 on:
   schedule:
-    - cron: '0 3 * * 0'
+    - cron: '0 3 * * *'  # Daily at 3am UTC
   workflow_dispatch:
 
 permissions:
@@ -13,42 +13,111 @@ permissions:
 jobs:
   maintain:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
         continue-on-error: true
-        
-      - name: Install dependencies
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install frontend dependencies
+        working-directory: frontend
         run: npm ci || true
-        
-      - name: Security audit
-        id: audit
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync || true
+
+      - name: Frontend security audit
+        id: frontend-audit
+        working-directory: frontend
         run: |
-          npm audit --json > /tmp/audit.json 2>/dev/null || true
-          VULNS=$(cat /tmp/audit.json | jq '.metadata.vulnerabilities.total // 0' 2>/dev/null || echo "0")
+          npm audit --json > /tmp/frontend-audit.json 2>/dev/null || true
+          VULNS=$(cat /tmp/frontend-audit.json | jq '.metadata.vulnerabilities.total // 0' 2>/dev/null || echo "0")
           echo "vulnerabilities=$VULNS" >> $GITHUB_OUTPUT
-          
+
+      - name: Backend security audit
+        id: backend-audit
+        working-directory: backend
+        run: |
+          uv run pip-audit --format json > /tmp/backend-audit.json 2>/dev/null || true
+          VULNS=$(cat /tmp/backend-audit.json | jq 'length // 0' 2>/dev/null || echo "0")
+          echo "vulnerabilities=$VULNS" >> $GITHUB_OUTPUT
+
+      - name: Check outdated dependencies
+        id: outdated
+        run: |
+          echo "=== Frontend ===" > /tmp/outdated.txt
+          cd frontend && npm outdated --json >> /tmp/outdated.txt 2>/dev/null || true
+          echo "=== Backend ===" >> /tmp/outdated.txt
+          cd ../backend && uv pip list --outdated >> /tmp/outdated.txt 2>/dev/null || true
+
+      - name: Analyze CI performance
+        id: ci-perf
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run list --limit 20 --json databaseId,conclusion,updatedAt,createdAt \
+            --jq '[.[] | {id: .databaseId, conclusion: .conclusion, duration: (((.updatedAt | fromdateiso8601) - (.createdAt | fromdateiso8601)) / 60 | floor)}]' \
+            > /tmp/ci-runs.json 2>/dev/null || echo "[]" > /tmp/ci-runs.json
+          AVG=$(cat /tmp/ci-runs.json | jq '[.[].duration] | add / length | floor' 2>/dev/null || echo "0")
+          echo "avg_duration_mins=$AVG" >> $GITHUB_OUTPUT
+
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/release-engineer.md first.
-            
-            Vulnerabilities found: ${{ steps.audit.outputs.vulnerabilities }}
-            
-            Weekly maintenance:
-            1. Fix critical/high security issues
-            2. Update patch dependencies
-            3. Analyze CI performance
-            4. Create maintenance PR
-            
-            Do NOT upgrade major versions without human approval.
+
+            ## Daily Maintenance Report
+
+            Frontend vulnerabilities: ${{ steps.frontend-audit.outputs.vulnerabilities }}
+            Backend vulnerabilities: ${{ steps.backend-audit.outputs.vulnerabilities }}
+            Average CI duration: ${{ steps.ci-perf.outputs.avg_duration_mins }} minutes
+
+            ## Your Tasks (in priority order)
+
+            1. **Security fixes** (CRITICAL)
+               - Fix any critical/high vulnerabilities immediately
+               - For medium/low, create issues for tracking
+
+            2. **Dependency updates**
+               - Update patch versions (x.y.Z) automatically
+               - For minor versions (x.Y.z), update if changelog looks safe
+               - For major versions (X.y.z), create issue for human review
+
+            3. **CI/CD optimization**
+               - If avg CI > 10 mins, look for optimization opportunities
+               - Check for flaky tests in recent runs
+               - Suggest caching improvements
+
+            4. **Code health**
+               - Run linters and fix any new warnings
+               - Check for deprecated API usage
+               - Look for TODO/FIXME comments older than 30 days
+
+            5. **Documentation**
+               - Ensure README is up to date
+               - Check that CHANGELOG reflects recent changes
+               - Verify environment variable docs match code
+
+            6. **Create maintenance PR** with all changes
+               - Group related changes logically
+               - Write clear commit messages
+               - Reference any issues fixed
+
+            Do NOT upgrade major versions without human approval - create an issue instead.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: 30
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
