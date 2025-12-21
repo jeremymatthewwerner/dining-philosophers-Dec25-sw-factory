@@ -46,6 +46,9 @@ jobs:
 
             Available labels: bug, enhancement, ai-ready, P0, P1, P2, needs-human
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh issue:*),Bash(gh search:*),Read,Glob,Grep"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
