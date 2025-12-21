@@ -146,6 +146,27 @@ uv run mypy .           # Type check Python code
 
 `<type>(<scope>): <description>` where type is feat|fix|docs|test|chore|ci
 
+## GitHub CLI Setup
+
+The `gh` CLI is required for creating PRs, checking CI, and managing issues.
+
+```bash
+# Install gh (if not present)
+curl -L https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_amd64.tar.gz -o /tmp/gh.tar.gz
+tar -xzf /tmp/gh.tar.gz -C /tmp
+sudo mv /tmp/gh_2.63.2_linux_amd64/bin/gh /usr/local/bin/
+
+# Authenticate (required after install)
+gh auth login --web --git-protocol https
+```
+
+When using `gh` commands, always specify the repo explicitly (the git remote uses a local proxy):
+```bash
+gh pr create --repo jeremymatthewwerner/dining-philosophers-Dec25-sw-factory ...
+gh run list --repo jeremymatthewwerner/dining-philosophers-Dec25-sw-factory
+gh issue list --repo jeremymatthewwerner/dining-philosophers-Dec25-sw-factory
+```
+
 ## Task & Bug Tracking with GitHub Issues
 
 All bugs AND tasks must be tracked via GitHub Issues for audit history and traceability.
