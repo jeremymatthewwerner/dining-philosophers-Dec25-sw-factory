@@ -256,12 +256,12 @@ jobs:
 
       - name: Redeploy Backend
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
         run: railway redeploy --service backend --yes
 
       - name: Redeploy Frontend
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
         run: railway redeploy --service frontend --yes
 
   smoke-test:
