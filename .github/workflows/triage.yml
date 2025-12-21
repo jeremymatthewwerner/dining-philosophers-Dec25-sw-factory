@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Get issue number
         id: issue
         run: |
@@ -29,19 +29,23 @@ jobs:
           else
             echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           fi
-      
+
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/triage-product.md first.
-            
+
             Triage issue #${{ steps.issue.outputs.number }}:
             1. Get issue details: gh issue view ${{ steps.issue.outputs.number }}
-            2. Check for duplicates
-            3. Classify (bug/feature/question)
-            4. Add appropriate labels
-            5. If ready for AI fixing, add 'ai-ready' label
-            6. Comment with your assessment
+            2. Check for duplicates: gh issue list --search "similar terms"
+            3. Classify as bug, feature/enhancement, or question
+            4. Assign priority: P0 (critical), P1 (high), P2 (medium)
+            5. Add appropriate labels: gh issue edit ${{ steps.issue.outputs.number }} --add-label "label1,label2"
+            6. If ready for AI to fix, add 'ai-ready' label
+            7. Comment with your assessment: gh issue comment ${{ steps.issue.outputs.number }} --body "..."
+
+            Available labels: bug, enhancement, ai-ready, P0, P1, P2, needs-human
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
