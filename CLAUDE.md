@@ -1,5 +1,7 @@
 # CLAUDE.md - Dining Philosophers
 
+Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
+
 ## Project Overview
 - **Name**: Dining Philosophers
 - **Description**: Real-time chat with historical philosophers
@@ -7,23 +9,213 @@
 - **Hosting**: Railway
 - **Maintainer**: @jeremy
 
+## IMPORTANT Rules
+
+- ALWAYS write tests alongside code (unit, integration, E2E)
+- NEVER commit code without tests - minimum 80% coverage
+- Commit and push frequently at logical checkpoints
+- See REQUIREMENTS.md for full product specification
+- **ALWAYS check things yourself before asking the user** - Use available tools (CLI, API calls, logs, code inspection) to verify state, configuration, or behavior. Only ask the user to check something if you've confirmed there's no way for you to check it directly.
+- **ALWAYS check CI results after every push** - Use `gh run list` and `gh run view <id> --log-failed` to verify CI passes. If CI fails, debug and fix immediately. Do not consider a task complete until CI is green.
+- **When resuming work or assessing project state, ALWAYS check CI first** - Run `gh run list` before anything else. There may be failed runs from a previous session that need fixing.
+- **ALWAYS check open issues at session start** - Run `gh issue list` and work from highest priority (P0 → P1 → P2). Critical bugs must be addressed before new features.
+
 ## Tech Stack
-- **Runtime**: Node.js 20
-- **Framework**: Next.js 14 (App Router)
-- **Database**: PostgreSQL (Prisma)
-- **Real-time**: Socket.io
-- **AI**: Anthropic Claude API
+
+- **Frontend**: Next.js (TypeScript strict mode)
+- **Backend**: Python / FastAPI
+- **Database**: PostgreSQL
+- **LLM**: Claude API
+- **Real-time**: WebSockets
+- **Deployment**: Railway
 
 ## Quality Gates
+
 ```bash
-npm run lint          # ESLint
-npm run typecheck     # TypeScript
-npm run test          # Vitest
-npm run build         # Next.js build
+# Backend
+cd backend
+uv run pytest                    # run tests
+uv run pytest --cov=app          # run tests with coverage
+uv run ruff check .              # lint
+uv run ruff format .             # format
+uv run mypy .                    # type check
+uv run uvicorn app.main:app --reload  # dev server
+
+# Frontend
+cd frontend
+npm test                         # jest tests
+npm run lint                     # eslint
+npm run typecheck                # tsc
+npm run dev                      # dev server
+npx playwright test              # e2e tests
+
+# Full test suite
+./scripts/test-all.sh
 ```
 
+## Development Workflow (MANDATORY)
+
+At every meaningful milestone (new feature, API changes, UI flow completion):
+
+1. **Run all unit tests** - `./scripts/test-all.sh` or run backend/frontend tests separately
+2. **Run E2E tests** - `cd frontend && npx playwright test` (with backend running)
+3. **Local user testing** - Have user manually test the feature in browser
+4. **Fix any issues** - Repeat steps 1-3 until passing
+5. **Commit and push** - Only after E2E and manual testing pass
+
+**Why this matters**: Unit tests with mocked APIs won't catch schema mismatches between frontend and backend. E2E tests exercise the real API and catch integration bugs before they reach the user.
+
+**E2E test requirements**:
+- Every user-facing flow must have E2E coverage
+- Test the happy path AND error cases
+- Use real backend (not mocked) to validate actual API contracts
+
+**When E2E tests hang or timeout (CRITICAL)**:
+- **DO NOT assume it's a test or framework issue** - E2E tests exercise real code paths
+- **ASSUME a real regression** - Something in recent changes broke the functionality
+- **Investigate recent commits** - Look at what changed since tests last passed
+- **Check the feature being tested** - If a test for "thinker suggestions" hangs, the thinker suggestion code likely has a bug
+- **Avoid piling on fixes** - Don't keep adjusting test timeouts or adding workarounds; find and fix the root cause
+
+## Testing
+
+- **Backend**: pytest + pytest-asyncio + pytest-cov
+- **Frontend**: Jest + React Testing Library
+- **E2E**: Playwright
+- Coverage minimum: 80%
+
+### Test Rigor Protocol (MANDATORY)
+
+**Before implementing any non-trivial feature or change:**
+1. **Think deeply about test cases** - Consider what new unit, integration, and E2E tests are needed
+2. **Document in TEST_PLAN.md** - Update the test plan document with new test cases before writing code
+3. **Consider edge cases** - What could go wrong? What are the boundary conditions?
+
+**After implementing:**
+1. **Write tests for all new code** - Don't just test happy paths
+2. **Update existing tests** - If behavior changed, tests should change too
+3. **Run full test suite** - Verify nothing regressed
+
+## Code Style
+
+- **Python**: ruff (format + lint + isort), mypy strict
+- **TypeScript**: ESLint + Prettier, strict mode
+
+### MANDATORY: Run Formatters and Linters Before Every Commit
+
+**NEVER commit code without running formatters and linters first.** This applies to ALL code changes.
+
+```bash
+# Frontend (REQUIRED before every commit that touches frontend/)
+cd frontend
+npm run format          # Run Prettier to auto-fix formatting
+npm run lint -- --fix   # Run ESLint with auto-fix
+npm run typecheck       # Verify TypeScript types
+
+# Backend (REQUIRED before every commit that touches backend/)
+cd backend
+uv run ruff format .    # Auto-format Python code
+uv run ruff check . --fix  # Lint and auto-fix Python code
+uv run mypy .           # Type check Python code
+```
+
+**The workflow is:**
+1. Make code changes
+2. Run formatters (`npm run format`, `uv run ruff format .`)
+3. Run linters with auto-fix (`npm run lint -- --fix`, `uv run ruff check . --fix`)
+4. Run type checking (`npm run typecheck`, `uv run mypy .`)
+5. If any issues remain, fix them manually
+6. THEN commit
+
+## Git Workflow
+
+**Claude Code sessions use feature branches:**
+1. Create branch: `claude/<description>-<session-id>` (branch name is auto-assigned)
+2. Commit changes with issue references (`Fixes #N` or `Relates to #N`)
+3. Push to feature branch and create PR
+4. CI runs on PR - must pass before merge
+5. Merge PR (squash) - triggers deploy
+6. Issues auto-close when PR merges
+
+**Best practices:**
+- Commit frequently with clear messages
+- One logical change per commit
+- Always reference GitHub issues in commits
+
 ## Commit Format
+
 `<type>(<scope>): <description>` where type is feat|fix|docs|test|chore|ci
 
+## GitHub CLI Setup
+
+The `gh` CLI is required for creating PRs, checking CI, and managing issues.
+
+```bash
+# Install gh (if not present)
+curl -L https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_amd64.tar.gz -o /tmp/gh.tar.gz
+tar -xzf /tmp/gh.tar.gz -C /tmp
+sudo mv /tmp/gh_2.63.2_linux_amd64/bin/gh /usr/local/bin/
+
+# Authenticate (required after install)
+gh auth login --web --git-protocol https
+```
+
+When using `gh` commands, always specify the repo explicitly (the git remote uses a local proxy):
+```bash
+gh pr create --repo jeremymatthewwerner/dining-philosophers-Dec25-sw-factory ...
+gh run list --repo jeremymatthewwerner/dining-philosophers-Dec25-sw-factory
+gh issue list --repo jeremymatthewwerner/dining-philosophers-Dec25-sw-factory
+```
+
+## Task & Bug Tracking with GitHub Issues
+
+All bugs AND tasks must be tracked via GitHub Issues for audit history and traceability.
+
+### Issue Priority (MANDATORY)
+
+**Always assign a priority label when creating issues:**
+- **P0** - Blocks most or all functionality from working (critical bugs, system down)
+- **P1** - Blocks some functionality from working correctly, OR new functionality requests
+- **P2** - Optimizations, cleanup, refactoring, or minor improvements
+
+### Issue Labels
+
+Use labels to categorize issues:
+- `bug` - Something isn't working
+- `feature` / `enhancement` - New feature request
+- `ai-ready` - Ready for autonomous agent to pick up
+- `needs-human` - Requires human intervention
+- `priority-high`, `priority-medium`, `priority-low`
+
+## Autonomous Agents
+
+This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
+
+| Agent | Trigger | Purpose |
+|-------|---------|---------|
+| **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
+| **Bug Fixer** | `ai-ready` + `bug` labels | Diagnoses and fixes bugs, creates PRs |
+| **QA** | Nightly 2am UTC | Improves test coverage, hunts flaky tests |
+| **Release Eng** | Weekly Sunday 3am | Security audits, dependency updates |
+| **DevOps** | Every 6 hours | Health checks, incident response |
+| **Marketing** | On release | Updates changelog, docs |
+
+### Agent Coordination
+
+- All agents read this `CLAUDE.md` for project rules
+- Agents update `AGENT_STATE.md` with their progress
+- Escalation to @jeremy when stuck >30min or after 3 CI failures
+
 ## Escalation
-Assign to @jeremy when stuck >30min, CI fails 3x, or needs architecture decision.
+
+Assign to @jeremy when:
+- Stuck >30min
+- CI fails 3x on same issue
+- Needs architecture decision
+- Security concern
+
+## Architecture
+
+- Thinker agents run as independent async tasks (concurrent responses)
+- Conversation only progresses when user has chat window open
+- Agents resume automatically when user returns to chat

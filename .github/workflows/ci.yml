@@ -1,0 +1,465 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggering for deployments
+  repository_dispatch:  # Triggered by claude-work after auto-merge (GITHUB_TOKEN can't trigger push)
+    types: [deploy-after-merge]
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}-frontend
+
+jobs:
+  # Determine which parts of the codebase changed
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            e2e:
+              - 'backend/**'
+              - 'frontend/**'
+            # Note: workflow-only changes don't trigger e2e - app code unchanged
+
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy .
+
+      - name: Test with coverage
+        run: uv run pytest --cov=app --cov-report=xml --cov-fail-under=60
+
+  frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [changes, backend, frontend]
+    # Only run E2E on PRs (not on push to main) - PR E2E is sufficient
+    # This avoids running E2E twice (once on PR, once on merge)
+    # always() ensures condition is evaluated even when dependent jobs are skipped
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.e2e == 'true' &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped') &&
+      (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+
+      - name: Wait for backend
+        run: sleep 5
+
+      - name: Run E2E tests
+        working-directory: frontend
+        # Only run chromium project - WebKit/iOS projects require additional browser install
+        run: npm run test:e2e -- --project=chromium
+
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [changes, backend, frontend]
+    # Run on push to main if code changed AND unit tests passed
+    # E2E is skipped on main (already passed on PR) so we don't check it here
+    # always() ensures condition is evaluated even when jobs are skipped
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') &&
+      (needs.changes.outputs.e2e == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') &&
+      needs.backend.result != 'failure' &&
+      needs.frontend.result != 'failure'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+
+      - name: Build and push Backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+
+      - name: Derive WebSocket URL from Backend URL
+        id: ws-url
+        run: echo "url=$(echo '${{ secrets.PRODUCTION_BACKEND_URL }}' | sed 's|^https://|wss://|')" >> $GITHUB_OUTPUT
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.PRODUCTION_BACKEND_URL }}
+            NEXT_PUBLIC_WS_URL=${{ steps.ws-url.outputs.url }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    # always() needed because upstream jobs use always()
+    if: |
+      always() &&
+      needs.build-and-push.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')
+
+    steps:
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Redeploy Backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+        run: railway redeploy --service backend --yes
+
+      - name: Redeploy Frontend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+        run: railway redeploy --service frontend --yes
+
+  smoke-test:
+    name: Production Smoke Test
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    # always() needed because upstream jobs use always()
+    if: |
+      always() &&
+      needs.deploy.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')
+
+    steps:
+      - name: Wait for Railway to start deployment
+        run: sleep 15
+
+      - name: Check backend health (poll until ready)
+        run: |
+          BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
+          if [ -z "$BACKEND_URL" ]; then
+            echo "Warning: PRODUCTION_BACKEND_URL not set, skipping backend check"
+            exit 0
+          fi
+          echo "Polling backend health at $BACKEND_URL/health"
+
+          # Poll up to 12 times with 10-second intervals (2 minutes total)
+          for i in $(seq 1 12); do
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health" || echo "000")
+            if [ "$response" = "200" ]; then
+              echo "Backend health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i/12: Backend returned $response, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Backend health check failed after 12 attempts (2 minutes)"
+          exit 1
+
+      - name: Check frontend health (poll until ready)
+        run: |
+          FRONTEND_URL="${{ secrets.PRODUCTION_FRONTEND_URL }}"
+          if [ -z "$FRONTEND_URL" ]; then
+            echo "Warning: PRODUCTION_FRONTEND_URL not set, skipping frontend check"
+            exit 0
+          fi
+          echo "Polling frontend at $FRONTEND_URL"
+
+          # Poll up to 12 times with 10-second intervals (2 minutes total)
+          for i in $(seq 1 12); do
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" || echo "000")
+            if [ "$response" = "200" ]; then
+              echo "Frontend health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i/12: Frontend returned $response, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Frontend health check failed after 12 attempts (2 minutes)"
+          exit 1
+
+      - name: Test user registration
+        id: register
+        run: |
+          BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
+          if [ -z "$BACKEND_URL" ]; then
+            echo "Warning: PRODUCTION_BACKEND_URL not set, skipping registration test"
+            exit 0
+          fi
+          # Generate unique username for this test run
+          TEST_USER="smoketest_$(date +%s)"
+          TEST_DISPLAY="Smoke Test User"
+          TEST_PASS="testpass123"
+          echo "Testing registration with user: $TEST_USER"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST "$BACKEND_URL/api/auth/register" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\": \"$TEST_USER\", \"display_name\": \"$TEST_DISPLAY\", \"password\": \"$TEST_PASS\"}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "Response code: $http_code"
+          echo "Response body: $body"
+
+          if [ "$http_code" = "200" ]; then
+            echo "Registration successful"
+            # Extract token for next step
+            TOKEN=$(echo "$body" | jq -r '.access_token')
+            echo "token=$TOKEN" >> $GITHUB_OUTPUT
+            echo "test_user=$TEST_USER" >> $GITHUB_OUTPUT
+          else
+            echo "Registration failed with status: $http_code"
+            exit 1
+          fi
+
+      - name: Test user authentication (get current user)
+        run: |
+          BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
+          TOKEN="${{ steps.register.outputs.token }}"
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Warning: No token available, skipping auth test"
+            exit 0
+          fi
+          echo "Testing authenticated endpoint /api/auth/me"
+
+          response=$(curl -s -w "\n%{http_code}" "$BACKEND_URL/api/auth/me" \
+            -H "Authorization: Bearer $TOKEN")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "Response code: $http_code"
+          echo "Response body: $body"
+
+          if [ "$http_code" = "200" ]; then
+            echo "Auth check passed"
+            username=$(echo "$body" | jq -r '.username')
+            echo "Logged in as: $username"
+          else
+            echo "Auth check failed with status: $http_code"
+            exit 1
+          fi
+
+  # Close issues only after successful deploy and smoke tests
+  close-issues:
+    name: Close Related Issues
+    runs-on: ubuntu-latest
+    needs: [smoke-test]
+    if: |
+      always() &&
+      needs.smoke-test.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 10  # Get recent commits to find issue references
+
+      - name: Find and close related issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Finding issues referenced in recent PRs..."
+
+          # Get PR numbers from recent commit messages (squash merges include PR #)
+          PR_NUMBERS=$(git log --oneline -10 | grep -oE '#[0-9]+' | tr -d '#' | sort -u)
+
+          ISSUE_NUMBERS=""
+
+          # For each PR, check its body for "Relates to #N"
+          for PR_NUM in $PR_NUMBERS; do
+            echo "Checking PR #$PR_NUM for issue references..."
+            PR_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
+
+            # Extract issue numbers from "Relates to #N" or "Fixes #N" patterns
+            REFS=$(echo "$PR_BODY" | grep -oE '(Relates to|Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
+
+            if [ -n "$REFS" ]; then
+              echo "  Found issue refs in PR #$PR_NUM: $REFS"
+              ISSUE_NUMBERS="$ISSUE_NUMBERS $REFS"
+            fi
+          done
+
+          # Deduplicate
+          ISSUE_NUMBERS=$(echo "$ISSUE_NUMBERS" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+
+          if [ -z "$(echo "$ISSUE_NUMBERS" | tr -d ' ')" ]; then
+            echo "No issue references found in recent PRs"
+            exit 0
+          fi
+
+          echo "Found issue references: $ISSUE_NUMBERS"
+
+          for ISSUE_NUM in $ISSUE_NUMBERS; do
+            [ -z "$ISSUE_NUM" ] && continue
+            echo "Checking issue #$ISSUE_NUM..."
+
+            # Get issue state
+            STATE=$(gh issue view $ISSUE_NUM --json state -q .state 2>/dev/null || echo "NOT_FOUND")
+
+            if [ "$STATE" = "OPEN" ]; then
+              echo "Closing issue #$ISSUE_NUM (deploy successful)"
+              gh issue close $ISSUE_NUM \
+                --comment "✅ **Deployed to production**
+
+              This issue was resolved and the fix has been successfully deployed.
+
+              Commit: ${{ github.sha }}
+              Workflow: [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            elif [ "$STATE" = "CLOSED" ]; then
+              echo "Issue #$ISSUE_NUM already closed"
+            else
+              echo "Issue #$ISSUE_NUM not found or inaccessible"
+            fi
+          done
