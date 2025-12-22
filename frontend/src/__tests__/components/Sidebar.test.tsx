@@ -166,7 +166,7 @@ describe('Sidebar', () => {
 
     // Check that URL contains GitHub issue creation path
     expect(url).toContain(
-      'github.com/jeremymatthewwerner/thinkers-chat/issues/new'
+      'github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory/issues/new'
     );
 
     // Check that user info is in the body

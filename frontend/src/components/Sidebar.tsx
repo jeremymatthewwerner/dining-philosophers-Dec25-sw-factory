@@ -72,7 +72,7 @@ export function Sidebar({
           <div className="px-4 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <a
-                href="https://github.com/jeremymatthewwerner/thinkers-chat"
+                href="https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-lg font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"

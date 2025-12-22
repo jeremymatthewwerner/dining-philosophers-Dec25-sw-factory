@@ -32,7 +32,7 @@ describe('generateBugReportUrl', () => {
     const url = generateBugReportUrl({ username: 'testuser' });
 
     expect(url).toContain(
-      'https://github.com/jeremymatthewwerner/thinkers-chat/issues/new'
+      'https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory/issues/new'
     );
     expect(url).toContain('title=');
     expect(url).toContain('labels=P3');

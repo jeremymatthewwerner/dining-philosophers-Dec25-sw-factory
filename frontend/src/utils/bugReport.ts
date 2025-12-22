@@ -51,7 +51,7 @@ ${userInfoSection}`;
   const encodedBody = encodeURIComponent(body);
   const labels = encodeURIComponent('P3');
 
-  return `https://github.com/jeremymatthewwerner/thinkers-chat/issues/new?title=${title}&body=${encodedBody}&labels=${labels}`;
+  return `https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory/issues/new?title=${title}&body=${encodedBody}&labels=${labels}`;
 }
 
 /**
