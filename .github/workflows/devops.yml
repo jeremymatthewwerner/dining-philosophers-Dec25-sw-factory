@@ -26,21 +26,49 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check health
-        id: health
+      - name: Check backend health
+        id: backend
         run: |
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://diningphilosophers.ai/api/health 2>/dev/null || echo "000")
+          BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
+          if [ -z "$BACKEND_URL" ]; then
+            echo "PRODUCTION_BACKEND_URL not set, skipping"
+            echo "status=skip" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BACKEND_URL/health" 2>/dev/null || echo "000")
           echo "status=$HTTP" >> $GITHUB_OUTPUT
           if [ "$HTTP" != "200" ]; then
             echo "unhealthy=true" >> $GITHUB_OUTPUT
           fi
-          
-      - name: Trigger incident if unhealthy
-        if: steps.health.outputs.unhealthy == 'true'
+
+      - name: Check frontend health
+        id: frontend
         run: |
-          gh workflow run devops.yml -f severity=SEV2 -f description="Health check failed: HTTP ${{ steps.health.outputs.status }}"
+          FRONTEND_URL="${{ secrets.PRODUCTION_FRONTEND_URL }}"
+          if [ -z "$FRONTEND_URL" ]; then
+            echo "PRODUCTION_FRONTEND_URL not set, skipping"
+            echo "status=skip" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$FRONTEND_URL" 2>/dev/null || echo "000")
+          echo "status=$HTTP" >> $GITHUB_OUTPUT
+          if [ "$HTTP" != "200" ]; then
+            echo "unhealthy=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger incident if unhealthy
+        if: steps.backend.outputs.unhealthy == 'true' || steps.frontend.outputs.unhealthy == 'true'
+        run: |
+          DESCRIPTION="Health check failed:"
+          if [ "${{ steps.backend.outputs.unhealthy }}" == "true" ]; then
+            DESCRIPTION="$DESCRIPTION Backend=${{ steps.backend.outputs.status }}"
+          fi
+          if [ "${{ steps.frontend.outputs.unhealthy }}" == "true" ]; then
+            DESCRIPTION="$DESCRIPTION Frontend=${{ steps.frontend.outputs.status }}"
+          fi
+          gh workflow run devops.yml -f severity=SEV2 -f description="$DESCRIPTION"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   incident:
     if: github.event_name == 'workflow_dispatch'
@@ -48,20 +76,24 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/devops-sre.md first.
-            
+
             INCIDENT: ${{ github.event.inputs.severity }} - ${{ github.event.inputs.description }}
-            
+
             Response:
-            1. Diagnose the issue
-            2. Check logs and recent deployments
-            3. Attempt mitigation (max 2 restarts)
-            4. Create incident issue
+            1. Diagnose the issue - check recent deployments: gh run list --limit 10
+            2. Check if this is a known issue: gh issue list --label bug
+            3. Attempt mitigation if possible
+            4. Create incident issue: gh issue create --title "Incident: ..." --label "bug,P0"
             5. Escalate to @jeremy if SEV1 or can't resolve
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh:*),Bash(curl:*),Read,Glob,Grep"
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
