@@ -213,6 +213,38 @@ class TestSessionAPI:
         response = await client.get("/api/sessions/me")
         assert response.status_code == 401  # Not authenticated
 
+    async def test_get_session_invalid_token(self, client: AsyncClient) -> None:
+        """Test that invalid token returns 401."""
+        headers = {"Authorization": "Bearer invalid_token_here"}
+        response = await client.get("/api/sessions/me", headers=headers)
+        assert response.status_code == 401
+        assert "Invalid token" in response.json()["detail"]
+
+    async def test_get_session_token_missing_session_id(self, client: AsyncClient) -> None:
+        """Test that token without session_id returns 401."""
+        from app.core.auth import create_access_token
+
+        # Create a token without session_id (only user_id)
+        token = create_access_token({"sub": "some-user-id"})
+        headers = {"Authorization": f"Bearer {token}"}
+        response = await client.get("/api/sessions/me", headers=headers)
+        assert response.status_code == 401
+        assert "no session" in response.json()["detail"].lower()
+
+    async def test_get_session_nonexistent_session(self, client: AsyncClient) -> None:
+        """Test that token with non-existent session_id returns 404."""
+        from uuid import uuid4
+
+        from app.core.auth import create_access_token
+
+        # Create a token with a non-existent session_id
+        fake_session_id = str(uuid4())
+        token = create_access_token({"sub": "some-user-id", "session_id": fake_session_id})
+        headers = {"Authorization": f"Bearer {token}"}
+        response = await client.get("/api/sessions/me", headers=headers)
+        assert response.status_code == 404
+        assert "Session not found" in response.json()["detail"]
+
 
 class TestConversationAPI:
     """Tests for conversation endpoints."""
