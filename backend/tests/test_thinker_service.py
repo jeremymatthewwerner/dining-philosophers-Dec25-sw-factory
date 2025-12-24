@@ -963,3 +963,305 @@ class TestSuggestThinkersErrorHandling:
 
         assert len(result) == 1
         assert result[0].name == "Socrates"
+
+    async def test_suggest_with_exclude_list(self) -> None:
+        """Test that suggest_thinkers properly excludes specified thinkers."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_response.content = [
+            TextBlock(
+                type="text",
+                text="""[{
+                    "name": "Plato",
+                    "reason": "Student of Socrates",
+                    "profile": {
+                        "name": "Plato",
+                        "bio": "Greek philosopher",
+                        "positions": "Theory of forms",
+                        "style": "Dialogues"
+                    }
+                }]""",
+            )
+        ]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        result = await service.suggest_thinkers("philosophy", 1, exclude=["Socrates", "Aristotle"])
+
+        # Should still return results, just not the excluded ones
+        assert len(result) == 1
+        assert result[0].name == "Plato"
+
+    async def test_suggest_parallel_batch_with_errors(self) -> None:
+        """Test parallel batch suggestions when some batches fail."""
+
+        service = ThinkerService()
+
+        # Mock multiple batch responses - one success, one error, one exception
+        mock_response = MagicMock()
+        mock_response.content = [
+            TextBlock(
+                type="text",
+                text="""[{
+                    "name": "Socrates",
+                    "reason": "Master of questioning",
+                    "profile": {
+                        "name": "Socrates",
+                        "bio": "Ancient Greek philosopher",
+                        "positions": "Socratic method",
+                        "style": "Questions everything"
+                    }
+                }]""",
+            )
+        ]
+
+        mock_client = AsyncMock()
+        # First batch succeeds, second raises error
+        mock_client.messages.create = AsyncMock(
+            side_effect=[mock_response, Exception("Network error")]
+        )
+        service._client = mock_client
+
+        # Request 3 thinkers to trigger parallel batches
+        result = await service.suggest_thinkers("philosophy", 3)
+
+        # Should return partial results from successful batch
+        assert len(result) > 0
+
+    async def test_suggest_api_quota_error_propagates(self) -> None:
+        """Test that API quota errors are properly detected and propagated."""
+        from app.exceptions import ThinkerAPIError
+
+        service = ThinkerService()
+
+        mock_request = MagicMock()
+        mock_request.url = "https://api.anthropic.com/v1/messages"
+        mock_request.method = "POST"
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(
+            side_effect=APIError("Your credit balance is too low", mock_request, body=None)
+        )
+        service._client = mock_client
+
+        with pytest.raises(ThinkerAPIError) as exc_info:
+            await service.suggest_thinkers("test", 1)
+
+        assert exc_info.value.is_quota_error
+
+
+class TestValidateThinkerErrorHandling:
+    """Tests for error handling in validate_thinker."""
+
+    async def test_validate_handles_non_text_block(self) -> None:
+        """Test that validate_thinker handles non-text response blocks."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_non_text_block = MagicMock()
+        mock_non_text_block.__class__.__name__ = "ThinkingBlock"
+        mock_response.content = [mock_non_text_block]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        is_valid, profile = await service.validate_thinker("Test Person")
+
+        assert is_valid is False
+        assert profile is None
+
+    async def test_validate_handles_json_decode_error(self) -> None:
+        """Test that validate_thinker handles invalid JSON."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_response.content = [TextBlock(type="text", text="Invalid JSON {]")]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        is_valid, profile = await service.validate_thinker("Test Person")
+
+        assert is_valid is False
+        assert profile is None
+
+    async def test_validate_api_quota_error(self) -> None:
+        """Test that validate_thinker properly handles quota errors."""
+        from app.exceptions import ThinkerAPIError
+
+        service = ThinkerService()
+
+        mock_request = MagicMock()
+        mock_request.url = "https://api.anthropic.com/v1/messages"
+        mock_request.method = "POST"
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(
+            side_effect=APIError("credit balance is too low", mock_request, body=None)
+        )
+        service._client = mock_client
+
+        with pytest.raises(ThinkerAPIError) as exc_info:
+            await service.validate_thinker("Test Person")
+
+        assert exc_info.value.is_quota_error
+
+
+class TestWikipediaImage:
+    """Tests for Wikipedia image fetching."""
+
+    async def test_get_image_with_no_thumbnail(self) -> None:
+        """Test get_wikipedia_image when page has no thumbnail."""
+        service = ThinkerService()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+
+            # Mock search response
+            search_response = MagicMock()
+            search_response.json.return_value = {"query": {"search": [{"title": "Test Person"}]}}
+
+            # Mock image response WITHOUT thumbnail
+            image_response = MagicMock()
+            image_response.json.return_value = {
+                "query": {"pages": {"123": {"title": "Test Person"}}}
+            }
+
+            mock_client.get = AsyncMock(side_effect=[search_response, image_response])
+
+            result = await service.get_wikipedia_image("Test Person")
+
+            assert result is None
+
+    async def test_get_image_with_timeout(self) -> None:
+        """Test get_wikipedia_image handles timeout gracefully."""
+
+        service = ThinkerService()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            mock_client.get = AsyncMock(side_effect=TimeoutError())
+
+            result = await service.get_wikipedia_image("Test Person")
+
+            # Should return None on timeout
+            assert result is None
+
+
+class TestGenerateResponseErrorHandling:
+    """Tests for error handling in generate_response."""
+
+    async def test_generate_response_api_error(self) -> None:
+        """Test that generate_response properly handles API errors."""
+        from app.exceptions import ThinkerAPIError
+
+        service = ThinkerService()
+
+        mock_request = MagicMock()
+        mock_request.url = "https://api.anthropic.com/v1/messages"
+        mock_request.method = "POST"
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(
+            side_effect=APIError("Rate limit exceeded", mock_request, body=None)
+        )
+        service._client = mock_client
+
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+        thinker.bio = "Ancient philosopher"
+        thinker.positions = "Socratic method"
+        thinker.style = "Questions everything"
+        messages: Any = []
+
+        with pytest.raises(ThinkerAPIError):
+            await service.generate_response(thinker, messages, "test")
+
+    async def test_generate_response_handles_non_text_block(self) -> None:
+        """Test that generate_response handles non-text response blocks."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_non_text_block = MagicMock()
+        mock_non_text_block.__class__.__name__ = "ThinkingBlock"
+        mock_response.content = [mock_non_text_block]
+        mock_response.usage.input_tokens = 100
+        mock_response.usage.output_tokens = 10
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+        thinker.bio = "Ancient philosopher"
+        thinker.positions = "Socratic method"
+        thinker.style = "Questions everything"
+        messages: Any = []
+
+        response, cost = await service.generate_response(thinker, messages, "test")
+
+        assert response == ""
+        assert cost == 0.0
+
+
+class TestGenerateUserPromptErrorHandling:
+    """Tests for error handling in generate_user_prompt."""
+
+    async def test_generate_user_prompt_handles_exception(self) -> None:
+        """Test that generate_user_prompt handles exceptions gracefully."""
+        service = ThinkerService()
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(side_effect=Exception("Network error"))
+        service._client = mock_client
+
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+        thinker.bio = "Ancient philosopher"
+        thinker.positions = "Socratic method"
+        thinker.style = "Questions everything"
+        messages: Any = []
+
+        response, cost = await service.generate_user_prompt(thinker, messages, "test", "Alice")
+
+        # Should return empty on error
+        assert response == ""
+        assert cost == 0.0
+
+    async def test_generate_user_prompt_handles_non_text_block(self) -> None:
+        """Test that generate_user_prompt handles non-text response blocks."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_non_text_block = MagicMock()
+        mock_non_text_block.__class__.__name__ = "ThinkingBlock"
+        mock_response.content = [mock_non_text_block]
+        mock_response.usage.input_tokens = 100
+        mock_response.usage.output_tokens = 10
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+        thinker.bio = "Ancient philosopher"
+        thinker.positions = "Socratic method"
+        thinker.style = "Questions everything"
+        messages: Any = []
+
+        response, cost = await service.generate_user_prompt(thinker, messages, "test", "Alice")
+
+        assert response == ""
+        assert cost == 0.0

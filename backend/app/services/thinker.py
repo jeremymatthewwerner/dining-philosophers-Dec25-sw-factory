@@ -227,15 +227,11 @@ Return ONLY the JSON array, no other text."""
 
             first_block = response.content[0]
             if not isinstance(first_block, TextBlock):
-                import logging
-
                 logging.warning(f"Claude returned non-text block: {type(first_block)}")
                 return []
             raw_content = first_block.text
             content = raw_content.strip()
             if not content:
-                import logging
-
                 logging.warning("Claude returned empty response")
                 return []
             # Strip markdown code fences if present
@@ -248,8 +244,6 @@ Return ONLY the JSON array, no other text."""
             try:
                 data = json.loads(content)
             except json.JSONDecodeError as e:
-                import logging
-
                 logging.warning(
                     f"Failed to parse JSON: {e}. Raw: {repr(raw_content[:300])} | After strip: {repr(content[:300])}"
                 )
