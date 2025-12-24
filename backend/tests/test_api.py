@@ -435,8 +435,16 @@ class TestThinkerAPI:
         assert all("name" in t for t in data)
         assert all("profile" in t for t in data)
 
-    async def test_validate_known_thinker(self, client: AsyncClient) -> None:
+    async def test_validate_known_thinker(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test validating a known thinker."""
+        # Mock settings to have no API key, so we use the mock validation path
+        monkeypatch.setattr(
+            "app.api.thinkers.get_settings",
+            lambda: type("Settings", (), {"anthropic_api_key": ""})(),
+        )
+
         response = await client.post(
             "/api/thinkers/validate",
             json={"name": "Socrates"},
@@ -446,8 +454,16 @@ class TestThinkerAPI:
         assert data["valid"] is True
         assert data["profile"] is not None
 
-    async def test_validate_unknown_thinker(self, client: AsyncClient) -> None:
+    async def test_validate_unknown_thinker(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test validating an unknown thinker."""
+        # Mock settings to have no API key, so we use the mock validation path
+        monkeypatch.setattr(
+            "app.api.thinkers.get_settings",
+            lambda: type("Settings", (), {"anthropic_api_key": ""})(),
+        )
+
         response = await client.post(
             "/api/thinkers/validate",
             json={"name": "NotARealPerson12345"},
