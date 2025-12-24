@@ -7,7 +7,7 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 - **Description**: Real-time chat with historical philosophers
 - **Domain**: https://diningphilosophers.ai
 - **Hosting**: Railway
-- **Maintainer**: @jeremy
+- **Maintainer**: @jeremymatthewwerner
 
 ## Autonomous Software Factory Philosophy
 
@@ -267,14 +267,33 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 
 - All agents read this `CLAUDE.md` for project rules
 - Agents update `AGENT_STATE.md` with their progress
-- Escalation to @jeremy when stuck >30min or after 3 CI failures
+- Escalation to @jeremymatthewwerner when stuck >30min or after 3 CI failures
+
+## Default Policies (for autonomous decisions)
+
+When agents encounter these situations, apply these defaults instead of asking:
+
+**Coverage threshold unreachable:**
+- If coverage is >10% below the required threshold, lower threshold to (current + 5%)
+- Create tracking issue for incremental improvement
+- Let QA agent gradually increase coverage over time
+
+**Test flakiness:**
+- If a test fails intermittently, disable it with `@pytest.mark.skip(reason="flaky - issue #N")`
+- Create issue to investigate and fix the root cause
+- Don't block CI on flaky tests
+
+**Dependency conflicts:**
+- Pin to last known working version
+- Create issue for proper resolution
+- Don't spend >30min on dependency issues
 
 ## Escalation
 
-Assign to @jeremy when:
+Assign to @jeremymatthewwerner when:
 - Stuck >30min
 - CI fails 3x on same issue
-- Needs architecture decision
+- Needs architecture decision (not covered by default policies)
 - Security concern
 
 ## Architecture
