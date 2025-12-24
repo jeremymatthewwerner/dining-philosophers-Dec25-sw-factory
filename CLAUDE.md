@@ -25,6 +25,7 @@ Create these labels (or run: `gh label create <name> --color <color>`):
 - `ai-ready` (#0E8A16) - Ready for autonomous agent
 - `needs-human` (#D93F0B) - Requires human intervention
 - `qa-agent` (#0052CC) - QA Agent tracking issues
+- `automation` (#BFDADC) - Automated by agents
 - `ci-failure` (#B60205) - CI failure issues
 - `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
 
