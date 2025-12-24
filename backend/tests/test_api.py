@@ -195,6 +195,18 @@ class TestAuthAPI:
         response = await client.get("/api/auth/me")
         assert response.status_code == 401  # Not authenticated
 
+    async def test_login_invalid_username(self, client: AsyncClient) -> None:
+        """Test login with username that doesn't exist."""
+        response = await client.post(
+            "/api/auth/login",
+            json={
+                "username": "nonexistentuser",
+                "password": "password123",
+            },
+        )
+        assert response.status_code == 401
+        assert "Invalid username or password" in response.json()["detail"]
+
 
 class TestSessionAPI:
     """Tests for session endpoints."""
@@ -417,6 +429,32 @@ class TestConversationAPI:
         )
         assert response.status_code == 404
 
+    async def test_send_message_conversation_not_found(self, client: AsyncClient) -> None:
+        """Test sending message to non-existent conversation."""
+        headers = await get_auth_headers(client, "msgnotfound", "password123")
+        response = await client.post(
+            "/api/conversations/non-existent-id/messages",
+            headers=headers,
+            json={"content": "Hello"},
+        )
+        assert response.status_code == 404
+
+    async def test_delete_conversation_not_found(self, client: AsyncClient) -> None:
+        """Test deleting non-existent conversation."""
+        headers = await get_auth_headers(client, "delnotfound", "password123")
+        response = await client.delete(
+            "/api/conversations/non-existent-id",
+            headers=headers,
+        )
+        assert response.status_code == 404
+
+    async def test_list_conversations_empty(self, client: AsyncClient) -> None:
+        """Test listing conversations when none exist."""
+        headers = await get_auth_headers(client, "emptylist", "password123")
+        response = await client.get("/api/conversations", headers=headers)
+        assert response.status_code == 200
+        assert response.json() == []
+
 
 class TestThinkerAPI:
     """Tests for thinker endpoints."""
@@ -446,8 +484,18 @@ class TestThinkerAPI:
         assert data["valid"] is True
         assert data["profile"] is not None
 
-    async def test_validate_unknown_thinker(self, client: AsyncClient) -> None:
+    async def test_validate_unknown_thinker(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test validating an unknown thinker."""
+        from app.services.thinker import thinker_service
+
+        # Mock the validate_thinker method to return False for unknown person
+        async def mock_validate(*_args: object, **_kwargs: object) -> tuple[bool, None]:
+            return False, None
+
+        monkeypatch.setattr(thinker_service, "validate_thinker", mock_validate)
+
         response = await client.post(
             "/api/thinkers/validate",
             json={"name": "NotARealPerson12345"},
