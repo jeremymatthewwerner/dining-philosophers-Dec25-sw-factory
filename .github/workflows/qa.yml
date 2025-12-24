@@ -72,7 +72,70 @@ jobs:
             7) FOCUS="regression-prevention" ;;
           esac
           echo "focus=$FOCUS" >> $GITHUB_OUTPUT
+          echo "day_name=$(date +%A)" >> $GITHUB_OUTPUT
           echo "Today's focus: $FOCUS"
+
+      - name: Get current coverage
+        id: coverage
+        working-directory: backend
+        run: |
+          # Run coverage and extract percentage
+          COVERAGE=$(uv run pytest --cov=app --cov-report=term 2>/dev/null | grep "TOTAL" | awk '{print $4}' || echo "unknown")
+          echo "current=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Current backend coverage: $COVERAGE"
+
+      - name: Create tracking issue
+        id: create-issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FOCUS="${{ github.event.inputs.focus || steps.day.outputs.focus }}"
+          DAY="${{ steps.day.outputs.day_name }}"
+          COVERAGE="${{ steps.coverage.outputs.current }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          ISSUE_URL=$(gh issue create \
+            --title "🤖 QA Agent: $FOCUS ($DAY)" \
+            --label "qa-agent,automation" \
+            --body "## QA Agent Work Session
+
+          **Focus:** $FOCUS
+          **Day:** $DAY
+          **Current Coverage:** $COVERAGE
+          **Workflow Run:** [View logs]($RUN_URL)
+
+          ---
+
+          ## Status: 🔄 In Progress
+
+          The QA agent is analyzing the codebase and will update this issue with:
+          1. Analysis findings
+          2. Detailed plan of tests to add
+          3. Progress updates
+          4. Final results and PR link
+
+          ---
+
+          ## Analysis
+          _Pending..._
+
+          ## Plan
+          _Pending..._
+
+          ## Progress
+          _Pending..._
+
+          ## Results
+          _Pending..._
+
+          ---
+          *This issue is automatically managed by the QA Agent*")
+
+          # Extract issue number from URL
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
+          echo "Created tracking issue #$ISSUE_NUMBER"
 
       - uses: anthropics/claude-code-action@v1
         with:
@@ -81,42 +144,119 @@ jobs:
 
             ## Your Mission: Improve Test Quality
 
-            Focus for this run: ${{ github.event.inputs.focus || steps.day.outputs.focus }}
+            **IMPORTANT: You have a tracking issue to update!**
+            - Issue number: #${{ steps.create-issue.outputs.issue_number }}
+            - You MUST update this issue with your progress using `gh issue edit` or `gh issue comment`
 
-            ### Step 1: Reflection & Analysis
-            Start by analyzing current test state:
+            Focus for this run: ${{ github.event.inputs.focus || steps.day.outputs.focus }}
+            Current coverage: ${{ steps.coverage.outputs.current }}
+            Coverage goal: 85%
+
+            ### Step 1: Analysis (UPDATE ISSUE AFTER THIS STEP)
 
             1. Run coverage reports:
                - Backend: `cd backend && uv run pytest --cov=app --cov-report=term-missing`
                - Frontend: `cd frontend && npm run test:coverage`
 
-            2. Review E2E test files in `frontend/e2e/`
+            2. Identify specific gaps:
+               - List files with <60% coverage
+               - List files with <85% coverage (our goal)
+               - Identify missing E2E user journeys
+               - Find untested edge cases
 
-            3. Identify:
-               - Files with <60% coverage
-               - Missing E2E user journeys
-               - Untested edge cases
+            3. **UPDATE THE TRACKING ISSUE** with your analysis findings:
+               ```bash
+               gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "## Analysis Complete
 
-            ### Step 2: Take Action Based on Focus
+               ### Coverage Report
+               [paste coverage findings]
 
-            **If coverage-sprint**: Pick lowest coverage file, add tests to increase by 15%+
-            **If flaky-hunt**: Run test suite 5x, identify and fix any failures
-            **If integration-gaps**: Find untested API endpoints, add integration tests
-            **If e2e-enhancement**: Add edge case E2E tests (empty inputs, errors, mobile)
-            **If test-refactoring**: Improve test readability and reduce duplication
-            **If edge-cases**: Add tests for error paths and boundary conditions
-            **If regression-prevention**: Review recent commits, add tests for bug fixes
+               ### Files Needing Tests
+               [list specific files and their coverage]
 
-            ### Step 3: Quality Checks
-            - Run all new tests 3x to verify no flakiness
-            - Ensure tests are meaningful (not just for coverage)
-            - Add clear test descriptions
+               ### Gaps Identified
+               [list what's missing]"
+               ```
 
-            ### Step 4: Create PR
-            Create a PR with:
-            - Coverage diff (before/after)
-            - List of new tests with descriptions
-            - Any issues found that need human attention
+            ### Step 2: Create Detailed Plan (UPDATE ISSUE AFTER THIS STEP)
+
+            Based on focus "${{ github.event.inputs.focus || steps.day.outputs.focus }}":
+            - **coverage-sprint**: Pick lowest coverage file, plan tests to increase by 15%+
+            - **flaky-hunt**: Run test suite 5x, identify failures
+            - **integration-gaps**: Find untested API endpoints
+            - **e2e-enhancement**: Plan edge case E2E tests
+            - **edge-cases**: Plan tests for error paths
+            - **regression-prevention**: Review recent commits
+
+            **UPDATE THE TRACKING ISSUE** with your detailed plan:
+            ```bash
+            gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "## Detailed Plan
+
+            ### Tests to Add
+            1. [test name] - [what it tests] - [file location]
+            2. [test name] - [what it tests] - [file location]
+            ...
+
+            ### Expected Coverage Impact
+            [estimate of coverage increase]
+
+            ### Estimated Effort
+            [number of tests, complexity]"
+            ```
+
+            ### Step 3: Implement Tests (UPDATE ISSUE WITH PROGRESS)
+
+            As you implement each test:
+            1. Write the test
+            2. Run it 3x to verify no flakiness
+            3. Update the issue with progress:
+               ```bash
+               gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "✅ Added: [test name]
+               - File: [location]
+               - Coverage impact: [X% -> Y%]"
+               ```
+
+            ### Step 4: Update TEST_PLAN.md
+
+            Add entries for ALL new tests with:
+            - Test name and file location
+            - What the test validates
+            - Edge cases covered
+
+            ### Step 5: Create PR and Final Update
+
+            1. Create PR referencing the tracking issue:
+               ```bash
+               gh pr create --title "test: [description]" --body "## Summary
+               [what was added]
+
+               ## Coverage Impact
+               Before: ${{ steps.coverage.outputs.current }}
+               After: [new coverage]
+
+               ## Tests Added
+               [list]
+
+               Relates to #${{ steps.create-issue.outputs.issue_number }}"
+               ```
+
+            2. Update tracking issue with final results:
+               ```bash
+               gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "## ✅ Work Complete
+
+               ### Results
+               - Coverage: ${{ steps.coverage.outputs.current }} -> [new]%
+               - Tests added: [count]
+               - PR: #[number]
+
+               ### Tests Added
+               [list all tests]"
+               ```
+
+            3. Close the tracking issue:
+               ```bash
+               gh issue close ${{ steps.create-issue.outputs.issue_number }} --comment "Work completed. See PR #[number]"
+               ```
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
@@ -125,3 +265,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure issue is updated on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "## ❌ QA Agent Run Failed
+
+          The workflow encountered an error. Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          This issue remains open for manual follow-up or retry."
+
+          gh issue edit ${{ steps.create-issue.outputs.issue_number }} --add-label "needs-human"
