@@ -59,21 +59,56 @@ jobs:
             echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Mark issue as in progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ steps.issue.outputs.number }} --body "## 🤖 Code Agent Started
+
+          **Status:** Analyzing issue...
+          **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          I'll update this issue with my progress."
+
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/bug-fixer.md first.
 
-            Fix issue #${{ steps.issue.outputs.number }}:
+            **IMPORTANT: You MUST update issue #${{ steps.issue.outputs.number }} with your progress!**
+
+            ## Step 1: Analyze (UPDATE ISSUE AFTER)
             1. Read the issue: gh issue view ${{ steps.issue.outputs.number }}
             2. Diagnose the root cause - search codebase, read relevant files
-            3. Create a fix branch: git checkout -b fix/${{ steps.issue.outputs.number }}-description
-            4. Implement the fix with tests
-            5. Run quality gates:
+            3. **Update the issue** with your analysis:
+               ```bash
+               gh issue comment ${{ steps.issue.outputs.number }} --body "## Analysis
+
+               **Root Cause:** [what's wrong]
+               **Files Affected:** [list files]
+               **Proposed Fix:** [what you'll do]"
+               ```
+
+            ## Step 2: Implement Fix
+            1. Create a fix branch: git checkout -b fix/${{ steps.issue.outputs.number }}-description
+            2. Implement the fix with tests
+            3. Run quality gates:
                - cd frontend && npm run lint && npm run typecheck && npm test
                - cd backend && uv run ruff check . && uv run mypy . && uv run pytest
-            6. Commit with message referencing issue: "fix: description\n\nFixes #${{ steps.issue.outputs.number }}"
-            7. Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.issue.outputs.number }}"
+
+            ## Step 3: Create PR (UPDATE ISSUE AFTER)
+            1. Commit with message referencing issue: "fix: description\n\nFixes #${{ steps.issue.outputs.number }}"
+            2. Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.issue.outputs.number }}"
+            3. **Update the issue** with PR link:
+               ```bash
+               gh issue comment ${{ steps.issue.outputs.number }} --body "## ✅ Fix Submitted
+
+               **PR:** #[number]
+               **Changes:** [summary]
+               **Tests Added:** [list]
+
+               Waiting for CI to pass."
+               ```
 
             If stuck for 30min or CI fails 3x, escalate to @jeremy.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -84,3 +119,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ steps.issue.outputs.number }} --body "## ❌ Code Agent Failed
+
+          The workflow encountered an error. Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          This issue remains open for manual follow-up."
+          gh issue edit ${{ steps.issue.outputs.number }} --add-label "needs-human"
