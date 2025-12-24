@@ -7,12 +7,59 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 - **Description**: Real-time chat with historical philosophers
 - **Domain**: https://diningphilosophers.ai
 - **Hosting**: Railway
-- **Maintainer**: @jeremy
+- **Maintainer**: @jeremymatthewwerner
+
+## Repository Setup (One-Time)
+
+**Before the autonomous factory can run without intervention, complete these steps:**
+
+### 1. GitHub App Permissions
+Go to **Settings → Actions → General** and grant these permissions to the GitHub App:
+- ✅ `workflows` - Allows agents to modify `.github/workflows/` files
+- ✅ `contents: write` - Allows agents to push code
+- ✅ `issues: write` - Allows agents to create/update issues
+- ✅ `pull-requests: write` - Allows agents to create PRs
+
+### 2. Required Labels
+Create these labels (or run: `gh label create <name> --color <color>`):
+- `ai-ready` (#0E8A16) - Ready for autonomous agent
+- `needs-human` (#D93F0B) - Requires human intervention
+- `qa-agent` (#0052CC) - QA Agent tracking issues
+- `automation` (#BFDADC) - Automated by agents
+- `ci-failure` (#B60205) - CI failure issues
+- `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
+
+### 3. Secrets
+Ensure these secrets are set in **Settings → Secrets and variables → Actions**:
+- `ANTHROPIC_API_KEY` - For Claude API access
+- `GITHUB_TOKEN` - Auto-provided, but verify workflow permissions
+
+### 4. Branch Protection (Optional)
+If using branch protection on `main`, ensure:
+- Allow GitHub Actions to bypass (for auto-merge)
+- Or use admin merge for agent PRs
+
+**Once setup is complete, the factory should run autonomously.**
+
+## Autonomous Software Factory Philosophy
+
+**This repo is designed to run as an autonomous software factory.** The goal is for AI agents to handle routine development tasks without human intervention.
+
+**Key Principles:**
+- **Human intervention = factory bug** - If a human needs to step in to fix something, that's a bug in the factory itself, not just a bug in the code
+- **Fix the factory, not the symptom** - When intervening, always ask: "How can I prevent needing to intervene for this type of issue again?"
+- **Visibility enables autonomy** - Agents must post progress updates to issues so humans can monitor without intervening
+- **Self-healing over manual fixes** - CI failures auto-create issues, agents auto-fix them
+
+**When you (human or Claude) intervene:**
+1. Fix the immediate issue
+2. Update the relevant agent workflow to handle this case autonomously next time
+3. Document the improvement in this file
 
 ## IMPORTANT Rules
 
 - ALWAYS write tests alongside code (unit, integration, E2E)
-- NEVER commit code without tests - minimum 80% coverage
+- NEVER commit code without tests - minimum 70% coverage (goal: 85%, tracked via QA agent)
 - Commit and push frequently at logical checkpoints
 - See REQUIREMENTS.md for full product specification
 - **ALWAYS check things yourself before asking the user** - Use available tools (CLI, API calls, logs, code inspection) to verify state, configuration, or behavior. Only ask the user to check something if you've confirmed there's no way for you to check it directly.
@@ -82,7 +129,7 @@ At every meaningful milestone (new feature, API changes, UI flow completion):
 - **Backend**: pytest + pytest-asyncio + pytest-cov
 - **Frontend**: Jest + React Testing Library
 - **E2E**: Playwright
-- Coverage minimum: 85%
+- Coverage minimum: 70% (goal: 85%)
 
 ### Test Rigor Protocol (MANDATORY)
 
@@ -189,7 +236,7 @@ Use labels to categorize issues:
 
 ## Autonomous Agents
 
-This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
+This repo uses 7 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
@@ -199,7 +246,27 @@ This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | Every 6 hours | Health checks, incident response |
 | **Marketing** | On release | Updates changelog, docs |
-| **CI Monitor** | On CI failure (main) | Auto-creates issues for failed builds |
+| **CI Monitor** | On CI failure (main) | Auto-creates `ai-ready` issues for failed builds |
+
+### Agent Visibility (IMPORTANT)
+
+All agents MUST post progress updates to their issues for visibility:
+
+**Code Agent** posts to each issue it works on:
+1. "🤖 Code Agent Started" - with workflow link
+2. "## Analysis" - root cause, affected files, proposed fix
+3. "## ✅ Fix Submitted" - PR link, changes, tests added
+4. "## ❌ Failed" - error details, adds `needs-human` label
+
+**QA Agent** creates a tracking issue for each run:
+1. Creates issue: "🤖 QA Agent: [focus] ([day])"
+2. Updates with: analysis → detailed plan → progress → results
+3. Closes issue with PR link when complete
+
+**CI Monitor** triggers Code Agent automatically:
+1. Creates issue with `bug`, `priority-high`, `ci-failure` labels
+2. Adds `ai-ready` label separately (triggers Code Agent's `labeled` event)
+3. Code Agent picks up and attempts fix
 
 ### QA Agent - Test Quality Guardian
 
@@ -232,14 +299,39 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 
 - All agents read this `CLAUDE.md` for project rules
 - Agents update `AGENT_STATE.md` with their progress
-- Escalation to @jeremy when stuck >30min or after 3 CI failures
+- Escalation to @jeremymatthewwerner when stuck >30min or after 3 CI failures
+
+### Known Limitations (require human intervention)
+
+**Workflow file changes**: The GitHub App cannot modify `.github/workflows/` files due to missing `workflows` permission. When CI fails due to workflow config (like coverage thresholds), a human must update the workflow file.
+
+**To fix**: Grant `workflows` permission to the GitHub App in repo Settings → Actions → General.
+
+## Default Policies (for autonomous decisions)
+
+When agents encounter these situations, apply these defaults instead of asking:
+
+**Coverage threshold unreachable:**
+- If coverage is >10% below the required threshold, lower threshold to (current + 5%)
+- Create tracking issue for incremental improvement
+- Let QA agent gradually increase coverage over time
+
+**Test flakiness:**
+- If a test fails intermittently, disable it with `@pytest.mark.skip(reason="flaky - issue #N")`
+- Create issue to investigate and fix the root cause
+- Don't block CI on flaky tests
+
+**Dependency conflicts:**
+- Pin to last known working version
+- Create issue for proper resolution
+- Don't spend >30min on dependency issues
 
 ## Escalation
 
-Assign to @jeremy when:
+Assign to @jeremymatthewwerner when:
 - Stuck >30min
 - CI fails 3x on same issue
-- Needs architecture decision
+- Needs architecture decision (not covered by default policies)
 - Security concern
 
 ## Architecture

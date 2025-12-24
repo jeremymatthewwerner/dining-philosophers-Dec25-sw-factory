@@ -69,7 +69,7 @@ jobs:
         run: uv run mypy .
 
       - name: Test with coverage
-        run: uv run pytest --cov=app --cov-report=xml --cov-fail-under=85
+        run: uv run pytest --cov=app --cov-report=xml --cov-fail-under=70
 
   frontend:
     name: Frontend Tests

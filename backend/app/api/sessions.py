@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.auth import decode_access_token
 from app.core.database import get_db
-from app.models import Session, User
+from app.models import Session
 from app.schemas import SessionResponse
 
 router = APIRouter()
@@ -41,27 +41,6 @@ async def get_session_from_token(
         raise HTTPException(status_code=404, detail="Session not found")
 
     return session
-
-
-async def get_current_user_from_token(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Get the current user from the JWT token."""
-    payload = decode_access_token(credentials.credentials)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token - no user")
-
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
 
 
 @router.get("/me", response_model=SessionResponse)
