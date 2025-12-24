@@ -106,27 +106,32 @@ jobs:
 
           ---
 
-          ## Status: 🔄 In Progress
+          ## Progress Checklist
 
-          The QA agent is analyzing the codebase and will update this issue with:
-          1. Analysis findings
-          2. Detailed plan of tests to add
-          3. Progress updates
-          4. Final results and PR link
+          - [ ] 📊 Analyze coverage gaps
+          - [ ] 📝 Create detailed test plan
+          - [ ] 🧪 Implement tests (updating below as each completes)
+          - [ ] ✅ Verify all tests pass 3x
+          - [ ] 📄 Update TEST_PLAN.md
+          - [ ] 🚀 Create PR
 
           ---
 
-          ## Analysis
-          _Pending..._
+          ## Coverage Gaps Identified
+          _Analyzing..._
 
-          ## Plan
-          _Pending..._
+          ## Test Plan
+          | File | Current | Target | Tests to Add |
+          |------|---------|--------|--------------|
+          | _Analyzing..._ | | | |
 
-          ## Progress
-          _Pending..._
+          ## Tests Added
+          - [ ] _None yet_
 
-          ## Results
-          _Pending..._
+          ## Final Results
+          - **Coverage Before:** $COVERAGE
+          - **Coverage After:** _Pending_
+          - **PR:** _Pending_
 
           ---
           *This issue is automatically managed by the QA Agent*")
@@ -146,13 +151,14 @@ jobs:
 
             **IMPORTANT: You have a tracking issue to update!**
             - Issue number: #${{ steps.create-issue.outputs.issue_number }}
-            - You MUST update this issue with your progress using `gh issue edit` or `gh issue comment`
+            - You MUST update this issue with your progress
+            - **CHECK OFF BOXES** as you complete each step using `gh issue edit`
 
             Focus for this run: ${{ github.event.inputs.focus || steps.day.outputs.focus }}
             Current coverage: ${{ steps.coverage.outputs.current }}
             Coverage goal: 85%
 
-            ### Step 1: Analysis (UPDATE ISSUE AFTER THIS STEP)
+            ### Step 1: Analysis (CHECK BOX: "📊 Analyze coverage gaps")
 
             1. Run coverage reports:
                - Backend: `cd backend && uv run pytest --cov=app --cov-report=term-missing`
