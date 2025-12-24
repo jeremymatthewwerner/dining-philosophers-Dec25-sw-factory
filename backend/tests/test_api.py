@@ -446,8 +446,17 @@ class TestThinkerAPI:
         assert data["valid"] is True
         assert data["profile"] is not None
 
-    async def test_validate_unknown_thinker(self, client: AsyncClient) -> None:
+    async def test_validate_unknown_thinker(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test validating an unknown thinker."""
+        from app.services.thinker import thinker_service
+
+        async def mock_validate(*_args: object, **_kwargs: object) -> tuple[bool, None]:
+            return False, None
+
+        monkeypatch.setattr(thinker_service, "validate_thinker", mock_validate)
+
         response = await client.post(
             "/api/thinkers/validate",
             json={"name": "NotARealPerson12345"},
