@@ -199,6 +199,7 @@ This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | Every 6 hours | Health checks, incident response |
 | **Marketing** | On release | Updates changelog, docs |
+| **CI Monitor** | On CI failure (main) | Auto-creates issues for failed builds |
 
 ### QA Agent - Test Quality Guardian
 
