@@ -27,6 +27,9 @@ Create these labels (or run: `gh label create <name> --color <color>`):
 - `qa-agent` (#0052CC) - QA Agent tracking issues
 - `automation` (#BFDADC) - Automated by agents
 - `ci-failure` (#B60205) - CI failure issues
+- `status:bot-working` (#7057FF) - Bot is actively working on this issue
+- `status:awaiting-human` (#D93F0B) - Blocked waiting for human input
+- `status:awaiting-bot` (#0E8A16) - Human commented, bot will respond
 - `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
 
 ### 3. Secrets
@@ -267,6 +270,32 @@ All agents MUST post progress updates to their issues for visibility:
 1. Creates issue with `bug`, `priority-high`, `ci-failure` labels
 2. Adds `ai-ready` label separately (triggers Code Agent's `labeled` event)
 3. Code Agent picks up and attempts fix
+
+### Interacting with the Code Agent
+
+**Comment-driven interaction:** You can comment on any issue with `@claude` to ask questions or provide suggestions. The bot will:
+1. Read your comment and the full issue context
+2. Think about your question/suggestion
+3. Post a thoughtful response
+4. Take action if appropriate
+
+**Status labels indicate who should act next:**
+| Label | Meaning | Who Acts |
+|-------|---------|----------|
+| `status:bot-working` | Bot is actively working | Wait for bot |
+| `status:awaiting-human` | Bot needs your input | You respond |
+| `status:awaiting-bot` | You commented, bot will respond | Wait for bot |
+| (no status label) | No active work | Add `ai-ready` to trigger |
+
+**Example workflow:**
+1. Issue created with `bug` + `ai-ready` labels
+2. Bot starts → `status:bot-working`
+3. Bot has a question → `status:awaiting-human` + comment asking
+4. You reply with `@claude here's the answer...`
+5. Bot responds → `status:bot-working`
+6. Bot creates PR → removes status labels
+
+**Concurrency:** Only one bot run per issue at a time. Comments are queued, not dropped.
 
 ### QA Agent - Test Quality Guardian
 
