@@ -531,3 +531,435 @@ class TestBillingErrorDetection:
             "credit" not in str(exc_info.value).lower()
             or "rate limit" in str(exc_info.value).lower()
         )
+
+
+class TestPauseResumeConversation:
+    """Tests for conversation pause/resume functionality."""
+
+    def test_pause_conversation(self) -> None:
+        """Test pausing a conversation."""
+        service = ThinkerService()
+        conversation_id = "test-conv-123"
+
+        assert not service.is_paused(conversation_id)
+
+        service.pause_conversation(conversation_id)
+
+        assert service.is_paused(conversation_id)
+
+    def test_resume_conversation(self) -> None:
+        """Test resuming a paused conversation."""
+        service = ThinkerService()
+        conversation_id = "test-conv-123"
+
+        service.pause_conversation(conversation_id)
+        assert service.is_paused(conversation_id)
+
+        service.resume_conversation(conversation_id)
+        assert not service.is_paused(conversation_id)
+
+    def test_resume_conversation_not_paused(self) -> None:
+        """Test resuming a conversation that wasn't paused."""
+        service = ThinkerService()
+        conversation_id = "test-conv-123"
+
+        # Should not error when resuming a conversation that wasn't paused
+        service.resume_conversation(conversation_id)
+        assert not service.is_paused(conversation_id)
+
+    def test_is_paused_returns_false_for_unknown_conversation(self) -> None:
+        """Test that is_paused returns False for unknown conversations."""
+        service = ThinkerService()
+        assert not service.is_paused("unknown-conversation")
+
+
+class TestChooseResponseStyle:
+    """Tests for _choose_response_style method."""
+
+    def test_choose_style_with_empty_messages(self) -> None:
+        """Test choosing response style with no messages."""
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+
+        style, max_tokens = service._choose_response_style(thinker, [])
+
+        assert isinstance(style, str)
+        assert isinstance(max_tokens, int)
+        assert max_tokens > 0
+
+    def test_choose_style_when_addressed(self) -> None:
+        """Test that thinker gets more substantive style when addressed."""
+        import random
+
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+
+        message = MagicMock()
+        message.content = "Socrates, what do you think about this?"
+        message.sender_name = "User"
+        messages: Any = [message]
+
+        # Test multiple times to check distribution
+        token_counts = []
+        for seed in range(20):
+            random.seed(seed)
+            style, max_tokens = service._choose_response_style(thinker, messages)
+            token_counts.append(max_tokens)
+
+        # When addressed, should have variety but generally higher token counts
+        assert min(token_counts) >= 30
+        assert max(token_counts) <= 350
+        # Should have some variety in token counts
+        assert len(set(token_counts)) > 1
+
+    def test_choose_style_after_own_message(self) -> None:
+        """Test response style when thinker just spoke."""
+        import random
+
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+
+        message = MagicMock()
+        message.content = "I believe this is true."
+        message.sender_name = "Socrates"
+        messages: Any = [message]
+
+        # Test multiple times - should sometimes choose brief follow-up
+        brief_count = 0
+        for seed in range(50):
+            random.seed(seed)
+            style, max_tokens = service._choose_response_style(thinker, messages)
+            if max_tokens == 50:
+                brief_count += 1
+
+        # Should have some brief follow-ups (around 40% chance)
+        assert brief_count > 0
+        assert brief_count < 50
+
+
+class TestGetWikipediaImage:
+    """Tests for get_wikipedia_image method."""
+
+    async def test_get_image_with_no_results(self) -> None:
+        """Test get_wikipedia_image when no search results found."""
+        service = ThinkerService()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            # Mock search response with no results
+            mock_response = AsyncMock()
+            mock_response.json.return_value = {"query": {"search": []}}
+            mock_client.get = AsyncMock(return_value=mock_response)
+
+            result = await service.get_wikipedia_image("NonexistentPerson123")
+
+            assert result is None
+
+    async def test_get_image_with_exception(self) -> None:
+        """Test get_wikipedia_image handles exceptions gracefully."""
+        service = ThinkerService()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+
+            # Mock to raise an exception
+            mock_client.get = AsyncMock(side_effect=Exception("Network error"))
+
+            result = await service.get_wikipedia_image("Socrates")
+
+            # Should return None on error, not raise
+            assert result is None
+
+    async def test_get_image_with_valid_result(self) -> None:
+        """Test get_wikipedia_image with valid Wikipedia response."""
+        service = ThinkerService()
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+
+            # Mock search response
+            search_response = MagicMock()
+            search_response.json.return_value = {"query": {"search": [{"title": "Socrates"}]}}
+
+            # Mock image response
+            image_response = MagicMock()
+            image_response.json.return_value = {
+                "query": {
+                    "pages": {"123": {"thumbnail": {"source": "https://example.com/socrates.jpg"}}}
+                }
+            }
+
+            mock_client.get = AsyncMock(side_effect=[search_response, image_response])
+
+            result = await service.get_wikipedia_image("Socrates")
+
+            assert result == "https://example.com/socrates.jpg"
+
+
+class TestShouldPromptUser:
+    """Tests for _should_prompt_user method."""
+
+    def test_should_not_prompt_with_few_messages(self) -> None:
+        """Test that we don't prompt user when conversation is short."""
+        service = ThinkerService()
+        messages: Any = [MagicMock() for _ in range(3)]
+
+        result = service._should_prompt_user(messages, 1.0)
+
+        assert result is False
+
+    def test_should_not_prompt_if_user_spoke_recently(self) -> None:
+        """Test that we don't prompt if user spoke recently."""
+        service = ThinkerService()
+
+        # Create messages with user speaking recently
+        user_message = MagicMock()
+        user_message.sender_type = "user"
+        user_message.content = "I think so"
+
+        thinker_message = MagicMock()
+        thinker_message.sender_type = "thinker"
+        thinker_message.content = "Interesting"
+
+        messages: Any = [user_message, thinker_message, thinker_message]
+
+        # With only 2 thinker messages since user, threshold not met
+        result = service._should_prompt_user(messages, 1.0)
+        assert result is False
+
+    def test_should_prompt_probability_after_many_thinker_messages(self) -> None:
+        """Test that prompt probability increases after many thinker messages."""
+        import random
+
+        service = ThinkerService()
+
+        # Create conversation with user spoke long ago
+        user_message = MagicMock()
+        user_message.sender_type = "user"
+        user_message.content = "What about X?"
+
+        thinker_message = MagicMock()
+        thinker_message.sender_type = "thinker"
+        thinker_message.content = "I think..."
+
+        # User spoke, then 10 thinker messages
+        messages: Any = [user_message] + [thinker_message] * 10
+
+        # Test with multiple seeds - should prompt sometimes
+        prompts = []
+        for seed in range(100):
+            random.seed(seed)
+            result = service._should_prompt_user(messages, 1.0)
+            prompts.append(result)
+
+        # Should prompt at least once out of 100 tries given threshold is met
+        assert any(prompts)
+
+
+class TestGetUserNameFromMessages:
+    """Tests for _get_user_name_from_messages method."""
+
+    def test_get_user_name_from_recent_message(self) -> None:
+        """Test extracting user name from message history."""
+        service = ThinkerService()
+
+        user_message = MagicMock()
+        user_message.sender_type = "user"
+        user_message.sender_name = "Alice"
+
+        thinker_message = MagicMock()
+        thinker_message.sender_type = "thinker"
+        thinker_message.sender_name = "Socrates"
+
+        messages: Any = [user_message, thinker_message, thinker_message]
+
+        result = service._get_user_name_from_messages(messages)
+
+        assert result == "Alice"
+
+    def test_get_user_name_returns_none_if_no_user(self) -> None:
+        """Test that method returns None if no user messages found."""
+        service = ThinkerService()
+
+        thinker_message = MagicMock()
+        thinker_message.sender_type = "thinker"
+        thinker_message.sender_name = "Socrates"
+
+        messages: Any = [thinker_message, thinker_message]
+
+        result = service._get_user_name_from_messages(messages)
+
+        assert result is None
+
+
+class TestCountMessagesSinceUser:
+    """Tests for _count_messages_since_user method."""
+
+    def test_count_thinker_messages_since_user(self) -> None:
+        """Test counting thinker messages since last user message."""
+        service = ThinkerService()
+
+        user_message = MagicMock()
+        user_message.sender_type = "user"
+
+        thinker_message = MagicMock()
+        thinker_message.sender_type = "thinker"
+
+        messages: Any = [user_message, thinker_message, thinker_message, thinker_message]
+
+        result = service._count_messages_since_user(messages)
+
+        assert result == 3
+
+    def test_count_returns_zero_if_user_spoke_last(self) -> None:
+        """Test that count is 0 if user spoke last."""
+        service = ThinkerService()
+
+        user_message = MagicMock()
+        user_message.sender_type = "user"
+
+        messages: Any = [user_message]
+
+        result = service._count_messages_since_user(messages)
+
+        assert result == 0
+
+
+class TestGenerateUserPrompt:
+    """Tests for generate_user_prompt method."""
+
+    async def test_generate_user_prompt_without_client(self) -> None:
+        """Test that generate_user_prompt returns empty without client."""
+        service = ThinkerService()
+
+        thinker = MagicMock()
+        messages: Any = []
+
+        with patch.object(type(service), "client", new_callable=PropertyMock) as mock_client:
+            mock_client.return_value = None
+            response, cost = await service.generate_user_prompt(thinker, messages, "test", "Alice")
+
+            assert response == ""
+            assert cost == 0.0
+
+    async def test_generate_user_prompt_with_mock_response(self) -> None:
+        """Test generate_user_prompt with mocked API response."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_response.content = [
+            TextBlock(type="text", text="Alice, I'm curious what you think about this.")
+        ]
+        mock_response.usage.input_tokens = 100
+        mock_response.usage.output_tokens = 15
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+        thinker.bio = "Ancient philosopher"
+        thinker.positions = "Socratic method"
+        thinker.style = "Questions everything"
+
+        user_message = MagicMock()
+        user_message.sender_type = SenderType.USER
+        user_message.sender_name = "Alice"
+        user_message.content = "What is truth?"
+        messages: Any = [user_message]
+
+        response, cost = await service.generate_user_prompt(
+            thinker, messages, "philosophy", "Alice"
+        )
+
+        assert "Alice" in response
+        assert cost > 0
+
+
+class TestSuggestThinkersErrorHandling:
+    """Tests for error handling in suggest_thinkers."""
+
+    async def test_suggest_handles_json_decode_error(self) -> None:
+        """Test that suggest_thinkers handles invalid JSON gracefully."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_response.content = [TextBlock(type="text", text="Invalid JSON {]")]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        result = await service.suggest_thinkers("test", 1)
+
+        # Should return empty list on JSON error
+        assert result == []
+
+    async def test_suggest_handles_empty_response(self) -> None:
+        """Test that suggest_thinkers handles empty response."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_response.content = [TextBlock(type="text", text="")]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        result = await service.suggest_thinkers("test", 1)
+
+        assert result == []
+
+    async def test_suggest_handles_non_text_block(self) -> None:
+        """Test that suggest_thinkers handles non-text response blocks."""
+        service = ThinkerService()
+
+        mock_response = MagicMock()
+        mock_non_text_block = MagicMock()
+        mock_non_text_block.__class__.__name__ = "ThinkingBlock"
+        mock_response.content = [mock_non_text_block]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        result = await service.suggest_thinkers("test", 1)
+
+        assert result == []
+
+    async def test_suggest_strips_markdown_code_fences(self) -> None:
+        """Test that suggest_thinkers strips markdown code fences from response."""
+        service = ThinkerService()
+
+        json_data = """[{
+            "name": "Socrates",
+            "reason": "Master of questioning",
+            "profile": {
+                "name": "Socrates",
+                "bio": "Ancient Greek philosopher",
+                "positions": "Socratic method",
+                "style": "Questions everything"
+            }
+        }]"""
+
+        mock_response = MagicMock()
+        mock_response.content = [TextBlock(type="text", text=f"```json\n{json_data}\n```")]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+        result = await service.suggest_thinkers("test", 1)
+
+        assert len(result) == 1
+        assert result[0].name == "Socrates"
