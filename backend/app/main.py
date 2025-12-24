@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
+from app import VERSION
 from app.api import api_router, ws_router
 from app.core.auth import get_password_hash
 from app.core.config import get_settings
@@ -111,3 +112,9 @@ app.include_router(ws_router)
 async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/api/version")
+async def version() -> dict[str, str]:
+    """Version endpoint - returns application version and name."""
+    return {"version": VERSION, "name": "Dining Philosophers API"}
