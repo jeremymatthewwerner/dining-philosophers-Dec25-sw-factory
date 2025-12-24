@@ -1,53 +1,127 @@
 name: QA Agent
 on:
   schedule:
+    # Run nightly at 2am UTC for comprehensive analysis
     - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       focus:
-        description: 'Focus area'
+        description: 'Focus area for this run'
         type: choice
         options:
+          - auto-detect
           - coverage-sprint
           - flaky-hunt
           - integration-gaps
+          - e2e-enhancement
+          - edge-cases
+          - test-refactoring
 
 permissions:
   contents: write
   pull-requests: write
+  issues: write
   id-token: write
 
 jobs:
   qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
         continue-on-error: true
-        
-      - name: Install dependencies
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --group dev
+
+      - name: Install frontend dependencies
+        working-directory: frontend
         run: npm ci || true
-        
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+        continue-on-error: true
+
+      - name: Get day of week for focus rotation
+        id: day
+        run: |
+          DAY=$(date +%u)
+          case $DAY in
+            1) FOCUS="coverage-sprint" ;;
+            2) FOCUS="flaky-hunt" ;;
+            3) FOCUS="integration-gaps" ;;
+            4) FOCUS="e2e-enhancement" ;;
+            5) FOCUS="test-refactoring" ;;
+            6) FOCUS="edge-cases" ;;
+            7) FOCUS="regression-prevention" ;;
+          esac
+          echo "focus=$FOCUS" >> $GITHUB_OUTPUT
+          echo "Today's focus: $FOCUS"
+
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/qa-improver.md first.
-            
-            Focus: ${{ github.event.inputs.focus || 'coverage-sprint' }}
-            
-            Improve test quality:
-            1. Generate coverage report
-            2. Identify gaps
-            3. Write meaningful tests
-            4. Run tests 3x to check for flakiness
-            5. Create PR with improvements
+
+            ## Your Mission: Improve Test Quality
+
+            Focus for this run: ${{ github.event.inputs.focus || steps.day.outputs.focus }}
+
+            ### Step 1: Reflection & Analysis
+            Start by analyzing current test state:
+
+            1. Run coverage reports:
+               - Backend: `cd backend && uv run pytest --cov=app --cov-report=term-missing`
+               - Frontend: `cd frontend && npm run test:coverage`
+
+            2. Review E2E test files in `frontend/e2e/`
+
+            3. Identify:
+               - Files with <60% coverage
+               - Missing E2E user journeys
+               - Untested edge cases
+
+            ### Step 2: Take Action Based on Focus
+
+            **If coverage-sprint**: Pick lowest coverage file, add tests to increase by 15%+
+            **If flaky-hunt**: Run test suite 5x, identify and fix any failures
+            **If integration-gaps**: Find untested API endpoints, add integration tests
+            **If e2e-enhancement**: Add edge case E2E tests (empty inputs, errors, mobile)
+            **If test-refactoring**: Improve test readability and reduce duplication
+            **If edge-cases**: Add tests for error paths and boundary conditions
+            **If regression-prevention**: Review recent commits, add tests for bug fixes
+
+            ### Step 3: Quality Checks
+            - Run all new tests 3x to verify no flakiness
+            - Ensure tests are meaningful (not just for coverage)
+            - Add clear test descriptions
+
+            ### Step 4: Create PR
+            Create a PR with:
+            - Coverage diff (before/after)
+            - List of new tests with descriptions
+            - Any issues found that need human attention
+
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --dangerously-skip-permissions
+            --allowedTools "Bash(uv:*),Bash(npm:*),Bash(npx:*),Bash(cd:*),Bash(git:*),Bash(gh:*),Read,Write,Edit,Glob,Grep"
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
