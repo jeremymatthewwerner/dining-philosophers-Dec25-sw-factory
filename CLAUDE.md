@@ -9,10 +9,25 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 - **Hosting**: Railway
 - **Maintainer**: @jeremy
 
+## Autonomous Software Factory Philosophy
+
+**This repo is designed to run as an autonomous software factory.** The goal is for AI agents to handle routine development tasks without human intervention.
+
+**Key Principles:**
+- **Human intervention = factory bug** - If a human needs to step in to fix something, that's a bug in the factory itself, not just a bug in the code
+- **Fix the factory, not the symptom** - When intervening, always ask: "How can I prevent needing to intervene for this type of issue again?"
+- **Visibility enables autonomy** - Agents must post progress updates to issues so humans can monitor without intervening
+- **Self-healing over manual fixes** - CI failures auto-create issues, agents auto-fix them
+
+**When you (human or Claude) intervene:**
+1. Fix the immediate issue
+2. Update the relevant agent workflow to handle this case autonomously next time
+3. Document the improvement in this file
+
 ## IMPORTANT Rules
 
 - ALWAYS write tests alongside code (unit, integration, E2E)
-- NEVER commit code without tests - minimum 80% coverage
+- NEVER commit code without tests - minimum 85% coverage
 - Commit and push frequently at logical checkpoints
 - See REQUIREMENTS.md for full product specification
 - **ALWAYS check things yourself before asking the user** - Use available tools (CLI, API calls, logs, code inspection) to verify state, configuration, or behavior. Only ask the user to check something if you've confirmed there's no way for you to check it directly.
@@ -189,7 +204,7 @@ Use labels to categorize issues:
 
 ## Autonomous Agents
 
-This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
+This repo uses 7 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
@@ -199,7 +214,27 @@ This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | Every 6 hours | Health checks, incident response |
 | **Marketing** | On release | Updates changelog, docs |
-| **CI Monitor** | On CI failure (main) | Auto-creates issues for failed builds |
+| **CI Monitor** | On CI failure (main) | Auto-creates `ai-ready` issues for failed builds |
+
+### Agent Visibility (IMPORTANT)
+
+All agents MUST post progress updates to their issues for visibility:
+
+**Code Agent** posts to each issue it works on:
+1. "🤖 Code Agent Started" - with workflow link
+2. "## Analysis" - root cause, affected files, proposed fix
+3. "## ✅ Fix Submitted" - PR link, changes, tests added
+4. "## ❌ Failed" - error details, adds `needs-human` label
+
+**QA Agent** creates a tracking issue for each run:
+1. Creates issue: "🤖 QA Agent: [focus] ([day])"
+2. Updates with: analysis → detailed plan → progress → results
+3. Closes issue with PR link when complete
+
+**CI Monitor** triggers Code Agent automatically:
+1. Creates issue with `bug`, `priority-high`, `ci-failure` labels
+2. Adds `ai-ready` label separately (triggers Code Agent's `labeled` event)
+3. Code Agent picks up and attempts fix
 
 ### QA Agent - Test Quality Guardian
 
