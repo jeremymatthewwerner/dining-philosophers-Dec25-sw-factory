@@ -82,7 +82,7 @@ At every meaningful milestone (new feature, API changes, UI flow completion):
 - **Backend**: pytest + pytest-asyncio + pytest-cov
 - **Frontend**: Jest + React Testing Library
 - **E2E**: Playwright
-- Coverage minimum: 80%
+- Coverage minimum: 85%
 
 ### Test Rigor Protocol (MANDATORY)
 
@@ -199,6 +199,7 @@ This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | Every 6 hours | Health checks, incident response |
 | **Marketing** | On release | Updates changelog, docs |
+| **CI Monitor** | On CI failure (main) | Auto-creates issues for failed builds |
 
 ### QA Agent - Test Quality Guardian
 
@@ -218,7 +219,8 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 2. E2E test completeness review
 3. Test sophistication check (edge cases, error paths, race conditions)
 4. Creation of meaningful tests (not just coverage padding)
-5. PR with coverage diff and test descriptions
+5. **Update TEST_PLAN.md** with descriptions of all new tests added
+6. PR with coverage diff and test descriptions
 
 **E2E Enhancement Focus:**
 - Empty form submissions, max length inputs, special characters

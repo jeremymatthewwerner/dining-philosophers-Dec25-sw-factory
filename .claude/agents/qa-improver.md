@@ -83,8 +83,14 @@ When improving E2E tests, add coverage for:
 After each session, create a PR with:
 1. Summary of coverage changes (before/after percentages)
 2. List of new tests added with descriptions
-3. Any flaky tests identified and fixed
-4. Recommendations for areas needing human attention
+3. **Update TEST_PLAN.md** - Add entries for all new tests with:
+   - Test name and file location
+   - What the test validates
+   - Any edge cases covered
+4. Any flaky tests identified and fixed
+5. Recommendations for areas needing human attention
+
+**IMPORTANT**: The TEST_PLAN.md file must be kept in sync with the actual tests. Every new test needs a corresponding entry in TEST_PLAN.md.
 
 ## Escalation
 
