@@ -194,11 +194,37 @@ This repo uses 6 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
-| **Bug Fixer** | `ai-ready` + `bug` labels | Diagnoses and fixes bugs, creates PRs |
-| **QA** | Nightly 2am UTC | Improves test coverage, hunts flaky tests |
-| **Release Eng** | Weekly Sunday 3am | Security audits, dependency updates |
+| **Code Agent** | `ai-ready` + `bug`/`enhancement` labels | Diagnoses and fixes issues, creates PRs |
+| **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
+| **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | Every 6 hours | Health checks, incident response |
 | **Marketing** | On release | Updates changelog, docs |
+
+### QA Agent - Test Quality Guardian
+
+The QA agent performs **periodic reflection and enhancement** of the test suite:
+
+**Daily Focus Rotation:**
+- Monday: Coverage Sprint - bring lowest-coverage module up by 15%+
+- Tuesday: Flaky Test Hunt - run tests 5x, identify and fix flaky tests
+- Wednesday: Integration Test Gaps - add tests for untested API endpoints
+- Thursday: E2E Enhancement - add edge case E2E tests (errors, mobile, edge cases)
+- Friday: Test Refactoring - improve readability, reduce duplication
+- Saturday: Edge Case Analysis - test error paths and boundary conditions
+- Sunday: Regression Prevention - add tests for recent bug fixes
+
+**Each run includes:**
+1. Coverage analysis (backend + frontend)
+2. E2E test completeness review
+3. Test sophistication check (edge cases, error paths, race conditions)
+4. Creation of meaningful tests (not just coverage padding)
+5. PR with coverage diff and test descriptions
+
+**E2E Enhancement Focus:**
+- Empty form submissions, max length inputs, special characters
+- Session expiry, network disconnection, concurrent operations
+- Mobile-specific behaviors (touch, orientation, viewport)
+- Error recovery and state persistence
 
 ### Agent Coordination
 
