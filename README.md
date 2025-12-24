@@ -6,18 +6,78 @@ Real-time multi-party chat with AI-simulated historical and contemporary thinker
 
 ## Autonomous Software Factory
 
-This repository uses 6 AI-powered GitHub Actions agents for autonomous development:
+This repository uses 7 AI-powered GitHub Actions agents for autonomous development:
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
-| **Bug Fixer** | `ai-ready` + `bug` labels | Diagnoses and fixes bugs, creates PRs |
+| **Code Agent** | `ai-ready` + `bug`/`enhancement` labels | Diagnoses and fixes issues, creates PRs |
 | **QA** | Nightly 2am UTC | Improves test coverage, hunts flaky tests |
-| **Release Eng** | Weekly Sunday 3am | Security audits, dependency updates |
+| **Release Eng** | Daily 3am UTC | Security audits, dependency updates |
 | **DevOps** | Every 6 hours | Health checks, incident response |
 | **Marketing** | On release | Updates changelog, docs |
+| **CI Monitor** | On CI failure (main) | Auto-creates issues for failed builds |
 
 Add `ANTHROPIC_API_KEY` to repo secrets to enable automation.
+
+## Working with AI Agents (Human Guide)
+
+### Filing Issues
+
+1. **Create an issue** describing the bug or feature
+2. **Triage Agent** automatically adds labels within minutes
+3. **Add `ai-ready` label** when you want the Code Agent to work on it
+4. The Code Agent will analyze, implement, and create a PR
+
+### Talking to the Bot
+
+**Mention `@claude` in any comment** on an `ai-ready` issue to:
+- Ask clarifying questions: `@claude what files are affected?`
+- Give suggestions: `@claude consider using the existing helper in utils.py`
+- Request actions: `@claude please also add a test for the error case`
+
+The bot will read the full context, think about your input, and respond.
+
+### Status Labels (Who Should Act)
+
+| Label | What It Means | What You Do |
+|-------|---------------|-------------|
+| `status:bot-working` | Bot is actively working | Wait — check back in 10-15 min |
+| `status:awaiting-human` | Bot needs your input | Read its question and reply with `@claude` |
+| `status:awaiting-bot` | You commented, bot will respond | Wait — it will respond soon |
+| *(no status label)* | No active work | Add `ai-ready` to trigger the bot |
+
+### Notifications to Watch
+
+Enable GitHub notifications for:
+- **Issues you're mentioned in** — bot may ask you questions
+- **PRs on this repo** — bot creates PRs that may need review
+- **CI failures** — the CI Monitor creates issues automatically
+
+### When to Intervene
+
+The factory is designed to run autonomously. Intervene only when:
+- Bot adds `needs-human` label (it's stuck)
+- Bot asks a question in `status:awaiting-human`
+- PR needs architectural review before merge
+- Security concern
+
+**If you intervene to fix something, consider**: Can we update the workflow so the bot handles this automatically next time?
+
+### Example Workflow
+
+```
+1. You create issue: "Button doesn't work on mobile"
+2. Triage Agent adds: bug, priority-medium
+3. You add: ai-ready
+4. Code Agent starts → status:bot-working
+5. Code Agent comments: "## Analysis - Root cause: missing touch handler..."
+6. You comment: "@claude make sure to test on iOS Safari too"
+7. Code Agent responds and incorporates feedback → status:bot-working
+8. Code Agent creates PR → removes status labels
+9. CI passes → you merge (or it auto-merges)
+10. Issue auto-closes
+```
 
 ## Quick Start (Local Development)
 
@@ -90,7 +150,7 @@ Add these secrets in **Settings** → **Secrets and variables** → **Actions**:
 
 ```
 dining-philosophers-Dec25-sw-factory/
-├── .github/workflows/     # 6 autonomous agent workflows
+├── .github/workflows/     # 7 autonomous agent workflows
 ├── .claude/agents/        # Agent role definitions
 ├── backend/               # FastAPI backend
 │   ├── app/
