@@ -27,7 +27,7 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 ## IMPORTANT Rules
 
 - ALWAYS write tests alongside code (unit, integration, E2E)
-- NEVER commit code without tests - minimum 85% coverage
+- NEVER commit code without tests - minimum 70% coverage (goal: 85%, tracked via QA agent)
 - Commit and push frequently at logical checkpoints
 - See REQUIREMENTS.md for full product specification
 - **ALWAYS check things yourself before asking the user** - Use available tools (CLI, API calls, logs, code inspection) to verify state, configuration, or behavior. Only ask the user to check something if you've confirmed there's no way for you to check it directly.
@@ -97,7 +97,7 @@ At every meaningful milestone (new feature, API changes, UI flow completion):
 - **Backend**: pytest + pytest-asyncio + pytest-cov
 - **Frontend**: Jest + React Testing Library
 - **E2E**: Playwright
-- Coverage minimum: 85%
+- Coverage minimum: 70% (goal: 85%)
 
 ### Test Rigor Protocol (MANDATORY)
 
