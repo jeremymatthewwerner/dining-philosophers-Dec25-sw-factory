@@ -44,6 +44,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
       - uses: actions/setup-node@v4
         with:
@@ -166,8 +167,8 @@ jobs:
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
       - name: Run Claude (respond mode)
         if: steps.context.outputs.mode == 'respond'
@@ -208,8 +209,8 @@ jobs:
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
       - name: Update status on success
         if: success()
