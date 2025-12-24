@@ -9,6 +9,37 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 - **Hosting**: Railway
 - **Maintainer**: @jeremymatthewwerner
 
+## Repository Setup (One-Time)
+
+**Before the autonomous factory can run without intervention, complete these steps:**
+
+### 1. GitHub App Permissions
+Go to **Settings → Actions → General** and grant these permissions to the GitHub App:
+- ✅ `workflows` - Allows agents to modify `.github/workflows/` files
+- ✅ `contents: write` - Allows agents to push code
+- ✅ `issues: write` - Allows agents to create/update issues
+- ✅ `pull-requests: write` - Allows agents to create PRs
+
+### 2. Required Labels
+Create these labels (or run: `gh label create <name> --color <color>`):
+- `ai-ready` (#0E8A16) - Ready for autonomous agent
+- `needs-human` (#D93F0B) - Requires human intervention
+- `qa-agent` (#0052CC) - QA Agent tracking issues
+- `ci-failure` (#B60205) - CI failure issues
+- `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
+
+### 3. Secrets
+Ensure these secrets are set in **Settings → Secrets and variables → Actions**:
+- `ANTHROPIC_API_KEY` - For Claude API access
+- `GITHUB_TOKEN` - Auto-provided, but verify workflow permissions
+
+### 4. Branch Protection (Optional)
+If using branch protection on `main`, ensure:
+- Allow GitHub Actions to bypass (for auto-merge)
+- Or use admin merge for agent PRs
+
+**Once setup is complete, the factory should run autonomously.**
+
 ## Autonomous Software Factory Philosophy
 
 **This repo is designed to run as an autonomous software factory.** The goal is for AI agents to handle routine development tasks without human intervention.
