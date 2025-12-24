@@ -1,6 +1,7 @@
 """Shared test fixtures for all test files."""
 
-from collections.abc import AsyncGenerator
+import gc
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 from sqlalchemy.ext.asyncio import (
@@ -11,6 +12,24 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.models import Base
+
+
+# Disable tracemalloc to avoid circular import issues in pytest's unraisable hook
+# This fixes "AttributeError: partially initialized module 'tracemalloc'" errors
+@pytest.fixture(autouse=True)
+def disable_tracemalloc_for_unraisable() -> None:
+    """Disable tracemalloc to prevent circular import errors during test cleanup."""
+    import tracemalloc
+
+    if tracemalloc.is_tracing():
+        tracemalloc.stop()
+
+
+@pytest.fixture(autouse=True)
+def cleanup_gc() -> Generator[None, None, None]:
+    """Force garbage collection after each test to clean up dangling connections."""
+    yield
+    gc.collect()
 
 
 @pytest.fixture
