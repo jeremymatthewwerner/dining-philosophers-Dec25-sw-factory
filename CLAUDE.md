@@ -269,6 +269,12 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 - Agents update `AGENT_STATE.md` with their progress
 - Escalation to @jeremymatthewwerner when stuck >30min or after 3 CI failures
 
+### Known Limitations (require human intervention)
+
+**Workflow file changes**: The GitHub App cannot modify `.github/workflows/` files due to missing `workflows` permission. When CI fails due to workflow config (like coverage thresholds), a human must update the workflow file.
+
+**To fix**: Grant `workflows` permission to the GitHub App in repo Settings → Actions → General.
+
 ## Default Policies (for autonomous decisions)
 
 When agents encounter these situations, apply these defaults instead of asking:
