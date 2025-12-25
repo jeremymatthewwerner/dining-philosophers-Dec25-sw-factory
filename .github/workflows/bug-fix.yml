@@ -274,11 +274,22 @@ jobs:
 
           I'll investigate the failures and push fixes."
               else
-                gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
+                # CI passed - auto-merge the PR
+                echo "CI passed, auto-merging PR #${PR_NUMBER}..."
 
-          All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review and merge.
+                if gh pr merge $PR_NUMBER --squash --delete-branch; then
+                  gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed & Merged
 
-          Once merged, this issue will auto-close."
+          All checks passed! PR #${PR_NUMBER} has been automatically merged.
+
+          🚀 **Deploying to production...** The changes will be live shortly."
+                else
+                  gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
+
+          All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review.
+
+          ⚠️ Auto-merge failed (may need admin approval or branch protection allows only admins to merge)."
+                fi
               fi
               exit 0
             fi

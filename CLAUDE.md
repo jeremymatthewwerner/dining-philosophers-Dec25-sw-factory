@@ -293,7 +293,13 @@ gh api repos/OWNER/REPO/issues/comments/COMMENT_ID -X PATCH -f body="[updated bo
 2. Checks boxes as each step completes
 3. Adds Analysis section after analyzing
 4. Adds PR link when submitted
-5. Final: All boxes checked, CI status reported
+5. Monitors CI, auto-merges on success
+6. Final: "✅ CI Passed & Merged" → triggers deploy → issue auto-closes
+
+**Full Autonomous Flow:**
+```
+Issue Created → Triage labels → Code Agent fixes → PR created → CI passes → Auto-merge → Deploy → Issue closes
+```
 
 **QA Agent** creates a tracking issue with checkboxes:
 1. Creates issue: "🤖 QA Agent: [focus] ([day])" with progress checklist
