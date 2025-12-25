@@ -47,7 +47,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="rounded-xl bg-white p-8 shadow-lg dark:bg-zinc-800">
           <h1 className="mb-6 text-center text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            Welcome to Dining Philosophers
+            Welcome to dining philosophers
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">
