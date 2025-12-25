@@ -29,7 +29,7 @@ describe('BuildInfo', () => {
 
     expect(consoleLogSpy).toHaveBeenCalledWith(
       expect.stringContaining(
-        'Dining Philosophers - Build: 2025-12-18T08:00:00.000Z'
+        'Dining Philosophers Sim - Build: 2025-12-18T08:00:00.000Z'
       ),
       expect.any(String)
     );
