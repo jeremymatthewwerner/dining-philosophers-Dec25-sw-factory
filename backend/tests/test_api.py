@@ -195,6 +195,14 @@ class TestAuthAPI:
         response = await client.get("/api/auth/me")
         assert response.status_code == 401  # Not authenticated
 
+    async def test_logout(self, client: AsyncClient) -> None:
+        """Test logout endpoint."""
+        response = await client.post("/api/auth/logout")
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert data["message"] == "Logged out successfully"
+
 
 class TestSessionAPI:
     """Tests for session endpoints."""
@@ -416,6 +424,164 @@ class TestConversationAPI:
             headers=headers,
         )
         assert response.status_code == 404
+
+    async def test_conversation_color_assignment_edge_cases(self, client: AsyncClient) -> None:
+        """Test color assignment with max thinkers and custom colors."""
+        headers = await get_auth_headers(client, "coloruser", "password123")
+
+        # Test with 5 thinkers (max allowed, uses all 5 colors)
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Many thinkers",
+                "thinkers": [
+                    {
+                        "name": f"Thinker{i}",
+                        "bio": "Bio",
+                        "positions": "Positions",
+                        "style": "Style",
+                    }
+                    for i in range(5)
+                ],
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["thinkers"]) == 5
+        # Verify colors are assigned from the 5-color array
+        colors = [t["color"] for t in data["thinkers"]]
+        assert all(c for c in colors)  # No empty colors
+        # All should be different since we have exactly 5
+        assert len(set(colors)) == 5
+
+        # Test custom color is preserved (not default #6366f1)
+        custom_color = "#ff0000"
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Custom color test",
+                "thinkers": [
+                    {
+                        "name": "CustomColorThinker",
+                        "bio": "Bio",
+                        "positions": "Positions",
+                        "style": "Style",
+                        "color": custom_color,
+                    },
+                ],
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["thinkers"][0]["color"] == custom_color
+
+    async def test_conversation_deletion_with_messages(self, client: AsyncClient) -> None:
+        """Test that deleting a conversation cascades to delete messages."""
+        headers = await get_auth_headers(client, "cascadeuser", "password123")
+
+        # Create conversation
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Test cascade delete",
+                "thinkers": [
+                    {
+                        "name": "Thinker",
+                        "bio": "Bio",
+                        "positions": "Positions",
+                        "style": "Style",
+                    },
+                ],
+            },
+        )
+        conv_id = conv_response.json()["id"]
+
+        # Send messages
+        for i in range(3):
+            await client.post(
+                f"/api/conversations/{conv_id}/messages",
+                headers=headers,
+                json={"content": f"Message {i}"},
+            )
+
+        # Verify messages exist
+        get_response = await client.get(
+            f"/api/conversations/{conv_id}",
+            headers=headers,
+        )
+        assert len(get_response.json()["messages"]) == 3
+
+        # Delete conversation
+        delete_response = await client.delete(
+            f"/api/conversations/{conv_id}",
+            headers=headers,
+        )
+        assert delete_response.status_code == 200
+
+        # Verify conversation and messages are gone
+        response = await client.get(
+            f"/api/conversations/{conv_id}",
+            headers=headers,
+        )
+        assert response.status_code == 404
+
+    async def test_unauthorized_conversation_access(self, client: AsyncClient) -> None:
+        """Test that users cannot access other users' conversations."""
+        # User A creates conversation
+        headers_a = await get_auth_headers(client, "usera", "password123")
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers_a,
+            json={
+                "topic": "User A's conversation",
+                "thinkers": [
+                    {
+                        "name": "Thinker",
+                        "bio": "Bio",
+                        "positions": "Positions",
+                        "style": "Style",
+                    },
+                ],
+            },
+        )
+        conv_id = conv_response.json()["id"]
+
+        # User B tries to access User A's conversation
+        headers_b = await get_auth_headers(client, "userb", "password123")
+        response = await client.get(
+            f"/api/conversations/{conv_id}",
+            headers=headers_b,
+        )
+        assert response.status_code == 404  # Should not find it
+
+        # User B tries to send message to User A's conversation
+        response = await client.post(
+            f"/api/conversations/{conv_id}/messages",
+            headers=headers_b,
+            json={"content": "Trying to access!"},
+        )
+        assert response.status_code == 404  # Should not find it
+
+        # User B tries to delete User A's conversation
+        response = await client.delete(
+            f"/api/conversations/{conv_id}",
+            headers=headers_b,
+        )
+        assert response.status_code == 404  # Should not find it
+
+    async def test_send_message_to_nonexistent_conversation(self, client: AsyncClient) -> None:
+        """Test sending a message to non-existent conversation returns 404."""
+        headers = await get_auth_headers(client, "nomsguser", "password123")
+        response = await client.post(
+            "/api/conversations/nonexistent-id/messages",
+            headers=headers,
+            json={"content": "This should fail"},
+        )
+        assert response.status_code == 404
+        assert "Conversation not found" in response.json()["detail"]
 
 
 class TestThinkerAPI:

@@ -209,6 +209,64 @@ This document outlines all features requiring testing, their test cases, and edg
 
 ---
 
+## 9. Backend Integration Tests
+
+### 9.1 Authentication & Authorization
+
+**test_logout** (backend/tests/test_api.py:198-204)
+- Validates POST /auth/logout endpoint
+- Verifies successful logout response message
+- Edge case: Logout works without authentication (stateless JWT)
+
+**test_login_after_registration** (backend/tests/test_integration_workflows.py:262-280)
+- Register user → Login with same credentials
+- Verifies token validity after login
+- Validates authentication flow continuity
+
+### 9.2 Conversation Management
+
+**test_conversation_color_assignment_edge_cases** (backend/tests/test_api.py:428-480)
+- Tests color assignment with 5 thinkers (maximum allowed)
+- Validates custom color preservation (not overwritten by default)
+- Edge case: All 5 thinkers receive unique colors from color array
+
+**test_conversation_deletion_with_messages** (backend/tests/test_api.py:482-533)
+- Creates conversation with 3 messages
+- Deletes conversation and verifies cascade delete
+- Edge case: Messages are deleted when parent conversation is deleted
+
+**test_unauthorized_conversation_access** (backend/tests/test_api.py:535-577)
+- User A creates conversation, User B attempts access
+- Tests GET, POST (send message), DELETE from unauthorized user
+- Validates: All operations return 404 (conversation isolation)
+
+**test_send_message_to_nonexistent_conversation** (backend/tests/test_api.py:579-590)
+- Attempts to POST message to invalid conversation ID
+- Validates 404 response with "Conversation not found" error
+
+### 9.3 Full User Journey Workflows
+
+**test_full_user_journey** (backend/tests/test_integration_workflows.py:73-180)
+- Complete 9-step workflow:
+  1. Register user
+  2. Verify user info (GET /auth/me)
+  3. Create conversation with 2 thinkers
+  4. Send 3 messages
+  5. List conversations
+  6. Get conversation with messages
+  7. Delete conversation
+  8. Verify deletion (list and get)
+  9. Logout
+- Validates: Entire user lifecycle from registration to cleanup
+
+**test_multiple_users_isolated_conversations** (backend/tests/test_integration_workflows.py:182-260)
+- Two users each create separate conversations
+- Each user lists their conversations (sees only their own)
+- User A attempts to access User B's conversation (blocked)
+- Validates: Session-based conversation isolation
+
+---
+
 ## Tricky Areas Requiring Extra Attention
 
 1. **Message splitting timing** - Ensure delays feel natural, not too fast or slow
@@ -217,6 +275,7 @@ This document outlines all features requiring testing, their test cases, and edg
 4. **Mention detection** - Avoid false positives (common words matching names)
 5. **Extended thinking streaming** - Token accumulation and display throttling
 6. **Conversation switching** - Clean up state from previous conversation
+7. **Cross-user isolation** - Users must not access other users' conversations or sessions
 
 ---
 
