@@ -2,6 +2,8 @@ name: Code Agent
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       issue_number:
@@ -14,21 +16,37 @@ permissions:
   issues: write
   pull-requests: write
   id-token: write
+  actions: read
+  checks: read
+
+# Prevent concurrent runs on the same issue
+concurrency:
+  group: code-agent-issue-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
 
 jobs:
   fix:
-    # Triggers on ai-ready + (bug OR enhancement)
+    # Triggers on:
+    # 1. ai-ready label + (bug OR enhancement)
+    # 2. Comment containing @claude on an issue with ai-ready label
+    # 3. Manual workflow dispatch
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event.label.name == 'ai-ready' &&
+      (github.event_name == 'issues' &&
+       github.event.label.name == 'ai-ready' &&
        (contains(github.event.issue.labels.*.name, 'bug') ||
-        contains(github.event.issue.labels.*.name, 'enhancement')))
+        contains(github.event.issue.labels.*.name, 'enhancement'))) ||
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       contains(github.event.issue.labels.*.name, 'ai-ready') &&
+       !github.event.issue.pull_request)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
       - uses: actions/setup-node@v4
         with:
@@ -50,39 +68,69 @@ jobs:
         working-directory: backend
         run: uv sync || true
 
-      - name: Get issue number
-        id: issue
+      - name: Get issue number and context
+        id: context
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+            echo "mode=fix" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "mode=respond" >> $GITHUB_OUTPUT
+            echo "comment_author=${{ github.event.comment.user.login }}" >> $GITHUB_OUTPUT
           else
             echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "mode=fix" >> $GITHUB_OUTPUT
           fi
 
-      - name: Mark issue as in progress
+      - name: Update status labels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue comment ${{ steps.issue.outputs.number }} --body "## 🤖 Code Agent Started
+          # Remove other status labels and add bot-working
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:awaiting-human" \
+            --remove-label "status:awaiting-bot" 2>/dev/null || true
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --add-label "status:bot-working"
+
+      - name: Mark issue as in progress (fix mode)
+        if: steps.context.outputs.mode == 'fix'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ steps.context.outputs.number }} --body "## 🤖 Code Agent Started
 
           **Status:** Analyzing issue...
           **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           I'll update this issue with my progress."
 
-      - uses: anthropics/claude-code-action@v1
+      - name: Acknowledge comment (respond mode)
+        if: steps.context.outputs.mode == 'respond'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ steps.context.outputs.number }} --body "## 🤖 Responding to @${{ steps.context.outputs.comment_author }}
+
+          **Status:** Processing your comment...
+          **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+      - name: Run Claude (fix mode)
+        if: steps.context.outputs.mode == 'fix'
+        uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/bug-fixer.md first.
 
-            **IMPORTANT: You MUST update issue #${{ steps.issue.outputs.number }} with your progress!**
+            **IMPORTANT: You MUST update issue #${{ steps.context.outputs.number }} with your progress!**
 
             ## Step 1: Analyze (UPDATE ISSUE AFTER)
-            1. Read the issue: gh issue view ${{ steps.issue.outputs.number }}
+            1. Read the issue: gh issue view ${{ steps.context.outputs.number }}
             2. Diagnose the root cause - search codebase, read relevant files
             3. **Update the issue** with your analysis:
                ```bash
-               gh issue comment ${{ steps.issue.outputs.number }} --body "## Analysis
+               gh issue comment ${{ steps.context.outputs.number }} --body "## Analysis
 
                **Root Cause:** [what's wrong]
                **Files Affected:** [list files]
@@ -90,25 +138,29 @@ jobs:
                ```
 
             ## Step 2: Implement Fix
-            1. Create a fix branch: git checkout -b fix/${{ steps.issue.outputs.number }}-description
+            1. Create a fix branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
             2. Implement the fix with tests
             3. Run quality gates:
                - cd frontend && npm run lint && npm run typecheck && npm test
                - cd backend && uv run ruff check . && uv run mypy . && uv run pytest
 
             ## Step 3: Create PR (UPDATE ISSUE AFTER)
-            1. Commit with message referencing issue: "fix: description\n\nFixes #${{ steps.issue.outputs.number }}"
-            2. Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.issue.outputs.number }}"
+            1. Commit with message referencing issue: "fix: description\n\nFixes #${{ steps.context.outputs.number }}"
+            2. Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.context.outputs.number }}"
             3. **Update the issue** with PR link:
                ```bash
-               gh issue comment ${{ steps.issue.outputs.number }} --body "## ✅ Fix Submitted
+               gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ Fix Submitted
 
                **PR:** #[number]
                **Changes:** [summary]
                **Tests Added:** [list]
 
-               Waiting for CI to pass."
+               Waiting for CI to pass. I'll post an update when CI completes (typically 3-5 minutes)."
                ```
+
+            ## Status Label Management
+            - If you need human input, run: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+            - When done (PR created or issue resolved), remove status:bot-working label
 
             If stuck for 30min or CI fails 3x, escalate to @jeremymatthewwerner.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -117,17 +169,124 @@ jobs:
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Run Claude (respond mode)
+        if: steps.context.outputs.mode == 'respond'
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Read CLAUDE.md first.
+
+            A user (@${{ steps.context.outputs.comment_author }}) has commented on issue #${{ steps.context.outputs.number }} with a question or suggestion for you.
+
+            ## Your Task
+            1. Read the full issue and all comments: gh issue view ${{ steps.context.outputs.number }} --comments
+            2. Focus on the latest comment from @${{ steps.context.outputs.comment_author }}
+            3. Think carefully about their question/suggestion
+            4. If it's a clarifying question: Answer it thoughtfully
+            5. If it's a suggestion about the fix: Consider it and explain if/how you'll incorporate it
+            6. If they're asking you to take action: Do it if reasonable
+
+            ## After Thinking
+            Post a response to the issue:
+            ```bash
+            gh issue comment ${{ steps.context.outputs.number }} --body "## Response
+
+            [Your thoughtful response here, addressing their specific points]
+
+            [If you took any action, describe what you did]
+            [If you need more info, ask a specific question and add status:awaiting-human label]"
+            ```
+
+            ## Status Label Management
+            - If you need more info from the human: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+            - If you've fully addressed their comment and no more action needed: remove status:bot-working
+            - If there's still work to do on the issue, keep status:bot-working
+
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: 30
+          claude_args: |
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Monitor CI and report results
+        if: steps.context.outputs.mode == 'fix' && success()
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the most recent PR created by this workflow
+          PR_NUMBER=$(gh pr list --state open --author "@me" --json number,headRefName --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR found, skipping CI monitoring"
+            exit 0
+          fi
+
+          echo "Monitoring CI for PR #$PR_NUMBER"
+
+          # Wait for CI to start
+          sleep 30
+
+          # Poll for up to 15 minutes (30 iterations * 30 seconds)
+          for i in $(seq 1 30); do
+            echo "Check $i/30..."
+
+            # Get check status
+            IN_PROGRESS=$(gh pr checks $PR_NUMBER --json state --jq '[.[] | select(.state=="PENDING" or .state=="IN_PROGRESS")] | length' 2>/dev/null || echo "0")
+
+            if [ "$IN_PROGRESS" = "0" ]; then
+              # All checks complete, get results
+              FAILED=$(gh pr checks $PR_NUMBER --json state --jq '[.[] | select(.state=="FAILURE")] | length' 2>/dev/null || echo "0")
+
+              if [ "$FAILED" -gt 0 ]; then
+                gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ CI Failed
+
+          PR #${PR_NUMBER} has failing checks. [View details](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})
+
+          I'll investigate the failures and push fixes."
+              else
+                gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
+
+          All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review and merge.
+
+          Once merged, this issue will auto-close."
+              fi
+              exit 0
+            fi
+
+            sleep 30
+          done
+
+          # Timeout - still running after 15 min
+          gh issue comment ${{ steps.context.outputs.number }} --body "## ⏳ CI Still Running
+
+          CI checks for PR #${PR_NUMBER} are still running after 15 minutes. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})"
+
+      - name: Update status on success
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Remove bot-working status when done (Claude should have set appropriate status)
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:bot-working" 2>/dev/null || true
 
       - name: Update issue on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue comment ${{ steps.issue.outputs.number }} --body "## ❌ Code Agent Failed
+          gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ Code Agent Failed
 
           The workflow encountered an error. Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
 
           This issue remains open for manual follow-up."
-          gh issue edit ${{ steps.issue.outputs.number }} --add-label "needs-human"
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:bot-working" \
+            --add-label "needs-human" \
+            --add-label "status:awaiting-human"
