@@ -39,7 +39,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
 
     expect(
-      screen.getByText('Welcome to Dining Philosophers')
+      screen.getByText('Welcome to dining philosophers')
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Username')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();

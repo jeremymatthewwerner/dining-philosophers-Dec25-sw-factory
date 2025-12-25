@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Dining Philosophers',
+  title: 'dining philosophers',
   description:
     'Real-time multi-party chat with AI-simulated historical and contemporary thinkers',
 };

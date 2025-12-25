@@ -116,7 +116,7 @@ export function ChatArea({
       >
         <div className="text-center max-w-md px-4">
           <h2 className="text-2xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-            Welcome to Dining Philosophers
+            Welcome to dining philosophers
           </h2>
           <p className="mb-4">
             Start a new conversation to discuss topics with historical and
