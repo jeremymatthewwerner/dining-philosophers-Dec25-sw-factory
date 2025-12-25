@@ -253,18 +253,51 @@ This repo uses 7 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 
 ### Agent Visibility (IMPORTANT)
 
-All agents MUST post progress updates to their issues for visibility:
+All agents MUST post progress updates to their issues for visibility using the **checkbox progress pattern**.
 
-**Code Agent** posts to each issue it works on:
-1. "🤖 Code Agent Started" - with workflow link
-2. "## Analysis" - root cause, affected files, proposed fix
-3. "## ✅ Fix Submitted" - PR link, changes, tests added
-4. "## ✅ CI Passed" or "## ❌ CI Failed" - automatic CI status update (typically 3-5 min after PR)
-5. "## ❌ Failed" - error details, adds `needs-human` label
+#### Checkbox Progress Pattern
 
-**QA Agent** creates a tracking issue for each run:
-1. Creates issue: "🤖 QA Agent: [focus] ([day])"
-2. Updates with: analysis → detailed plan → progress → results
+Agents create a progress comment/issue with checkboxes, then **edit that same content** (not post new comments) to check off items as they complete. This provides:
+- Real-time visibility into agent progress
+- A single place to see status (not scattered across comments)
+- Clear indication of what's done and what's pending
+
+**Example Progress Tracker:**
+```markdown
+## 🤖 Progress Tracker
+
+- [x] 📖 Reading issue and understanding requirements
+- [x] 🔍 Analyzing codebase and finding affected files
+- [ ] 🛠️ Implementing fix
+- [ ] ✅ Running tests and quality checks
+- [ ] 📝 Creating PR
+- [ ] 🚀 Waiting for CI
+
+**Status:** Implementing fix...
+**Workflow:** [View logs](...)
+
+---
+### Analysis
+**Root Cause:** [discovered issue]
+**Files Affected:** [list]
+**Proposed Fix:** [plan]
+```
+
+Agents update this by editing the comment/issue body via API:
+```bash
+gh api repos/OWNER/REPO/issues/comments/COMMENT_ID -X PATCH -f body="[updated body]"
+```
+
+**Code Agent** creates a progress comment on each issue:
+1. Initial: All boxes unchecked, "Starting analysis..."
+2. Checks boxes as each step completes
+3. Adds Analysis section after analyzing
+4. Adds PR link when submitted
+5. Final: All boxes checked, CI status reported
+
+**QA Agent** creates a tracking issue with checkboxes:
+1. Creates issue: "🤖 QA Agent: [focus] ([day])" with progress checklist
+2. Edits issue body to check boxes and fill in sections
 3. Closes issue with PR link when complete
 
 **CI Monitor** triggers Code Agent automatically:
