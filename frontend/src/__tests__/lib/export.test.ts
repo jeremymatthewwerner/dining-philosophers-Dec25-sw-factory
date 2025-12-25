@@ -173,7 +173,7 @@ describe('Export utilities', () => {
     it('includes export date', () => {
       const md = generateMarkdownExport(mockConversation, mockMessages);
 
-      expect(md).toContain('*Exported from Dining Philosophers Sim on');
+      expect(md).toContain('*Exported from Dining Philosophers on');
     });
 
     it('includes participants section', () => {

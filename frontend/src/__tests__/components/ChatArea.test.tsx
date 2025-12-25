@@ -45,7 +45,7 @@ describe('ChatArea', () => {
     render(<ChatArea {...defaultProps} />);
     expect(screen.getByTestId('chat-area-empty')).toBeInTheDocument();
     expect(
-      screen.getByText('Welcome to Dining Philosophers Sim')
+      screen.getByText('Welcome to Dining Philosophers')
     ).toBeInTheDocument();
   });
 

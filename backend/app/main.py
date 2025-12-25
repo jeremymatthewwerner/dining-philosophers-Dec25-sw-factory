@@ -55,7 +55,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="Dining Philosophers Sim API",
+    title="Dining Philosophers API",
     description="Real-time multi-party chat with AI-simulated historical/contemporary thinkers",
     version="0.2.0",
     lifespan=lifespan,
@@ -117,4 +117,4 @@ async def health_check() -> dict[str, str]:
 @app.get("/api/version")
 async def version() -> dict[str, str]:
     """Version endpoint - returns application version and name."""
-    return {"version": VERSION, "name": "Dining Philosophers Sim API"}
+    return {"version": VERSION, "name": "Dining Philosophers API"}
