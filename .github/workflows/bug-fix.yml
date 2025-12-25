@@ -242,13 +242,15 @@ jobs:
       - name: Monitor CI and report results
         if: steps.context.outputs.mode == 'fix' && success()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.number }}
         run: |
-          # Find the most recent PR created by this workflow
-          PR_NUMBER=$(gh pr list --state open --author "@me" --json number,headRefName --jq '.[0].number' 2>/dev/null || echo "")
+          # Find PR by branch pattern fix/{issue_number}-* (Claude creates PRs, not the workflow)
+          PR_NUMBER=$(gh pr list --state open --json number,headRefName \
+            --jq ".[] | select(.headRefName | startswith(\"fix/${ISSUE_NUMBER}-\")) | .number" 2>/dev/null | head -1 || echo "")
 
           if [ -z "$PR_NUMBER" ]; then
-            echo "No open PR found, skipping CI monitoring"
+            echo "No open PR found for issue #${ISSUE_NUMBER}, skipping CI monitoring"
             exit 0
           fi
 
