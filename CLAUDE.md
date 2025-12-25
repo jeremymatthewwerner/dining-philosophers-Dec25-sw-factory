@@ -259,7 +259,8 @@ All agents MUST post progress updates to their issues for visibility:
 1. "🤖 Code Agent Started" - with workflow link
 2. "## Analysis" - root cause, affected files, proposed fix
 3. "## ✅ Fix Submitted" - PR link, changes, tests added
-4. "## ❌ Failed" - error details, adds `needs-human` label
+4. "## ✅ CI Passed" or "## ❌ CI Failed" - automatic CI status update (typically 3-5 min after PR)
+5. "## ❌ Failed" - error details, adds `needs-human` label
 
 **QA Agent** creates a tracking issue for each run:
 1. Creates issue: "🤖 QA Agent: [focus] ([day])"

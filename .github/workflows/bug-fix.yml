@@ -16,6 +16,8 @@ permissions:
   issues: write
   pull-requests: write
   id-token: write
+  actions: read
+  checks: read
 
 # Prevent concurrent runs on the same issue
 concurrency:
@@ -153,7 +155,7 @@ jobs:
                **Changes:** [summary]
                **Tests Added:** [list]
 
-               Waiting for CI to pass."
+               Waiting for CI to pass. I'll post an update when CI completes (typically 3-5 minutes)."
                ```
 
             ## Status Label Management
@@ -211,6 +213,59 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Monitor CI and report results
+        if: steps.context.outputs.mode == 'fix' && success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the most recent PR created by this workflow
+          PR_NUMBER=$(gh pr list --state open --author "@me" --json number,headRefName --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR found, skipping CI monitoring"
+            exit 0
+          fi
+
+          echo "Monitoring CI for PR #$PR_NUMBER"
+
+          # Wait for CI to start
+          sleep 30
+
+          # Poll for up to 15 minutes (30 iterations * 30 seconds)
+          for i in $(seq 1 30); do
+            echo "Check $i/30..."
+
+            # Get check status
+            IN_PROGRESS=$(gh pr checks $PR_NUMBER --json state --jq '[.[] | select(.state=="PENDING" or .state=="IN_PROGRESS")] | length' 2>/dev/null || echo "0")
+
+            if [ "$IN_PROGRESS" = "0" ]; then
+              # All checks complete, get results
+              FAILED=$(gh pr checks $PR_NUMBER --json state --jq '[.[] | select(.state=="FAILURE")] | length' 2>/dev/null || echo "0")
+
+              if [ "$FAILED" -gt 0 ]; then
+                gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ CI Failed
+
+          PR #${PR_NUMBER} has failing checks. [View details](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})
+
+          I'll investigate the failures and push fixes."
+              else
+                gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
+
+          All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review and merge.
+
+          Once merged, this issue will auto-close."
+              fi
+              exit 0
+            fi
+
+            sleep 30
+          done
+
+          # Timeout - still running after 15 min
+          gh issue comment ${{ steps.context.outputs.number }} --body "## ⏳ CI Still Running
+
+          CI checks for PR #${PR_NUMBER} are still running after 15 minutes. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})"
 
       - name: Update status on success
         if: success()
