@@ -29,7 +29,7 @@ async def test_version_endpoint(client: AsyncClient) -> None:
     response = await client.get("/api/version")
     assert response.status_code == 200
     data = response.json()
-    assert data == {"version": VERSION, "name": "Dining Philosophers API"}
+    assert data == {"version": VERSION, "name": "Dining Philosophers Sim API"}
     assert "version" in data
     assert "name" in data
     assert data["version"] == VERSION

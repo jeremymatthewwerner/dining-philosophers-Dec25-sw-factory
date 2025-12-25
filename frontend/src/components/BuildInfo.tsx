@@ -11,7 +11,7 @@ export function BuildInfo() {
     const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME;
     if (buildTime) {
       console.log(
-        `%c🏗️ Dining Philosophers - Build: ${buildTime}`,
+        `%c🏗️ Dining Philosophers Sim - Build: ${buildTime}`,
         'color: #0070f3; font-weight: bold; font-size: 14px;'
       );
     }

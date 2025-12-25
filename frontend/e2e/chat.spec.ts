@@ -64,7 +64,7 @@ test.describe('Chat Functionality', () => {
 
     // Should show empty state or welcome message
     await expect(
-      page.locator('text=Welcome to Dining Philosophers')
+      page.locator('text=Welcome to Dining Philosophers Sim')
     ).toBeVisible();
   });
 
