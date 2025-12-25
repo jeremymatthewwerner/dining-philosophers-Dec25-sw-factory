@@ -110,8 +110,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create initial progress comment with checkboxes
-          COMMENT_URL=$(gh issue comment ${{ steps.context.outputs.number }} --body "## 🤖 Progress Tracker
+          # Create initial progress comment with checkboxes using gh api (returns comment ID)
+          COMMENT_BODY="## 🤖 Progress Tracker
 
           - [ ] 📖 Reading issue and understanding requirements
           - [ ] 🔍 Analyzing codebase and finding affected files
@@ -121,10 +121,11 @@ jobs:
           - [ ] 🚀 Waiting for CI
 
           **Status:** Starting analysis...
-          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" --json url --jq '.url')
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
 
-          # Extract comment ID from URL
-          COMMENT_ID=$(echo "$COMMENT_URL" | grep -oE '[0-9]+$')
+          COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
+            -X POST -f body="$COMMENT_BODY" --jq '.id')
+
           echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
           echo "Created progress comment #$COMMENT_ID"
 
