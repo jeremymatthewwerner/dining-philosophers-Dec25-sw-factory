@@ -217,3 +217,40 @@ This document outlines all features requiring testing, their test cases, and edg
 4. **Mention detection** - Avoid false positives (common words matching names)
 5. **Extended thinking streaming** - Token accumulation and display throttling
 6. **Conversation switching** - Clean up state from previous conversation
+
+---
+
+## Test Coverage Improvements (Issue #30)
+
+### Backend: ThinkerService Error Handling (Added 2025-12-24)
+
+**New test cases added to improve thinker.py coverage from 63% → 67%+:**
+
+1. **TestSuggestThinkersErrorHandling**:
+   - `test_suggest_with_exclude_list` - Verify excluded thinkers are not suggested
+   - `test_suggest_parallel_batch_with_errors` - Parallel batch failures return partial results
+   - `test_suggest_api_quota_error_propagates` - API quota errors properly detected and raised
+
+2. **TestValidateThinkerErrorHandling**:
+   - `test_validate_handles_non_text_block` - Non-text response blocks handled gracefully
+   - `test_validate_handles_json_decode_error` - Invalid JSON returns False
+   - `test_validate_api_quota_error` - Quota errors properly detected in validation
+
+3. **TestWikipediaImage**:
+   - `test_get_image_with_no_thumbnail` - Pages without images return None
+   - `test_get_image_with_timeout` - Timeout errors handled gracefully
+
+4. **TestGenerateResponseErrorHandling**:
+   - `test_generate_response_api_error` - API errors raise ThinkerAPIError
+   - `test_generate_response_handles_non_text_block` - Non-text blocks return empty
+
+5. **TestGenerateUserPromptErrorHandling**:
+   - `test_generate_user_prompt_handles_exception` - Network errors handled gracefully
+   - `test_generate_user_prompt_handles_non_text_block` - Non-text blocks return empty
+
+**Bug Fixed**: UnboundLocalError in `_suggest_single_batch` - removed redundant local `logging` imports that shadowed module-level import and caused errors in exception handlers.
+
+**Coverage Impact**:
+- `app/services/thinker.py`: 63% → 67% (+4%)
+- Added tests for error paths, edge cases, and API quota handling
+- Tests ensure graceful degradation when AI services are unavailable
