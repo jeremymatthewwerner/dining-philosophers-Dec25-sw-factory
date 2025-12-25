@@ -94,18 +94,6 @@ jobs:
           gh issue edit ${{ steps.context.outputs.number }} \
             --add-label "status:bot-working"
 
-      - name: Mark issue as in progress (fix mode)
-        if: steps.context.outputs.mode == 'fix'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh issue comment ${{ steps.context.outputs.number }} --body "## 🤖 Code Agent Started
-
-          **Status:** Analyzing issue...
-          **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-          I'll update this issue with my progress."
-
       - name: Acknowledge comment (respond mode)
         if: steps.context.outputs.mode == 'respond'
         env:
@@ -116,6 +104,30 @@ jobs:
           **Status:** Processing your comment...
           **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
 
+      - name: Create progress comment
+        if: steps.context.outputs.mode == 'fix'
+        id: progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create initial progress comment with checkboxes
+          COMMENT_URL=$(gh issue comment ${{ steps.context.outputs.number }} --body "## 🤖 Progress Tracker
+
+          - [ ] 📖 Reading issue and understanding requirements
+          - [ ] 🔍 Analyzing codebase and finding affected files
+          - [ ] 🛠️ Implementing fix
+          - [ ] ✅ Running tests and quality checks
+          - [ ] 📝 Creating PR
+          - [ ] 🚀 Waiting for CI
+
+          **Status:** Starting analysis...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" --json url --jq '.url')
+
+          # Extract comment ID from URL
+          COMMENT_ID=$(echo "$COMMENT_URL" | grep -oE '[0-9]+$')
+          echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+          echo "Created progress comment #$COMMENT_ID"
+
       - name: Run Claude (fix mode)
         if: steps.context.outputs.mode == 'fix'
         uses: anthropics/claude-code-action@v1
@@ -123,44 +135,56 @@ jobs:
           prompt: |
             Read CLAUDE.md and .claude/agents/bug-fixer.md first.
 
-            **IMPORTANT: You MUST update issue #${{ steps.context.outputs.number }} with your progress!**
+            **CRITICAL: Update progress by EDITING comment #${{ steps.progress.outputs.comment_id }} with checkboxes!**
 
-            ## Step 1: Analyze (UPDATE ISSUE AFTER)
+            ## Progress Comment Format
+            After completing EACH step, update the progress comment by editing it:
+            ```bash
+            gh api repos/${{ github.repository }}/issues/comments/${{ steps.progress.outputs.comment_id }} \
+              -X PATCH -f body="## 🤖 Progress Tracker
+
+            - [x] 📖 Reading issue and understanding requirements
+            - [x] 🔍 Analyzing codebase and finding affected files
+            - [ ] 🛠️ Implementing fix
+            - [ ] ✅ Running tests and quality checks
+            - [ ] 📝 Creating PR
+            - [ ] 🚀 Waiting for CI
+
+            **Status:** [current status message]
+            **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ---
+            ### Analysis
+            **Root Cause:** [what's wrong]
+            **Files Affected:** [list]
+            **Proposed Fix:** [plan]"
+            ```
+
+            ## Step 1: Analyze
             1. Read the issue: gh issue view ${{ steps.context.outputs.number }}
-            2. Diagnose the root cause - search codebase, read relevant files
-            3. **Update the issue** with your analysis:
-               ```bash
-               gh issue comment ${{ steps.context.outputs.number }} --body "## Analysis
-
-               **Root Cause:** [what's wrong]
-               **Files Affected:** [list files]
-               **Proposed Fix:** [what you'll do]"
-               ```
+            2. Check first box [x] and update status to "Reading issue..."
+            3. Diagnose the root cause - search codebase, read relevant files
+            4. Check second box [x] and add Analysis section to progress comment
 
             ## Step 2: Implement Fix
-            1. Create a fix branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
-            2. Implement the fix with tests
-            3. Run quality gates:
+            1. Check third box [x] and update status to "Implementing fix..."
+            2. Create a fix branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
+            3. Implement the fix with tests
+            4. Check fourth box [x] and update status to "Running tests..."
+            5. Run quality gates:
                - cd frontend && npm run lint && npm run typecheck && npm test
                - cd backend && uv run ruff check . && uv run mypy . && uv run pytest
 
-            ## Step 3: Create PR (UPDATE ISSUE AFTER)
-            1. Commit with message referencing issue: "fix: description\n\nFixes #${{ steps.context.outputs.number }}"
-            2. Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.context.outputs.number }}"
-            3. **Update the issue** with PR link:
-               ```bash
-               gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ Fix Submitted
-
-               **PR:** #[number]
-               **Changes:** [summary]
-               **Tests Added:** [list]
-
-               Waiting for CI to pass. I'll post an update when CI completes (typically 3-5 minutes)."
-               ```
+            ## Step 3: Create PR
+            1. Check fifth box [x] and update status to "Creating PR..."
+            2. Commit with message referencing issue: "fix: description\n\nFixes #${{ steps.context.outputs.number }}"
+            3. Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.context.outputs.number }}"
+            4. Check sixth box [x] and add PR link to progress comment
+            5. Final status: "✅ PR created! Waiting for CI..."
 
             ## Status Label Management
-            - If you need human input, run: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
-            - When done (PR created or issue resolved), remove status:bot-working label
+            - If you need human input: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+            - When done (PR created): remove status:bot-working label
 
             If stuck for 30min or CI fails 3x, escalate to @jeremymatthewwerner.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -250,11 +274,22 @@ jobs:
 
           I'll investigate the failures and push fixes."
               else
-                gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
+                # CI passed - auto-merge the PR
+                echo "CI passed, auto-merging PR #${PR_NUMBER}..."
 
-          All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review and merge.
+                if gh pr merge $PR_NUMBER --squash --delete-branch; then
+                  gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed & Merged
 
-          Once merged, this issue will auto-close."
+          All checks passed! PR #${PR_NUMBER} has been automatically merged.
+
+          🚀 **Deploying to production...** The changes will be live shortly."
+                else
+                  gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
+
+          All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review.
+
+          ⚠️ Auto-merge failed (may need admin approval or branch protection allows only admins to merge)."
+                fi
               fi
               exit 0
             fi

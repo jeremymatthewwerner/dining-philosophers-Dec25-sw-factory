@@ -149,43 +149,32 @@ jobs:
 
             ## Your Mission: Improve Test Quality
 
-            **IMPORTANT: You have a tracking issue to update!**
-            - Issue number: #${{ steps.create-issue.outputs.issue_number }}
-            - You MUST update this issue with your progress
-            - **CHECK OFF BOXES** as you complete each step using `gh issue edit`
+            **CRITICAL: Update progress by EDITING issue #${{ steps.create-issue.outputs.issue_number }} body to check boxes!**
 
             Focus for this run: ${{ github.event.inputs.focus || steps.day.outputs.focus }}
             Current coverage: ${{ steps.coverage.outputs.current }}
             Coverage goal: 85%
 
-            ### Step 1: Analysis (CHECK BOX: "📊 Analyze coverage gaps")
+            ## How to Update Progress (EDIT THE ISSUE BODY!)
 
+            After completing EACH step, edit the issue body to check boxes and add details:
+            ```bash
+            gh api repos/${{ github.repository }}/issues/${{ steps.create-issue.outputs.issue_number }} \
+              -X PATCH -f body="[FULL UPDATED ISSUE BODY WITH CHECKED BOXES]"
+            ```
+
+            The issue body has this structure - update it as you progress:
+            - Check boxes: change `- [ ]` to `- [x]`
+            - Fill in sections: replace `_Analyzing..._` with actual content
+            - Update "Tests Added" list as you implement each test
+
+            ### Step 1: Analysis
             1. Run coverage reports:
                - Backend: `cd backend && uv run pytest --cov=app --cov-report=term-missing`
                - Frontend: `cd frontend && npm run test:coverage`
+            2. **EDIT ISSUE**: Check "📊 Analyze coverage gaps" box and fill in "Coverage Gaps Identified"
 
-            2. Identify specific gaps:
-               - List files with <60% coverage
-               - List files with <85% coverage (our goal)
-               - Identify missing E2E user journeys
-               - Find untested edge cases
-
-            3. **UPDATE THE TRACKING ISSUE** with your analysis findings:
-               ```bash
-               gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "## Analysis Complete
-
-               ### Coverage Report
-               [paste coverage findings]
-
-               ### Files Needing Tests
-               [list specific files and their coverage]
-
-               ### Gaps Identified
-               [list what's missing]"
-               ```
-
-            ### Step 2: Create Detailed Plan (UPDATE ISSUE AFTER THIS STEP)
-
+            ### Step 2: Create Detailed Plan
             Based on focus "${{ github.event.inputs.focus || steps.day.outputs.focus }}":
             - **coverage-sprint**: Pick lowest coverage file, plan tests to increase by 15%+
             - **flaky-hunt**: Run test suite 5x, identify failures
@@ -194,75 +183,26 @@ jobs:
             - **edge-cases**: Plan tests for error paths
             - **regression-prevention**: Review recent commits
 
-            **UPDATE THE TRACKING ISSUE** with your detailed plan:
-            ```bash
-            gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "## Detailed Plan
+            **EDIT ISSUE**: Check "📝 Create detailed test plan" box and fill in "Test Plan" table
 
-            ### Tests to Add
-            1. [test name] - [what it tests] - [file location]
-            2. [test name] - [what it tests] - [file location]
-            ...
-
-            ### Expected Coverage Impact
-            [estimate of coverage increase]
-
-            ### Estimated Effort
-            [number of tests, complexity]"
-            ```
-
-            ### Step 3: Implement Tests (UPDATE ISSUE WITH PROGRESS)
-
-            As you implement each test:
+            ### Step 3: Implement Tests
+            For each test:
             1. Write the test
             2. Run it 3x to verify no flakiness
-            3. Update the issue with progress:
-               ```bash
-               gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "✅ Added: [test name]
-               - File: [location]
-               - Coverage impact: [X% -> Y%]"
-               ```
+            3. **EDIT ISSUE**: Add completed test to "Tests Added" list with [x]
 
-            ### Step 4: Update TEST_PLAN.md
+            When all tests done, check "🧪 Implement tests" box
 
-            Add entries for ALL new tests with:
-            - Test name and file location
-            - What the test validates
-            - Edge cases covered
+            ### Step 4: Verify & Update TEST_PLAN.md
+            1. Run full test suite to verify everything passes
+            2. **EDIT ISSUE**: Check "✅ Verify all tests pass 3x" box
+            3. Update TEST_PLAN.md with new test descriptions
+            4. **EDIT ISSUE**: Check "📄 Update TEST_PLAN.md" box
 
             ### Step 5: Create PR and Final Update
-
-            1. Create PR referencing the tracking issue:
-               ```bash
-               gh pr create --title "test: [description]" --body "## Summary
-               [what was added]
-
-               ## Coverage Impact
-               Before: ${{ steps.coverage.outputs.current }}
-               After: [new coverage]
-
-               ## Tests Added
-               [list]
-
-               Relates to #${{ steps.create-issue.outputs.issue_number }}"
-               ```
-
-            2. Update tracking issue with final results:
-               ```bash
-               gh issue comment ${{ steps.create-issue.outputs.issue_number }} --body "## ✅ Work Complete
-
-               ### Results
-               - Coverage: ${{ steps.coverage.outputs.current }} -> [new]%
-               - Tests added: [count]
-               - PR: #[number]
-
-               ### Tests Added
-               [list all tests]"
-               ```
-
-            3. Close the tracking issue:
-               ```bash
-               gh issue close ${{ steps.create-issue.outputs.issue_number }} --comment "Work completed. See PR #[number]"
-               ```
+            1. Create PR: `gh pr create --title "test: [description]" --body "Relates to #${{ steps.create-issue.outputs.issue_number }}"`
+            2. **EDIT ISSUE**: Check "🚀 Create PR" box, update "Final Results" with coverage and PR link
+            3. Close the issue: `gh issue close ${{ steps.create-issue.outputs.issue_number }}`
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
