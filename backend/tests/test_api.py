@@ -634,36 +634,12 @@ class TestThinkerAPI:
     async def test_suggest_thinkers(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test getting thinker suggestions."""
-        from app.services.thinker import thinker_service
-
-        async def mock_suggest(*_args: object, **_kwargs: object) -> list[dict[str, Any]]:
-            return [
-                {
-                    "name": "Socrates",
-                    "reason": "Master of questioning and examining assumptions",
-                    "profile": {
-                        "name": "Socrates",
-                        "bio": "Ancient philosopher",
-                        "positions": "Knowledge through questioning",
-                        "style": "Socratic method",
-                        "image_url": None,
-                    },
-                },
-                {
-                    "name": "Plato",
-                    "reason": "Student of Socrates with systematic thinking",
-                    "profile": {
-                        "name": "Plato",
-                        "bio": "Student of Socrates",
-                        "positions": "Theory of Forms",
-                        "style": "Dialogues",
-                        "image_url": None,
-                    },
-                },
-            ]
-
-        monkeypatch.setattr(thinker_service, "suggest_thinkers", mock_suggest)
+        """Test getting thinker suggestions (using mock fallback)."""
+        # Mock settings to return None for API key, triggering the mock fallback
+        monkeypatch.setattr(
+            "app.api.thinkers.get_settings",
+            lambda: type("Settings", (), {"anthropic_api_key": None})(),
+        )
 
         response = await client.post(
             "/api/thinkers/suggest",
@@ -671,9 +647,11 @@ class TestThinkerAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
+        # Mock endpoint returns 3 suggestions
+        assert len(data) == 3
         assert all("name" in t for t in data)
         assert all("profile" in t for t in data)
+        assert all("reason" in t for t in data)
 
     async def test_validate_known_thinker(self, client: AsyncClient) -> None:
         """Test validating a known thinker."""
