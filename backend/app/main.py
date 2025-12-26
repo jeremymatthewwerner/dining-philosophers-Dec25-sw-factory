@@ -45,10 +45,23 @@ async def create_admin_user() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup and shutdown."""
-    # Startup: Initialize database
-    await init_db()
-    # Create admin user
-    await create_admin_user()
+    try:
+        logger.info("Starting application...")
+        logger.info(f"Database URL configured: {bool(settings.database_url)}")
+        logger.info(f"Anthropic API key configured: {bool(settings.anthropic_api_key)}")
+
+        # Startup: Initialize database
+        logger.info("Initializing database...")
+        await init_db()
+        logger.info("Database initialized successfully")
+
+        # Create admin user
+        logger.info("Creating admin user...")
+        await create_admin_user()
+        logger.info("Application startup complete")
+    except Exception as e:
+        logger.error(f"Startup failed: {e}", exc_info=True)
+        raise
     yield
     # Shutdown: Close database connections
     await close_db()
