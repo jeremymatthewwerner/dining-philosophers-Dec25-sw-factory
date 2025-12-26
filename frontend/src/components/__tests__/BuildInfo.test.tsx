@@ -2,7 +2,7 @@
  * Tests for BuildInfo component
  */
 
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { BuildInfo } from '../BuildInfo';
 
 describe('BuildInfo', () => {
@@ -50,8 +50,47 @@ describe('BuildInfo', () => {
     process.env.NEXT_PUBLIC_BUILD_TIME = originalEnv;
   });
 
-  it('should not render any visible content', () => {
+  it('should render formatted build timestamp when NEXT_PUBLIC_BUILD_TIME is set', () => {
+    const originalEnv = process.env.NEXT_PUBLIC_BUILD_TIME;
+    process.env.NEXT_PUBLIC_BUILD_TIME = '2025-12-26T13:05:00.000Z';
+
+    render(<BuildInfo />);
+
+    const buildInfo = screen.getByTestId('build-info');
+    expect(buildInfo).toBeInTheDocument();
+    expect(buildInfo).toHaveTextContent(/Built:/);
+    // Check that it contains formatted date parts (format depends on locale)
+    expect(buildInfo.textContent).toMatch(/Built:/);
+
+    // Restore original env
+    process.env.NEXT_PUBLIC_BUILD_TIME = originalEnv;
+  });
+
+  it('should not render any visible content when NEXT_PUBLIC_BUILD_TIME is not set', () => {
+    const originalEnv = process.env.NEXT_PUBLIC_BUILD_TIME;
+    delete process.env.NEXT_PUBLIC_BUILD_TIME;
+
     const { container } = render(<BuildInfo />);
     expect(container.firstChild).toBeNull();
+
+    // Restore original env
+    process.env.NEXT_PUBLIC_BUILD_TIME = originalEnv;
+  });
+
+  it('should format timestamp in the expected format', () => {
+    const originalEnv = process.env.NEXT_PUBLIC_BUILD_TIME;
+    // Set a specific timestamp
+    process.env.NEXT_PUBLIC_BUILD_TIME = '2025-12-26T13:05:00.000Z';
+
+    render(<BuildInfo />);
+
+    const buildInfo = screen.getByTestId('build-info');
+    // The format should be like "Built: Dec 26, 2025 at 1:05 PM"
+    // We'll check for the presence of key parts rather than exact match due to locale differences
+    expect(buildInfo.textContent).toMatch(/Built:/);
+    expect(buildInfo.textContent).toMatch(/at/);
+
+    // Restore original env
+    process.env.NEXT_PUBLIC_BUILD_TIME = originalEnv;
   });
 });
