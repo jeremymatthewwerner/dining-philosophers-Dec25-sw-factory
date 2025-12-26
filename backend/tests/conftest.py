@@ -2,8 +2,10 @@
 
 import gc
 from collections.abc import AsyncGenerator, Generator
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from anthropic.types import TextBlock
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -56,3 +58,99 @@ async def db_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     )
     async with async_session() as session:
         yield session
+
+
+# Test data constants
+TEST_USER_ID = "user-123"
+TEST_TOKEN = "jwt-token-123"
+TEST_TIMESTAMP = "2024-01-15T10:00:00Z"
+
+
+# Thinker-related fixtures (for test_thinker_service.py)
+@pytest.fixture
+def mock_thinker() -> MagicMock:
+    """Create a standard mock thinker object for testing.
+
+    Reduces duplication across test_thinker_service.py where this pattern
+    appears 25+ times with identical values.
+    """
+    thinker = MagicMock()
+    thinker.name = "Socrates"
+    thinker.bio = "Ancient philosopher"
+    thinker.positions = "Questioning everything"
+    thinker.style = "Socratic method"
+    return thinker
+
+
+@pytest.fixture
+def mock_anthropic_client() -> AsyncMock:
+    """Create a mock Anthropic API client.
+
+    Reduces duplication of client mocking pattern that appears 15+ times.
+    """
+    mock_client = AsyncMock()
+    mock_client.messages = AsyncMock()
+    return mock_client
+
+
+def create_text_block_response(json_content: str) -> MagicMock:
+    """Create a mock API response with TextBlock content.
+
+    Helper function to reduce duplication of response creation pattern
+    that appears 15+ times in test_thinker_service.py.
+
+    Args:
+        json_content: The JSON string content for the TextBlock
+
+    Returns:
+        Mock response object with TextBlock in content list
+    """
+    mock_response = MagicMock()
+    mock_response.content = [TextBlock(type="text", text=json_content)]
+    return mock_response
+
+
+def create_suggest_thinkers_response(
+    names: list[str] | None = None,
+) -> MagicMock:
+    """Create a mock API response for suggest_thinkers endpoint.
+
+    Args:
+        names: List of thinker names to include (default: ["Socrates"])
+
+    Returns:
+        Mock response with formatted thinker suggestions
+    """
+    if names is None:
+        names = ["Socrates"]
+
+    thinkers_json = (
+        "[\n"
+        + ",\n".join(
+            [
+                '  {"name": "' + name + '", "bio": "Ancient philosopher", '
+                '"positions": "Various", "style": "Dialectic"}'
+                for name in names
+            ]
+        )
+        + "\n]"
+    )
+
+    return create_text_block_response(thinkers_json)
+
+
+def create_validate_thinker_response(is_valid: bool = True) -> MagicMock:
+    """Create a mock API response for validate_thinker endpoint.
+
+    Args:
+        is_valid: Whether the thinker should be valid
+
+    Returns:
+        Mock response with validation result
+    """
+    response_json = (
+        '{"valid": true, "bio": "Ancient philosopher"}'
+        if is_valid
+        else '{"valid": false, "error": "Not a real person"}'
+    )
+    return create_text_block_response(response_json)

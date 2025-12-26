@@ -102,6 +102,49 @@ async def get_auth_headers(
     return {"Authorization": f"Bearer {data['access_token']}"}
 
 
+async def create_test_conversation(
+    client: AsyncClient,
+    headers: dict[str, str],
+    topic: str = "Test Topic",
+    num_thinkers: int = 2,
+) -> str:
+    """Helper to create a test conversation and return its ID.
+
+    Reduces duplication of conversation creation pattern that appears 10+ times
+    in test_api.py with nearly identical structure.
+
+    Args:
+        client: AsyncClient for making requests
+        headers: Auth headers
+        topic: Conversation topic
+        num_thinkers: Number of thinkers to create (default 2)
+
+    Returns:
+        The conversation ID
+    """
+    thinkers = []
+    thinker_names = ["Socrates", "Einstein", "Plato", "Darwin", "Curie"]
+    for i in range(num_thinkers):
+        name = thinker_names[i] if i < len(thinker_names) else f"Thinker{i}"
+        thinkers.append(
+            {
+                "name": name,
+                "bio": f"Bio for {name}",
+                "positions": f"Positions of {name}",
+                "style": f"Style of {name}",
+            }
+        )
+
+    response = await client.post(
+        "/api/conversations",
+        headers=headers,
+        json={"topic": topic, "thinkers": thinkers},
+    )
+    assert response.status_code == 200, f"Failed to create conversation: {response.text}"
+    data = response.json()
+    return data["id"]
+
+
 class TestAuthAPI:
     """Tests for authentication endpoints."""
 
@@ -587,17 +630,47 @@ class TestConversationAPI:
 class TestThinkerAPI:
     """Tests for thinker endpoints."""
 
-    async def test_suggest_thinkers(self, client: AsyncClient) -> None:
+    async def test_suggest_thinkers(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test getting thinker suggestions."""
+        from app.services.thinker import thinker_service
+
+        async def mock_suggest(*_args: object, **_kwargs: object) -> list[dict[str, Any]]:
+            return [
+                {
+                    "name": "Socrates",
+                    "reason": "Master of questioning and examining assumptions",
+                    "profile": {
+                        "name": "Socrates",
+                        "bio": "Ancient philosopher",
+                        "positions": "Knowledge through questioning",
+                        "style": "Socratic method",
+                        "image_url": None,
+                    },
+                },
+                {
+                    "name": "Plato",
+                    "reason": "Student of Socrates with systematic thinking",
+                    "profile": {
+                        "name": "Plato",
+                        "bio": "Student of Socrates",
+                        "positions": "Theory of Forms",
+                        "style": "Dialogues",
+                        "image_url": None,
+                    },
+                },
+            ]
+
+        monkeypatch.setattr(thinker_service, "suggest_thinkers", mock_suggest)
+
         response = await client.post(
             "/api/thinkers/suggest",
             json={"topic": "Philosophy of mind", "count": 3},
         )
         assert response.status_code == 200
         data = response.json()
-        # Due to parallel fetching and deduplication, we may get slightly fewer
-        assert len(data) >= 2
-        assert len(data) <= 3
+        assert len(data) == 2
         assert all("name" in t for t in data)
         assert all("profile" in t for t in data)
 
@@ -843,31 +916,40 @@ class TestAdminAPI:
         )
         assert response.status_code == 404
 
+    @pytest.mark.parametrize(
+        "invalid_limit,description",
+        [
+            (0, "zero value"),
+            (-5.0, "negative value"),
+            (-100, "large negative value"),
+        ],
+    )
     async def test_update_spend_limit_invalid_value(
-        self, client: AsyncClient, db_session: AsyncSession
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        invalid_limit: float,
+        description: str,
     ) -> None:
-        """Test validation for invalid spend limit values."""
+        """Test validation for invalid spend limit values.
+
+        Parametrized test reduces duplication of validation testing pattern.
+        Tests multiple invalid values: zero, negative, large negative.
+        """
         admin_data = await create_admin_user(client, db_session)
         headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
 
         user_data = await register_and_get_token(client, "validationuser", "password123")
         user_id = user_data["user"]["id"]
 
-        # Test zero
         response = await client.patch(
             f"/api/admin/users/{user_id}/spend-limit",
-            json={"spend_limit": 0},
+            json={"spend_limit": invalid_limit},
             headers=headers,
         )
-        assert response.status_code == 422
-
-        # Test negative
-        response = await client.patch(
-            f"/api/admin/users/{user_id}/spend-limit",
-            json={"spend_limit": -5.0},
-            headers=headers,
+        assert response.status_code == 422, (
+            f"Expected 422 for {description}, got {response.status_code}"
         )
-        assert response.status_code == 422
 
     async def test_update_spend_limit_persists(
         self, client: AsyncClient, db_session: AsyncSession
