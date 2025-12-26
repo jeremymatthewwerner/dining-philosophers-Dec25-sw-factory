@@ -40,9 +40,10 @@ jobs:
             2. Check for duplicates: gh issue list --search "similar terms"
             3. Classify as bug, feature/enhancement, or question
             4. Assign priority: P0 (critical), P1 (high), P2 (medium)
-            5. Add appropriate labels: gh issue edit ${{ steps.issue.outputs.number }} --add-label "label1,label2"
-            6. If ready for AI to fix, add 'ai-ready' label
-            7. Comment with your assessment: gh issue comment ${{ steps.issue.outputs.number }} --body "..."
+            5. Add classification and priority labels FIRST: gh issue edit ${{ steps.issue.outputs.number }} --add-label "bug,priority-low" (or enhancement, P0, P1, P2, etc.)
+            6. Comment with your assessment: gh issue comment ${{ steps.issue.outputs.number }} --body "..."
+            7. IMPORTANT: Add 'ai-ready' label LAST, in a SEPARATE command: gh issue edit ${{ steps.issue.outputs.number }} --add-label "ai-ready"
+               This ensures the Code Agent triggers correctly (it checks for bug/enhancement labels when ai-ready is added).
 
             Available labels: bug, enhancement, ai-ready, P0, P1, P2, needs-human
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
