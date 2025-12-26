@@ -44,6 +44,7 @@ async def list_users(
                 is_admin=user.is_admin,
                 total_spend=user.total_spend,
                 spend_limit=user.spend_limit,
+                language_preference=user.language_preference,
                 conversation_count=conv_count,
                 created_at=user.created_at,
             )
