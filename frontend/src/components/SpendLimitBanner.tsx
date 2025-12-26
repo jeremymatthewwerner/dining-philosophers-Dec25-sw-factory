@@ -4,6 +4,8 @@
 
 'use client';
 
+import { useLanguage } from '@/contexts/LanguageContext';
+
 export interface SpendLimitBannerProps {
   /** Current spend amount */
   currentSpend: number;
@@ -21,6 +23,7 @@ export function SpendLimitBanner({
   isExceeded,
   onDismiss,
 }: SpendLimitBannerProps) {
+  const { t } = useLanguage();
   const percentUsed = Math.min(100, (currentSpend / spendLimit) * 100);
   const isNearLimit = percentUsed >= 85 && !isExceeded;
 
@@ -74,7 +77,9 @@ export function SpendLimitBanner({
                   : 'text-yellow-800 dark:text-yellow-200'
               }`}
             >
-              {isExceeded ? 'Spend limit reached' : 'Approaching spend limit'}
+              {isExceeded
+                ? t.spendLimitBanner.limitReached
+                : t.spendLimitBanner.approachingLimit}
             </p>
             <p
               className={`text-xs ${
@@ -85,7 +90,7 @@ export function SpendLimitBanner({
             >
               ${currentSpend.toFixed(2)} / ${spendLimit.toFixed(2)} (
               {percentUsed.toFixed(0)}%)
-              {isExceeded && ' - Contact admin to increase your limit'}
+              {isExceeded && ` - ${t.spendLimitBanner.contactAdmin}`}
             </p>
           </div>
         </div>
@@ -93,7 +98,7 @@ export function SpendLimitBanner({
           <button
             onClick={onDismiss}
             className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200"
-            aria-label="Dismiss"
+            aria-label={t.spendLimitBanner.dismiss}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

@@ -5,6 +5,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface CostMeterProps {
   /** Total cost accumulated */
@@ -14,6 +15,7 @@ export interface CostMeterProps {
 }
 
 export function CostMeter({ totalCost, className = '' }: CostMeterProps) {
+  const { t } = useLanguage();
   const [displayCost, setDisplayCost] = useState(totalCost);
 
   // Animate cost changes
@@ -60,9 +62,11 @@ export function CostMeter({ totalCost, className = '' }: CostMeterProps) {
     <div
       className={`flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full text-sm ${className}`}
       data-testid="cost-meter"
-      title="Total cost this session (resets on page reload)"
+      title={t.costMeter.totalCostTitle}
     >
-      <span className="text-zinc-500 dark:text-zinc-400">This Session:</span>
+      <span className="text-zinc-500 dark:text-zinc-400">
+        {t.costMeter.thisSession}
+      </span>
       <span className={`font-mono font-medium ${getCostColor()}`}>
         {formatCost(displayCost)}
       </span>

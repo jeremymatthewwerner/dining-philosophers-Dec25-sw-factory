@@ -7,6 +7,7 @@
 import { useCallback, useState } from 'react';
 import type { ThinkerProfile, ThinkerSuggestion } from '@/types';
 import { ThinkerAvatar } from './ThinkerAvatar';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface SelectedThinker {
   name: string;
@@ -38,6 +39,7 @@ export function ThinkerSelector({
   isFetchingMore = false,
   maxThinkers = 5,
 }: ThinkerSelectorProps) {
+  const { t, interpolate } = useLanguage();
   const [customName, setCustomName] = useState('');
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,11 +69,13 @@ export function ThinkerSelector({
         onSelect({ name: profile.name, profile });
         setCustomName('');
       } else {
-        setError(`Could not find "${customName}". Try a different name.`);
+        setError(
+          interpolate(t.thinkerSelector.errorNotFound, { name: customName })
+        );
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Failed to validate thinker';
+        err instanceof Error ? err.message : t.thinkerSelector.errorValidation;
       setError(message);
     } finally {
       setValidating(false);
@@ -117,7 +121,7 @@ export function ThinkerSelector({
         {topic && (
           <div className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              Topic:{' '}
+              {t.thinkerSelector.topic}{' '}
             </span>
             <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
               {topic}
@@ -128,7 +132,10 @@ export function ThinkerSelector({
         {/* Selected thinkers */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Selected ({selectedThinkers.length}/{maxThinkers})
+            {interpolate(t.thinkerSelector.selected, {
+              count: selectedThinkers.length,
+              max: maxThinkers,
+            })}
           </label>
           {selectedThinkers.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -147,7 +154,9 @@ export function ThinkerSelector({
                   <button
                     onClick={() => onRemove(thinker.name)}
                     className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full"
-                    aria-label={`Remove ${thinker.name}`}
+                    aria-label={interpolate(t.thinkerSelector.removeAria, {
+                      name: thinker.name,
+                    })}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -163,7 +172,7 @@ export function ThinkerSelector({
             </div>
           ) : (
             <div className="py-3 text-center text-sm text-zinc-400 dark:text-zinc-500">
-              No Selections Yet
+              {t.thinkerSelector.noSelectionsYet}
             </div>
           )}
         </div>
@@ -172,7 +181,7 @@ export function ThinkerSelector({
         {canAddMore && (
           <div className="space-y-2">
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Add custom thinker
+              {t.thinkerSelector.addCustomThinker}
             </label>
             <div className="flex gap-2">
               <input
@@ -188,7 +197,7 @@ export function ThinkerSelector({
                     handleAddCustom();
                   }
                 }}
-                placeholder="Enter a name (e.g., Socrates)"
+                placeholder={t.thinkerSelector.enterName}
                 className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 data-testid="custom-thinker-input"
               />
@@ -198,7 +207,9 @@ export function ThinkerSelector({
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="add-custom-thinker"
               >
-                {validating ? 'Checking...' : 'Add'}
+                {validating
+                  ? t.thinkerSelector.checking
+                  : t.thinkerSelector.add}
               </button>
             </div>
             {error && (
@@ -215,13 +226,13 @@ export function ThinkerSelector({
         {/* Suggested thinkers label - in pinned header */}
         {canAddMore && (
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 pt-2">
-            Suggested thinkers
+            {t.thinkerSelector.suggestedThinkers}
           </label>
         )}
 
         {!canAddMore && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Maximum of {maxThinkers} thinkers reached
+            {interpolate(t.thinkerSelector.maxReached, { max: maxThinkers })}
           </p>
         )}
       </div>
@@ -231,7 +242,7 @@ export function ThinkerSelector({
         <div className="flex-1 overflow-y-auto min-h-0 mt-3 space-y-2">
           {isLoading ? (
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              Loading suggestions...
+              {t.thinkerSelector.loadingSuggestions}
             </div>
           ) : visibleSuggestions.length > 0 || isFetchingMore ? (
             <>
@@ -261,8 +272,10 @@ export function ThinkerSelector({
                       <button
                         onClick={() => handleAccept(suggestion)}
                         className="p-1.5 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30 rounded-lg transition-colors"
-                        aria-label={`Add ${suggestion.name}`}
-                        title="Add to conversation"
+                        aria-label={interpolate(t.thinkerSelector.addAria, {
+                          name: suggestion.name,
+                        })}
+                        title={t.thinkerSelector.addToConversation}
                         data-testid="accept-suggestion"
                       >
                         <svg
@@ -283,8 +296,11 @@ export function ThinkerSelector({
                           onClick={() => handleRefresh(suggestion.name)}
                           disabled={refreshingNames.has(suggestion.name)}
                           className="p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50"
-                          aria-label={`Get different suggestion for ${suggestion.name}`}
-                          title="Get a different suggestion"
+                          aria-label={interpolate(
+                            t.thinkerSelector.refreshAria,
+                            { name: suggestion.name }
+                          )}
+                          title={t.thinkerSelector.getDifferentSuggestion}
                           data-testid="refresh-suggestion"
                         >
                           {refreshingNames.has(suggestion.name) ? (
@@ -342,7 +358,7 @@ export function ThinkerSelector({
             </>
           ) : (
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              No suggestions available.
+              {t.thinkerSelector.noSuggestions}
             </div>
           )}
         </div>

@@ -4,6 +4,8 @@
 
 'use client';
 
+import { useLanguage } from '@/contexts/LanguageContext';
+
 export interface ErrorBannerProps {
   /** Error message to display */
   message: string;
@@ -12,6 +14,8 @@ export interface ErrorBannerProps {
 }
 
 export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
+  const { t } = useLanguage();
+
   if (!message) {
     return null;
   }
@@ -37,7 +41,7 @@ export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
           </svg>
           <div>
             <p className="text-sm font-medium text-red-800 dark:text-red-200">
-              Error
+              {t.errorBanner.error}
             </p>
             <p className="text-xs text-red-600 dark:text-red-400">{message}</p>
           </div>
@@ -46,7 +50,7 @@ export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
           <button
             onClick={onDismiss}
             className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
-            aria-label="Dismiss"
+            aria-label={t.errorBanner.dismiss}
             data-testid="dismiss-error-button"
           >
             <svg

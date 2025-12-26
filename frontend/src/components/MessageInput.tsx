@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface MessageInputProps {
   /** Callback when message is submitted */
@@ -31,8 +32,9 @@ export function MessageInput({
   onTypingStart,
   onTypingStop,
   disabled = false,
-  placeholder = 'Type your message...',
+  placeholder,
 }: MessageInputProps) {
+  const { t } = useLanguage();
   const [value, setValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,7 +125,7 @@ export function MessageInput({
         }}
         onKeyDown={handleKeyDown}
         disabled={disabled}
-        placeholder={placeholder}
+        placeholder={placeholder || t.messageInput.placeholder}
         rows={1}
         className="flex-1 px-4 py-2 min-h-[44px] max-h-[200px] rounded-2xl border border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
         data-testid="message-textarea"
@@ -133,7 +135,7 @@ export function MessageInput({
         disabled={disabled || !value.trim()}
         className="flex items-center justify-center w-11 h-11 rounded-full bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         data-testid="send-button"
-        aria-label="Send message"
+        aria-label={t.messageInput.sendMessage}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
