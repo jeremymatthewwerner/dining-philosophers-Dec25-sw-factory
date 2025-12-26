@@ -85,7 +85,7 @@ export function Sidebar({
                   height={32}
                   className="rounded-full"
                 />
-                dining philosophers
+                Dining Philosophers 🍴
               </a>
               <button
                 onClick={onToggle}
