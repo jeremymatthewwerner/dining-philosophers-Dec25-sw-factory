@@ -19,7 +19,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
 
     steps:
-      - name: Get failed jobs info
+      - name: Get failed jobs info and logs
         id: failed-jobs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -33,6 +33,15 @@ jobs:
 
           # Get the run URL
           echo "run_url=${{ github.event.workflow_run.html_url }}" >> $GITHUB_OUTPUT
+
+          # CRITICAL: Capture actual failure logs so Code Agent has context
+          echo "Fetching failure logs..."
+          FAILURE_LOGS=$(gh run view ${{ github.event.workflow_run.id }} --log-failed 2>/dev/null | tail -200 || echo "Could not fetch logs")
+
+          # Store logs (truncated to avoid GitHub API limits)
+          echo "failure_logs<<LOGS_EOF" >> $GITHUB_OUTPUT
+          echo "${FAILURE_LOGS:0:10000}" >> $GITHUB_OUTPUT
+          echo "LOGS_EOF" >> $GITHUB_OUTPUT
 
       - name: Check for existing issue
         id: check-issue
@@ -58,6 +67,7 @@ jobs:
         if: steps.check-issue.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILURE_LOGS: ${{ steps.failed-jobs.outputs.failure_logs }}
         run: |
           # Create issue WITHOUT ai-ready label first
           ISSUE_URL=$(gh issue create --repo ${{ github.repository }} \
@@ -70,10 +80,21 @@ jobs:
           **Branch:** main
           **Run:** ${{ steps.failed-jobs.outputs.run_url }}
 
+          ## Failure Logs
+
+          <details>
+          <summary>📋 Click to expand failure logs</summary>
+
+          \`\`\`
+          ${FAILURE_LOGS}
+          \`\`\`
+
+          </details>
+
           ## Instructions for Code Agent
 
-          1. Check the failed workflow run logs at the URL above
-          2. Identify the root cause of the failure
+          1. **Read the failure logs above first** - they show exactly what went wrong
+          2. Identify the root cause from the error messages
           3. Fix the issue and create a PR
           4. Ensure all tests pass before merging
 

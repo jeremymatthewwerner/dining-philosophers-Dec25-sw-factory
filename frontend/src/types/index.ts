@@ -11,6 +11,7 @@ export interface User {
   is_admin: boolean;
   total_spend: number;
   spend_limit: number;
+  language_preference: string;
   created_at: string;
 }
 

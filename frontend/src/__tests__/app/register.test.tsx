@@ -117,7 +117,8 @@ describe('RegisterPage', () => {
       expect(mockRegister).toHaveBeenCalledWith(
         'newuser',
         'New User',
-        'password123'
+        'password123',
+        'en' // Default language preference
       );
       expect(mockRouter.push).toHaveBeenCalledWith('/');
     });

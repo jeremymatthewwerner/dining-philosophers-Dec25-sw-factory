@@ -138,6 +138,30 @@ jobs:
 
             **CRITICAL: Update progress by EDITING comment #${{ steps.progress.outputs.comment_id }} with checkboxes!**
 
+            ## IMPORTANT: Check for Previous Attempts First!
+
+            Before starting fresh, check if there's already work done on this issue:
+
+            1. **Check for existing PRs:**
+               ```bash
+               gh pr list --search "head:fix/${{ steps.context.outputs.number }}" --state all --json number,title,state,headRefName
+               gh pr list --search "head:feat/${{ steps.context.outputs.number }}" --state all --json number,title,state,headRefName
+               ```
+
+            2. **Read ALL issue comments for context:**
+               ```bash
+               gh issue view ${{ steps.context.outputs.number }} --comments
+               ```
+               Look for:
+               - "❌ CI Failed" comments with failure logs (these tell you EXACTLY what went wrong)
+               - Previous analysis or proposed fixes
+               - Human feedback or suggestions
+
+            3. **If a PR already exists:**
+               - Check out that branch: `git fetch origin && git checkout <branch-name>`
+               - Look at what was already implemented
+               - Focus on fixing the SPECIFIC failure, don't start over
+
             ## Progress Comment Format
             After completing EACH step, update the progress comment by editing it:
             ```bash
@@ -161,25 +185,29 @@ jobs:
             **Proposed Fix:** [plan]"
             ```
 
-            ## Step 1: Analyze
-            1. Read the issue: gh issue view ${{ steps.context.outputs.number }}
+            ## Step 1: Analyze (Check Previous Work First!)
+            1. Read the issue AND all comments: gh issue view ${{ steps.context.outputs.number }} --comments
             2. Check first box [x] and update status to "Reading issue..."
-            3. Diagnose the root cause - search codebase, read relevant files
-            4. Check second box [x] and add Analysis section to progress comment
+            3. **If there's a "❌ CI Failed" comment with logs, focus on fixing THAT specific error**
+            4. Check for existing PR/branch and reuse it if possible
+            5. Diagnose the root cause - search codebase, read relevant files
+            6. Check second box [x] and add Analysis section to progress comment
 
             ## Step 2: Implement Fix
             1. Check third box [x] and update status to "Implementing fix..."
-            2. Create a fix branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
+            2. If existing branch: `git checkout <branch>` and fix the issue
+               If new: Create a fix branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
             3. Implement the fix with tests
             4. Check fourth box [x] and update status to "Running tests..."
             5. Run quality gates:
                - cd frontend && npm run lint && npm run typecheck && npm test
                - cd backend && uv run ruff check . && uv run mypy . && uv run pytest
 
-            ## Step 3: Create PR
+            ## Step 3: Create/Update PR
             1. Check fifth box [x] and update status to "Creating PR..."
             2. Commit with message referencing issue: "fix: description\n\nFixes #${{ steps.context.outputs.number }}"
-            3. Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.context.outputs.number }}"
+            3. If PR exists: push to existing branch
+               If new: Push and create PR: gh pr create --title "fix: ..." --body "Fixes #${{ steps.context.outputs.number }}"
             4. Check sixth box [x] and add PR link to progress comment
             5. Final status: "✅ PR created! Waiting for CI..."
 
@@ -294,6 +322,23 @@ jobs:
                 echo "ci_failed=true" >> $GITHUB_OUTPUT
                 echo "failed_checks=$FAILED_CHECKS" >> $GITHUB_OUTPUT
 
+                # CRITICAL: Capture actual failure logs so retry has context
+                echo "Fetching failure logs for PR #$PR_NUMBER..."
+
+                # Get the CI run ID for this PR
+                CI_RUN_ID=$(gh run list --branch "$(gh pr view $PR_NUMBER --json headRefName -q .headRefName)" \
+                  --workflow=ci.yml --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
+
+                FAILURE_LOGS=""
+                if [ -n "$CI_RUN_ID" ]; then
+                  # Capture failed job logs (truncated to last 100 lines per job)
+                  FAILURE_LOGS=$(gh run view "$CI_RUN_ID" --log-failed 2>/dev/null | tail -150 || echo "Could not fetch logs")
+                fi
+
+                echo "failure_logs<<LOGS_EOF" >> $GITHUB_OUTPUT
+                echo "$FAILURE_LOGS" >> $GITHUB_OUTPUT
+                echo "LOGS_EOF" >> $GITHUB_OUTPUT
+
                 # Update progress comment with failure
                 if [ -n "$PROGRESS_COMMENT_ID" ]; then
                   gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
@@ -310,11 +355,21 @@ jobs:
           **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
                 fi
 
+                # Post failure comment WITH actual logs so retry can see them
                 gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ CI Failed
 
           PR #${PR_NUMBER} has failing checks: **${FAILED_CHECKS}**
 
-          [View details](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})
+          <details>
+          <summary>📋 Failure Logs (click to expand)</summary>
+
+          \`\`\`
+          ${FAILURE_LOGS:0:8000}
+          \`\`\`
+
+          </details>
+
+          [View full logs](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}/checks)
 
           🔄 **Auto-retry:** Triggering Code Agent to investigate and fix..."
               else
@@ -375,16 +430,45 @@ jobs:
 
           CI checks for PR #${PR_NUMBER} are still running after 15 minutes. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})"
 
-      - name: Trigger CI fix retry
+      - name: Trigger CI fix retry (with limit)
         if: steps.ci-monitor.outputs.ci_failed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.number }}
         run: |
-          # Dispatch a new workflow run to fix the CI failure
-          gh workflow run bug-fix.yml \
-            -f issue_number=${{ steps.context.outputs.number }} \
-            --ref ${{ github.ref_name }} 2>/dev/null || \
-          echo "Could not trigger retry workflow - may need manual intervention"
+          # Count CI failure comments to prevent infinite retry loop
+          # Per CLAUDE.md: "Escalate to @jeremymatthewwerner when CI fails 3x on same issue"
+          FAILURE_COUNT=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
+            --jq '[.comments[] | select(.body | contains("❌ CI Failed"))] | length' 2>/dev/null || echo "0")
+
+          echo "CI failure count for issue #$ISSUE_NUMBER: $FAILURE_COUNT"
+
+          if [ "$FAILURE_COUNT" -ge 3 ]; then
+            echo "CI has failed 3+ times - escalating to human instead of retrying"
+            gh issue comment "$ISSUE_NUMBER" --body "## 🚨 CI Retry Limit Reached
+
+          CI has failed **$FAILURE_COUNT times** on this issue. Stopping automatic retries to prevent an infinite loop.
+
+          **Failed checks:** ${{ steps.ci-monitor.outputs.failed_checks }}
+
+          **Next steps:**
+          1. Review the [CI logs](${{ github.server_url }}/${{ github.repository }}/pull/${{ steps.ci-monitor.outputs.pr_number }})
+          2. The issue may require manual investigation or a different approach
+          3. After fixing, comment \`@claude please retry\` to trigger another attempt
+
+          Escalating to @jeremymatthewwerner for review."
+
+            gh issue edit "$ISSUE_NUMBER" \
+              --remove-label "status:bot-working" \
+              --add-label "needs-human" \
+              --add-label "status:awaiting-human"
+          else
+            echo "Retrying (attempt $((FAILURE_COUNT + 1)) of 3)..."
+            gh workflow run bug-fix.yml \
+              -f issue_number="$ISSUE_NUMBER" \
+              --ref ${{ github.ref_name }} 2>/dev/null || \
+            echo "Could not trigger retry workflow - may need manual intervention"
+          fi
 
       - name: Update status on success
         if: success()
