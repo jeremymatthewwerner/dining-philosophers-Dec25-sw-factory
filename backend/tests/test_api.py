@@ -1050,3 +1050,89 @@ class TestSpendAPI:
         """Test that unauthenticated requests are rejected."""
         response = await client.get("/api/spend/some-user-id")
         assert response.status_code == 401
+
+
+class TestLanguageSupport:
+    """Tests for multi-language support."""
+
+    async def test_register_with_english(self, client: AsyncClient) -> None:
+        """Test registration with English language (default)."""
+        response = await client.post(
+            "/api/auth/register",
+            json={
+                "username": "englishuser",
+                "display_name": "English User",
+                "password": "password123",
+                "language": "en",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user"]["language"] == "en"
+
+    async def test_register_with_spanish(self, client: AsyncClient) -> None:
+        """Test registration with Spanish language."""
+        response = await client.post(
+            "/api/auth/register",
+            json={
+                "username": "spanishuser",
+                "display_name": "Spanish User",
+                "password": "password123",
+                "language": "es",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user"]["language"] == "es"
+
+    async def test_register_default_language(self, client: AsyncClient) -> None:
+        """Test registration defaults to English if language not specified."""
+        response = await client.post(
+            "/api/auth/register",
+            json={
+                "username": "defaultuser",
+                "display_name": "Default User",
+                "password": "password123",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user"]["language"] == "en"
+
+    async def test_register_invalid_language(self, client: AsyncClient) -> None:
+        """Test registration fails with invalid language."""
+        response = await client.post(
+            "/api/auth/register",
+            json={
+                "username": "invalidlanguser",
+                "display_name": "Invalid Lang User",
+                "password": "password123",
+                "language": "fr",  # French not supported yet
+            },
+        )
+        assert response.status_code == 422  # Validation error
+
+    async def test_login_returns_language(self, client: AsyncClient) -> None:
+        """Test that login returns user's language preference."""
+        # First register with Spanish
+        await client.post(
+            "/api/auth/register",
+            json={
+                "username": "spanishlogin",
+                "display_name": "Spanish Login",
+                "password": "password123",
+                "language": "es",
+            },
+        )
+
+        # Then login
+        response = await client.post(
+            "/api/auth/login",
+            json={
+                "username": "spanishlogin",
+                "password": "password123",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user"]["language"] == "es"

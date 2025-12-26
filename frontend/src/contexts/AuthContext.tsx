@@ -18,7 +18,8 @@ interface AuthContextType {
   register: (
     username: string,
     displayName: string,
-    password: string
+    password: string,
+    language?: string
   ) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -57,8 +58,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (username: string, displayName: string, password: string) => {
-      const response = await api.register(username, displayName, password);
+    async (
+      username: string,
+      displayName: string,
+      password: string,
+      language = 'en'
+    ) => {
+      const response = await api.register(
+        username,
+        displayName,
+        password,
+        language
+      );
       setUser(response.user);
     },
     []

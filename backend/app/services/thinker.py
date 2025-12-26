@@ -418,6 +418,7 @@ Return ONLY the JSON, no other text."""
         thinker: "ConversationThinker",
         messages: Sequence["Message"],
         topic: str,
+        user_language: str = "en",
     ) -> tuple[str, float]:
         """Generate a response using streaming extended thinking.
 
@@ -442,6 +443,11 @@ Return ONLY the JSON, no other text."""
             for m in messages[-20:]  # Last 20 messages for context
         )
 
+        # Language instruction
+        language_instruction = ""
+        if user_language == "es":
+            language_instruction = "\n\nLANGUAGE: Respond in Spanish. All your words, thoughts, and understanding should be in Spanish."
+
         prompt = f"""You ARE {thinker.name}, participating in a group discussion.
 
 WHO YOU ARE:
@@ -465,7 +471,7 @@ Guidelines for your response:
 - Don't be preachy or lecture-like
 - Show personality through your response style
 
-RESPONSE STYLE: {style_instruction}
+RESPONSE STYLE: {style_instruction}{language_instruction}
 
 Respond with ONLY what you would say as {thinker.name}, nothing else."""
 
@@ -821,6 +827,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         topic: str,
         get_messages: Callable[[str], Awaitable[Sequence["Message"]]],
         save_message: Callable[[str, str, str, float], Awaitable["Message"]],
+        user_language: str = "en",
     ) -> None:
         """Start thinker agents for a conversation.
 
@@ -843,6 +850,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
                     topic,
                     get_messages,
                     save_message,
+                    user_language,
                 )
             )
             self._active_tasks[conversation_id][thinker.id] = task
@@ -878,6 +886,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         topic: str,
         get_messages: Callable[[str], Awaitable[Sequence["Message"]]],
         save_message: Callable[[str, str, str, float], Awaitable["Message"]],
+        user_language: str = "en",
     ) -> None:
         """Run a single thinker agent.
 
@@ -953,13 +962,13 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
                     if should_prompt and user_name:
                         # Generate a message that invites the user to participate
                         response_text, cost = await self.generate_user_prompt(
-                            thinker, messages, topic, user_name
+                            thinker, messages, topic, user_name, user_language
                         )
                     else:
                         # Generate normal response with streaming thinking
                         # This streams thinking tokens via WebSocket as they're generated
                         response_text, cost = await self.generate_response_with_streaming_thinking(
-                            conversation_id, thinker, messages, topic
+                            conversation_id, thinker, messages, topic, user_language
                         )
 
                     # Check pause state again before saving (in case paused during generation)
@@ -1160,6 +1169,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         messages: Sequence["Message"],
         topic: str,
         user_name: str,
+        user_language: str = "en",
     ) -> tuple[str, float]:
         """Generate a message that prompts the user to participate.
 
@@ -1177,6 +1187,11 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         conversation_history = "\n".join(
             f"{get_sender_label(m)}: {m.content}" for m in messages[-15:]
         )
+
+        # Language instruction
+        language_instruction = ""
+        if user_language == "es":
+            language_instruction = "\n\nLANGUAGE: Respond in Spanish."
 
         prompt = f"""You ARE {thinker.name}, participating in a group discussion.
 
@@ -1201,7 +1216,7 @@ Examples of good prompts (adapt to your style):
 - "We've been going back and forth, but {user_name}, where do you stand?"
 - "{user_name}, you've been quiet - any thoughts on what [other thinker] said about X?"
 
-Keep it to ONE short sentence (under 20 words). Be genuine, not formulaic.
+Keep it to ONE short sentence (under 20 words). Be genuine, not formulaic.{language_instruction}
 
 Respond with ONLY what you would say, nothing else."""
 

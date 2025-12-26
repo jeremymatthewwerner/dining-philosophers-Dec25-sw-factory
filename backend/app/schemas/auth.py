@@ -11,6 +11,7 @@ class UserRegister(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     display_name: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=6, max_length=100)
+    language: str = Field(default="en", pattern="^(en|es)$")
 
 
 class UserLogin(BaseModel):
@@ -29,6 +30,7 @@ class UserResponse(BaseModel):
     is_admin: bool
     total_spend: float
     spend_limit: float
+    language: str
     created_at: datetime
 
 

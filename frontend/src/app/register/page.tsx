@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [language, setLanguage] = useState('en');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -38,7 +39,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      await register(username, displayName, password);
+      await register(username, displayName, password, language);
       router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -105,6 +106,25 @@ export default function RegisterPage() {
                 placeholder="Your name (shown to thinkers)"
                 required
               />
+            </div>
+
+            <div>
+              <label
+                htmlFor="language"
+                className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Language
+              </label>
+              <select
+                id="language"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 px-4 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+                required
+              >
+                <option value="en">English</option>
+                <option value="es">Español</option>
+              </select>
             </div>
 
             <div>

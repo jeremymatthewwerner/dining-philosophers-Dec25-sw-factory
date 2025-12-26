@@ -340,15 +340,20 @@ async def websocket_endpoint(
     from app.core.database import async_session_maker
 
     async with async_session_maker() as db:
-        # Load conversation with thinkers
+        # Load conversation with thinkers and user
         result = await db.execute(
             select(Conversation)
             .where(Conversation.id == conversation_id)
-            .options(selectinload(Conversation.thinkers))
+            .options(selectinload(Conversation.thinkers), selectinload(Conversation.session))
         )
         conversation = result.scalar_one_or_none()
 
         if conversation and conversation.thinkers:
+            # Get user's language preference
+            user_language = "en"  # default
+            if conversation.session and conversation.session.user:
+                user_language = conversation.session.user.language
+
             # Create callback functions that use their own db sessions
             async def get_messages(conv_id: str) -> Sequence[Message]:
                 async with async_session_maker() as session:
@@ -367,6 +372,7 @@ async def websocket_endpoint(
                 conversation.topic,
                 get_messages,
                 save_message,
+                user_language,
             )
 
     try:
