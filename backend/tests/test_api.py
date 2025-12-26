@@ -142,7 +142,8 @@ async def create_test_conversation(
     )
     assert response.status_code == 200, f"Failed to create conversation: {response.text}"
     data = response.json()
-    return data["id"]
+    conversation_id: str = data["id"]
+    return conversation_id
 
 
 class TestAuthAPI:

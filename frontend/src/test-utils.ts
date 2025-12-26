@@ -65,7 +65,9 @@ export function createThinkerMessage(overrides: Record<string, unknown> = {}) {
  * @param overrides - Optional overrides for default values
  * @returns Mock conversation object
  */
-export function createMockConversation(overrides: Record<string, unknown> = {}) {
+export function createMockConversation(
+  overrides: Record<string, unknown> = {}
+) {
   return {
     id: TEST_CONVERSATION_ID,
     topic: 'Philosophy of Mind',
