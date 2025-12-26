@@ -2,8 +2,8 @@ name: DevOps Agent
 
 on:
   schedule:
-    # Run every hour for production monitoring
-    - cron: '0 * * * *'
+    # Run every 5 minutes for production monitoring
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       severity:
@@ -370,7 +370,7 @@ jobs:
           **Failed Checks:** $FAILURES
 
           ### What's Happening
-          The hourly production smoke tests detected failures in the live application.
+          The production smoke tests (running every 5 minutes) detected failures in the live application.
 
           ### Failed Checks Details
 
