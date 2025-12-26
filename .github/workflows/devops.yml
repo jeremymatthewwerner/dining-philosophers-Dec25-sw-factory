@@ -1,7 +1,9 @@
 name: DevOps Agent
+
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    # Run every 5 minutes for production monitoring
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       severity:
@@ -20,56 +22,399 @@ permissions:
   issues: write
   id-token: write
 
+env:
+  # Threshold for considering the app unhealthy (consecutive failures)
+  FAILURE_THRESHOLD: 2
+
 jobs:
-  health-check:
+  # Comprehensive production smoke tests
+  smoke-test:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    outputs:
+      healthy: ${{ steps.summary.outputs.healthy }}
+      failures: ${{ steps.summary.outputs.failures }}
+      diagnostics: ${{ steps.diagnostics.outputs.data }}
+
     steps:
-      - name: Check backend health
-        id: backend
+      - uses: actions/checkout@v4
+
+      - name: Check backend health endpoint
+        id: backend_health
+        continue-on-error: true
         run: |
           BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
           if [ -z "$BACKEND_URL" ]; then
-            echo "PRODUCTION_BACKEND_URL not set, skipping"
+            echo "PRODUCTION_BACKEND_URL not set"
             echo "status=skip" >> $GITHUB_OUTPUT
             exit 0
           fi
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$BACKEND_URL/health" 2>/dev/null || echo "000")
-          echo "status=$HTTP" >> $GITHUB_OUTPUT
-          if [ "$HTTP" != "200" ]; then
-            echo "unhealthy=true" >> $GITHUB_OUTPUT
+
+          echo "Checking $BACKEND_URL/health..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 15 "$BACKEND_URL/health" 2>&1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "status=$HTTP_CODE" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Backend health check failed: HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Backend health: OK"
+
+      - name: Check backend version endpoint
+        id: backend_version
+        continue-on-error: true
+        run: |
+          BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
+          if [ -z "$BACKEND_URL" ]; then
+            echo "status=skip" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-      - name: Check frontend health
+          echo "Checking $BACKEND_URL/api/version..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 15 "$BACKEND_URL/api/version" 2>&1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "status=$HTTP_CODE" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Backend version check failed: HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Backend version: $BODY"
+
+      - name: Check frontend loads
         id: frontend
+        continue-on-error: true
         run: |
           FRONTEND_URL="${{ secrets.PRODUCTION_FRONTEND_URL }}"
           if [ -z "$FRONTEND_URL" ]; then
-            echo "PRODUCTION_FRONTEND_URL not set, skipping"
+            echo "PRODUCTION_FRONTEND_URL not set"
             echo "status=skip" >> $GITHUB_OUTPUT
             exit 0
           fi
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$FRONTEND_URL" 2>/dev/null || echo "000")
-          echo "status=$HTTP" >> $GITHUB_OUTPUT
-          if [ "$HTTP" != "200" ]; then
-            echo "unhealthy=true" >> $GITHUB_OUTPUT
+
+          echo "Checking $FRONTEND_URL..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 15 "$FRONTEND_URL" 2>&1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+
+          echo "status=$HTTP_CODE" >> $GITHUB_OUTPUT
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            BODY=$(echo "$RESPONSE" | head -n-1 | head -c 500)
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "$BODY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "::error::Frontend check failed: HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Frontend: OK"
+
+      - name: Test user registration flow
+        id: auth_test
+        continue-on-error: true
+        run: |
+          BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
+          if [ -z "$BACKEND_URL" ]; then
+            echo "status=skip" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-      - name: Trigger incident if unhealthy
-        if: steps.backend.outputs.unhealthy == 'true' || steps.frontend.outputs.unhealthy == 'true'
+          # Create unique test user
+          TEST_USER="canary_$(date +%s)_$RANDOM"
+          TEST_PASS="canarypass123"
+
+          echo "Testing registration with user: $TEST_USER"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BACKEND_URL/api/auth/register" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\": \"$TEST_USER\", \"display_name\": \"Canary Test\", \"password\": \"$TEST_PASS\"}" \
+            --max-time 30 2>&1)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "status=$HTTP_CODE" >> $GITHUB_OUTPUT
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "$BODY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "::error::Registration test failed: HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          # Extract token and test authenticated endpoint
+          TOKEN=$(echo "$BODY" | jq -r '.access_token' 2>/dev/null)
+          if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
+            echo "Testing authenticated endpoint..."
+            AUTH_RESPONSE=$(curl -s -w "\n%{http_code}" "$BACKEND_URL/api/auth/me" \
+              -H "Authorization: Bearer $TOKEN" \
+              --max-time 15 2>&1)
+            AUTH_CODE=$(echo "$AUTH_RESPONSE" | tail -n1)
+
+            if [ "$AUTH_CODE" != "200" ]; then
+              echo "auth_status=$AUTH_CODE" >> $GITHUB_OUTPUT
+              echo "::warning::Auth check failed after registration: HTTP $AUTH_CODE"
+            else
+              echo "auth_status=200" >> $GITHUB_OUTPUT
+              echo "Auth flow: OK"
+            fi
+          fi
+
+          echo "Registration flow: OK"
+
+      - name: Summarize test results
+        id: summary
         run: |
-          DESCRIPTION="Health check failed:"
-          if [ "${{ steps.backend.outputs.unhealthy }}" == "true" ]; then
-            DESCRIPTION="$DESCRIPTION Backend=${{ steps.backend.outputs.status }}"
+          FAILURES=""
+          HEALTHY="true"
+
+          # Check each test result
+          if [ "${{ steps.backend_health.outcome }}" == "failure" ]; then
+            FAILURES="${FAILURES}backend_health(${{ steps.backend_health.outputs.status }}),"
+            HEALTHY="false"
           fi
-          if [ "${{ steps.frontend.outputs.unhealthy }}" == "true" ]; then
-            DESCRIPTION="$DESCRIPTION Frontend=${{ steps.frontend.outputs.status }}"
+
+          if [ "${{ steps.backend_version.outcome }}" == "failure" ]; then
+            FAILURES="${FAILURES}backend_version(${{ steps.backend_version.outputs.status }}),"
+            HEALTHY="false"
           fi
-          gh workflow run devops.yml -f severity=SEV2 -f description="$DESCRIPTION"
+
+          if [ "${{ steps.frontend.outcome }}" == "failure" ]; then
+            FAILURES="${FAILURES}frontend(${{ steps.frontend.outputs.status }}),"
+            HEALTHY="false"
+          fi
+
+          if [ "${{ steps.auth_test.outcome }}" == "failure" ]; then
+            FAILURES="${FAILURES}auth_test(${{ steps.auth_test.outputs.status }}),"
+            HEALTHY="false"
+          fi
+
+          # Remove trailing comma
+          FAILURES=$(echo "$FAILURES" | sed 's/,$//')
+
+          echo "healthy=$HEALTHY" >> $GITHUB_OUTPUT
+          echo "failures=$FAILURES" >> $GITHUB_OUTPUT
+
+          if [ "$HEALTHY" == "true" ]; then
+            echo "✅ All smoke tests passed"
+          else
+            echo "❌ Smoke tests failed: $FAILURES"
+          fi
+
+      - name: Collect diagnostic data
+        id: diagnostics
+        if: steps.summary.outputs.healthy == 'false'
+        run: |
+          echo "Collecting diagnostic information..."
+
+          # Get recent CI runs
+          RECENT_RUNS=$(gh run list --limit 5 --json conclusion,displayTitle,createdAt,url 2>/dev/null || echo "[]")
+
+          # Get recent commits
+          RECENT_COMMITS=$(git log --oneline -5 2>/dev/null || echo "Unable to get commits")
+
+          # Get response bodies from failed checks
+          BACKEND_BODY="${{ steps.backend_health.outputs.body }}"
+          VERSION_BODY="${{ steps.backend_version.outputs.body }}"
+          FRONTEND_BODY="${{ steps.frontend.outputs.body }}"
+          AUTH_BODY="${{ steps.auth_test.outputs.body }}"
+
+          # Build diagnostic JSON
+          cat > /tmp/diagnostics.json << 'DIAG_EOF'
+          {
+            "timestamp": "${{ github.event.repository.updated_at }}",
+            "workflow_run": "${{ github.run_id }}",
+            "recent_ci_runs": $RECENT_RUNS,
+            "failures": {
+              "backend_health": {
+                "status": "${{ steps.backend_health.outputs.status }}",
+                "body": "$BACKEND_BODY"
+              },
+              "backend_version": {
+                "status": "${{ steps.backend_version.outputs.status }}",
+                "body": "$VERSION_BODY"
+              },
+              "frontend": {
+                "status": "${{ steps.frontend.outputs.status }}",
+                "body": "$FRONTEND_BODY"
+              },
+              "auth_test": {
+                "status": "${{ steps.auth_test.outputs.status }}",
+                "body": "$AUTH_BODY"
+              }
+            },
+            "recent_commits": "$RECENT_COMMITS"
+          }
+          DIAG_EOF
+
+          # Output as base64 to preserve formatting
+          DIAG_DATA=$(cat /tmp/diagnostics.json | base64 -w 0)
+          echo "data=$DIAG_DATA" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Create incident issue if smoke tests fail
+  create-incident:
+    needs: smoke-test
+    if: needs.smoke-test.outputs.healthy == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for existing open incident
+        id: check_existing
+        run: |
+          # Look for open production incident issues created in last 24 hours
+          EXISTING=$(gh issue list \
+            --label "production-incident" \
+            --state open \
+            --json number,title,createdAt \
+            --jq '.[] | select(.createdAt > (now - 86400 | todate)) | .number' \
+            2>/dev/null | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            echo "Found existing incident: #$EXISTING"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "issue_number=$EXISTING" >> $GITHUB_OUTPUT
+          else
+            echo "No existing incident found"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update existing incident
+        if: steps.check_existing.outputs.exists == 'true'
+        run: |
+          ISSUE_NUM="${{ steps.check_existing.outputs.issue_number }}"
+          FAILURES="${{ needs.smoke-test.outputs.failures }}"
+
+          gh issue comment "$ISSUE_NUM" --body "$(cat <<EOF
+          ## 🔄 Continued Failure Detected
+
+          **Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Failed Checks:** $FAILURES
+          **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          The production smoke tests are still failing. This incident remains open.
+          EOF
+          )"
+
+          echo "Updated existing incident #$ISSUE_NUM"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get recent deployment info
+        id: deploy_info
+        if: steps.check_existing.outputs.exists == 'false'
+        run: |
+          # Get last successful deploy
+          LAST_DEPLOY=$(gh run list \
+            --workflow=ci.yml \
+            --status=success \
+            --limit=1 \
+            --json headSha,createdAt,url \
+            2>/dev/null || echo "{}")
+
+          # Get last 5 CI runs
+          RECENT_RUNS=$(gh run list --limit 5 --json conclusion,displayTitle,createdAt,url 2>/dev/null || echo "[]")
+
+          echo "last_deploy<<EOF" >> $GITHUB_OUTPUT
+          echo "$LAST_DEPLOY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "recent_runs<<EOF" >> $GITHUB_OUTPUT
+          echo "$RECENT_RUNS" | jq -r '.[] | "- [\(.displayTitle)](\(.url)) - \(.conclusion // "running") (\(.createdAt))"' 2>/dev/null || echo "Unable to fetch"
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create new incident issue
+        if: steps.check_existing.outputs.exists == 'false'
+        run: |
+          FAILURES="${{ needs.smoke-test.outputs.failures }}"
+
+          # Determine severity based on what failed
+          if echo "$FAILURES" | grep -q "backend_health"; then
+            SEVERITY="SEV1"
+            PRIORITY="priority-high"
+          elif echo "$FAILURES" | grep -q "auth_test"; then
+            SEVERITY="SEV2"
+            PRIORITY="priority-high"
+          else
+            SEVERITY="SEV2"
+            PRIORITY="priority-medium"
+          fi
+
+          gh issue create \
+            --title "🚨 Production Incident: Smoke tests failing - $FAILURES" \
+            --label "bug,$PRIORITY,production-incident,ai-ready" \
+            --body "$(cat <<'EOF'
+          ## 🚨 Production Incident Report
+
+          **Severity:** $SEVERITY
+          **Detected:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Failed Checks:** $FAILURES
+
+          ### What's Happening
+          The production smoke tests (running every 5 minutes) detected failures in the live application.
+
+          ### Failed Checks Details
+
+          | Check | Status | Details |
+          |-------|--------|---------|
+          | Backend Health | ${{ needs.smoke-test.outputs.failures }} | /health endpoint |
+          | Backend Version | - | /api/version endpoint |
+          | Frontend | - | Main page load |
+          | Auth Flow | - | Registration + login |
+
+          ### Diagnostic Information
+
+          #### Recent CI/CD Runs
+          ${{ steps.deploy_info.outputs.recent_runs }}
+
+          #### Workflow Run
+          [View detailed logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ### Suggested Actions
+
+          1. **Check Railway Dashboard** - Look at backend/frontend service logs
+          2. **Review Recent Deploys** - Check if a recent deployment caused this
+          3. **Verify Secrets** - Ensure DATABASE_URL and ANTHROPIC_API_KEY are set
+          4. **Check Database** - Verify PostgreSQL is accessible
+
+          ### For the Code Agent
+
+          When investigating this issue:
+          1. Check the workflow run logs linked above
+          2. Look at recent commits: `git log --oneline -10`
+          3. Review CI/CD status: `gh run list --limit 10`
+          4. If the issue is code-related, fix and create a PR
+          5. If infrastructure-related, document findings and escalate
+
+          ---
+          *This issue was automatically created by the DevOps monitoring workflow.*
+          EOF
+          )"
+
+          echo "Created new $SEVERITY incident issue"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Manual incident response (triggered by workflow_dispatch)
   incident:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -86,10 +431,14 @@ jobs:
 
             Response:
             1. Diagnose the issue - check recent deployments: gh run list --limit 10
-            2. Check if this is a known issue: gh issue list --label bug
-            3. Attempt mitigation if possible
-            4. Create incident issue: gh issue create --title "Incident: ..." --label "bug,P0"
-            5. Escalate to @jeremy if SEV1 or can't resolve
+            2. Check production health:
+               - curl the health endpoint
+               - curl the version endpoint
+               - Try a test registration
+            3. Check if this is a known issue: gh issue list --label production-incident
+            4. Gather diagnostic info from Railway if possible
+            5. If not already reported, create incident issue with full context
+            6. Escalate to @jeremymatthewwerner if SEV1 or can't resolve
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --dangerously-skip-permissions
