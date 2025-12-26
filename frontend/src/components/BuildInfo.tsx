@@ -31,7 +31,16 @@ export function BuildInfo() {
     };
     const formatted = date.toLocaleString('en-US', options);
     // Convert "Dec 26, 2025, 1:05 AM" to "Dec 26, 2025 at 1:05 AM"
-    return formatted.replace(',', ' at').replace(',', '');
+    // Replace the last comma (before time) with " at", keep first comma (after day)
+    const lastCommaIndex = formatted.lastIndexOf(',');
+    if (lastCommaIndex !== -1) {
+      return (
+        formatted.substring(0, lastCommaIndex) +
+        ' at' +
+        formatted.substring(lastCommaIndex + 1)
+      );
+    }
+    return formatted;
   };
 
   if (!buildTime) {
