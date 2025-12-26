@@ -93,4 +93,25 @@ describe('BuildInfo', () => {
     // Restore original env
     process.env.NEXT_PUBLIC_BUILD_TIME = originalEnv;
   });
+
+  it('should format timestamp with comma after day and before year', () => {
+    const originalEnv = process.env.NEXT_PUBLIC_BUILD_TIME;
+    // Set a specific timestamp: Dec 26, 2025 at 6:14 PM
+    process.env.NEXT_PUBLIC_BUILD_TIME = '2025-12-26T18:14:00.000Z';
+
+    render(<BuildInfo />);
+
+    const buildInfo = screen.getByTestId('build-info');
+    const text = buildInfo.textContent || '';
+
+    // Should contain "Dec 26, 2025 at" with comma after day
+    // The exact format: "Built: Dec 26, 2025 at 6:14 PM"
+    expect(text).toMatch(/Dec \d+, \d{4} at \d+:\d+ [AP]M/);
+
+    // More specifically, should NOT be "Dec 26 at 2025" (the bug)
+    expect(text).not.toMatch(/Dec \d+ at \d{4}/);
+
+    // Restore original env
+    process.env.NEXT_PUBLIC_BUILD_TIME = originalEnv;
+  });
 });
