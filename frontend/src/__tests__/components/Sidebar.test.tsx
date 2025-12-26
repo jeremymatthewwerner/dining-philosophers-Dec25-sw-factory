@@ -29,7 +29,7 @@ describe('Sidebar', () => {
   it('renders sidebar with title', () => {
     render(<Sidebar {...defaultProps} />);
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
-    expect(screen.getByText('Dining Philosophers 🍴')).toBeInTheDocument();
+    expect(screen.getByText('Dining Philosophers')).toBeInTheDocument();
   });
 
   it('renders Dijkstra avatar before title', () => {
