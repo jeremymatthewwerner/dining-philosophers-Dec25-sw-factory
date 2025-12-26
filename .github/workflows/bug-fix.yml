@@ -241,20 +241,39 @@ jobs:
 
       - name: Monitor CI and report results
         if: steps.context.outputs.mode == 'fix' && success()
+        id: ci-monitor
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           ISSUE_NUMBER: ${{ steps.context.outputs.number }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         run: |
-          # Find PR by branch pattern fix/{issue_number}-* (Claude creates PRs, not the workflow)
+          # Find PR by branch pattern fix/{issue_number}-* OR feat/{issue_number}-* (supports both bugs and enhancements)
           PR_NUMBER=$(gh pr list --state open --json number,headRefName \
-            --jq ".[] | select(.headRefName | startswith(\"fix/${ISSUE_NUMBER}-\")) | .number" 2>/dev/null | head -1 || echo "")
+            --jq ".[] | select(.headRefName | test(\"^(fix|feat)/${ISSUE_NUMBER}-\")) | .number" 2>/dev/null | head -1 || echo "")
 
           if [ -z "$PR_NUMBER" ]; then
             echo "No open PR found for issue #${ISSUE_NUMBER}, skipping CI monitoring"
             exit 0
           fi
 
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "Monitoring CI for PR #$PR_NUMBER"
+
+          # Update progress comment with CI monitoring status
+          if [ -n "$PROGRESS_COMMENT_ID" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+              -X PATCH -f body="## 🤖 Progress Tracker
+
+          - [x] 📖 Reading issue and understanding requirements
+          - [x] 🔍 Analyzing codebase and finding affected files
+          - [x] 🛠️ Implementing fix
+          - [x] ✅ Running tests and quality checks
+          - [x] 📝 Creating PR
+          - [ ] 🚀 Waiting for CI
+
+          **Status:** ⏳ Monitoring CI for PR #${PR_NUMBER}...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+          fi
 
           # Wait for CI to start
           sleep 30
@@ -269,18 +288,69 @@ jobs:
             if [ "$IN_PROGRESS" = "0" ]; then
               # All checks complete, get results
               FAILED=$(gh pr checks $PR_NUMBER --json state --jq '[.[] | select(.state=="FAILURE")] | length' 2>/dev/null || echo "0")
+              FAILED_CHECKS=$(gh pr checks $PR_NUMBER --json name,state --jq '[.[] | select(.state=="FAILURE") | .name] | join(", ")' 2>/dev/null || echo "unknown")
 
               if [ "$FAILED" -gt 0 ]; then
+                echo "ci_failed=true" >> $GITHUB_OUTPUT
+                echo "failed_checks=$FAILED_CHECKS" >> $GITHUB_OUTPUT
+
+                # Update progress comment with failure
+                if [ -n "$PROGRESS_COMMENT_ID" ]; then
+                  gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+                    -X PATCH -f body="## 🤖 Progress Tracker
+
+          - [x] 📖 Reading issue and understanding requirements
+          - [x] 🔍 Analyzing codebase and finding affected files
+          - [x] 🛠️ Implementing fix
+          - [x] ✅ Running tests and quality checks
+          - [x] 📝 Creating PR
+          - [ ] 🚀 CI Failed - retrying...
+
+          **Status:** ❌ CI failed: ${FAILED_CHECKS}
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+                fi
+
                 gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ CI Failed
 
-          PR #${PR_NUMBER} has failing checks. [View details](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})
+          PR #${PR_NUMBER} has failing checks: **${FAILED_CHECKS}**
 
-          I'll investigate the failures and push fixes."
+          [View details](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})
+
+          🔄 **Auto-retry:** Triggering Code Agent to investigate and fix..."
               else
-                # CI passed - auto-merge the PR
+                # CI passed - auto-merge the PR with retry logic
                 echo "CI passed, auto-merging PR #${PR_NUMBER}..."
 
-                if gh pr merge $PR_NUMBER --squash --delete-branch; then
+                MERGE_SUCCESS=false
+                for attempt in 1 2 3; do
+                  if gh pr merge $PR_NUMBER --squash --delete-branch 2>/dev/null; then
+                    MERGE_SUCCESS=true
+                    break
+                  fi
+                  if [ $attempt -lt 3 ]; then
+                    DELAY=$((2 ** attempt))
+                    echo "Merge attempt $attempt failed, retrying in ${DELAY}s..."
+                    sleep $DELAY
+                  fi
+                done
+
+                if [ "$MERGE_SUCCESS" = "true" ]; then
+                  # Update progress comment with success
+                  if [ -n "$PROGRESS_COMMENT_ID" ]; then
+                    gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+                      -X PATCH -f body="## 🤖 Progress Tracker
+
+          - [x] 📖 Reading issue and understanding requirements
+          - [x] 🔍 Analyzing codebase and finding affected files
+          - [x] 🛠️ Implementing fix
+          - [x] ✅ Running tests and quality checks
+          - [x] 📝 Creating PR
+          - [x] 🚀 CI Passed & Merged!
+
+          **Status:** ✅ Complete! Deploying to production...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+                  fi
+
                   gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed & Merged
 
           All checks passed! PR #${PR_NUMBER} has been automatically merged.
@@ -291,7 +361,7 @@ jobs:
 
           All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review.
 
-          ⚠️ Auto-merge failed (may need admin approval or branch protection allows only admins to merge)."
+          ⚠️ Auto-merge failed after 3 attempts (may need admin approval or branch protection allows only admins to merge)."
                 fi
               fi
               exit 0
@@ -305,6 +375,17 @@ jobs:
 
           CI checks for PR #${PR_NUMBER} are still running after 15 minutes. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})"
 
+      - name: Trigger CI fix retry
+        if: steps.ci-monitor.outputs.ci_failed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          # Dispatch a new workflow run to fix the CI failure
+          gh workflow run bug-fix.yml \
+            -f issue_number=${{ steps.context.outputs.number }} \
+            --ref ${{ github.ref_name }} 2>/dev/null || \
+          echo "Could not trigger retry workflow - may need manual intervention"
+
       - name: Update status on success
         if: success()
         env:
@@ -314,11 +395,68 @@ jobs:
           gh issue edit ${{ steps.context.outputs.number }} \
             --remove-label "status:bot-working" 2>/dev/null || true
 
+      - name: Handle timeout gracefully
+        if: cancelled()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+        run: |
+          # Update progress comment to show timeout
+          if [ -n "$PROGRESS_COMMENT_ID" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+              -X PATCH -f body="## 🤖 Progress Tracker
+
+          - [x] 📖 Reading issue and understanding requirements
+          - [?] 🔍 Analyzing codebase... (timed out)
+          - [ ] 🛠️ Implementing fix
+          - [ ] ✅ Running tests and quality checks
+          - [ ] 📝 Creating PR
+          - [ ] 🚀 Waiting for CI
+
+          **Status:** ⏰ Agent timed out after 45 minutes
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+          fi
+
+          gh issue comment ${{ steps.context.outputs.number }} --body "## ⏰ Code Agent Timed Out
+
+          The agent ran for 45 minutes without completing. This usually means:
+          - The issue is complex and needs to be broken into smaller tasks
+          - There's a dependency or environment issue blocking progress
+
+          **Next steps:**
+          1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) to see what was happening
+          2. Consider breaking this issue into smaller sub-issues
+          3. Re-trigger by adding a comment with \`@claude please continue\`
+
+          Assigning to @jeremymatthewwerner for review."
+
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:bot-working" \
+            --add-label "needs-human" \
+            --add-label "status:awaiting-human"
+
       - name: Update issue on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         run: |
+          # Update progress comment to show failure
+          if [ -n "$PROGRESS_COMMENT_ID" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+              -X PATCH -f body="## 🤖 Progress Tracker
+
+          - [x] 📖 Reading issue and understanding requirements
+          - [?] Work in progress... (workflow failed)
+          - [ ] 🛠️ Implementing fix
+          - [ ] ✅ Running tests and quality checks
+          - [ ] 📝 Creating PR
+          - [ ] 🚀 Waiting for CI
+
+          **Status:** ❌ Workflow failed - see logs
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+          fi
+
           gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ Code Agent Failed
 
           The workflow encountered an error. Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
