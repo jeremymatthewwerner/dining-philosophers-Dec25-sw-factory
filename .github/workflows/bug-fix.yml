@@ -375,16 +375,45 @@ jobs:
 
           CI checks for PR #${PR_NUMBER} are still running after 15 minutes. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})"
 
-      - name: Trigger CI fix retry
+      - name: Trigger CI fix retry (with limit)
         if: steps.ci-monitor.outputs.ci_failed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.number }}
         run: |
-          # Dispatch a new workflow run to fix the CI failure
-          gh workflow run bug-fix.yml \
-            -f issue_number=${{ steps.context.outputs.number }} \
-            --ref ${{ github.ref_name }} 2>/dev/null || \
-          echo "Could not trigger retry workflow - may need manual intervention"
+          # Count CI failure comments to prevent infinite retry loop
+          # Per CLAUDE.md: "Escalate to @jeremymatthewwerner when CI fails 3x on same issue"
+          FAILURE_COUNT=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
+            --jq '[.comments[] | select(.body | contains("❌ CI Failed"))] | length' 2>/dev/null || echo "0")
+
+          echo "CI failure count for issue #$ISSUE_NUMBER: $FAILURE_COUNT"
+
+          if [ "$FAILURE_COUNT" -ge 3 ]; then
+            echo "CI has failed 3+ times - escalating to human instead of retrying"
+            gh issue comment "$ISSUE_NUMBER" --body "## 🚨 CI Retry Limit Reached
+
+          CI has failed **$FAILURE_COUNT times** on this issue. Stopping automatic retries to prevent an infinite loop.
+
+          **Failed checks:** ${{ steps.ci-monitor.outputs.failed_checks }}
+
+          **Next steps:**
+          1. Review the [CI logs](${{ github.server_url }}/${{ github.repository }}/pull/${{ steps.ci-monitor.outputs.pr_number }})
+          2. The issue may require manual investigation or a different approach
+          3. After fixing, comment \`@claude please retry\` to trigger another attempt
+
+          Escalating to @jeremymatthewwerner for review."
+
+            gh issue edit "$ISSUE_NUMBER" \
+              --remove-label "status:bot-working" \
+              --add-label "needs-human" \
+              --add-label "status:awaiting-human"
+          else
+            echo "Retrying (attempt $((FAILURE_COUNT + 1)) of 3)..."
+            gh workflow run bug-fix.yml \
+              -f issue_number="$ISSUE_NUMBER" \
+              --ref ${{ github.ref_name }} 2>/dev/null || \
+            echo "Could not trigger retry workflow - may need manual intervention"
+          fi
 
       - name: Update status on success
         if: success()
