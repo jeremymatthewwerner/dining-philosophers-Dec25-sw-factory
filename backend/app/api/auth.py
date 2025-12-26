@@ -90,6 +90,7 @@ async def register(
         username=data.username,
         display_name=data.display_name,
         password_hash=password_hash,
+        language_preference=data.language_preference,
     )
     db.add(user)
     await db.flush()  # Generate user.id
@@ -112,6 +113,7 @@ async def register(
             is_admin=user.is_admin,
             total_spend=user.total_spend,
             spend_limit=user.spend_limit,
+            language_preference=user.language_preference,
             created_at=user.created_at,
         ),
     )
@@ -155,6 +157,7 @@ async def login(
             is_admin=user.is_admin,
             total_spend=user.total_spend,
             spend_limit=user.spend_limit,
+            language_preference=user.language_preference,
             created_at=user.created_at,
         ),
     )
@@ -172,6 +175,7 @@ async def get_me(
         is_admin=user.is_admin,
         total_spend=user.total_spend,
         spend_limit=user.spend_limit,
+        language_preference=user.language_preference,
         created_at=user.created_at,
     )
 

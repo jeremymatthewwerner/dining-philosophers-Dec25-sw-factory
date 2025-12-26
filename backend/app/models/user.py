@@ -54,6 +54,11 @@ class User(Base, TimestampMixin):
         String(100),
         nullable=True,
     )
+    language_preference: Mapped[str] = mapped_column(
+        String(10),
+        default="en",
+        nullable=False,
+    )
 
     # Relationships
     sessions: Mapped[list["Session"]] = relationship(
