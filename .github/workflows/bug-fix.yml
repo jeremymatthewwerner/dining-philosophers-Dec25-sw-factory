@@ -4,6 +4,9 @@ on:
     types: [labeled]
   issue_comment:
     types: [created]
+  schedule:
+    # Poll every 5 minutes for reactions on awaiting issues
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       issue_number:
@@ -25,11 +28,83 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Poll for reactions on issues awaiting human response
+  check-reactions:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      issue_to_process: ${{ steps.check.outputs.issue_number }}
+    steps:
+      - name: Check for reactions on awaiting issues
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking for reactions on status:awaiting-bot issues..."
+
+          # Get all open issues with status:awaiting-bot label
+          ISSUES=$(gh issue list --repo ${{ github.repository }} \
+            --label "status:awaiting-bot" \
+            --state open \
+            --json number \
+            --jq '.[].number' 2>/dev/null || echo "")
+
+          if [ -z "$ISSUES" ]; then
+            echo "No issues awaiting bot response"
+            exit 0
+          fi
+
+          for ISSUE_NUM in $ISSUES; do
+            echo "Checking issue #$ISSUE_NUM for reactions..."
+
+            # Get the last comment from the bot (contains "status:awaiting-human" or asks a question)
+            LAST_BOT_COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUM/comments \
+              --jq '[.[] | select(.user.type == "Bot" or (.body | contains("Would you like")))] | last | .id' 2>/dev/null || echo "")
+
+            if [ -n "$LAST_BOT_COMMENT_ID" ] && [ "$LAST_BOT_COMMENT_ID" != "null" ]; then
+              # Check for reactions on that comment
+              REACTIONS=$(gh api repos/${{ github.repository }}/issues/comments/$LAST_BOT_COMMENT_ID/reactions \
+                --jq 'length' 2>/dev/null || echo "0")
+
+              if [ "$REACTIONS" -gt 0 ]; then
+                echo "Found $REACTIONS reaction(s) on issue #$ISSUE_NUM"
+                echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+          done
+
+          echo "No new reactions found"
+
+  # Trigger fix job if reactions found
+  trigger-from-reaction:
+    needs: check-reactions
+    if: needs.check-reactions.outputs.issue_to_process != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update labels and trigger
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ needs.check-reactions.outputs.issue_to_process }}
+        run: |
+          echo "Triggering bot for issue #$ISSUE_NUMBER based on reaction"
+          # Remove awaiting-bot, add bot-working
+          gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} \
+            --remove-label "status:awaiting-bot" 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} \
+            --add-label "status:bot-working"
+
+          # Add a comment to trigger the comment handler
+          gh issue comment "$ISSUE_NUMBER" --repo ${{ github.repository }} \
+            --body "👍 Received! Continuing work..."
+
   fix:
     # Triggers on:
     # 1. ai-ready label + (bug OR enhancement)
     # 2. Comment containing @claude on an issue with ai-ready label
-    # 3. Manual workflow dispatch
+    # 3. ANY comment on an issue with status:awaiting-bot label (human responded)
+    # 4. Manual workflow dispatch
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' &&
@@ -37,9 +112,9 @@ jobs:
        (contains(github.event.issue.labels.*.name, 'bug') ||
         contains(github.event.issue.labels.*.name, 'enhancement'))) ||
       (github.event_name == 'issue_comment' &&
-       contains(github.event.comment.body, '@claude') &&
-       contains(github.event.issue.labels.*.name, 'ai-ready') &&
-       !github.event.issue.pull_request)
+       !github.event.issue.pull_request &&
+       (contains(github.event.comment.body, '@claude') ||
+        contains(github.event.issue.labels.*.name, 'status:awaiting-bot')))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -70,17 +145,30 @@ jobs:
 
       - name: Get issue number and context
         id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+            ISSUE_NUM="${{ github.event.inputs.issue_number }}"
+            echo "number=$ISSUE_NUM" >> $GITHUB_OUTPUT
             echo "mode=fix" >> $GITHUB_OUTPUT
+            # Get issue author for @mentions
+            ISSUE_AUTHOR=$(gh issue view "$ISSUE_NUM" --json author --jq '.author.login' 2>/dev/null || echo "")
+            echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" == "issue_comment" ]; then
             echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
-            echo "mode=respond" >> $GITHUB_OUTPUT
             echo "comment_author=${{ github.event.comment.user.login }}" >> $GITHUB_OUTPUT
+            echo "issue_author=${{ github.event.issue.user.login }}" >> $GITHUB_OUTPUT
+            # If issue has status:awaiting-bot, this is a continuation - use 'continue' mode
+            if [[ "${{ contains(github.event.issue.labels.*.name, 'status:awaiting-bot') }}" == "true" ]]; then
+              echo "mode=continue" >> $GITHUB_OUTPUT
+            else
+              echo "mode=respond" >> $GITHUB_OUTPUT
+            fi
           else
             echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
             echo "mode=fix" >> $GITHUB_OUTPUT
+            echo "issue_author=${{ github.event.issue.user.login }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Update status labels
@@ -102,7 +190,37 @@ jobs:
           gh issue comment ${{ steps.context.outputs.number }} --body "## 🤖 Responding to @${{ steps.context.outputs.comment_author }}
 
           **Status:** Processing your comment...
-          **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          **Workflow Run:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          cc @${{ steps.context.outputs.issue_author }}"
+
+      - name: Create progress comment (continue mode)
+        if: steps.context.outputs.mode == 'continue'
+        id: continue_progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create progress comment for continuation work
+          COMMENT_BODY="## 🤖 Continuing Work
+
+          Thanks @${{ steps.context.outputs.comment_author }}! Resuming implementation...
+
+          - [ ] 📖 Reading your response and previous context
+          - [ ] 🛠️ Implementing the requested changes
+          - [ ] ✅ Running tests and quality checks
+          - [ ] 📝 Creating/updating PR
+          - [ ] 🚀 Waiting for CI
+
+          **Status:** Reading your feedback...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          cc @${{ steps.context.outputs.issue_author }}"
+
+          COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
+            -X POST -f body="$COMMENT_BODY" --jq '.id')
+
+          echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+          echo "Created continue progress comment #$COMMENT_ID"
 
       - name: Create progress comment
         if: steps.context.outputs.mode == 'fix'
@@ -212,10 +330,15 @@ jobs:
             5. Final status: "✅ PR created! Waiting for CI..."
 
             ## Status Label Management
-            - If you need human input: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+            - If you need human input:
+              1. Post a comment asking your question - MUST include "@${{ steps.context.outputs.issue_author }}" so they get notified!
+              2. Set labels: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
             - When done (PR created): remove status:bot-working label
 
-            If stuck for 30min or CI fails 3x, escalate to @jeremymatthewwerner.
+            ## IMPORTANT: Always @mention the human!
+            When posting ANY comment (questions, status updates, escalations), always include "@${{ steps.context.outputs.issue_author }}" so they get notified.
+
+            If stuck for 30min or CI fails 3x, escalate to @jeremymatthewwerner (and cc @${{ steps.context.outputs.issue_author }}).
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 45
           claude_args: |
@@ -233,6 +356,10 @@ jobs:
             Read CLAUDE.md first.
 
             A user (@${{ steps.context.outputs.comment_author }}) has commented on issue #${{ steps.context.outputs.number }} with a question or suggestion for you.
+            The issue was created by @${{ steps.context.outputs.issue_author }}.
+
+            ## IMPORTANT: Always @mention the human!
+            When posting ANY comment, always include "@${{ steps.context.outputs.issue_author }}" so they get notified.
 
             ## Your Task
             1. Read the full issue and all comments: gh issue view ${{ steps.context.outputs.number }} --comments
@@ -243,18 +370,22 @@ jobs:
             6. If they're asking you to take action: Do it if reasonable
 
             ## After Thinking
-            Post a response to the issue:
+            Post a response to the issue (MUST include @mention):
             ```bash
-            gh issue comment ${{ steps.context.outputs.number }} --body "## Response
+            gh issue comment ${{ steps.context.outputs.number }} --body "## Response to @${{ steps.context.outputs.comment_author }}
 
             [Your thoughtful response here, addressing their specific points]
 
             [If you took any action, describe what you did]
-            [If you need more info, ask a specific question and add status:awaiting-human label]"
+            [If you need more info, ask a specific question]
+
+            cc @${{ steps.context.outputs.issue_author }}"
             ```
 
             ## Status Label Management
-            - If you need more info from the human: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+            - If you need more info from the human:
+              1. Add label: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+              2. Your comment MUST @mention them so they get notified!
             - If you've fully addressed their comment and no more action needed: remove status:bot-working
             - If there's still work to do on the issue, keep status:bot-working
 
@@ -267,13 +398,84 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
+      - name: Run Claude (continue mode)
+        if: steps.context.outputs.mode == 'continue'
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Read CLAUDE.md and .claude/agents/bug-fixer.md first.
+
+            The human (@${{ steps.context.outputs.comment_author }}) has responded to your question on issue #${{ steps.context.outputs.number }}.
+            The issue was created by @${{ steps.context.outputs.issue_author }}.
+
+            **CRITICAL: Update progress by EDITING comment #${{ steps.continue_progress.outputs.comment_id }} with checkboxes!**
+
+            ## IMPORTANT: Always @mention the human!
+            When posting ANY comment, always include "@${{ steps.context.outputs.issue_author }}" so they get notified.
+
+            ## Step 1: Understand the Response
+            1. Read the issue AND all comments: gh issue view ${{ steps.context.outputs.number }} --comments
+            2. Check first box [x] and update status
+            3. Focus on the human's latest response - they answered your question or gave approval
+
+            ## Step 2: Continue Implementation
+            1. Check second box [x] and update status to "Implementing..."
+            2. Check for existing branch: git branch -a | grep -E "(fix|feat)/${{ steps.context.outputs.number }}"
+            3. If exists, check it out. If not, create one.
+            4. Implement the changes based on the human's feedback
+            5. Run quality gates:
+               - cd frontend && npm run lint && npm run typecheck && npm test
+               - cd backend && uv run ruff check . && uv run mypy . && uv run pytest
+            6. Check third box [x]
+
+            ## Step 3: Create/Update PR
+            1. Check fourth box [x]
+            2. Commit and push
+            3. Create PR if none exists, or push to existing branch
+            4. Check fifth box [x]
+
+            ## Progress Comment Format
+            Update by editing comment #${{ steps.continue_progress.outputs.comment_id }}:
+            ```bash
+            gh api repos/${{ github.repository }}/issues/comments/${{ steps.continue_progress.outputs.comment_id }} \
+              -X PATCH -f body="## 🤖 Continuing Work
+
+            Thanks @${{ steps.context.outputs.comment_author }}! Resuming implementation...
+
+            - [x] 📖 Reading your response and previous context
+            - [x] 🛠️ Implementing the requested changes
+            - [ ] ✅ Running tests and quality checks
+            - [ ] 📝 Creating/updating PR
+            - [ ] 🚀 Waiting for CI
+
+            **Status:** [current status]
+            **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            cc @${{ steps.context.outputs.issue_author }}"
+            ```
+
+            ## If You Need More Input
+            If you still need clarification:
+            1. Post a comment with your question (MUST @mention @${{ steps.context.outputs.issue_author }})
+            2. Set label: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: 45
+          claude_args: |
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
       - name: Monitor CI and report results
-        if: steps.context.outputs.mode == 'fix' && success()
+        if: (steps.context.outputs.mode == 'fix' || steps.context.outputs.mode == 'continue') && success()
         id: ci-monitor
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           ISSUE_NUMBER: ${{ steps.context.outputs.number }}
-          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id || steps.continue_progress.outputs.comment_id }}
         run: |
           # Find PR by branch pattern fix/{issue_number}-* OR feat/{issue_number}-* (supports both bugs and enhancements)
           PR_NUMBER=$(gh pr list --state open --json number,headRefName \
@@ -371,7 +573,9 @@ jobs:
 
           [View full logs](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}/checks)
 
-          🔄 **Auto-retry:** Triggering Code Agent to investigate and fix..."
+          🔄 **Auto-retry:** Triggering Code Agent to investigate and fix...
+
+          cc @${ISSUE_AUTHOR}"
               else
                 # CI passed - auto-merge the PR with retry logic
                 echo "CI passed, auto-merging PR #${PR_NUMBER}..."
@@ -410,13 +614,17 @@ jobs:
 
           All checks passed! PR #${PR_NUMBER} has been automatically merged.
 
-          🚀 **Deploying to production...** The changes will be live shortly."
+          🚀 **Deploying to production...** The changes will be live shortly.
+
+          cc @${ISSUE_AUTHOR}"
                 else
                   gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
 
           All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review.
 
-          ⚠️ Auto-merge failed after 3 attempts (may need admin approval or branch protection allows only admins to merge)."
+          ⚠️ Auto-merge failed after 3 attempts (may need admin approval or branch protection allows only admins to merge).
+
+          cc @${ISSUE_AUTHOR}"
                 fi
               fi
               exit 0
@@ -428,13 +636,16 @@ jobs:
           # Timeout - still running after 15 min
           gh issue comment ${{ steps.context.outputs.number }} --body "## ⏳ CI Still Running
 
-          CI checks for PR #${PR_NUMBER} are still running after 15 minutes. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})"
+          CI checks for PR #${PR_NUMBER} are still running after 15 minutes. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})
+
+          cc @${ISSUE_AUTHOR}"
 
       - name: Trigger CI fix retry (with limit)
         if: steps.ci-monitor.outputs.ci_failed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           ISSUE_NUMBER: ${{ steps.context.outputs.number }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
         run: |
           # Count CI failure comments to prevent infinite retry loop
           # Per CLAUDE.md: "Escalate to @jeremymatthewwerner when CI fails 3x on same issue"
@@ -456,7 +667,9 @@ jobs:
           2. The issue may require manual investigation or a different approach
           3. After fixing, comment \`@claude please retry\` to trigger another attempt
 
-          Escalating to @jeremymatthewwerner for review."
+          Escalating to @jeremymatthewwerner for review.
+
+          cc @${ISSUE_AUTHOR}"
 
             gh issue edit "$ISSUE_NUMBER" \
               --remove-label "status:bot-working" \
@@ -483,7 +696,8 @@ jobs:
         if: cancelled()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id || steps.continue_progress.outputs.comment_id }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
         run: |
           # Update progress comment to show timeout
           if [ -n "$PROGRESS_COMMENT_ID" ]; then
@@ -512,7 +726,9 @@ jobs:
           2. Consider breaking this issue into smaller sub-issues
           3. Re-trigger by adding a comment with \`@claude please continue\`
 
-          Assigning to @jeremymatthewwerner for review."
+          Assigning to @jeremymatthewwerner for review.
+
+          cc @${ISSUE_AUTHOR}"
 
           gh issue edit ${{ steps.context.outputs.number }} \
             --remove-label "status:bot-working" \
@@ -523,7 +739,8 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id || steps.continue_progress.outputs.comment_id }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
         run: |
           # Update progress comment to show failure
           if [ -n "$PROGRESS_COMMENT_ID" ]; then
@@ -545,7 +762,9 @@ jobs:
 
           The workflow encountered an error. Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
 
-          This issue remains open for manual follow-up."
+          This issue remains open for manual follow-up.
+
+          cc @${ISSUE_AUTHOR}"
           gh issue edit ${{ steps.context.outputs.number }} \
             --remove-label "status:bot-working" \
             --add-label "needs-human" \
