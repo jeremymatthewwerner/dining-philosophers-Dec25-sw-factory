@@ -5,17 +5,19 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RegisterPage from '@/app/register/page';
-import { useAuth } from '@/contexts';
+import { useAuth, useLanguage } from '@/contexts';
 import { useRouter } from 'next/navigation';
+import en from '@/locales/en.json';
 
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
 
-// Mock useAuth context
+// Mock contexts
 jest.mock('@/contexts', () => ({
   useAuth: jest.fn(),
+  useLanguage: jest.fn(),
 }));
 
 describe('RegisterPage', () => {
@@ -32,6 +34,11 @@ describe('RegisterPage', () => {
       register: mockRegister,
       isAuthenticated: false,
       isLoading: false,
+    });
+    (useLanguage as jest.Mock).mockReturnValue({
+      locale: 'en',
+      t: en,
+      setLocale: jest.fn(),
     });
   });
 

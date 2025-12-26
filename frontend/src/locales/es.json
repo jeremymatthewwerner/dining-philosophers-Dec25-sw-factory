@@ -1,0 +1,25 @@
+{
+  "register": {
+    "title": "Crear una Cuenta",
+    "username": "Nombre de Usuario",
+    "usernamePlaceholder": "Elige un nombre de usuario",
+    "displayName": "¿Cómo deberíamos llamarte?",
+    "displayNamePlaceholder": "Tu nombre (mostrado a los pensadores)",
+    "language": "Language / Idioma",
+    "password": "Contraseña",
+    "passwordPlaceholder": "Elige una contraseña",
+    "confirmPassword": "Confirmar Contraseña",
+    "confirmPasswordPlaceholder": "Confirma tu contraseña",
+    "createAccount": "Crear Cuenta",
+    "creatingAccount": "Creando cuenta...",
+    "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+    "signIn": "Iniciar sesión",
+    "passwordsDoNotMatch": "Las contraseñas no coinciden",
+    "passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+    "registrationFailed": "El registro falló"
+  },
+  "languages": {
+    "en": "English",
+    "es": "Español"
+  }
+}
