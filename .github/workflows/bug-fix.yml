@@ -259,6 +259,23 @@ jobs:
 
             **CRITICAL: Update progress by EDITING comment #${{ steps.progress.outputs.comment_id }} with checkboxes!**
 
+            ## Decision-Making: BE AUTONOMOUS!
+
+            **Make technical decisions yourself. Don't ask "Should I do A or B?" - DECIDE.**
+
+            Decide autonomously:
+            - Implementation approach (pick the cleanest)
+            - Test strategy (decide what tests are needed)
+            - Timeout values (use reasonable defaults: 30s)
+            - Code style (follow existing patterns)
+
+            Only escalate to human for:
+            - Security decisions (credentials, auth)
+            - Breaking changes (public API changes)
+            - Business logic (product decisions)
+
+            If stuck on a DECISION for 10 minutes, MAKE A CHOICE and document your reasoning.
+
             ## IMPORTANT: Check for Previous Attempts First!
 
             Before starting fresh, check if there's already work done on this issue:
