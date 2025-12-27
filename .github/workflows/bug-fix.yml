@@ -283,6 +283,23 @@ jobs:
                - Look at what was already implemented
                - Focus on fixing the SPECIFIC failure, don't start over
 
+            4. **If E2E tests failed - GET THE LOGS!**
+               E2E failures upload backend logs as artifacts. Download and analyze them:
+               ```bash
+               # Find the failed CI run for this PR
+               gh run list --workflow=ci.yml --status=failure --limit 5 --json databaseId,headBranch
+
+               # Download E2E artifacts (backend logs, Playwright reports)
+               gh run download <RUN_ID> --name e2e-debug-logs --dir /tmp/e2e-logs 2>/dev/null || echo "No artifacts"
+
+               # Read backend logs - often reveals the REAL issue
+               cat /tmp/e2e-logs/backend.log 2>/dev/null | tail -100
+
+               # Check what test files exist
+               ls -la /tmp/e2e-logs/ 2>/dev/null
+               ```
+               The backend logs show API errors, exceptions, and slow responses that explain WHY tests failed.
+
             ## Progress Comment Format - BE VERBOSE LIKE TRIAGE BOT!
 
             After completing EACH step, update the progress comment with DETAILED analysis.

@@ -251,17 +251,40 @@ Use labels to categorize issues:
 
 ## Autonomous Agents
 
-This repo uses 7 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
+This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
 | **Code Agent** | `ai-ready` + `bug`/`enhancement` labels | Diagnoses and fixes issues, creates PRs |
+| **Principal Engineer** | `needs-human` label (escalation) | Holistic debugging, fixes factory not just symptoms |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | Every 6 hours | Health checks, incident response |
 | **Marketing** | On release | Updates changelog, docs |
 | **CI Monitor** | On CI failure (main) | Auto-creates `ai-ready` issues for failed builds |
+
+### Escalation Flow
+
+When Code Agent gets stuck (timeout, 3x CI failure), it adds `needs-human` label which triggers the **Principal Engineer**:
+
+```
+Code Agent stuck → adds needs-human → Principal Engineer investigates
+                                    ↓
+                    Analyzes root cause (code? infra? workflow?)
+                                    ↓
+                    Downloads E2E artifacts, reads backend logs
+                                    ↓
+                    Fixes issue AND updates factory to prevent recurrence
+                                    ↓
+                    Only escalates to human if truly stuck
+```
+
+**Principal Engineer responsibilities:**
+- Take holistic view - fix the factory, not just the symptom
+- Download and analyze E2E artifacts (`gh run download`)
+- Can modify workflows, CLAUDE.md, agent prompts
+- Document learnings to prevent similar issues
 
 ### Agent Visibility (IMPORTANT)
 

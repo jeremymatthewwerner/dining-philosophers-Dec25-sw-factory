@@ -1,0 +1,315 @@
+name: Principal Engineer Agent
+
+# Triggered when Code Agent gets stuck and escalates
+# This agent takes a holistic approach to fix the factory, not just the symptom
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to investigate'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: read
+  checks: read
+  id-token: write
+
+concurrency:
+  group: principal-engineer-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  investigate:
+    # Only trigger on needs-human label (escalation from Code Agent)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'needs-human')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+        continue-on-error: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci || true
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync || true
+
+      - name: Get issue context
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ISSUE_NUM="${{ github.event.inputs.issue_number }}"
+          else
+            ISSUE_NUM="${{ github.event.issue.number }}"
+          fi
+          echo "number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+
+          # Get issue author
+          ISSUE_AUTHOR=$(gh issue view "$ISSUE_NUM" --json author --jq '.author.login' 2>/dev/null || echo "")
+          echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
+
+      - name: Update status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "needs-human" \
+            --remove-label "status:awaiting-human" \
+            --add-label "status:bot-working" 2>/dev/null || true
+
+      - name: Create investigation comment
+        id: progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_BODY="## 🔧 Principal Engineer Investigation
+
+          The Code Agent got stuck on this issue. I'm taking a holistic look at what went wrong.
+
+          - [ ] 📖 Reading full issue history and understanding context
+          - [ ] 📊 Analyzing CI failures and downloading artifacts
+          - [ ] 🔍 Identifying root cause (code bug vs infrastructure vs workflow)
+          - [ ] 🛠️ Implementing fix
+          - [ ] 🏭 Updating factory to prevent recurrence
+          - [ ] ✅ Verifying fix works
+
+          **Status:** Starting investigation...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+          *I focus on fixing the factory, not just the symptom.*
+
+          cc @${{ steps.context.outputs.issue_author }}"
+
+          COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
+            -X POST -f body="$COMMENT_BODY" --jq '.id')
+
+          echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+
+      - name: Run Principal Engineer
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            # Principal Engineer Mode
+
+            You are the **Principal Engineer** - called in when the Code Agent gets stuck.
+            Your job is to fix the FACTORY, not just the symptom.
+
+            Read CLAUDE.md first - pay special attention to "Human intervention = factory bug".
+
+            ## Your Philosophy
+            - If the Code Agent got stuck, that's a bug in the factory
+            - Fix the immediate issue AND prevent recurrence
+            - You have broader permissions - can modify workflows, CLAUDE.md, agent prompts
+            - Be thorough but autonomous - don't ask for help unless truly stuck
+
+            ## Investigation Process
+
+            ### Step 1: Understand What Happened
+            Update progress comment, then:
+            ```bash
+            # Read FULL issue history
+            gh issue view ${{ steps.context.outputs.number }} --comments
+
+            # Check for related PRs
+            gh pr list --search "head:fix/${{ steps.context.outputs.number }}" --state all --json number,title,state,headRefName
+            gh pr list --search "head:feat/${{ steps.context.outputs.number }}" --state all --json number,title,state,headRefName
+            ```
+
+            Look for:
+            - Why did Code Agent escalate? (timeout? 3x CI failure? needed decision?)
+            - What approaches were already tried?
+            - Any "❌ CI Failed" comments with logs?
+
+            ### Step 2: Get E2E/CI Artifacts (CRITICAL!)
+            If there were E2E failures, download and analyze the artifacts:
+            ```bash
+            # Find the failed CI run
+            gh run list --workflow=ci.yml --status=failure --limit 5 --json databaseId,headBranch,conclusion
+
+            # Download artifacts from failed run
+            gh run download <RUN_ID> --name e2e-debug-logs --dir /tmp/e2e-logs 2>/dev/null || echo "No artifacts"
+
+            # Read backend logs
+            cat /tmp/e2e-logs/backend.log 2>/dev/null || echo "No backend logs"
+
+            # Check Playwright report
+            ls -la /tmp/e2e-logs/ 2>/dev/null || echo "No E2E artifacts"
+            ```
+
+            The backend logs often reveal the REAL issue (API errors, exceptions, timeouts).
+
+            ### Step 3: Identify Root Cause Category
+            Determine which type of problem this is:
+
+            **A) Code Bug** - The actual feature/fix has a bug
+            - Fix the code, update tests
+
+            **B) Test Infrastructure** - E2E setup, timeouts, flaky tests
+            - Fix test infrastructure in ci.yml or test files
+            - Update CLAUDE.md with learnings
+
+            **C) Workflow/Agent Issue** - Code Agent prompt unclear, missing capabilities
+            - Update bug-fix.yml prompts
+            - Add missing instructions to CLAUDE.md
+
+            **D) Architecture/Design** - Needs rethinking the approach
+            - Document the issue
+            - Propose alternative approach
+
+            ### Step 4: Implement Fix
+            Based on root cause:
+            - Create branch: `git checkout -b fix/${{ steps.context.outputs.number }}-pe-fix`
+            - Make necessary changes
+            - Run quality gates
+            - Create PR with "Fixes #${{ steps.context.outputs.number }}" in body
+
+            ### Step 5: Prevent Recurrence (CRITICAL!)
+            This is what makes you different from Code Agent:
+
+            **Always ask:** "How do I prevent this class of problem from happening again?"
+
+            Options:
+            - Update workflow prompts in `.github/workflows/bug-fix.yml`
+            - Add rules to `CLAUDE.md`
+            - Improve E2E test infrastructure in `ci.yml`
+            - Add better error handling to code
+            - Create new tests for edge cases
+
+            Document your factory improvement in the PR description.
+
+            ## Progress Comment Format
+            Update comment #${{ steps.progress.outputs.comment_id }} as you work:
+            ```bash
+            gh api repos/${{ github.repository }}/issues/comments/${{ steps.progress.outputs.comment_id }} \
+              -X PATCH -f body="## 🔧 Principal Engineer Investigation
+
+            - [x] 📖 Reading full issue history and understanding context
+            - [x] 📊 Analyzing CI failures and downloading artifacts
+            - [x] 🔍 Identifying root cause (code bug vs infrastructure vs workflow)
+            - [ ] 🛠️ Implementing fix
+            - [ ] 🏭 Updating factory to prevent recurrence
+            - [ ] ✅ Verifying fix works
+
+            **Status:** [current status]
+            **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ---
+            ## 🔍 Root Cause Analysis
+
+            ### What Happened
+            [Summary of why Code Agent got stuck]
+
+            ### Root Cause
+            [Detailed explanation - is it code bug, test infra, workflow issue, or architecture?]
+
+            ### Fix Plan
+            1. [Immediate fix]
+            2. [Factory improvement to prevent recurrence]
+
+            ### E2E Logs Analysis (if applicable)
+            [Key findings from backend.log or Playwright reports]
+
+            cc @${{ steps.context.outputs.issue_author }}"
+            ```
+
+            ## Git Commit Rules
+            - Use "Relates to #${{ steps.context.outputs.number }}" in commits
+            - Use "Fixes #${{ steps.context.outputs.number }}" only in PR description
+            - NEVER push directly to main
+
+            ## If Truly Stuck
+            After trying multiple approaches, if you really can't fix it:
+            1. Document everything you tried
+            2. Explain what additional information or decisions are needed
+            3. @mention @jeremymatthewwerner with specific questions
+            4. Set label: status:awaiting-human
+
+            But try HARD before escalating - you're the last line of defense!
+
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: 55
+          claude_args: |
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Bash(cat:*),Bash(ls:*),Read,Write,Edit,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Update status on success
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:bot-working" 2>/dev/null || true
+
+      - name: Handle failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
+        run: |
+          if [ -n "$PROGRESS_COMMENT_ID" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+              -X PATCH -f body="## 🔧 Principal Engineer Investigation
+
+          - [x] 📖 Reading full issue history
+          - [?] Investigation incomplete (workflow failed)
+
+          **Status:** ❌ Workflow failed - see logs
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+          Even the Principal Engineer got stuck. This issue needs human review.
+
+          @jeremymatthewwerner - please investigate.
+
+          cc @${ISSUE_AUTHOR}" 2>/dev/null || true
+          fi
+
+          gh issue comment ${{ steps.context.outputs.number }} --body "## 🚨 Principal Engineer Also Stuck
+
+          The Principal Engineer agent was unable to resolve this issue automatically.
+
+          **Next steps:**
+          1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          2. This likely needs human investigation
+
+          @jeremymatthewwerner
+
+          cc @${ISSUE_AUTHOR}"
+
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:bot-working" \
+            --add-label "needs-human" \
+            --add-label "status:awaiting-human"
