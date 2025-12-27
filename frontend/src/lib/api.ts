@@ -69,7 +69,7 @@ export function setStoredUser(user: User | null): void {
 async function fetchWithAuth<T>(
   endpoint: string,
   options: RequestInit = {},
-  timeoutMs: number = 10000
+  timeoutMs: number = 30000
 ): Promise<T> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
