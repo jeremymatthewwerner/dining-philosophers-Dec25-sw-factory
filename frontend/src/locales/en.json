@@ -21,5 +21,168 @@
   "languages": {
     "en": "English",
     "es": "Español"
+  },
+  "sidebar": {
+    "appTitle": "Dining Philosophers",
+    "newConversation": "New Conversation",
+    "tagline": "Discuss ideas with AI-simulated thinkers",
+    "reportIssue": "Report an Issue",
+    "closeSidebar": "Close sidebar",
+    "adminPanel": "Admin panel",
+    "signOut": "Sign out"
+  },
+  "newChatModal": {
+    "titleTopic": "New Conversation",
+    "titleThinkers": "Select Thinkers",
+    "whatToDiscuss": "What would you like to discuss?",
+    "topicPlaceholder": "e.g., The nature of consciousness",
+    "errorSelectThinker": "Please select at least one thinker",
+    "errorGetSuggestions": "Failed to get thinker suggestions",
+    "errorGetReplacement": "Failed to get replacement suggestion",
+    "errorCreateConversation": "Failed to create conversation",
+    "back": "Back",
+    "next": "Next",
+    "suggestingThinkers": "Suggesting thinkers...",
+    "startConversation": "Start Conversation",
+    "creating": "Creating...",
+    "closeModal": "Close modal"
+  },
+  "chatArea": {
+    "welcomeHeading": "Welcome to dining philosophers",
+    "welcomeDescription": "Start a new conversation to discuss topics with historical and contemporary thinkers.",
+    "selectConversation": "Select a conversation from the sidebar or create a new one.",
+    "paceLabel": "Pace:",
+    "paceTitle": "Conversation pace",
+    "speedFast": "Fast",
+    "speedNormal": "Normal",
+    "speedRelaxed": "Relaxed",
+    "speedSlow": "Slow",
+    "speedContemplative": "Contemplative",
+    "exportConversation": "Export conversation",
+    "openSidebar": "Open sidebar",
+    "export": "Export",
+    "exportHtml": "HTML",
+    "exportMarkdown": "Markdown",
+    "resumeThinkers": "Resume thinkers",
+    "pauseThinkers": "Pause thinkers",
+    "resume": "Resume",
+    "pause": "Pause",
+    "reconnecting": "Reconnecting...",
+    "spendLimitReached": "Spend limit reached - contact admin to continue",
+    "connecting": "Connecting...",
+    "with": "with",
+    "message": "Message"
+  },
+  "thinkerSelector": {
+    "topic": "Topic:",
+    "selected": "Selected ({count}/{max})",
+    "noSelectionsYet": "No Selections Yet",
+    "addCustomThinker": "Add custom thinker",
+    "enterName": "Enter a name (e.g., Socrates)",
+    "checking": "Checking...",
+    "add": "Add",
+    "errorNotFound": "Could not find \"{name}\". Try a different name.",
+    "errorValidation": "Failed to validate thinker",
+    "suggestedThinkers": "Suggested thinkers",
+    "maxReached": "Maximum of {max} thinkers reached",
+    "loadingSuggestions": "Loading suggestions...",
+    "noSuggestions": "No suggestions available.",
+    "removeAria": "Remove {name}",
+    "addAria": "Add {name}",
+    "refreshAria": "Get different suggestion for {name}",
+    "addToConversation": "Add to conversation",
+    "getDifferentSuggestion": "Get a different suggestion"
+  },
+  "messageInput": {
+    "placeholder": "Type your message...",
+    "sendMessage": "Send message"
+  },
+  "conversationList": {
+    "noConversations": "No conversations yet",
+    "justNow": "Just now",
+    "minutesAgo": "{n}m ago",
+    "hoursAgo": "{n}h ago",
+    "daysAgo": "{n}d ago",
+    "thinkersActive": "Thinkers are active",
+    "conversationPaused": "Conversation paused",
+    "inactive": "Inactive",
+    "deleteConversation": "Delete conversation",
+    "thinkerMessages": "{count} thinker messages"
+  },
+  "spendLimitBanner": {
+    "limitReached": "Spend limit reached",
+    "approachingLimit": "Approaching spend limit",
+    "contactAdmin": "Contact admin to increase your limit",
+    "dismiss": "Dismiss"
+  },
+  "costMeter": {
+    "thisSession": "This Session:",
+    "totalCostTitle": "Total cost this session (resets on page reload)"
+  },
+  "errorBanner": {
+    "error": "Error",
+    "dismiss": "Dismiss"
+  },
+  "messageList": {
+    "noMessages": "No messages yet. Start the conversation!",
+    "thinking": "Thinking..."
+  },
+  "typingIndicator": {
+    "isThinking": "is thinking...",
+    "singleThinker": "{name} is thinking...",
+    "twoThinkers": "{name1} and {name2} are thinking...",
+    "multipleThinkers": "{names} are thinking..."
+  },
+  "loginPage": {
+    "welcome": "Welcome to dining philosophers",
+    "username": "Username",
+    "usernamePlaceholder": "Enter your username",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "signIn": "Sign In",
+    "signingIn": "Signing in...",
+    "noAccount": "Don't have an account?",
+    "createOne": "Create one",
+    "loginFailed": "Login failed",
+    "loading": "Loading..."
+  },
+  "adminPage": {
+    "loading": "Loading...",
+    "title": "Admin Panel",
+    "description": "Manage users and view usage statistics",
+    "backToChat": "Back to Chat",
+    "totalUsers": "Total Users",
+    "totalConversations": "Total Conversations",
+    "totalSpend": "Total Spend",
+    "dismiss": "Dismiss",
+    "usersHeading": "Users",
+    "username": "Username",
+    "role": "Role",
+    "conversations": "Conversations",
+    "totalSpendColumn": "Total Spend",
+    "spendLimit": "Spend Limit",
+    "joined": "Joined",
+    "actions": "Actions",
+    "roleAdmin": "Admin",
+    "roleUser": "User",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "errorSpendLimit": "Spend limit must be a positive number",
+    "errorDeleteUser": "Failed to delete user",
+    "errorUpdateSpendLimit": "Failed to update spend limit",
+    "errorLoadUsers": "Failed to load users",
+    "confirmDelete": "Are you sure you want to delete user \"{username}\"? This will delete all their conversations and cannot be undone.",
+    "you": "(you)",
+    "deleting": "Deleting...",
+    "delete": "Delete",
+    "noUsers": "No users found"
+  },
+  "layout": {
+    "title": "dining philosophers",
+    "description": "Real-time multi-party chat with AI-simulated historical and contemporary thinkers"
+  },
+  "common": {
+    "loading": "Loading..."
   }
 }

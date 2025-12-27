@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
 import type { ConversationThinker, Message as MessageType } from '@/types';
 import { Message } from './Message';
 import { ThinkerAvatar } from './ThinkerAvatar';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface MessageListProps {
   messages: MessageType[];
@@ -23,6 +24,7 @@ export function MessageList({
   typingThinkers = [],
   thinkingContent,
 }: MessageListProps) {
+  const { t } = useLanguage();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Create a map of thinker data
@@ -45,7 +47,7 @@ export function MessageList({
         className="flex-1 flex items-center justify-center text-zinc-400 dark:text-zinc-500"
         data-testid="message-list-empty"
       >
-        <p>No messages yet. Start the conversation!</p>
+        <p>{t.messageList.noMessages}</p>
       </div>
     );
   }
@@ -97,7 +99,7 @@ export function MessageList({
               <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg px-4 py-3 inline-block">
                 <div className="flex items-center gap-2 text-zinc-400 dark:text-zinc-500">
                   <span className="text-sm italic">
-                    {thinking || 'Thinking...'}
+                    {thinking || t.messageList.thinking}
                   </span>
                   <div className="flex gap-1">
                     <span

@@ -2,7 +2,7 @@
  * Tests for the Login page component.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import LoginPage from '@/app/login/page';
 import { useAuth } from '@/contexts';
@@ -13,10 +13,14 @@ jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
 
-// Mock useAuth context
-jest.mock('@/contexts', () => ({
-  useAuth: jest.fn(),
-}));
+// Mock useAuth hook while preserving providers
+jest.mock('@/contexts', () => {
+  const actual = jest.requireActual('@/contexts');
+  return {
+    ...actual,
+    useAuth: jest.fn(),
+  };
+});
 
 describe('LoginPage', () => {
   const mockLogin = jest.fn();

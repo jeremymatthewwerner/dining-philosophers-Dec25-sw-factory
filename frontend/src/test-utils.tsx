@@ -5,6 +5,34 @@
  * reusable builders, factories, and helper functions.
  */
 
+import React from 'react';
+import { render as rtlRender, RenderOptions } from '@testing-library/react';
+import { AuthProvider, LanguageProvider } from '@/contexts';
+
+/**
+ * Custom render function that wraps components with necessary providers.
+ *
+ * This ensures all components have access to AuthContext and LanguageContext
+ * during testing, preventing "useLanguage must be used within a LanguageProvider" errors.
+ */
+function AllTheProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <LanguageProvider>{children}</LanguageProvider>
+    </AuthProvider>
+  );
+}
+
+export function render(
+  ui: React.ReactElement,
+  options?: Omit<RenderOptions, 'wrapper'>
+) {
+  return rtlRender(ui, { wrapper: AllTheProviders, ...options });
+}
+
+// Re-export everything from React Testing Library
+export * from '@testing-library/react';
+
 // Test data constants
 export const TEST_USER_ID = 'user-123';
 export const TEST_TOKEN = 'jwt-token-123';

@@ -2,7 +2,7 @@
  * Tests for SpendLimitBanner component.
  */
 
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@/test-utils';
 import { SpendLimitBanner } from '@/components/SpendLimitBanner';
 
 describe('SpendLimitBanner', () => {

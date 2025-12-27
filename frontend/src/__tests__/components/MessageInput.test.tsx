@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { MessageInput } from '@/components/MessageInput';
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@/test-utils';
 import { Sidebar } from '@/components/Sidebar';
 import type { ConversationSummary } from '@/types';
 

@@ -13,6 +13,7 @@ import {
 } from 'react';
 import type { ThinkerProfile, ThinkerSuggestion } from '@/types';
 import { type SelectedThinker, ThinkerSelector } from './ThinkerSelector';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface ThinkerData {
   name: string;
@@ -41,6 +42,7 @@ export function NewChatModal({
   onSuggestThinkers,
   onValidateThinker,
 }: NewChatModalProps) {
+  const { t } = useLanguage();
   const [step, setStep] = useState<'topic' | 'thinkers'>('topic');
   const [topic, setTopic] = useState('');
   const [suggestions, setSuggestions] = useState<ThinkerSuggestion[]>([]);
@@ -86,7 +88,7 @@ export function NewChatModal({
         const message =
           err instanceof Error
             ? err.message
-            : 'Failed to get thinker suggestions';
+            : t.newChatModal.errorGetSuggestions;
         setError(message);
         // Still proceed with empty suggestions - user can add thinkers manually
         setSuggestions([]);
@@ -101,7 +103,7 @@ export function NewChatModal({
 
   const handleCreate = useCallback(async () => {
     if (selectedThinkers.length === 0) {
-      setError('Please select at least one thinker');
+      setError(t.newChatModal.errorSelectThinker);
       return;
     }
 
@@ -122,12 +124,14 @@ export function NewChatModal({
       onClose();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Failed to create conversation';
+        err instanceof Error
+          ? err.message
+          : t.newChatModal.errorCreateConversation;
       setError(message);
     } finally {
       setIsCreating(false);
     }
-  }, [topic, selectedThinkers, onCreate, onClose]);
+  }, [topic, selectedThinkers, onCreate, onClose, t.newChatModal]);
 
   const handleSelectThinker = useCallback(
     async (thinker: SelectedThinker) => {
@@ -220,7 +224,7 @@ export function NewChatModal({
         const message =
           err instanceof Error
             ? err.message
-            : 'Failed to get replacement suggestion';
+            : t.newChatModal.errorGetReplacement;
         setError(message);
       }
     },
@@ -241,12 +245,14 @@ export function NewChatModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            {step === 'topic' ? 'New Conversation' : 'Select Thinkers'}
+            {step === 'topic'
+              ? t.newChatModal.titleTopic
+              : t.newChatModal.titleThinkers}
           </h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-            aria-label="Close modal"
+            aria-label={t.newChatModal.closeModal}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -270,14 +276,14 @@ export function NewChatModal({
           {step === 'topic' ? (
             <form onSubmit={handleTopicSubmit}>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                What would you like to discuss?
+                {t.newChatModal.whatToDiscuss}
               </label>
               <input
                 ref={inputRef}
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="e.g., The nature of consciousness"
+                placeholder={t.newChatModal.topicPlaceholder}
                 className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 data-testid="topic-input"
               />
@@ -316,7 +322,7 @@ export function NewChatModal({
               onClick={() => setStep('topic')}
               className="px-4 py-2 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
             >
-              Back
+              {t.newChatModal.back}
             </button>
           )}
           <div className="flex gap-2 ml-auto">
@@ -349,10 +355,10 @@ export function NewChatModal({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    Suggesting thinkers...
+                    {t.newChatModal.suggestingThinkers}
                   </>
                 ) : (
-                  'Next'
+                  t.newChatModal.next
                 )}
               </button>
             ) : (
@@ -362,7 +368,9 @@ export function NewChatModal({
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 data-testid="create-button"
               >
-                {isCreating ? 'Creating...' : 'Start Conversation'}
+                {isCreating
+                  ? t.newChatModal.creating
+                  : t.newChatModal.startConversation}
               </button>
             )}
           </div>

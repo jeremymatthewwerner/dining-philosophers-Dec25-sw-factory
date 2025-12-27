@@ -11,6 +11,7 @@ import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
 import { SpendLimitBanner } from './SpendLimitBanner';
 import { ErrorBanner } from './ErrorBanner';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface ChatAreaProps {
   conversation: Conversation | null;
@@ -44,24 +45,6 @@ export interface ChatAreaProps {
   sidebarOpen?: boolean;
 }
 
-// Speed labels for display
-const SPEED_LABELS: Record<number, string> = {
-  0.5: 'Fast',
-  1.0: 'Normal',
-  2.0: 'Relaxed',
-  4.0: 'Slow',
-  6.0: 'Contemplative',
-};
-
-function getSpeedLabel(speed: number): string {
-  // Find closest match
-  const speeds = [0.5, 1.0, 2.0, 4.0, 6.0];
-  const closest = speeds.reduce((prev, curr) =>
-    Math.abs(curr - speed) < Math.abs(prev - speed) ? curr : prev
-  );
-  return SPEED_LABELS[closest];
-}
-
 export function ChatArea({
   conversation,
   messages,
@@ -84,8 +67,27 @@ export function ChatArea({
   onSidebarToggle,
   sidebarOpen = false,
 }: ChatAreaProps) {
+  const { t, interpolate } = useLanguage();
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [dismissedWarning, setDismissedWarning] = useState(false);
+
+  // Speed labels for display
+  const SPEED_LABELS: Record<number, string> = {
+    0.5: t.chatArea.speedFast,
+    1.0: t.chatArea.speedNormal,
+    2.0: t.chatArea.speedRelaxed,
+    4.0: t.chatArea.speedSlow,
+    6.0: t.chatArea.speedContemplative,
+  };
+
+  function getSpeedLabel(speed: number): string {
+    // Find closest match
+    const speeds = [0.5, 1.0, 2.0, 4.0, 6.0];
+    const closest = speeds.reduce((prev, curr) =>
+      Math.abs(curr - speed) < Math.abs(prev - speed) ? curr : prev
+    );
+    return SPEED_LABELS[closest];
+  }
 
   // Calculate spend limit status
   const percentUsed =
@@ -116,15 +118,10 @@ export function ChatArea({
       >
         <div className="text-center max-w-md px-4">
           <h2 className="text-2xl font-semibold mb-2 text-zinc-900 dark:text-zinc-100">
-            Welcome to dining philosophers
+            {t.chatArea.welcomeHeading}
           </h2>
-          <p className="mb-4">
-            Start a new conversation to discuss topics with historical and
-            contemporary thinkers.
-          </p>
-          <p className="text-sm">
-            Select a conversation from the sidebar or create a new one.
-          </p>
+          <p className="mb-4">{t.chatArea.welcomeDescription}</p>
+          <p className="text-sm">{t.chatArea.selectConversation}</p>
         </div>
       </div>
     );
@@ -148,9 +145,9 @@ export function ChatArea({
                 minWidth: '44px',
                 minHeight: '44px',
               }}
-              aria-label="Open sidebar"
+              aria-label={t.chatArea.openSidebar}
               data-testid="sidebar-toggle"
-              title="Open sidebar"
+              title={t.chatArea.openSidebar}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -171,7 +168,8 @@ export function ChatArea({
               {conversation.topic}
             </h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate">
-              with {conversation.thinkers.map((t) => t.name).join(', ')}
+              {t.chatArea.with}{' '}
+              {conversation.thinkers.map((t) => t.name).join(', ')}
             </p>
           </div>
         </div>
@@ -185,7 +183,7 @@ export function ChatArea({
               data-testid="speed-control"
             >
               <label className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap hidden sm:inline">
-                Pace:
+                {t.chatArea.paceLabel}
               </label>
               <input
                 type="range"
@@ -200,7 +198,7 @@ export function ChatArea({
                   padding: '0',
                   margin: '0',
                 }}
-                title={`Conversation pace: ${getSpeedLabel(speedMultiplier)}`}
+                title={`${t.chatArea.paceTitle}: ${getSpeedLabel(speedMultiplier)}`}
                 data-testid="speed-slider"
               />
               <span className="text-xs text-zinc-600 dark:text-zinc-300 w-12 sm:w-16 text-center">
@@ -219,7 +217,7 @@ export function ChatArea({
                 minHeight: '44px',
               }}
               data-testid="export-button"
-              title="Export conversation"
+              title={t.chatArea.exportConversation}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -230,7 +228,7 @@ export function ChatArea({
                 <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
                 <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
               </svg>
-              <span className="hidden sm:inline">Export</span>
+              <span className="hidden sm:inline">{t.chatArea.export}</span>
             </button>
             {showExportMenu && (
               <>
@@ -261,7 +259,7 @@ export function ChatArea({
                         clipRule="evenodd"
                       />
                     </svg>
-                    HTML
+                    {t.chatArea.exportHtml}
                   </button>
                   <button
                     onClick={handleExportMarkdown}
@@ -280,7 +278,7 @@ export function ChatArea({
                         clipRule="evenodd"
                       />
                     </svg>
-                    Markdown
+                    {t.chatArea.exportMarkdown}
                   </button>
                 </div>
               </>
@@ -301,7 +299,9 @@ export function ChatArea({
                 minHeight: '44px',
               }}
               data-testid="pause-resume-button"
-              title={isPaused ? 'Resume thinkers' : 'Pause thinkers'}
+              title={
+                isPaused ? t.chatArea.resumeThinkers : t.chatArea.pauseThinkers
+              }
             >
               {isPaused ? (
                 <>
@@ -313,7 +313,7 @@ export function ChatArea({
                   >
                     <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                   </svg>
-                  <span className="hidden sm:inline">Resume</span>
+                  <span className="hidden sm:inline">{t.chatArea.resume}</span>
                 </>
               ) : (
                 <>
@@ -325,7 +325,7 @@ export function ChatArea({
                   >
                     <path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75a.75.75 0 00-.75-.75h-1.5z" />
                   </svg>
-                  <span className="hidden sm:inline">Pause</span>
+                  <span className="hidden sm:inline">{t.chatArea.pause}</span>
                 </>
               )}
             </button>
@@ -335,7 +335,7 @@ export function ChatArea({
               className="text-xs text-orange-500"
               data-testid="connection-status"
             >
-              Reconnecting...
+              {t.chatArea.reconnecting}
             </span>
           )}
         </div>
@@ -372,10 +372,10 @@ export function ChatArea({
         disabled={!isConnected || spendLimitExceeded}
         placeholder={
           spendLimitExceeded
-            ? 'Spend limit reached - contact admin to continue'
+            ? t.chatArea.spendLimitReached
             : isConnected
-              ? `Message ${conversation.thinkers.map((t) => t.name).join(', ')}...`
-              : 'Connecting...'
+              ? `${t.chatArea.message} ${conversation.thinkers.map((t) => t.name).join(', ')}...`
+              : t.chatArea.connecting
         }
       />
     </div>

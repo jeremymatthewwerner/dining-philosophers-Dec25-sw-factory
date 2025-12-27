@@ -6,6 +6,7 @@
 
 import type { ConversationSummary } from '@/types';
 import { ThinkerAvatar } from './ThinkerAvatar';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface ConversationListProps {
   conversations: ConversationSummary[];
@@ -24,6 +25,8 @@ export function ConversationList({
   isConnected = false,
   isPaused = false,
 }: ConversationListProps) {
+  const { t, interpolate } = useLanguage();
+
   // Get status for a conversation
   const getStatus = (convId: string): 'running' | 'paused' | 'inactive' => {
     if (convId !== selectedId) return 'inactive';
@@ -39,10 +42,13 @@ export function ConversationList({
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMins < 1) return t.conversationList.justNow;
+    if (diffMins < 60)
+      return interpolate(t.conversationList.minutesAgo, { n: diffMins });
+    if (diffHours < 24)
+      return interpolate(t.conversationList.hoursAgo, { n: diffHours });
+    if (diffDays < 7)
+      return interpolate(t.conversationList.daysAgo, { n: diffDays });
     return date.toLocaleDateString();
   };
 
@@ -52,7 +58,7 @@ export function ConversationList({
         className="px-3 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400"
         data-testid="conversation-list-empty"
       >
-        No conversations yet
+        {t.conversationList.noConversations}
       </div>
     );
   }
@@ -84,10 +90,10 @@ export function ConversationList({
                 }`}
                 title={
                   getStatus(conv.id) === 'running'
-                    ? 'Thinkers are active'
+                    ? t.conversationList.thinkersActive
                     : getStatus(conv.id) === 'paused'
-                      ? 'Conversation paused'
-                      : 'Inactive'
+                      ? t.conversationList.conversationPaused
+                      : t.conversationList.inactive
                 }
                 data-testid="status-indicator"
               />
@@ -110,7 +116,7 @@ export function ConversationList({
                     e.stopPropagation();
                     onDelete(conv.id);
                   }}
-                  aria-label="Delete conversation"
+                  aria-label={t.conversationList.deleteConversation}
                   data-testid="delete-conversation"
                 >
                   <svg
@@ -146,7 +152,9 @@ export function ConversationList({
           </div>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              {conv.message_count} thinker messages
+              {interpolate(t.conversationList.thinkerMessages, {
+                count: conv.message_count,
+              })}
             </span>
             {conv.total_cost > 0 && (
               <span className="text-xs text-zinc-400 dark:text-zinc-500">

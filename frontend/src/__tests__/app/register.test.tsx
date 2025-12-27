@@ -2,7 +2,7 @@
  * Tests for the Register page component.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import RegisterPage from '@/app/register/page';
 import { useAuth, useLanguage } from '@/contexts';
@@ -14,11 +14,15 @@ jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
 
-// Mock contexts
-jest.mock('@/contexts', () => ({
-  useAuth: jest.fn(),
-  useLanguage: jest.fn(),
-}));
+// Mock contexts while preserving providers
+jest.mock('@/contexts', () => {
+  const actual = jest.requireActual('@/contexts');
+  return {
+    ...actual,
+    useAuth: jest.fn(),
+    useLanguage: jest.fn(),
+  };
+});
 
 describe('RegisterPage', () => {
   const mockRegister = jest.fn();

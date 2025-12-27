@@ -10,6 +10,7 @@ import { ConversationList } from './ConversationList';
 import { CostMeter } from './CostMeter';
 import { BuildInfo } from './BuildInfo';
 import { generateBugReportUrl } from '@/utils/bugReport';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface SidebarProps {
   conversations: ConversationSummary[];
@@ -44,6 +45,8 @@ export function Sidebar({
   isAdmin = false,
   onLogout,
 }: SidebarProps) {
+  const { t } = useLanguage();
+
   // Use display name if available, fall back to username
   const nameToShow = displayName || username;
 
@@ -85,12 +88,12 @@ export function Sidebar({
                   height={32}
                   className="rounded-full"
                 />
-                Dining Philosophers
+                {t.sidebar.appTitle}
               </a>
               <button
                 onClick={onToggle}
                 className="lg:hidden p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                aria-label="Close sidebar"
+                aria-label={t.sidebar.closeSidebar}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -124,7 +127,7 @@ export function Sidebar({
               >
                 <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
               </svg>
-              New Conversation
+              {t.sidebar.newConversation}
             </button>
           </div>
 
@@ -162,16 +165,16 @@ export function Sidebar({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-2 py-1 text-xs text-zinc-500 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded transition-colors"
-                      title="Report an issue on GitHub"
+                      title={t.sidebar.reportIssue}
                       data-testid="bug-report-link"
                     >
-                      Report an Issue
+                      {t.sidebar.reportIssue}
                     </a>
                     {isAdmin && (
                       <a
                         href="/admin"
                         className="p-2 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                        title="Admin panel"
+                        title={t.sidebar.adminPanel}
                         data-testid="admin-link"
                       >
                         <svg
@@ -191,7 +194,7 @@ export function Sidebar({
                     <button
                       onClick={onLogout}
                       className="p-2 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                      title="Sign out"
+                      title={t.sidebar.signOut}
                       data-testid="logout-button"
                     >
                       <svg
@@ -216,7 +219,7 @@ export function Sidebar({
                 </div>
               ) : (
                 <p className="text-xs text-zinc-400 dark:text-zinc-500 text-center">
-                  Discuss ideas with AI-simulated thinkers
+                  {t.sidebar.tagline}
                 </p>
               )}
             </div>

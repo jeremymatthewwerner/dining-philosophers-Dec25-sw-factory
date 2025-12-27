@@ -21,5 +21,168 @@
   "languages": {
     "en": "English",
     "es": "Español"
+  },
+  "sidebar": {
+    "appTitle": "Filósofos Comensales",
+    "newConversation": "Nueva Conversación",
+    "tagline": "Discute ideas con pensadores simulados por IA",
+    "reportIssue": "Reportar un Problema",
+    "closeSidebar": "Cerrar barra lateral",
+    "adminPanel": "Panel de administración",
+    "signOut": "Cerrar sesión"
+  },
+  "newChatModal": {
+    "titleTopic": "Nueva Conversación",
+    "titleThinkers": "Seleccionar Pensadores",
+    "whatToDiscuss": "¿De qué te gustaría hablar?",
+    "topicPlaceholder": "por ejemplo, La naturaleza de la conciencia",
+    "errorSelectThinker": "Por favor selecciona al menos un pensador",
+    "errorGetSuggestions": "No se pudieron obtener sugerencias de pensadores",
+    "errorGetReplacement": "No se pudo obtener una sugerencia de reemplazo",
+    "errorCreateConversation": "No se pudo crear la conversación",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "suggestingThinkers": "Sugiriendo pensadores...",
+    "startConversation": "Iniciar Conversación",
+    "creating": "Creando...",
+    "closeModal": "Cerrar modal"
+  },
+  "chatArea": {
+    "welcomeHeading": "Bienvenido a filósofos comensales",
+    "welcomeDescription": "Inicia una nueva conversación para discutir temas con pensadores históricos y contemporáneos.",
+    "selectConversation": "Selecciona una conversación de la barra lateral o crea una nueva.",
+    "paceLabel": "Ritmo:",
+    "paceTitle": "Ritmo de conversación",
+    "speedFast": "Rápido",
+    "speedNormal": "Normal",
+    "speedRelaxed": "Relajado",
+    "speedSlow": "Lento",
+    "speedContemplative": "Contemplativo",
+    "exportConversation": "Exportar conversación",
+    "openSidebar": "Abrir barra lateral",
+    "export": "Exportar",
+    "exportHtml": "HTML",
+    "exportMarkdown": "Markdown",
+    "resumeThinkers": "Reanudar pensadores",
+    "pauseThinkers": "Pausar pensadores",
+    "resume": "Reanudar",
+    "pause": "Pausar",
+    "reconnecting": "Reconectando...",
+    "spendLimitReached": "Límite de gasto alcanzado - contacta al administrador para continuar",
+    "connecting": "Conectando...",
+    "with": "con",
+    "message": "Mensaje"
+  },
+  "thinkerSelector": {
+    "topic": "Tema:",
+    "selected": "Seleccionados ({count}/{max})",
+    "noSelectionsYet": "Sin Selecciones Todavía",
+    "addCustomThinker": "Agregar pensador personalizado",
+    "enterName": "Ingresa un nombre (por ejemplo, Sócrates)",
+    "checking": "Verificando...",
+    "add": "Agregar",
+    "errorNotFound": "No se pudo encontrar \"{name}\". Intenta con un nombre diferente.",
+    "errorValidation": "No se pudo validar el pensador",
+    "suggestedThinkers": "Pensadores sugeridos",
+    "maxReached": "Se alcanzó el máximo de {max} pensadores",
+    "loadingSuggestions": "Cargando sugerencias...",
+    "noSuggestions": "No hay sugerencias disponibles.",
+    "removeAria": "Eliminar {name}",
+    "addAria": "Agregar {name}",
+    "refreshAria": "Obtener sugerencia diferente para {name}",
+    "addToConversation": "Agregar a la conversación",
+    "getDifferentSuggestion": "Obtener una sugerencia diferente"
+  },
+  "messageInput": {
+    "placeholder": "Escribe tu mensaje...",
+    "sendMessage": "Enviar mensaje"
+  },
+  "conversationList": {
+    "noConversations": "Sin conversaciones todavía",
+    "justNow": "Justo ahora",
+    "minutesAgo": "hace {n}m",
+    "hoursAgo": "hace {n}h",
+    "daysAgo": "hace {n}d",
+    "thinkersActive": "Los pensadores están activos",
+    "conversationPaused": "Conversación pausada",
+    "inactive": "Inactivo",
+    "deleteConversation": "Eliminar conversación",
+    "thinkerMessages": "{count} mensajes de pensadores"
+  },
+  "spendLimitBanner": {
+    "limitReached": "Límite de gasto alcanzado",
+    "approachingLimit": "Acercándose al límite de gasto",
+    "contactAdmin": "Contacta al administrador para aumentar tu límite",
+    "dismiss": "Descartar"
+  },
+  "costMeter": {
+    "thisSession": "Esta Sesión:",
+    "totalCostTitle": "Costo total de esta sesión (se reinicia al recargar la página)"
+  },
+  "errorBanner": {
+    "error": "Error",
+    "dismiss": "Descartar"
+  },
+  "messageList": {
+    "noMessages": "Sin mensajes todavía. ¡Inicia la conversación!",
+    "thinking": "Pensando..."
+  },
+  "typingIndicator": {
+    "isThinking": "está pensando...",
+    "singleThinker": "{name} está pensando...",
+    "twoThinkers": "{name1} y {name2} están pensando...",
+    "multipleThinkers": "{names} están pensando..."
+  },
+  "loginPage": {
+    "welcome": "Bienvenido a filósofos comensales",
+    "username": "Nombre de Usuario",
+    "usernamePlaceholder": "Ingresa tu nombre de usuario",
+    "password": "Contraseña",
+    "passwordPlaceholder": "Ingresa tu contraseña",
+    "signIn": "Iniciar Sesión",
+    "signingIn": "Iniciando sesión...",
+    "noAccount": "¿No tienes una cuenta?",
+    "createOne": "Crea una",
+    "loginFailed": "Inicio de sesión falló",
+    "loading": "Cargando..."
+  },
+  "adminPage": {
+    "loading": "Cargando...",
+    "title": "Panel de Administración",
+    "description": "Administra usuarios y ve estadísticas de uso",
+    "backToChat": "Volver al Chat",
+    "totalUsers": "Total de Usuarios",
+    "totalConversations": "Total de Conversaciones",
+    "totalSpend": "Gasto Total",
+    "dismiss": "Descartar",
+    "usersHeading": "Usuarios",
+    "username": "Nombre de Usuario",
+    "role": "Rol",
+    "conversations": "Conversaciones",
+    "totalSpendColumn": "Gasto Total",
+    "spendLimit": "Límite de Gasto",
+    "joined": "Se Unió",
+    "actions": "Acciones",
+    "roleAdmin": "Administrador",
+    "roleUser": "Usuario",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "edit": "Editar",
+    "errorSpendLimit": "El límite de gasto debe ser un número positivo",
+    "errorDeleteUser": "No se pudo eliminar el usuario",
+    "errorUpdateSpendLimit": "No se pudo actualizar el límite de gasto",
+    "errorLoadUsers": "No se pudieron cargar los usuarios",
+    "confirmDelete": "¿Estás seguro de que quieres eliminar al usuario \"{username}\"? Esto eliminará todas sus conversaciones y no se puede deshacer.",
+    "you": "(tú)",
+    "deleting": "Eliminando...",
+    "delete": "Eliminar",
+    "noUsers": "No se encontraron usuarios"
+  },
+  "layout": {
+    "title": "filósofos comensales",
+    "description": "Chat en tiempo real con múltiples participantes con pensadores históricos y contemporáneos simulados por IA"
+  },
+  "common": {
+    "loading": "Cargando..."
   }
 }

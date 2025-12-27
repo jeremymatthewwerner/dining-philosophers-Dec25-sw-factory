@@ -12,10 +12,24 @@ const translations: Record<string, Translations> = {
   es,
 };
 
+/**
+ * Helper function to interpolate variables into translation strings
+ * Example: interpolate("Hello {name}", { name: "World" }) => "Hello World"
+ */
+function interpolate(
+  template: string,
+  variables: Record<string, string | number>
+): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => {
+    return String(variables[key] ?? `{${key}}`);
+  });
+}
+
 interface LanguageContextType {
   locale: string;
   t: Translations;
   setLocale: (locale: string) => void;
+  interpolate: typeof interpolate;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(
@@ -38,7 +52,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const t = translations[locale] || translations.en;
 
   return (
-    <LanguageContext.Provider value={{ locale, t, setLocale }}>
+    <LanguageContext.Provider value={{ locale, t, setLocale, interpolate }}>
       {children}
     </LanguageContext.Provider>
   );

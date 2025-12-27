@@ -5,6 +5,8 @@
 
 'use client';
 
+import { useLanguage } from '@/contexts/LanguageContext';
+
 export interface TypingIndicatorProps {
   /** Names of thinkers currently typing */
   typingThinkers: string[];
@@ -16,6 +18,8 @@ export function TypingIndicator({
   typingThinkers,
   thinkingContent,
 }: TypingIndicatorProps) {
+  const { t, interpolate } = useLanguage();
+
   if (typingThinkers.length === 0) {
     return null;
   }
@@ -56,7 +60,7 @@ export function TypingIndicator({
                 </span>
               ) : (
                 <span className="text-zinc-500 dark:text-zinc-400">
-                  is thinking...
+                  {t.typingIndicator.isThinking}
                 </span>
               )}
             </div>
@@ -69,14 +73,22 @@ export function TypingIndicator({
   // Fallback to simple format if no thinking content
   const formatNames = (): string => {
     if (typingThinkers.length === 1) {
-      return `${typingThinkers[0]} is thinking...`;
+      return interpolate(t.typingIndicator.singleThinker, {
+        name: typingThinkers[0],
+      });
     }
     if (typingThinkers.length === 2) {
-      return `${typingThinkers[0]} and ${typingThinkers[1]} are thinking...`;
+      return interpolate(t.typingIndicator.twoThinkers, {
+        name1: typingThinkers[0],
+        name2: typingThinkers[1],
+      });
     }
-    return `${typingThinkers.slice(0, -1).join(', ')}, and ${
-      typingThinkers[typingThinkers.length - 1]
-    } are thinking...`;
+    return interpolate(t.typingIndicator.multipleThinkers, {
+      names:
+        typingThinkers.slice(0, -1).join(', ') +
+        ', and ' +
+        typingThinkers[typingThinkers.length - 1],
+    });
   };
 
   return (
