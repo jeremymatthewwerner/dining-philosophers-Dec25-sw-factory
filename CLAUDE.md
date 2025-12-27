@@ -59,6 +59,9 @@ If using branch protection on `main`, ensure:
 1. Fix the immediate issue
 2. Update the relevant agent workflow to handle this case autonomously next time
 3. Document the improvement in this file
+4. **Update the template repo** - Make a generic version of the fix in [claude-software-factory-template](https://github.com/jeremymatthewwerner/claude-software-factory-template) so other projects benefit
+
+> **Template Repo:** When improving workflows, CLAUDE.md, or agent behavior, always create a generalized version of the improvement in the template repo at `jeremymatthewwerner/claude-software-factory-template`. This ensures learnings from this project benefit all future projects.
 
 ## Decision-Making Autonomy (CRITICAL)
 
