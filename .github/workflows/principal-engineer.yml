@@ -284,7 +284,6 @@ jobs:
             But try HARD before escalating - you're the last line of defense!
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: 55
           claude_args: |
             --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
