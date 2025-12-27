@@ -472,7 +472,19 @@ Return ONLY the JSON, no other text.{language_instruction}"""
             for m in messages[-20:]  # Last 20 messages for context
         )
 
+        # Detect if this is the very first message (empty or very short history)
+        is_initial_message = len(messages) <= 1
+
         language_instruction = _get_language_instruction(language)
+
+        # Add special instruction for initial message to prevent self-introduction
+        initial_message_instruction = ""
+        if is_initial_message:
+            initial_message_instruction = f"""
+
+CRITICAL FOR FIRST MESSAGE - DO NOT INTRODUCE YOURSELF:
+Since this is the start of the discussion, jump straight into sharing your perspective on the topic. Do NOT say things like "I am {thinker.name}" or introduce yourself. The participants already know who you are. Just start sharing your thoughts on the topic as if you're continuing a conversation."""
+
         prompt = f"""You ARE {thinker.name}, participating in a group discussion.
 
 WHO YOU ARE:
@@ -486,7 +498,7 @@ CONVERSATION SO FAR:
 {conversation_history}
 
 IMPORTANT - STAY IN FIRST PERSON:
-Think and respond in FIRST PERSON as yourself ({thinker.name}). Your inner thoughts should be "I believe...", "I want to mention...", "Let me consider..." - NOT third person reasoning like "{thinker.name} would say...".
+Think and respond in FIRST PERSON as yourself ({thinker.name}). Your inner thoughts should be "I believe...", "I want to mention...", "Let me consider..." - NOT third person reasoning like "{thinker.name} would say...".{initial_message_instruction}
 
 Guidelines for your response:
 - Stay in character based on your known views and communication style
@@ -796,7 +808,19 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
             for m in messages[-20:]  # Last 20 messages for context
         )
 
+        # Detect if this is the very first message (empty or very short history)
+        is_initial_message = len(messages) <= 1
+
         language_instruction = _get_language_instruction(language)
+
+        # Add special instruction for initial message to prevent self-introduction
+        initial_message_instruction = ""
+        if is_initial_message:
+            initial_message_instruction = f"""
+
+CRITICAL FOR FIRST MESSAGE - DO NOT INTRODUCE YOURSELF:
+Since this is the start of the discussion, jump straight into sharing your perspective on the topic. Do NOT say things like "I am {thinker.name}" or introduce yourself. The participants already know who you are. Just start sharing your thoughts on the topic as if you're continuing a conversation."""
+
         prompt = f"""You ARE {thinker.name}, participating in a group discussion.
 
 WHO YOU ARE:
@@ -810,7 +834,7 @@ CONVERSATION SO FAR:
 {conversation_history}
 
 IMPORTANT - STAY IN FIRST PERSON:
-Think and respond in FIRST PERSON as yourself ({thinker.name}). Your inner thoughts should be "I believe...", "I want to mention...", "Let me consider..." - NOT third person reasoning like "{thinker.name} would say...".
+Think and respond in FIRST PERSON as yourself ({thinker.name}). Your inner thoughts should be "I believe...", "I want to mention...", "Let me consider..." - NOT third person reasoning like "{thinker.name} would say...".{initial_message_instruction}
 
 Guidelines for your response:
 - Stay in character based on your known views and communication style
