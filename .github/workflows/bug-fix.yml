@@ -229,7 +229,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Create initial progress comment with checkboxes using gh api (returns comment ID)
-          COMMENT_BODY="## 🤖 Progress Tracker
+          COMMENT_BODY="## 🤖 Code Agent Progress
 
           - [ ] 📖 Reading issue and understanding requirements
           - [ ] 🔍 Analyzing codebase and finding affected files
@@ -238,8 +238,11 @@ jobs:
           - [ ] 📝 Creating PR
           - [ ] 🚀 Waiting for CI
 
-          **Status:** Starting analysis...
-          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          **Status:** 🚀 Starting analysis...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+          *Detailed analysis will appear here as I investigate the issue...*"
 
           COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
             -X POST -f body="$COMMENT_BODY" --jq '.id')
@@ -280,11 +283,18 @@ jobs:
                - Look at what was already implemented
                - Focus on fixing the SPECIFIC failure, don't start over
 
-            ## Progress Comment Format
-            After completing EACH step, update the progress comment by editing it:
+            ## Progress Comment Format - BE VERBOSE LIKE TRIAGE BOT!
+
+            After completing EACH step, update the progress comment with DETAILED analysis.
+            Don't just check boxes - explain your thinking! Users should understand:
+            - What you found during analysis
+            - Why you think this is the root cause
+            - What specific changes you're making and why
+            - What tests you're running
+
             ```bash
             gh api repos/${{ github.repository }}/issues/comments/${{ steps.progress.outputs.comment_id }} \
-              -X PATCH -f body="## 🤖 Progress Tracker
+              -X PATCH -f body="## 🤖 Code Agent Progress
 
             - [x] 📖 Reading issue and understanding requirements
             - [x] 🔍 Analyzing codebase and finding affected files
@@ -297,10 +307,26 @@ jobs:
             **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
             ---
-            ### Analysis
-            **Root Cause:** [what's wrong]
-            **Files Affected:** [list]
-            **Proposed Fix:** [plan]"
+            ## 🔍 Analysis
+
+            ### Understanding the Issue
+            [Explain what the issue is asking for and any context from comments]
+
+            ### Root Cause
+            [Detailed explanation of what's causing the bug/what needs to change for the feature]
+
+            ### Files Affected
+            - \`path/to/file1.ts\` - [what changes needed]
+            - \`path/to/file2.py\` - [what changes needed]
+
+            ### Implementation Plan
+            1. [First specific change]
+            2. [Second specific change]
+            3. [etc.]
+
+            ### Testing Strategy
+            - [What tests will verify the fix]
+            - [Edge cases to consider]"
             ```
 
             ## Step 1: Analyze (Check Previous Work First!)
@@ -472,7 +498,9 @@ jobs:
         if: (steps.context.outputs.mode == 'fix' || steps.context.outputs.mode == 'continue') && success()
         id: ci-monitor
         env:
-          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          # IMPORTANT: Use GITHUB_TOKEN for comments to avoid triggering issue_comment events
+          # PAT-posted comments trigger workflows, GITHUB_TOKEN-posted comments don't
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.context.outputs.number }}
           ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
           PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id || steps.continue_progress.outputs.comment_id }}
@@ -643,7 +671,9 @@ jobs:
       - name: Trigger CI fix retry (with limit)
         if: steps.ci-monitor.outputs.ci_failed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          # Use GITHUB_TOKEN for comments, PAT only for workflow dispatch
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAT_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           ISSUE_NUMBER: ${{ steps.context.outputs.number }}
           ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
         run: |
@@ -677,7 +707,8 @@ jobs:
               --add-label "status:awaiting-human"
           else
             echo "Retrying (attempt $((FAILURE_COUNT + 1)) of 3)..."
-            gh workflow run bug-fix.yml \
+            # Use PAT for workflow dispatch (requires workflow scope)
+            GH_TOKEN="$PAT_TOKEN" gh workflow run bug-fix.yml \
               -f issue_number="$ISSUE_NUMBER" \
               --ref ${{ github.ref_name }} 2>/dev/null || \
             echo "Could not trigger retry workflow - may need manual intervention"
