@@ -131,7 +131,7 @@
     "isThinking": "is thinking...",
     "singleThinker": "{name} is thinking...",
     "twoThinkers": "{name1} and {name2} are thinking...",
-    "multipleThinkers": "{names}... are thinking..."
+    "multipleThinkers": "{names} are thinking..."
   },
   "loginPage": {
     "welcome": "Welcome to dining philosophers",

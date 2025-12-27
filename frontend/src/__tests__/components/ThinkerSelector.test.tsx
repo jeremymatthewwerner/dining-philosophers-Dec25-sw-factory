@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { ThinkerSelector } from '@/components/ThinkerSelector';
 import type { ThinkerProfile, ThinkerSuggestion } from '@/types';

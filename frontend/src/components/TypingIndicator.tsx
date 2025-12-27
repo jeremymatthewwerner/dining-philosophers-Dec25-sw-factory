@@ -86,7 +86,7 @@ export function TypingIndicator({
     return interpolate(t.typingIndicator.multipleThinkers, {
       names:
         typingThinkers.slice(0, -1).join(', ') +
-        ', ' +
+        ', and ' +
         typingThinkers[typingThinkers.length - 1],
     });
   };

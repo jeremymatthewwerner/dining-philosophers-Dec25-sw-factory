@@ -131,7 +131,7 @@
     "isThinking": "está pensando...",
     "singleThinker": "{name} está pensando...",
     "twoThinkers": "{name1} y {name2} están pensando...",
-    "multipleThinkers": "{names}... están pensando..."
+    "multipleThinkers": "{names} están pensando..."
   },
   "loginPage": {
     "welcome": "Bienvenido a filósofos comensales",

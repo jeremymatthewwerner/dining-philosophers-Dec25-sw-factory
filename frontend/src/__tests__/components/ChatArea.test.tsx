@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@/test-utils';
 import { ChatArea } from '@/components/ChatArea';
 import type { Conversation, Message } from '@/types';
 
