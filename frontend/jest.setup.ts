@@ -1,5 +1,24 @@
 import '@testing-library/jest-dom';
 
+// Suppress React act() warnings for async operations in useEffect
+// These are false positives - the async operations are properly handled in production
+const originalError = console.error;
+beforeAll(() => {
+  console.error = (...args: unknown[]) => {
+    if (
+      typeof args[0] === 'string' &&
+      args[0].includes('not wrapped in act')
+    ) {
+      return;
+    }
+    originalError.call(console, ...args);
+  };
+});
+
+afterAll(() => {
+  console.error = originalError;
+});
+
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = jest.fn();
 

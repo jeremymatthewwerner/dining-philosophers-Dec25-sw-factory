@@ -356,7 +356,12 @@ describe('API Client', () => {
         expect.stringContaining('/api/thinkers/suggest'),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ topic: 'philosophy', count: 3, exclude: [] }),
+          body: JSON.stringify({
+            topic: 'philosophy',
+            count: 3,
+            exclude: [],
+            language: 'en',
+          }),
         })
       );
     });
@@ -379,7 +384,7 @@ describe('API Client', () => {
         expect.stringContaining('/api/thinkers/validate'),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ name: 'Socrates' }),
+          body: JSON.stringify({ name: 'Socrates', language: 'en' }),
         })
       );
     });
