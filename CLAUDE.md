@@ -59,6 +59,36 @@ If using branch protection on `main`, ensure:
 2. Update the relevant agent workflow to handle this case autonomously next time
 3. Document the improvement in this file
 
+## Decision-Making Autonomy (CRITICAL)
+
+**Agents are empowered to make technical decisions.** Don't ask "Should I do A, B, or C?" - DECIDE.
+
+### When to Decide Autonomously (DO THIS):
+- **Implementation approach** - Pick the cleanest solution
+- **Test strategy** - Decide what tests are needed
+- **Timeout/retry values** - Use reasonable defaults (30s timeout, 3 retries)
+- **Dependency versions** - Pin to latest stable
+- **Code style** - Follow existing patterns
+- **PR merge strategy** - Wait for CI, don't merge with failures
+- **Branch management** - Always use feature branches, never push to main
+
+### When to Actually Escalate to Human (RARE):
+- **Security decisions** - Credentials, auth changes, API keys
+- **Breaking changes** - Public API changes affecting users
+- **Business logic** - Product decisions, not technical ones
+- **Architecture** - Major system redesign (not refactoring)
+- **Cost implications** - New services, paid APIs
+
+### The 10-Minute Rule
+If you've been stuck on a DECISION (not implementation) for 10 minutes, MAKE A CHOICE.
+Document your reasoning. A reasonable choice made quickly > perfect choice never made.
+
+### Case Study: Issue #84
+The Code Agent got stuck and asked: "Should I A) Create new issue, B) Close PR, or C) Merge anyway?"
+This was WRONG. It should have DECIDED based on engineering judgment. The Principal Engineer agent
+exists to handle cases where the Code Agent gets stuck, taking a holistic approach to fix the
+factory rather than just the symptom.
+
 ## IMPORTANT Rules
 
 - ALWAYS write tests alongside code (unit, integration, E2E)
