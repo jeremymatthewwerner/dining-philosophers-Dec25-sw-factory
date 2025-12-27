@@ -276,6 +276,44 @@ jobs:
 
             If stuck on a DECISION for 10 minutes, MAKE A CHOICE and document your reasoning.
 
+            ## 📋 LOG ANALYSIS PROTOCOL (MANDATORY!)
+
+            **BEFORE implementing ANY fix, you MUST analyze logs.** Don't guess - READ THE ACTUAL ERRORS!
+
+            ### Step 1: Check Issue Comments for Previous Failures
+            ```bash
+            gh issue view ${{ steps.context.outputs.number }} --comments
+            ```
+            Look for "❌ CI Failed" comments - they contain ACTUAL failure logs. If you see one, that tells you EXACTLY what to fix.
+
+            ### Step 2: Get Workflow Logs
+            ```bash
+            # Find recent CI runs for this issue's branches
+            gh run list --workflow=ci.yml --limit 10 --json databaseId,headBranch,conclusion,status
+
+            # Get detailed failure logs from a specific run
+            gh run view <RUN_ID> --log-failed
+            ```
+
+            ### Step 3: Download E2E Artifacts (if E2E tests failed)
+            ```bash
+            # Download backend logs and Playwright reports
+            gh run download <RUN_ID> --name e2e-debug-logs --dir /tmp/e2e-logs 2>/dev/null
+
+            # Read backend logs - shows API errors, exceptions, slow responses
+            cat /tmp/e2e-logs/backend.log 2>/dev/null | tail -200
+
+            # Check Playwright test results
+            ls -la /tmp/e2e-logs/
+            cat /tmp/e2e-logs/frontend/test-results/*.json 2>/dev/null
+            ```
+
+            ### Step 4: Document What You Found
+            In your progress comment, EXPLAIN what the logs showed before implementing a fix.
+            Example: "Backend logs show 500 error on /api/thinkers - the query is missing a WHERE clause"
+
+            **If you skip log analysis and just guess at fixes, you will fail repeatedly!**
+
             ## IMPORTANT: Check for Previous Attempts First!
 
             Before starting fresh, check if there's already work done on this issue:
@@ -407,6 +445,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 45
           claude_args: |
+            --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -426,9 +465,20 @@ jobs:
             ## IMPORTANT: Always @mention the human!
             When posting ANY comment, always include "@${{ steps.context.outputs.issue_author }}" so they get notified.
 
+            ## 📋 LOG ANALYSIS (if fixing a CI failure)
+            If asked to fix a failing test or CI issue, FIRST analyze the logs:
+            ```bash
+            gh issue view ${{ steps.context.outputs.number }} --comments  # Look for "❌ CI Failed" comments
+            gh run list --workflow=ci.yml --limit 5 --json databaseId,headBranch,conclusion
+            gh run view <RUN_ID> --log-failed
+            gh run download <RUN_ID> --name e2e-debug-logs --dir /tmp/e2e-logs 2>/dev/null
+            cat /tmp/e2e-logs/backend.log 2>/dev/null | tail -200
+            ```
+
             ## Step 1: Understand What's Being Asked
             1. Read the full issue and all comments: gh issue view ${{ steps.context.outputs.number }} --comments
-            2. Focus on the latest comment from @${{ steps.context.outputs.comment_author }}
+            2. **Check for "❌ CI Failed" comments** - if fixing a failure, analyze those logs first!
+            3. Focus on the latest comment from @${{ steps.context.outputs.comment_author }}
             3. Determine: Is this a QUESTION (just needs an answer) or an ACTION REQUEST (needs code changes)?
 
             ## Step 2A: If Just a Question
@@ -497,6 +547,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 45
           claude_args: |
+            --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -518,10 +569,35 @@ jobs:
             ## IMPORTANT: Always @mention the human!
             When posting ANY comment, always include "@${{ steps.context.outputs.issue_author }}" so they get notified.
 
+            ## 📋 LOG ANALYSIS PROTOCOL (MANDATORY!)
+
+            **BEFORE implementing ANY fix, you MUST analyze logs from previous attempts.**
+
+            ### Check Issue Comments for Previous Failures
+            ```bash
+            gh issue view ${{ steps.context.outputs.number }} --comments
+            ```
+            Look for "❌ CI Failed" comments - they contain ACTUAL failure logs from previous attempts!
+
+            ### Get Workflow Logs if Needed
+            ```bash
+            gh run list --workflow=ci.yml --limit 5 --json databaseId,headBranch,conclusion
+            gh run view <RUN_ID> --log-failed
+            ```
+
+            ### Download E2E Artifacts if E2E Tests Failed
+            ```bash
+            gh run download <RUN_ID> --name e2e-debug-logs --dir /tmp/e2e-logs 2>/dev/null
+            cat /tmp/e2e-logs/backend.log 2>/dev/null | tail -200
+            ```
+
+            **Document what you found in the progress comment before implementing!**
+
             ## Step 1: Understand the Response
             1. Read the issue AND all comments: gh issue view ${{ steps.context.outputs.number }} --comments
-            2. Check first box [x] and update status
-            3. Focus on the human's latest response - they answered your question or gave approval
+            2. **Check for "❌ CI Failed" comments first** - if present, analyze those logs!
+            3. Check first box [x] and update status
+            4. Focus on the human's latest response - they answered your question or gave approval
 
             ## Step 2: Continue Implementation
             1. Check second box [x] and update status to "Implementing..."
@@ -567,6 +643,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 45
           claude_args: |
+            --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -782,7 +859,7 @@ jobs:
 
             gh issue edit "$ISSUE_NUMBER" \
               --remove-label "status:bot-working" \
-              --add-label "needs-human" \
+              --add-label "needs-principal-engineer" \
               --add-label "status:awaiting-human"
           else
             echo "Retrying (attempt $((FAILURE_COUNT + 1)) of 3)..."

@@ -470,9 +470,13 @@ jobs:
             STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
             LABELS=$(echo "$ISSUE_DATA" | jq -r '.labels[].name' | tr '\n' ' ')
 
-            # Don't close issues that need human intervention
+            # Don't close issues that need human or PE intervention
             if echo "$LABELS" | grep -q "needs-human"; then
               echo "Skipping issue #$ISSUE_NUM - has 'needs-human' label (requires human intervention)"
+              continue
+            fi
+            if echo "$LABELS" | grep -q "needs-principal-engineer"; then
+              echo "Skipping issue #$ISSUE_NUM - has 'needs-principal-engineer' label (PE investigating)"
               continue
             fi
             if echo "$LABELS" | grep -q "status:awaiting-human"; then
