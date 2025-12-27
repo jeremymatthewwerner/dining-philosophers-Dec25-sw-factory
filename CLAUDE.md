@@ -163,6 +163,25 @@ At every meaningful milestone (new feature, API changes, UI flow completion):
 - **Logs printed:** Backend logs appear in CI output on failure
 - **To debug:** Check the workflow run artifacts and look for API errors, exceptions, or slow responses in backend logs
 
+### Log Analysis Protocol (MANDATORY for agents)
+
+**BEFORE implementing any fix, agents MUST analyze logs.** Don't guess - READ THE ACTUAL ERRORS!
+
+```bash
+# Step 1: Check issue comments for "❌ CI Failed" - contains actual logs
+gh issue view <ISSUE_NUMBER> --comments
+
+# Step 2: Get workflow logs
+gh run list --workflow=ci.yml --limit 5 --json databaseId,headBranch,conclusion
+gh run view <RUN_ID> --log-failed
+
+# Step 3: Download E2E artifacts
+gh run download <RUN_ID> --name e2e-debug-logs --dir /tmp/e2e-logs
+cat /tmp/e2e-logs/backend.log | tail -200
+```
+
+**Agents must document what logs showed BEFORE implementing a fix.** Example: "Backend logs show 500 error on /api/thinkers - the query is missing a WHERE clause"
+
 ## Testing
 
 - **Backend**: pytest + pytest-asyncio + pytest-cov
