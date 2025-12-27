@@ -387,23 +387,63 @@ jobs:
             ## IMPORTANT: Always @mention the human!
             When posting ANY comment, always include "@${{ steps.context.outputs.issue_author }}" so they get notified.
 
-            ## Your Task
+            ## Step 1: Understand What's Being Asked
             1. Read the full issue and all comments: gh issue view ${{ steps.context.outputs.number }} --comments
             2. Focus on the latest comment from @${{ steps.context.outputs.comment_author }}
-            3. Think carefully about their question/suggestion
-            4. If it's a clarifying question: Answer it thoughtfully
-            5. If it's a suggestion about the fix: Consider it and explain if/how you'll incorporate it
-            6. If they're asking you to take action: Do it if reasonable
+            3. Determine: Is this a QUESTION (just needs an answer) or an ACTION REQUEST (needs code changes)?
 
-            ## After Thinking
-            Post a response to the issue (MUST include @mention):
+            ## Step 2A: If Just a Question
+            Post a response and you're done:
             ```bash
             gh issue comment ${{ steps.context.outputs.number }} --body "## Response to @${{ steps.context.outputs.comment_author }}
 
-            [Your thoughtful response here, addressing their specific points]
+            [Your thoughtful answer here]
 
-            [If you took any action, describe what you did]
-            [If you need more info, ask a specific question]
+            cc @${{ steps.context.outputs.issue_author }}"
+            ```
+
+            ## Step 2B: If Action Request (Code Changes Needed)
+            **CRITICAL: Create a progress tracker and update it as you work!**
+
+            First, create a progress comment:
+            ```bash
+            COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
+              -X POST -f body="## 🤖 Implementing Requested Changes
+
+            Thanks @${{ steps.context.outputs.comment_author }}! Working on your request...
+
+            - [ ] 📖 Understanding the request
+            - [ ] 🔍 Analyzing affected code
+            - [ ] 🛠️ Implementing changes
+            - [ ] ✅ Running tests
+            - [ ] 📝 Creating/updating PR
+
+            **Status:** Starting...
+            **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            cc @${{ steps.context.outputs.issue_author }}" --jq '.id')
+            echo "Progress comment ID: $COMMENT_ID"
+            ```
+
+            Then UPDATE that comment as you complete each step:
+            ```bash
+            gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID \
+              -X PATCH -f body="## 🤖 Implementing Requested Changes
+
+            Thanks @${{ steps.context.outputs.comment_author }}! Working on your request...
+
+            - [x] 📖 Understanding the request
+            - [x] 🔍 Analyzing affected code
+            - [ ] 🛠️ Implementing changes
+            - [ ] ✅ Running tests
+            - [ ] 📝 Creating/updating PR
+
+            **Status:** [current status]
+            **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ---
+            ## Analysis
+            [Your detailed analysis of what needs to change]
 
             cc @${{ steps.context.outputs.issue_author }}"
             ```
@@ -416,7 +456,7 @@ jobs:
             - If there's still work to do on the issue, keep status:bot-working
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: 30
+          timeout_minutes: 45
           claude_args: |
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
