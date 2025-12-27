@@ -26,6 +26,27 @@ OUTPUT_COST_PER_TOKEN = 0.000015  # $15 per million output tokens
 # Extended thinking uses same rate as output tokens
 THINKING_COST_PER_TOKEN = 0.000015  # $15 per million thinking tokens
 
+# Language code to full name mapping
+LANGUAGE_NAMES = {
+    "en": "English",
+    "es": "Spanish",
+}
+
+
+def _get_language_instruction(language: str) -> str:
+    """Get the language instruction to append to prompts.
+
+    Args:
+        language: Language code (e.g., 'en', 'es')
+
+    Returns:
+        Instruction string to append to prompt, or empty string for English
+    """
+    if language == "en":
+        return ""
+    language_name = LANGUAGE_NAMES.get(language, language)
+    return f"\n\nIMPORTANT: Respond in {language_name}."
+
 
 class ThinkerService:
     """Service for thinker suggestions, validation, and conversation simulation."""
@@ -94,7 +115,7 @@ class ThinkerService:
             return None
 
     async def suggest_thinkers(
-        self, topic: str, count: int = 3, exclude: list[str] | None = None
+        self, topic: str, count: int = 3, exclude: list[str] | None = None, language: str = "en"
     ) -> list[ThinkerSuggestion]:
         """Suggest diverse thinkers for a given topic.
 
@@ -105,6 +126,7 @@ class ThinkerService:
             topic: The topic to suggest thinkers for
             count: Number of suggestions to return (1-5)
             exclude: List of thinker names to exclude from suggestions
+            language: Language code for AI responses (e.g., 'en', 'es')
         """
         if not self.client:
             return []
@@ -128,7 +150,9 @@ class ThinkerService:
                 batch_size = min(2, remaining)
                 perspective_hint = perspectives[task_num % len(perspectives)]
                 tasks.append(
-                    self._suggest_single_batch(topic, batch_size, perspective_hint, exclude)
+                    self._suggest_single_batch(
+                        topic, batch_size, perspective_hint, exclude, language
+                    )
                 )
                 remaining -= batch_size
                 task_num += 1
@@ -164,7 +188,7 @@ class ThinkerService:
             return all_suggestions[:count]
 
         # For small counts, single call is fine
-        return await self._suggest_single_batch(topic, count, None, exclude)
+        return await self._suggest_single_batch(topic, count, None, exclude, language)
 
     async def _suggest_single_batch(
         self,
@@ -172,6 +196,7 @@ class ThinkerService:
         count: int,
         perspective_hint: str | None = None,
         exclude: list[str] | None = None,
+        language: str = "en",
     ) -> list[ThinkerSuggestion]:
         """Make a single API call to get thinker suggestions."""
         if not self.client:
@@ -186,6 +211,7 @@ class ThinkerService:
             exclude_names = ", ".join(exclude)
             exclude_text = f"\n\nIMPORTANT: Do NOT suggest any of these people (they have already been suggested): {exclude_names}"
 
+        language_instruction = _get_language_instruction(language)
         prompt = f"""Suggest {count} historical or contemporary thinkers who would have interesting and diverse perspectives on this topic: "{topic}"{perspective_text}{exclude_text}
 
 For each thinker, provide:
@@ -213,7 +239,7 @@ Format your response as JSON with this structure:
   }}
 ]
 
-Return ONLY the JSON array, no other text."""
+Return ONLY the JSON array, no other text.{language_instruction}"""
 
         try:
             response = await self.client.messages.create(
@@ -283,7 +309,9 @@ Return ONLY the JSON array, no other text."""
             logging.warning(f"Failed to get thinker suggestions: {e}")
             return []
 
-    async def validate_thinker(self, name: str) -> tuple[bool, ThinkerProfile | None]:
+    async def validate_thinker(
+        self, name: str, language: str = "en"
+    ) -> tuple[bool, ThinkerProfile | None]:
         """Validate that a name refers to a real historical/contemporary figure.
 
         Returns (is_valid, profile) where profile is populated if valid.
@@ -291,6 +319,7 @@ Return ONLY the JSON array, no other text."""
         if not self.client:
             return False, None
 
+        language_instruction = _get_language_instruction(language)
         prompt = f"""Is "{name}" a real historical or contemporary figure who is notable enough to be discussed?
 
 If YES, respond with a JSON object:
@@ -310,7 +339,7 @@ If NO (fictional, unknown, or too obscure), respond with:
   "reason": "Brief explanation why"
 }}
 
-Return ONLY the JSON, no other text."""
+Return ONLY the JSON, no other text.{language_instruction}"""
 
         try:
             response = await self.client.messages.create(
@@ -418,6 +447,7 @@ Return ONLY the JSON, no other text."""
         thinker: "ConversationThinker",
         messages: Sequence["Message"],
         topic: str,
+        language: str = "en",
     ) -> tuple[str, float]:
         """Generate a response using streaming extended thinking.
 
@@ -442,6 +472,7 @@ Return ONLY the JSON, no other text."""
             for m in messages[-20:]  # Last 20 messages for context
         )
 
+        language_instruction = _get_language_instruction(language)
         prompt = f"""You ARE {thinker.name}, participating in a group discussion.
 
 WHO YOU ARE:
@@ -467,7 +498,7 @@ Guidelines for your response:
 
 RESPONSE STYLE: {style_instruction}
 
-Respond with ONLY what you would say as {thinker.name}, nothing else."""
+Respond with ONLY what you would say as {thinker.name}, nothing else.{language_instruction}"""
 
         try:
             # Use streaming with extended thinking
@@ -741,6 +772,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         thinker: "ConversationThinker",
         messages: Sequence["Message"],
         topic: str,
+        language: str = "en",
     ) -> tuple[str, float]:
         """Generate a response from a thinker (non-streaming fallback).
 
@@ -764,6 +796,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
             for m in messages[-20:]  # Last 20 messages for context
         )
 
+        language_instruction = _get_language_instruction(language)
         prompt = f"""You ARE {thinker.name}, participating in a group discussion.
 
 WHO YOU ARE:
@@ -789,7 +822,7 @@ Guidelines for your response:
 
 RESPONSE STYLE: {style_instruction}
 
-Respond with ONLY what you would say as {thinker.name}, nothing else."""
+Respond with ONLY what you would say as {thinker.name}, nothing else.{language_instruction}"""
 
         try:
             response = await self.client.messages.create(
@@ -821,6 +854,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         topic: str,
         get_messages: Callable[[str], Awaitable[Sequence["Message"]]],
         save_message: Callable[[str, str, str, float], Awaitable["Message"]],
+        language: str = "en",
     ) -> None:
         """Start thinker agents for a conversation.
 
@@ -843,6 +877,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
                     topic,
                     get_messages,
                     save_message,
+                    language,
                 )
             )
             self._active_tasks[conversation_id][thinker.id] = task
@@ -878,6 +913,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         topic: str,
         get_messages: Callable[[str], Awaitable[Sequence["Message"]]],
         save_message: Callable[[str, str, str, float], Awaitable["Message"]],
+        language: str = "en",
     ) -> None:
         """Run a single thinker agent.
 
@@ -953,13 +989,13 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
                     if should_prompt and user_name:
                         # Generate a message that invites the user to participate
                         response_text, cost = await self.generate_user_prompt(
-                            thinker, messages, topic, user_name
+                            thinker, messages, topic, user_name, language
                         )
                     else:
                         # Generate normal response with streaming thinking
                         # This streams thinking tokens via WebSocket as they're generated
                         response_text, cost = await self.generate_response_with_streaming_thinking(
-                            conversation_id, thinker, messages, topic
+                            conversation_id, thinker, messages, topic, language
                         )
 
                     # Check pause state again before saving (in case paused during generation)
@@ -1160,6 +1196,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
         messages: Sequence["Message"],
         topic: str,
         user_name: str,
+        language: str = "en",
     ) -> tuple[str, float]:
         """Generate a message that prompts the user to participate.
 
@@ -1178,6 +1215,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else."""
             f"{get_sender_label(m)}: {m.content}" for m in messages[-15:]
         )
 
+        language_instruction = _get_language_instruction(language)
         prompt = f"""You ARE {thinker.name}, participating in a group discussion.
 
 WHO YOU ARE:
@@ -1203,7 +1241,7 @@ Examples of good prompts (adapt to your style):
 
 Keep it to ONE short sentence (under 20 words). Be genuine, not formulaic.
 
-Respond with ONLY what you would say, nothing else."""
+Respond with ONLY what you would say, nothing else.{language_instruction}"""
 
         try:
             response = await self.client.messages.create(

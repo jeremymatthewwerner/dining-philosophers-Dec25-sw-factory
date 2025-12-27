@@ -253,11 +253,12 @@ export async function sendMessage(
 export async function suggestThinkers(
   topic: string,
   count: number = 3,
-  exclude: string[] = []
+  exclude: string[] = [],
+  language: string = 'en'
 ): Promise<ThinkerSuggestion[]> {
   return fetchWithAuth<ThinkerSuggestion[]>('/api/thinkers/suggest', {
     method: 'POST',
-    body: JSON.stringify({ topic, count, exclude }),
+    body: JSON.stringify({ topic, count, exclude, language }),
   });
 }
 
@@ -269,11 +270,12 @@ export interface ValidateThinkerResponse {
 }
 
 export async function validateThinker(
-  name: string
+  name: string,
+  language: string = 'en'
 ): Promise<ValidateThinkerResponse> {
   return fetchWithAuth<ValidateThinkerResponse>('/api/thinkers/validate', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, language }),
   });
 }
 

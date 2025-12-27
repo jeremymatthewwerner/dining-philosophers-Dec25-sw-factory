@@ -56,12 +56,18 @@ class ThinkerSuggestRequest(BaseModel):
     topic: str = Field(..., min_length=1)
     count: int = Field(default=3, ge=1, le=5)
     exclude: list[str] = Field(default_factory=list, description="Thinker names to exclude")
+    language: str = Field(
+        default="en", pattern="^(en|es)$", description="Language for AI responses"
+    )
 
 
 class ThinkerValidateRequest(BaseModel):
     """Request to validate a thinker name."""
 
     name: str = Field(..., min_length=1)
+    language: str = Field(
+        default="en", pattern="^(en|es)$", description="Language for AI responses"
+    )
 
 
 class ThinkerValidateResponse(BaseModel):
