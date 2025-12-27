@@ -4,6 +4,7 @@ import { createContext, useContext, useState } from 'react';
 import en from '@/locales/en.json';
 import es from '@/locales/es.json';
 import { useAuth } from './AuthContext';
+import * as api from '@/lib/api';
 
 type Translations = typeof en;
 
@@ -28,7 +29,7 @@ function interpolate(
 interface LanguageContextType {
   locale: string;
   t: Translations;
-  setLocale: (locale: string) => void;
+  setLocale: (locale: string) => Promise<void>;
   interpolate: typeof interpolate;
 }
 
@@ -37,15 +38,27 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
 );
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [overrideLocale, setOverrideLocale] = useState<string | null>(null);
 
   // Use override locale if set, otherwise use user's preference, otherwise default to 'en'
   const locale = overrideLocale || user?.language_preference || 'en';
 
-  const setLocale = (newLocale: string) => {
+  const setLocale = async (newLocale: string) => {
     if (translations[newLocale]) {
       setOverrideLocale(newLocale);
+
+      // If user is authenticated, persist to database
+      if (user) {
+        try {
+          await api.updateLanguage(newLocale);
+          // Refresh user to get updated language_preference
+          await refreshUser();
+        } catch (error) {
+          console.error('Failed to update language preference:', error);
+          // Keep the UI updated even if API call fails
+        }
+      }
     }
   };
 

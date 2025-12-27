@@ -56,6 +56,12 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
+class UserLanguageUpdate(BaseModel):
+    """Request schema for updating user language preference."""
+
+    language_preference: str = Field(..., pattern="^(en|es)$")
+
+
 class AuthError(BaseModel):
     """Error response for authentication failures."""
 

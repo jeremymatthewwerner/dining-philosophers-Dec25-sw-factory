@@ -22,6 +22,7 @@ interface AuthContextType {
     languagePreference?: string
   ) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -80,6 +81,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const currentUser = await api.getCurrentUser();
+    if (currentUser) {
+      setUser(currentUser);
+      api.setStoredUser(currentUser);
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -89,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         logout,
+        refreshUser,
       }}
     >
       {children}
