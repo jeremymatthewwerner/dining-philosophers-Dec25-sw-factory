@@ -127,6 +127,12 @@ At every meaningful milestone (new feature, API changes, UI flow completion):
 - **Check the feature being tested** - If a test for "thinker suggestions" hangs, the thinker suggestion code likely has a bug
 - **Avoid piling on fixes** - Don't keep adjusting test timeouts or adding workarounds; find and fix the root cause
 
+**E2E Debugging (CI captures server logs)**:
+- When E2E tests fail in CI, backend logs are automatically captured
+- **Artifacts uploaded:** `/tmp/backend.log`, `test-results/`, `playwright-report/`
+- **Logs printed:** Backend logs appear in CI output on failure
+- **To debug:** Check the workflow run artifacts and look for API errors, exceptions, or slow responses in backend logs
+
 ## Testing
 
 - **Backend**: pytest + pytest-asyncio + pytest-cov
@@ -181,16 +187,22 @@ uv run mypy .           # Type check Python code
 
 **Claude Code sessions use feature branches:**
 1. Create branch: `claude/<description>-<session-id>` (branch name is auto-assigned)
-2. Commit changes with issue references (`Fixes #N` or `Relates to #N`)
+2. Commit changes with issue references (`Relates to #N` in commit messages)
 3. Push to feature branch and create PR
 4. CI runs on PR - must pass before merge
 5. Merge PR (squash) - triggers deploy
 6. Issues auto-close when PR merges
 
+**CRITICAL: Issue Reference Rules (prevents premature closure)**
+- **In commit messages:** Use `Relates to #N` (NOT `Fixes #N`)
+- **In PR descriptions:** Use `Fixes #N` (closes issue when PR merges)
+- **NEVER push directly to main** - Always use a feature branch + PR
+- **Why:** GitHub auto-closes issues when commits on main contain "Fixes #N", even if the actual fix PR hasn't merged yet. This caused issue #84 to close prematurely.
+
 **Best practices:**
 - Commit frequently with clear messages
 - One logical change per commit
-- Always reference GitHub issues in commits
+- Always reference GitHub issues in commits (with `Relates to #N`)
 
 ## Commit Format
 
