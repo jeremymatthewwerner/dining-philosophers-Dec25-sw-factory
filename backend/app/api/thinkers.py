@@ -129,7 +129,9 @@ async def suggest_thinkers(
 
     # Use the thinker service to get real suggestions
     try:
-        suggestions = await thinker_service.suggest_thinkers(data.topic, data.count, data.exclude)
+        suggestions = await thinker_service.suggest_thinkers(
+            data.topic, data.count, data.exclude, data.language
+        )
         if suggestions:
             return suggestions
     except ThinkerAPIError as e:
@@ -182,7 +184,7 @@ async def validate_thinker(
 
     # Use the thinker service to validate
     try:
-        is_valid, maybe_profile = await thinker_service.validate_thinker(data.name)
+        is_valid, maybe_profile = await thinker_service.validate_thinker(data.name, data.language)
         if is_valid and maybe_profile:
             profile = maybe_profile
             return ThinkerValidateResponse(

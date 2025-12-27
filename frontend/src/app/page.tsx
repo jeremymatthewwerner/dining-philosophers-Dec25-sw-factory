@@ -10,13 +10,14 @@ import type {
   ThinkerSuggestion,
 } from '@/types';
 import { ChatArea, NewChatModal, Sidebar } from '@/components';
-import { useAuth } from '@/contexts';
+import { useAuth, useLanguage } from '@/contexts';
 import { useWebSocket } from '@/hooks';
 import * as api from '@/lib/api';
 
 export default function Home() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const { locale } = useLanguage();
 
   // State
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -207,18 +208,18 @@ export default function Home() {
       count: number = 5,
       exclude: string[] = []
     ): Promise<ThinkerSuggestion[]> => {
-      return api.suggestThinkers(topic, count, exclude);
+      return api.suggestThinkers(topic, count, exclude, locale);
     },
-    []
+    [locale]
   );
 
   // Validate custom thinker
   const handleValidateThinker = useCallback(
     async (name: string): Promise<ThinkerProfile | null> => {
-      const result = await api.validateThinker(name);
+      const result = await api.validateThinker(name, locale);
       return result.valid && result.profile ? result.profile : null;
     },
-    []
+    [locale]
   );
 
   // Handle logout

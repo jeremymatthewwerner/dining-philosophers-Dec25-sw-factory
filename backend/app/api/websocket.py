@@ -348,6 +348,13 @@ async def websocket_endpoint(
         )
         conversation = result.scalar_one_or_none()
 
+        # Load user to get language preference
+        user_result = await db.execute(
+            select(User).join(User.sessions).where(User.sessions.any(id=session_id))
+        )
+        user = user_result.scalar_one_or_none()
+        user_language = user.language_preference if user else "en"
+
         if conversation and conversation.thinkers:
             # Create callback functions that use their own db sessions
             async def get_messages(conv_id: str) -> Sequence[Message]:
@@ -367,6 +374,7 @@ async def websocket_endpoint(
                 conversation.topic,
                 get_messages,
                 save_message,
+                user_language,
             )
 
     try:
