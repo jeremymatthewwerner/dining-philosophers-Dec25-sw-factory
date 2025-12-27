@@ -27,10 +27,10 @@ concurrency:
 
 jobs:
   investigate:
-    # Only trigger on needs-human label (escalation from Code Agent)
+    # Only trigger on needs-principal-engineer label (escalation from Code Agent)
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issues' && github.event.label.name == 'needs-human')
+      (github.event_name == 'issues' && github.event.label.name == 'needs-principal-engineer')
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -81,7 +81,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue edit ${{ steps.context.outputs.number }} \
-            --remove-label "needs-human" \
+            --remove-label "needs-principal-engineer" \
             --remove-label "status:awaiting-human" \
             --add-label "status:bot-working" 2>/dev/null || true
 
@@ -286,6 +286,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 55
           claude_args: |
+            --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Bash(cat:*),Bash(ls:*),Read,Write,Edit,Glob,Grep"
         env:

@@ -23,7 +23,8 @@ Go to **Settings → Actions → General** and grant these permissions to the Gi
 ### 2. Required Labels
 Create these labels (or run: `gh label create <name> --color <color>`):
 - `ai-ready` (#0E8A16) - Ready for autonomous agent
-- `needs-human` (#D93F0B) - Requires human intervention
+- `needs-principal-engineer` (#7057FF) - Escalated to Principal Engineer (Code Agent stuck)
+- `needs-human` (#D93F0B) - Requires human intervention (PE escalated)
 - `qa-agent` (#0052CC) - QA Agent tracking issues
 - `automation` (#BFDADC) - Automated by agents
 - `ci-failure` (#B60205) - CI failure issues
@@ -295,7 +296,8 @@ Use labels to categorize issues:
 - `bug` - Something isn't working
 - `feature` / `enhancement` - New feature request
 - `ai-ready` - Ready for autonomous agent to pick up
-- `needs-human` - Requires human intervention
+- `needs-principal-engineer` - Escalated to PE (Code Agent stuck)
+- `needs-human` - Requires human intervention (PE escalated)
 - `priority-high`, `priority-medium`, `priority-low`
 
 ## Autonomous Agents
@@ -306,7 +308,7 @@ This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
 | **Code Agent** | `ai-ready` + `bug`/`enhancement` labels | Diagnoses and fixes issues, creates PRs |
-| **Principal Engineer** | `needs-human` label (escalation) | Holistic debugging, fixes factory not just symptoms |
+| **Principal Engineer** | `needs-principal-engineer` label | Holistic debugging, fixes factory not just symptoms |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | Every 6 hours | Health checks, incident response |
@@ -315,18 +317,18 @@ This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 
 ### Escalation Flow
 
-When Code Agent gets stuck (timeout, 3x CI failure), it adds `needs-human` label which triggers the **Principal Engineer**:
+When Code Agent gets stuck (timeout, 3x CI failure), it adds `needs-principal-engineer` label which triggers the **Principal Engineer**:
 
 ```
-Code Agent stuck → adds needs-human → Principal Engineer investigates
-                                    ↓
-                    Analyzes root cause (code? infra? workflow?)
-                                    ↓
-                    Downloads E2E artifacts, reads backend logs
-                                    ↓
-                    Fixes issue AND updates factory to prevent recurrence
-                                    ↓
-                    Only escalates to human if truly stuck
+Code Agent stuck → adds needs-principal-engineer → Principal Engineer investigates
+                                                           ↓
+                                       Analyzes root cause (code? infra? workflow?)
+                                                           ↓
+                                       Downloads E2E artifacts, reads backend logs
+                                                           ↓
+                                       Fixes issue AND updates factory to prevent recurrence
+                                                           ↓
+                                       If truly stuck → adds needs-human → Human reviews
 ```
 
 **Principal Engineer responsibilities:**

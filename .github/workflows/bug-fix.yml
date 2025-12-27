@@ -445,6 +445,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 45
           claude_args: |
+            --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -546,6 +547,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 45
           claude_args: |
+            --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -641,6 +643,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: 45
           claude_args: |
+            --model claude-opus-4-5-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -856,7 +859,7 @@ jobs:
 
             gh issue edit "$ISSUE_NUMBER" \
               --remove-label "status:bot-working" \
-              --add-label "needs-human" \
+              --add-label "needs-principal-engineer" \
               --add-label "status:awaiting-human"
           else
             echo "Retrying (attempt $((FAILURE_COUNT + 1)) of 3)..."
