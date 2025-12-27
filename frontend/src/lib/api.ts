@@ -150,6 +150,17 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
+export async function updateLanguage(
+  languagePreference: string
+): Promise<User> {
+  const user = await fetchWithAuth<User>('/api/auth/language', {
+    method: 'PATCH',
+    body: JSON.stringify({ language_preference: languagePreference }),
+  });
+  setStoredUser(user);
+  return user;
+}
+
 // Session API
 export async function getSession(): Promise<Session | null> {
   const token = getAccessToken();

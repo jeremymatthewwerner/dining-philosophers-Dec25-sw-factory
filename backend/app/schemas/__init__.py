@@ -3,6 +3,7 @@
 from app.schemas.auth import (
     AuthError,
     TokenResponse,
+    UserLanguageUpdate,
     UserLogin,
     UserRegister,
     UserResponse,
@@ -44,6 +45,7 @@ __all__ = [
     "ThinkerValidateRequest",
     "ThinkerValidateResponse",
     "TokenResponse",
+    "UserLanguageUpdate",
     "UserLogin",
     "UserRegister",
     "UserResponse",

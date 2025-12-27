@@ -15,7 +15,13 @@ from app.core.auth import (
 )
 from app.core.database import get_db
 from app.models import Session, User
-from app.schemas import TokenResponse, UserLogin, UserRegister, UserResponse
+from app.schemas import (
+    TokenResponse,
+    UserLanguageUpdate,
+    UserLogin,
+    UserRegister,
+    UserResponse,
+)
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -168,6 +174,29 @@ async def get_me(
     user: Annotated[User, Depends(require_user)],
 ) -> UserResponse:
     """Get the current authenticated user."""
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        is_admin=user.is_admin,
+        total_spend=user.total_spend,
+        spend_limit=user.spend_limit,
+        language_preference=user.language_preference,
+        created_at=user.created_at,
+    )
+
+
+@router.patch("/language", response_model=UserResponse)
+async def update_language(
+    data: UserLanguageUpdate,
+    user: Annotated[User, Depends(require_user)],
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Update the current user's language preference."""
+    user.language_preference = data.language_preference
+    await db.commit()
+    await db.refresh(user)
+
     return UserResponse(
         id=user.id,
         username=user.username,
