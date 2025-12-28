@@ -5,6 +5,7 @@ from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.session import Session
 from app.models.thinker import ConversationThinker
+from app.models.thinker_knowledge import ResearchStatus, ThinkerKnowledge
 from app.models.user import User
 
 __all__ = [
@@ -12,6 +13,8 @@ __all__ = [
     "Conversation",
     "ConversationThinker",
     "Message",
+    "ResearchStatus",
     "Session",
+    "ThinkerKnowledge",
     "User",
 ]

@@ -1,10 +1,15 @@
 """API routes for thinker suggestions and validation."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.exceptions import ThinkerAPIError
 from app.schemas import (
+    ResearchStatusEnum,
+    ThinkerKnowledgeResponse,
+    ThinkerKnowledgeStatusResponse,
     ThinkerProfile,
     ThinkerSuggestion,
     ThinkerSuggestRequest,
@@ -150,7 +155,9 @@ async def validate_thinker(
     """Validate that a thinker name refers to a real person.
 
     Uses Claude API if configured, otherwise uses mock validation.
+    Also triggers background knowledge research for valid thinkers.
     """
+    from app.services.knowledge_research import knowledge_service
     from app.services.thinker import thinker_service
 
     settings = get_settings()
@@ -168,6 +175,8 @@ async def validate_thinker(
             style=profile.style,
             image_url=image_url,
         )
+        # Trigger background knowledge research (non-blocking)
+        knowledge_service.trigger_research(profile.name)
         return ThinkerValidateResponse(
             valid=True,
             name=profile.name,
@@ -187,6 +196,8 @@ async def validate_thinker(
         is_valid, maybe_profile = await thinker_service.validate_thinker(data.name, data.language)
         if is_valid and maybe_profile:
             profile = maybe_profile
+            # Trigger background knowledge research (non-blocking)
+            knowledge_service.trigger_research(profile.name)
             return ThinkerValidateResponse(
                 valid=True,
                 name=profile.name,
@@ -201,4 +212,89 @@ async def validate_thinker(
         valid=False,
         name=data.name,
         error=f"Could not validate '{data.name}' as a real historical or contemporary figure",
+    )
+
+
+@router.get("/knowledge/{name}", response_model=ThinkerKnowledgeResponse)
+async def get_thinker_knowledge(
+    name: str,
+    db: AsyncSession = Depends(get_db),
+) -> ThinkerKnowledgeResponse:
+    """Get cached knowledge about a thinker.
+
+    Returns the research data if available, or triggers research if not.
+    This is non-blocking - if research is in progress, returns current status.
+    """
+    from app.services.knowledge_research import knowledge_service
+
+    knowledge = await knowledge_service.get_knowledge(db, name)
+
+    if not knowledge:
+        # No knowledge exists - create entry and trigger research
+        knowledge = await knowledge_service.get_or_create_knowledge(db, name)
+        knowledge_service.trigger_research(name)
+
+    # Check if we should refresh stale data
+    if knowledge_service.is_stale(knowledge):
+        knowledge_service.trigger_research(name)
+
+    return ThinkerKnowledgeResponse(
+        name=knowledge.name,
+        status=ResearchStatusEnum(knowledge.status.value),
+        research_data=knowledge.research_data,
+        error_message=knowledge.error_message,
+        updated_at=knowledge.updated_at,
+    )
+
+
+@router.get("/knowledge/{name}/status", response_model=ThinkerKnowledgeStatusResponse)
+async def get_thinker_knowledge_status(
+    name: str,
+    db: AsyncSession = Depends(get_db),
+) -> ThinkerKnowledgeStatusResponse:
+    """Get the research status for a thinker (lightweight endpoint for polling).
+
+    Use this to check if research is complete without fetching full data.
+    """
+    from app.services.knowledge_research import knowledge_service
+
+    knowledge = await knowledge_service.get_knowledge(db, name)
+
+    if not knowledge:
+        return ThinkerKnowledgeStatusResponse(
+            name=name,
+            status=ResearchStatusEnum.PENDING,
+            has_data=False,
+        )
+
+    return ThinkerKnowledgeStatusResponse(
+        name=knowledge.name,
+        status=ResearchStatusEnum(knowledge.status.value),
+        has_data=bool(knowledge.research_data),
+        updated_at=knowledge.updated_at,
+    )
+
+
+@router.post("/knowledge/{name}/refresh")
+async def refresh_thinker_knowledge(
+    name: str,
+    db: AsyncSession = Depends(get_db),
+) -> ThinkerKnowledgeStatusResponse:
+    """Force refresh of thinker knowledge (triggers new research).
+
+    Use this to update stale data or retry failed research.
+    """
+    from app.services.knowledge_research import knowledge_service
+
+    # Get or create knowledge entry
+    knowledge = await knowledge_service.get_or_create_knowledge(db, name)
+
+    # Trigger research (even if already complete)
+    knowledge_service.trigger_research(name)
+
+    return ThinkerKnowledgeStatusResponse(
+        name=knowledge.name,
+        status=ResearchStatusEnum(knowledge.status.value),
+        has_data=bool(knowledge.research_data),
+        updated_at=knowledge.updated_at,
     )
