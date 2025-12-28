@@ -173,7 +173,6 @@ jobs:
 
       - name: Collect Railway logs
         id: railway_logs
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         continue-on-error: true
         run: |
           # Get last 50 lines of logs from each service
@@ -259,7 +258,7 @@ jobs:
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
       - name: Link Railway project
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
+        continue-on-error: true
         run: |
           # Railway CLI auto-detects project from RAILWAY_TOKEN in CI mode
           railway status || echo "Railway not linked - some features may be limited"
