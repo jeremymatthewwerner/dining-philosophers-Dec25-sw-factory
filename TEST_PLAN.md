@@ -542,3 +542,96 @@ This document outlines all features requiring testing, their test cases, and edg
 4. **Security**: Prevents injection attacks and malformed data from reaching the database
 5. **Documentation**: Tests serve as executable documentation of API constraints
 6. **Regression Prevention**: Catches changes that break existing validation rules
+
+---
+
+## Regression Prevention Tests (Issue #94, QA Agent Sunday 2025-12-28)
+
+**Focus**: Add tests for recently fixed bugs to prevent regressions.
+
+### Regression Test Coverage (test_regression_prevention.py)
+
+**9 new tests added covering 3 major bug fixes:**
+
+#### 1. Language Preference Persistence (Issue #78)
+
+**test_update_language_preference_success** (backend/tests/test_regression_prevention.py:100-123)
+- Register user, verify initial language is 'en'
+- Update language to 'es' via PATCH /api/auth/language
+- Verify language persists by fetching user again
+- Edge case: Successful update and persistence to database
+
+**test_language_preference_survives_session** (backend/tests/test_regression_prevention.py:125-161)
+- Register user, update language to Spanish
+- Simulate new session by logging in again with new token
+- Verify language preference persists across sessions
+- Edge case: Language preference survives logout/login cycle
+
+**test_update_language_both_valid_options** (backend/tests/test_regression_prevention.py:163-188)
+- Test switching from en → es → en
+- Validates both supported languages work correctly
+- Edge case: Bidirectional language switching
+
+**Bug Fixed**: Language selector updated UI but never saved to database. Users' language preference would reset to English on every session. Fix: Added PATCH /api/auth/language endpoint (commit 6fb8b6c).
+
+#### 2. Spanish Mode First Message (Issue #84)
+
+**test_initial_message_includes_first_person_instruction** (backend/tests/test_regression_prevention.py:201-244)
+- Tests generate_response() with empty message history (initial message)
+- Verifies prompt includes "CRITICAL FOR FIRST MESSAGE" instruction
+- Verifies prompt includes "DO NOT INTRODUCE YOURSELF" text
+- Edge case: First message prompt construction differs from subsequent messages
+
+**test_non_initial_message_excludes_first_person_instruction** (backend/tests/test_regression_prevention.py:246-298)
+- Tests generate_response() with 2+ messages (non-initial)
+- Verifies prompt does NOT include first-person instruction
+- Edge case: Instruction only appears for initial messages (len(messages) <= 1)
+
+**test_spanish_mode_initial_message_includes_language_instruction** (backend/tests/test_regression_prevention.py:300-341)
+- Tests generate_response() with Spanish language parameter
+- Verifies prompt includes Spanish language instruction
+- Verifies first-person instruction is still present
+- Edge case: Both language and first-person instructions coexist
+
+**test_streaming_method_uses_same_prompt_construction** (backend/tests/test_regression_prevention.py:343-378)
+- Validates both generate_response() and generate_response_with_streaming_thinking() exist
+- Confirms both methods accept 'language' parameter
+- Documents that both methods share the same prompt construction logic
+- Edge case: Streaming and non-streaming paths use same fix
+
+**Bug Fixed**: First thinker message used third person ("I am Plato...") instead of first person. In Spanish mode, first message was in English instead of Spanish. All subsequent messages worked correctly. Fix: Added CRITICAL instruction for initial messages (commit 0d849f7).
+
+#### 3. API Timeout Handling
+
+**test_thinker_service_has_reasonable_timeout** (backend/tests/test_regression_prevention.py:392-403)
+- Validates ThinkerService can be instantiated
+- Documents that Anthropic client uses httpx-level timeout
+- Edge case: Service initialization without API key (expected in tests)
+
+**test_suggest_thinkers_timeout_handling** (backend/tests/test_regression_prevention.py:405-424)
+- Mocks Anthropic client to raise asyncio.TimeoutError
+- Verifies _suggest_single_batch() handles timeout gracefully
+- Returns empty list rather than crashing
+- Edge case: Network timeout during API call
+
+**Bug Fixed**: E2E tests hanging due to API call timeouts. Fix: Increased timeout from 10s to 30s (commits 99ff619, 9b33174).
+
+### Coverage Impact
+
+**Before**: Backend 75.20% (201 tests)
+**After**: Backend 75.57% (210 tests)
+**Improvement**: +0.37% coverage, +9 tests
+
+**Files Enhanced**:
+- test_regression_prevention.py (new file, 424 lines)
+- auth.py coverage increased (language preference endpoint now tested)
+- thinker.py coverage increased (prompt construction validation)
+
+### Benefits of Regression Testing
+
+1. **Prevents Bug Recurrence**: Each test documents a real bug that was fixed
+2. **Documents Fixes**: Test names and docstrings reference issue numbers and commits
+3. **Validates Edge Cases**: Tests focus on conditions that caused the original bugs
+4. **Prompt Validation**: Tests verify AI prompt construction without calling real LLM
+5. **Session Management**: Tests validate state persistence across login/logout cycles
+6. **Error Handling**: Tests confirm timeout/error scenarios are handled gracefully
