@@ -560,7 +560,9 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                             current_time = asyncio.get_event_loop().time()
                             if current_time - last_thinking_update >= thinking_update_interval:
                                 # Extract last sentence or meaningful chunk for display
-                                display_thinking = self._extract_thinking_display(thinking_text)
+                                display_thinking = self._extract_thinking_display(
+                                    thinking_text, language
+                                )
                                 if display_thinking:
                                     await manager.send_thinker_thinking(
                                         conversation_id, thinker.name, display_thinking
@@ -698,12 +700,16 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
         return [b for b in bubbles if b]  # Filter out empty strings
 
-    def _extract_thinking_display(self, thinking_text: str) -> str:
+    def _extract_thinking_display(self, thinking_text: str, language: str = "en") -> str:
         """Extract a displayable portion of the thinking text.
 
         Transforms raw LLM thinking into thinker's internal monologue style.
         Returns the last complete thought, rephrased as if the thinker is talking to themselves.
         Returns empty string if text is too short (< 80 chars) to show meaningful preview.
+
+        Args:
+            thinking_text: Raw thinking text from LLM
+            language: Language code for display transformations (e.g., 'en', 'es')
         """
         if not thinking_text:
             return ""
@@ -739,38 +745,70 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                 text = text[:last_space]
 
         # Transform to sound like internal monologue rather than LLM reasoning
-        # Remove obvious LLM-style phrases
-        replacements = [
-            ("I should ", "Perhaps I should "),
-            ("I need to ", "Hmm, I need to "),
-            ("I think ", ""),
-            ("I'll ", "I shall "),
-            ("The user ", "They "),
-            ("the user ", "they "),
-            ("I am going to ", "I shall "),
-            ("Let me ", "Let me see... "),
-            ("I can ", "I might "),
-            ("I will ", "I shall "),
-        ]
+        # Use language-appropriate replacements
+        if language == "es":
+            # Spanish replacements
+            replacements = [
+                ("Debería ", "Quizás debería "),
+                ("Necesito ", "Hmm, necesito "),
+                ("Creo que ", ""),
+                ("Pienso que ", ""),
+                ("Voy a ", "Podría "),
+                ("El usuario ", "Ellos "),
+                ("el usuario ", "ellos "),
+                ("Déjame ", "Veamos... "),
+                ("Puedo ", "Podría "),
+            ]
+        else:
+            # English replacements (default)
+            replacements = [
+                ("I should ", "Perhaps I should "),
+                ("I need to ", "Hmm, I need to "),
+                ("I think ", ""),
+                ("I'll ", "I shall "),
+                ("The user ", "They "),
+                ("the user ", "they "),
+                ("I am going to ", "I shall "),
+                ("Let me ", "Let me see... "),
+                ("I can ", "I might "),
+                ("I will ", "I shall "),
+            ]
+
         for old, new in replacements:
             text = text.replace(old, new)
 
-        # Add contemplative starters for variety
-        starters = [
-            "Hmm... ",
-            "Now then... ",
-            "Interesting... ",
-            "Let me consider... ",
-            "*pondering* ",
-            "",  # Sometimes no prefix
-            "",
-        ]
+        # Add contemplative starters for variety (language-appropriate)
+        if language == "es":
+            starters = [
+                "Hmm... ",
+                "Veamos... ",
+                "Interesante... ",
+                "Déjame pensar... ",
+                "*reflexionando* ",
+                "",  # Sometimes no prefix
+                "",
+            ]
+            # Spanish starter detection
+            starter_prefixes = ("hmm", "veamos", "déjame", "interesante", "*")
+        else:
+            starters = [
+                "Hmm... ",
+                "Now then... ",
+                "Interesting... ",
+                "Let me consider... ",
+                "*pondering* ",
+                "",  # Sometimes no prefix
+                "",
+            ]
+            # English starter detection
+            starter_prefixes = ("hmm", "let me", "now", "interesting", "*")
+
         # Use a simple hash of the text to pick a consistent starter
         starter_idx = hash(text[:20] if len(text) > 20 else text) % len(starters)
         prefix = starters[starter_idx]
 
         # Only add prefix if the text doesn't already start with something similar
-        if not text.lower().startswith(("hmm", "let me", "now", "interesting", "*")):
+        if not text.lower().startswith(starter_prefixes):
             text = prefix + text
 
         # Add ellipsis if truncated
