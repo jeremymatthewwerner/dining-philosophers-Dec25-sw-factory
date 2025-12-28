@@ -49,6 +49,12 @@ class WSMessageType(str, Enum):
     SPEED_CHANGED = "speed_changed"  # Notify clients of speed change
     ERROR = "error"
 
+    # Research status events (background activity visibility)
+    RESEARCH_STARTED = "research_started"  # Background research started for a thinker
+    RESEARCH_COMPLETE = "research_complete"  # Research completed successfully
+    RESEARCH_FAILED = "research_failed"  # Research failed
+    CACHE_HIT = "cache_hit"  # Retrieved from cache (no new research needed)
+
 
 class WSMessage(BaseModel):
     """WebSocket message structure."""
@@ -62,6 +68,7 @@ class WSMessage(BaseModel):
     timestamp: str | None = None
     cost: float | None = None
     speed_multiplier: float | None = None  # For speed control (0.5 to 3.0)
+    thinker_name: str | None = None  # For research status events
 
 
 @dataclass
@@ -207,6 +214,49 @@ class ConnectionManager:
             type=WSMessageType.THINKER_STOPPED_TYPING,
             conversation_id=conversation_id,
             sender_name=thinker_name,
+        )
+        await self.broadcast_to_conversation(conversation_id, message)
+
+    async def send_research_started(self, conversation_id: str, thinker_name: str) -> None:
+        """Notify that background research has started for a thinker."""
+        message = WSMessage(
+            type=WSMessageType.RESEARCH_STARTED,
+            conversation_id=conversation_id,
+            thinker_name=thinker_name,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+        await self.broadcast_to_conversation(conversation_id, message)
+
+    async def send_research_complete(self, conversation_id: str, thinker_name: str) -> None:
+        """Notify that background research has completed for a thinker."""
+        message = WSMessage(
+            type=WSMessageType.RESEARCH_COMPLETE,
+            conversation_id=conversation_id,
+            thinker_name=thinker_name,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+        await self.broadcast_to_conversation(conversation_id, message)
+
+    async def send_research_failed(
+        self, conversation_id: str, thinker_name: str, error: str | None = None
+    ) -> None:
+        """Notify that background research has failed for a thinker."""
+        message = WSMessage(
+            type=WSMessageType.RESEARCH_FAILED,
+            conversation_id=conversation_id,
+            thinker_name=thinker_name,
+            content=error,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+        await self.broadcast_to_conversation(conversation_id, message)
+
+    async def send_cache_hit(self, conversation_id: str, thinker_name: str) -> None:
+        """Notify that research was retrieved from cache (no new fetch needed)."""
+        message = WSMessage(
+            type=WSMessageType.CACHE_HIT,
+            conversation_id=conversation_id,
+            thinker_name=thinker_name,
+            timestamp=datetime.now(UTC).isoformat(),
         )
         await self.broadcast_to_conversation(conversation_id, message)
 

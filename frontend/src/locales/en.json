@@ -184,5 +184,11 @@
   },
   "common": {
     "loading": "Loading..."
+  },
+  "statusLine": {
+    "researching": "Researching background information...",
+    "researchComplete": "Background research complete",
+    "researchFailed": "Could not load background research",
+    "cacheHit": "Using cached research data"
   }
 }

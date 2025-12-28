@@ -34,6 +34,13 @@ export type { SidebarProps } from './Sidebar';
 export { SpendLimitBanner } from './SpendLimitBanner';
 export type { SpendLimitBannerProps } from './SpendLimitBanner';
 
+export { StatusLine } from './StatusLine';
+export type {
+  StatusLineProps,
+  ThinkerResearchStatus,
+  ResearchStatus,
+} from './StatusLine';
+
 export { ThinkerAvatar } from './ThinkerAvatar';
 export type { ThinkerAvatarProps } from './ThinkerAvatar';
 
