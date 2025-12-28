@@ -18,7 +18,10 @@ from app.schemas.conversation import (
 from app.schemas.message import MessageCreate, MessageResponse
 from app.schemas.session import SessionCreate, SessionResponse
 from app.schemas.thinker import (
+    ResearchStatusEnum,
     ThinkerCreate,
+    ThinkerKnowledgeResponse,
+    ThinkerKnowledgeStatusResponse,
     ThinkerProfile,
     ThinkerResponse,
     ThinkerSuggestion,
@@ -35,9 +38,12 @@ __all__ = [
     "ConversationWithMessages",
     "MessageCreate",
     "MessageResponse",
+    "ResearchStatusEnum",
     "SessionCreate",
     "SessionResponse",
     "ThinkerCreate",
+    "ThinkerKnowledgeResponse",
+    "ThinkerKnowledgeStatusResponse",
     "ThinkerProfile",
     "ThinkerResponse",
     "ThinkerSuggestion",

@@ -154,3 +154,38 @@ def create_validate_thinker_response(is_valid: bool = True) -> MagicMock:
         else '{"valid": false, "error": "Not a real person"}'
     )
     return create_text_block_response(response_json)
+
+
+# Async session fixture for knowledge research tests
+@pytest.fixture
+async def async_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """Create an async database session for testing."""
+    session_factory = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    async with session_factory() as session:
+        yield session
+
+
+# Auth token fixture for API tests
+@pytest.fixture
+async def auth_token(async_session: AsyncSession) -> str:
+    """Create a test user and return an auth token."""
+    from app.core.auth import create_access_token, get_password_hash
+    from app.models import User
+
+    # Create test user
+    user = User(
+        username="testuser",
+        password_hash=get_password_hash("testpass"),
+        is_admin=False,
+    )
+    async_session.add(user)
+    await async_session.commit()
+    await async_session.refresh(user)
+
+    # Create JWT token with user ID in the 'sub' field
+    token = create_access_token(data={"sub": user.id})
+    return token
