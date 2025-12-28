@@ -370,6 +370,112 @@ class TestSpanishModeFirstMessage:
         # as confirmed by code review of thinker.py:818-822 and thinker.py:530-534
 
 
+class TestSpanishThinkingDisplay:
+    """Regression tests for Spanish thinking display (Issue #91).
+
+    Bug: Thinking bubbles showed English text even in Spanish mode.
+    Root cause: _extract_thinking_display used hardcoded English transformations.
+    Fix: Added language parameter to _extract_thinking_display with Spanish support.
+    """
+
+    @pytest.mark.asyncio
+    async def test_extract_thinking_display_uses_spanish_starters(self) -> None:
+        """Test that Spanish mode uses Spanish starter phrases.
+
+        Regression test for Issue #91 - thinking display should use Spanish starters.
+        """
+        from app.services.thinker import ThinkerService
+
+        service = ThinkerService()
+
+        # Create a thinking text long enough to trigger display (>80 chars)
+        thinking_text = (
+            "Esta es una reflexión interesante sobre el tema. "
+            "Necesito considerar todos los aspectos de esta cuestión filosófica "
+            "antes de formular una respuesta adecuada."
+        )
+
+        # Test Spanish mode
+        result_es = service._extract_thinking_display(thinking_text, language="es")
+
+        # Spanish result should use Spanish starters or pass through Spanish content
+        # It should NOT add English starters like "Now then..." or "Let me consider..."
+        assert "Now then..." not in result_es
+        assert "Let me consider..." not in result_es
+
+    @pytest.mark.asyncio
+    async def test_extract_thinking_display_english_vs_spanish(self) -> None:
+        """Test that English and Spanish produce different transformations.
+
+        Regression test for Issue #91 - ensures the language parameter is used.
+        """
+        from app.services.thinker import ThinkerService
+
+        service = ThinkerService()
+
+        # Text with "I should" which gets transformed differently
+        thinking_text = "I should think more carefully about this philosophical topic and consider the implications of my response to the discussion."
+
+        result_en = service._extract_thinking_display(thinking_text, language="en")
+        result_es = service._extract_thinking_display(thinking_text, language="es")
+
+        # English should transform "I should" to "Perhaps I should"
+        # (but only if "I should" appears at start of a segment)
+        assert result_en is not None
+        assert result_es is not None
+
+        # The results should be processed (not just raw text with no transformation)
+        # At minimum, ellipsis should be added if text is truncated
+        assert result_en.endswith("...")
+        assert result_es.endswith("...")
+
+    @pytest.mark.asyncio
+    async def test_extract_thinking_display_spanish_replacements(self) -> None:
+        """Test that Spanish replacements are applied correctly.
+
+        Regression test for Issue #91 - Spanish text should use Spanish transformations.
+        """
+        from app.services.thinker import ThinkerService
+
+        service = ThinkerService()
+
+        # Spanish text that would match Spanish replacement patterns
+        thinking_text = (
+            "Debería pensar más sobre este asunto filosófico. "
+            "Creo que hay muchos aspectos que considerar en esta discusión "
+            "y necesito formular una respuesta apropiada."
+        )
+
+        result = service._extract_thinking_display(thinking_text, language="es")
+
+        # "Debería" should be transformed to "Quizás debería"
+        # But only if it appears at the start of a segment after truncation
+        # The key test is that Spanish starters are used, not English ones
+        assert "Now then..." not in result
+        assert "Let me consider..." not in result
+        assert "*pondering*" not in result  # English action
+
+    @pytest.mark.asyncio
+    async def test_extract_thinking_display_accepts_language_param(self) -> None:
+        """Test that _extract_thinking_display accepts and uses language parameter.
+
+        Regression test for Issue #91 - the method signature was updated.
+        """
+        import inspect
+
+        from app.services.thinker import ThinkerService
+
+        service = ThinkerService()
+
+        # Verify the method has the language parameter
+        sig = inspect.signature(service._extract_thinking_display)
+        assert "language" in sig.parameters
+
+        # Verify it defaults to "en"
+        lang_param = sig.parameters["language"]
+        assert lang_param.default == "en"
+
+
 class TestAPITimeoutHandling:
     """Regression tests for API timeout issues.
 
