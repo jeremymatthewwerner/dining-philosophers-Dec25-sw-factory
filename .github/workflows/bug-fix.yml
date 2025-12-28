@@ -444,7 +444,7 @@ jobs:
             If stuck for 30min or CI fails 3x, escalate to @jeremymatthewwerner (and cc @${{ steps.context.outputs.issue_author }}).
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --model claude-opus-4-5-20250514
+            --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -545,7 +545,7 @@ jobs:
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --model claude-opus-4-5-20250514
+            --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:
@@ -640,7 +640,7 @@ jobs:
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --model claude-opus-4-5-20250514
+            --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Bash(npm:*),Bash(cd:*),Bash(uv:*),Read,Write,Edit,Glob,Grep"
         env:

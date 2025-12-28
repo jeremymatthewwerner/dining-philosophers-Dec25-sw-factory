@@ -1,8 +1,19 @@
 """Pydantic schemas for thinker operations."""
 
 from datetime import datetime
+from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+class ResearchStatusEnum(str, Enum):
+    """Research status for API responses."""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"
+    FAILED = "failed"
 
 
 class ThinkerCreate(BaseModel):
@@ -77,3 +88,24 @@ class ThinkerValidateResponse(BaseModel):
     name: str
     profile: ThinkerProfile | None = None
     error: str | None = None
+
+
+class ThinkerKnowledgeResponse(BaseModel):
+    """Response for thinker knowledge endpoint."""
+
+    name: str
+    status: ResearchStatusEnum
+    research_data: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    updated_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ThinkerKnowledgeStatusResponse(BaseModel):
+    """Brief status response for checking research progress."""
+
+    name: str
+    status: ResearchStatusEnum
+    has_data: bool = False
+    updated_at: datetime | None = None
