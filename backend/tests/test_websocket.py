@@ -72,6 +72,54 @@ class TestWSMessage:
             message = WSMessage(type=msg_type)
             assert message.type == msg_type
 
+    def test_research_status_message_types(self) -> None:
+        """Test research status message types are valid."""
+        # Test RESEARCH_STARTED
+        message = WSMessage(
+            type=WSMessageType.RESEARCH_STARTED,
+            conversation_id="conv-123",
+            thinker_name="Socrates",
+        )
+        json_str = message.model_dump_json()
+        data = json.loads(json_str)
+        assert data["type"] == "research_started"
+        assert data["thinker_name"] == "Socrates"
+
+        # Test RESEARCH_COMPLETE
+        message = WSMessage(
+            type=WSMessageType.RESEARCH_COMPLETE,
+            conversation_id="conv-123",
+            thinker_name="Aristotle",
+        )
+        json_str = message.model_dump_json()
+        data = json.loads(json_str)
+        assert data["type"] == "research_complete"
+        assert data["thinker_name"] == "Aristotle"
+
+        # Test RESEARCH_FAILED
+        message = WSMessage(
+            type=WSMessageType.RESEARCH_FAILED,
+            conversation_id="conv-123",
+            thinker_name="Plato",
+            content="Network error",
+        )
+        json_str = message.model_dump_json()
+        data = json.loads(json_str)
+        assert data["type"] == "research_failed"
+        assert data["thinker_name"] == "Plato"
+        assert data["content"] == "Network error"
+
+        # Test CACHE_HIT
+        message = WSMessage(
+            type=WSMessageType.CACHE_HIT,
+            conversation_id="conv-123",
+            thinker_name="Confucius",
+        )
+        json_str = message.model_dump_json()
+        data = json.loads(json_str)
+        assert data["type"] == "cache_hit"
+        assert data["thinker_name"] == "Confucius"
+
 
 class TestWebSocketEndpoint:
     """Tests for WebSocket endpoint."""

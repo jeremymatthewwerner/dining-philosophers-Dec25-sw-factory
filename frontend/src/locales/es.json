@@ -184,5 +184,11 @@
   },
   "common": {
     "loading": "Cargando..."
+  },
+  "statusLine": {
+    "researching": "Investigando información de fondo...",
+    "researchComplete": "Investigación de fondo completa",
+    "researchFailed": "No se pudo cargar la investigación de fondo",
+    "cacheHit": "Usando datos de investigación en caché"
   }
 }

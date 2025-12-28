@@ -10,6 +10,7 @@ import { exportAsHtml, exportAsMarkdown } from '@/lib/export';
 import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
 import { SpendLimitBanner } from './SpendLimitBanner';
+import { StatusLine } from './StatusLine';
 import { ErrorBanner } from './ErrorBanner';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -340,6 +341,9 @@ export function ChatArea({
           )}
         </div>
       </div>
+
+      {/* Status line for background activity */}
+      <StatusLine thinkerNames={conversation.thinkers.map((t) => t.name)} />
 
       {/* Generic error banner */}
       {errorMessage && (
