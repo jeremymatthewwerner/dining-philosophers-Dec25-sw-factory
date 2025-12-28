@@ -248,9 +248,11 @@ uv run mypy .           # Type check Python code
 
 **CRITICAL: Issue Reference Rules (prevents premature closure)**
 - **In commit messages:** Use `Relates to #N` (NOT `Fixes #N`)
-- **In PR descriptions:** Use `Fixes #N` (closes issue when PR merges)
+- **In PR descriptions:** Use `Fixes #N` ONLY when the PR completely solves the issue
+- **For related-but-not-fixing PRs:** Use `Relates to #N` in PR description too
+  - Example: A workflow fix that "unblocks" an agent to work on an issue is NOT a fix for the issue itself
 - **NEVER push directly to main** - Always use a feature branch + PR
-- **Why:** GitHub auto-closes issues when commits on main contain "Fixes #N", even if the actual fix PR hasn't merged yet. This caused issue #84 to close prematurely.
+- **Why:** GitHub auto-closes issues when "Fixes #N" appears in PR descriptions. If your PR doesn't fully solve the issue, using "Fixes" will close it prematurely.
 
 **Best practices:**
 - Commit frequently with clear messages
