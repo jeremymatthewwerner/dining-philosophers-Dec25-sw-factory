@@ -37,6 +37,10 @@ Create these labels (or run: `gh label create <name> --color <color>`):
 Ensure these secrets are set in **Settings → Secrets and variables → Actions**:
 - `ANTHROPIC_API_KEY` - For Claude API access
 - `GITHUB_TOKEN` - Auto-provided, but verify workflow permissions
+- `PAT_WITH_WORKFLOW_ACCESS` - Personal Access Token with `workflow` scope (for Code Agent to modify workflows)
+- `RAILWAY_TOKEN` - Railway API token (for DevOps Agent infrastructure management)
+- `PRODUCTION_BACKEND_URL` - Backend URL for health checks (e.g., `https://api.diningphilosophers.ai`)
+- `PRODUCTION_FRONTEND_URL` - Frontend URL for health checks (e.g., `https://diningphilosophers.ai`)
 
 ### 4. Branch Protection (Optional)
 If using branch protection on `main`, ensure:
@@ -316,7 +320,7 @@ This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | **Principal Engineer** | `needs-principal-engineer` label | Holistic debugging, fixes factory not just symptoms |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
-| **DevOps** | Every 6 hours | Health checks, incident response |
+| **DevOps** | Every 5 min + manual | Health checks, Railway logs, service restarts, infra provisioning |
 | **Marketing** | On release | Updates changelog, docs |
 | **CI Monitor** | On CI failure (main) | Auto-creates `ai-ready` issues for failed builds |
 
@@ -341,6 +345,35 @@ Code Agent stuck → adds needs-principal-engineer → Principal Engineer invest
 - Download and analyze E2E artifacts (`gh run download`)
 - Can modify workflows, CLAUDE.md, agent prompts
 - Document learnings to prevent similar issues
+
+### DevOps Agent - Railway Infrastructure Management
+
+The DevOps agent has full Railway CLI access for infrastructure management:
+
+**Manual Triggers (workflow_dispatch):**
+| Action | What It Does |
+|--------|-------------|
+| `incident-response` | Diagnose and fix production issues |
+| `view-logs` | Fetch and analyze Railway logs |
+| `restart-service` | Redeploy services to recover from issues |
+| `manage-variables` | List/set environment variables |
+| `provision-infrastructure` | Add databases (postgres, redis) or services |
+| `diagnose` | Full diagnostic report of all systems |
+
+**Railway CLI Commands Available:**
+```bash
+railway logs --service backend      # View service logs
+railway redeploy                    # Restart/redeploy service
+railway variables                   # List env variables
+railway variables --set "KEY=val"   # Set env variable
+railway add --database postgres     # Provision new database
+railway status                      # Check project status
+```
+
+**Required Secrets:**
+- `RAILWAY_TOKEN` - Get from Railway dashboard → Account → Tokens
+- `PRODUCTION_BACKEND_URL` - For health checks
+- `PRODUCTION_FRONTEND_URL` - For health checks
 
 ### Agent Visibility (IMPORTANT)
 
