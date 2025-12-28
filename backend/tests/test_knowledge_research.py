@@ -95,9 +95,7 @@ class TestKnowledgeResearchService:
         assert knowledge is None
 
     @pytest.mark.asyncio
-    async def test_get_or_create_creates_new_entry(
-        self, async_session: AsyncSession
-    ) -> None:
+    async def test_get_or_create_creates_new_entry(self, async_session: AsyncSession) -> None:
         """Test get_or_create_knowledge creates a new pending entry."""
         service = KnowledgeResearchService()
         knowledge = await service.get_or_create_knowledge(async_session, "New Thinker")
@@ -108,9 +106,7 @@ class TestKnowledgeResearchService:
         assert knowledge.research_data == {}
 
     @pytest.mark.asyncio
-    async def test_get_or_create_returns_existing(
-        self, async_session: AsyncSession
-    ) -> None:
+    async def test_get_or_create_returns_existing(self, async_session: AsyncSession) -> None:
         """Test get_or_create_knowledge returns existing entry."""
         service = KnowledgeResearchService()
 
@@ -172,9 +168,7 @@ class TestKnowledgeResearchService:
         """Test trigger_research starts a background task."""
         service = KnowledgeResearchService()
 
-        with patch.object(
-            service, "_research_thinker", new_callable=AsyncMock
-        ) as mock_research:
+        with patch.object(service, "_research_thinker", new_callable=AsyncMock) as mock_research:
             # Create a real asyncio task for the test
             mock_research.return_value = None
 
@@ -213,9 +207,7 @@ class TestWikipediaFetching:
 
         # Mock the HTTP response
         mock_search_response: Any = MagicMock()
-        mock_search_response.json.return_value = {
-            "query": {"search": [{"title": "Socrates"}]}
-        }
+        mock_search_response.json.return_value = {"query": {"search": [{"title": "Socrates"}]}}
 
         mock_content_response: Any = MagicMock()
         mock_content_response.json.return_value = {
