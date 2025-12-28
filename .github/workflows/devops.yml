@@ -4,6 +4,8 @@ on:
   schedule:
     # Run health checks every 5 minutes
     - cron: '*/5 * * * *'
+    # Run monitoring audit weekly (Sunday 6am UTC)
+    - cron: '0 6 * * 0'
   workflow_dispatch:
     inputs:
       action:
@@ -375,6 +377,84 @@ jobs:
             --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
             --allowedTools "Bash(railway:*),Bash(gh:*),Bash(curl:*),Bash(git:*),Read,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # ===========================================
+  # WEEKLY MONITORING AUDIT (ensures completeness)
+  # ===========================================
+  monitoring-audit:
+    if: github.event_name == 'schedule' && github.event.schedule == '0 6 * * 0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+      - name: Run Monitoring Audit
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Read CLAUDE.md first.
+
+            ## Weekly Monitoring & Dashboard Audit
+
+            Your task is to audit the monitoring and observability setup and ensure it's complete.
+
+            ### Audit Checklist
+
+            1. **Health Endpoints**
+               - Check all services have /health endpoints responding
+               - Verify health check frequency is appropriate (every 5 min)
+               - Ensure health checks cover critical dependencies (DB, cache, etc.)
+
+            2. **Logging**
+               - Run `railway logs --service backend --limit 50` and `railway logs --service frontend --limit 50`
+               - Check logs have proper structure (timestamps, levels, context)
+               - Look for any recurring errors that need attention
+
+            3. **Alerting**
+               - Review existing GitHub issues labeled `production-incident`
+               - Check if incidents are being created when health checks fail
+               - Verify escalation path is documented in CLAUDE.md
+
+            4. **Dashboard Completeness**
+               - Check Railway dashboard has all services visible
+               - Verify environment variables are properly set
+               - Review recent deployments for any failures
+
+            5. **Documentation**
+               - Ensure CLAUDE.md has accurate runbook for common issues
+               - Verify DevOps section documents all available actions
+               - Check secrets list is complete
+
+            ### Actions to Take
+
+            - If monitoring gaps found: Create GitHub issue with `monitoring` label
+            - If dashboard incomplete: Document what's missing in an issue
+            - If alerts missing: Update devops.yml or create issue
+            - If everything OK: Create brief status comment on tracking issue (if exists)
+
+            ### Output
+
+            Create a GitHub issue titled "📊 Weekly Monitoring Audit - [DATE]" with:
+            - Summary of audit findings
+            - List of any gaps or issues found
+            - Recommendations for improvements
+            - Status: ✅ Complete / ⚠️ Needs Attention / ❌ Critical Issues
+
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-sonnet-4-20250514
+            --dangerously-skip-permissions
+            --allowedTools "Bash(railway:*),Bash(gh:*),Bash(curl:*),Read,Glob,Grep"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
