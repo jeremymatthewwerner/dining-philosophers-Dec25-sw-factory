@@ -40,6 +40,7 @@
     "errorGetSuggestions": "No se pudieron obtener sugerencias de pensadores",
     "errorGetReplacement": "No se pudo obtener una sugerencia de reemplazo",
     "errorCreateConversation": "No se pudo crear la conversación",
+    "errorNetwork": "Error de red. Por favor verifica tu conexión e intenta de nuevo.",
     "back": "Atrás",
     "next": "Siguiente",
     "suggestingThinkers": "Sugiriendo pensadores...",

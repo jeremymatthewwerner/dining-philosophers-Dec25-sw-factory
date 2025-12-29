@@ -69,7 +69,8 @@ export function setStoredUser(user: User | null): void {
 async function fetchWithAuth<T>(
   endpoint: string,
   options: RequestInit = {},
-  timeoutMs: number = 30000
+  timeoutMs: number = 30000,
+  externalSignal?: AbortSignal
 ): Promise<T> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -84,6 +85,11 @@ async function fetchWithAuth<T>(
   // Create abort controller for timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Link external signal to our controller (for component unmount cancellation)
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', () => controller.abort());
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -105,6 +111,10 @@ async function fetchWithAuth<T>(
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
+      // Check if it was cancelled by external signal (not timeout)
+      if (externalSignal?.aborted) {
+        throw new DOMException('Request cancelled', 'AbortError');
+      }
       throw new Error(`Request timeout after ${timeoutMs}ms`);
     }
     throw error;
@@ -281,12 +291,18 @@ export async function suggestThinkers(
   topic: string,
   count: number = 3,
   exclude: string[] = [],
-  language: string = 'en'
+  language: string = 'en',
+  signal?: AbortSignal
 ): Promise<ThinkerSuggestion[]> {
-  return fetchWithAuth<ThinkerSuggestion[]>('/api/thinkers/suggest', {
-    method: 'POST',
-    body: JSON.stringify({ topic, count, exclude, language }),
-  });
+  return fetchWithAuth<ThinkerSuggestion[]>(
+    '/api/thinkers/suggest',
+    {
+      method: 'POST',
+      body: JSON.stringify({ topic, count, exclude, language }),
+    },
+    30000,
+    signal
+  );
 }
 
 export interface ValidateThinkerResponse {

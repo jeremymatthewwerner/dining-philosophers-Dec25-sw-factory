@@ -30,6 +30,8 @@ async def create_conversation(
     db: AsyncSession = Depends(get_db),
 ) -> Conversation:
     """Create a new conversation with thinkers."""
+    from app.services.knowledge_research import knowledge_service
+
     # Create conversation
     conversation = Conversation(
         session_id=session.id,
@@ -53,6 +55,8 @@ async def create_conversation(
             image_url=thinker_data.image_url,
         )
         db.add(thinker)
+        # Trigger background knowledge research for each thinker
+        knowledge_service.trigger_research(thinker_data.name)
 
     await db.flush()
 
