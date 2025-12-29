@@ -1,7 +1,7 @@
 name: Triage Agent
 on:
   issues:
-    types: [opened, reopened]
+    types: [opened]  # Only on NEW issues, not reopened (avoid re-triaging)
   workflow_dispatch:
     inputs:
       issue_number:
@@ -30,7 +30,24 @@ jobs:
             echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check if already triaged
+        id: check_triaged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Skip if issue already has triage-related labels
+          LABELS=$(gh issue view ${{ steps.issue.outputs.number }} --json labels --jq '.labels[].name' 2>/dev/null || echo "")
+
+          if echo "$LABELS" | grep -qE "^(ai-ready|bug|enhancement|needs-human|priority-high|priority-medium|priority-low)$"; then
+            echo "Issue already has triage labels, skipping..."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Issue needs triage"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - uses: anthropics/claude-code-action@v1
+        if: steps.check_triaged.outputs.skip != 'true'
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/triage-product.md first.
