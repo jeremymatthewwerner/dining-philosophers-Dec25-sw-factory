@@ -123,9 +123,14 @@ export function NewChatModal({
       );
       onClose();
     } catch (err) {
+      // Handle network errors gracefully
       const message =
         err instanceof Error
-          ? err.message
+          ? err.message.toLowerCase().includes('failed to fetch') ||
+            err.message.toLowerCase().includes('network')
+            ? t.newChatModal.errorNetwork ||
+              'Network error. Please check your connection and try again.'
+            : err.message
           : t.newChatModal.errorCreateConversation;
       setError(message);
     } finally {
