@@ -244,6 +244,27 @@ This document outlines all features requiring testing, their test cases, and edg
 - Attempts to POST message to invalid conversation ID
 - Validates 404 response with "Conversation not found" error
 
+**test_create_conversation_with_custom_color** (backend/tests/test_api.py:630-654)
+- Creates conversation with thinker that has a custom (non-default) color
+- Validates that custom color is preserved in the response
+- Edge case: Custom colors should not be replaced by default color scheme
+
+**test_list_conversations_with_message_counts_and_costs** (backend/tests/test_api.py:656-702)
+- Creates conversation and sends a user message
+- Lists conversations and verifies message_count and total_cost fields
+- Validates: message_count is accurate (1 user message), total_cost is 0.0 (user messages have no cost)
+- Edge case: Ensures summary endpoint properly aggregates message counts and costs
+
+**test_send_message_uses_display_name** (backend/tests/test_api.py:704-738)
+- Registers user with display_name set
+- Sends message and verifies sender_name uses display_name (not username)
+- Validates: Message sender uses display_name when available
+
+**test_send_message_falls_back_to_username** (backend/tests/test_api.py:740-777)
+- Verifies message sender logic properly reads from session.user
+- Validates: sender_name field exists and is populated from display_name or username
+- Edge case: Tests the fallback logic when display_name is not explicitly set
+
 ### 9.3 Full User Journey Workflows
 
 **test_full_user_journey** (backend/tests/test_integration_workflows.py:73-180)
