@@ -252,12 +252,19 @@ jobs:
           echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
           echo "Created progress comment #$COMMENT_ID"
 
-      # Pre-install Claude Code with --force to avoid race condition lock issues
+      # Pre-install Claude Code to avoid race condition lock issues
       - name: Pre-install Claude Code
         run: |
-          echo "Pre-installing Claude Code with --force flag..."
-          curl -fsSL https://claude.ai/install.sh | bash -s -- --force 2.0.74
+          # Check if claude is already installed
+          if command -v claude &> /dev/null; then
+            echo "Claude Code already installed: $(claude --version 2>/dev/null || echo 'unknown version')"
+          else
+            echo "Installing Claude Code..."
+            curl -fsSL https://claude.ai/install.sh | bash -s -- stable
+          fi
+          # Add to PATH regardless
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
 
       - name: Run Claude (fix mode)
         if: steps.context.outputs.mode == 'fix'
