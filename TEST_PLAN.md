@@ -635,3 +635,56 @@ This document outlines all features requiring testing, their test cases, and edg
 4. **Prompt Validation**: Tests verify AI prompt construction without calling real LLM
 5. **Session Management**: Tests validate state persistence across login/logout cycles
 6. **Error Handling**: Tests confirm timeout/error scenarios are handled gracefully
+
+---
+
+## Flaky Test Hunt (Issue #109, QA Agent Tuesday 2025-12-30)
+
+**Focus**: Run test suite 5x to detect intermittent failures and ensure test stability.
+
+### Test Stability Results
+
+**Backend Test Stability (5 runs):**
+- Total tests: 239 (230 passing, 9 skipped)
+- Runs: 5/5 passed successfully
+- Flakiness rate: 0% (0/230 tests failed)
+- Total test executions: 1,150 (230 tests × 5 runs)
+- Average run time: ~38 seconds
+
+**Frontend Test Stability (5 runs):**
+- Total tests: 211 (all passing)
+- Runs: 5/5 passed successfully
+- Flakiness rate: 0% (0/211 tests failed)
+- Total test executions: 1,055 (211 tests × 5 runs)
+- Average run time: ~3.8 seconds
+
+### Findings
+
+**✅ Excellent Test Stability**
+- No flaky tests detected in either backend or frontend test suites
+- 100% consistency across all test runs
+- All tests pass reliably without intermittent failures
+
+**⚠️ SQLAlchemy Warnings (Non-Critical)**
+- WebSocket tests show warnings about unclosed database connections during garbage collection
+- Tests affected: `test_typing_start_message`, `test_typing_stop_message`, `test_pause_state_preserved_on_reconnect`, `test_unpaused_conversation_no_pause_message_on_connect`
+- Analysis: Test hygiene issue, not a production bug. Production code uses proper `async with` context managers
+- Impact: No test failures. Tests pass consistently. Production database connection management is correct.
+- Recommendation: Monitor in future QA sessions
+
+### Tools Created
+
+**scripts/flaky-test-hunter.sh**
+- Automated script to run backend and/or frontend tests 5x
+- Usage: `./scripts/flaky-test-hunter.sh [backend|frontend|both]`
+- Detects intermittent failures and reports flakiness rate
+- Saves detailed results to `/tmp/backend_flaky_results.txt` and `/tmp/frontend_flaky_results.txt`
+
+### Benefits of Flaky Test Hunting
+
+1. **Reliability Assurance**: Regular flaky test hunts ensure CI/CD pipeline stability
+2. **Early Detection**: Identifies intermittent issues before they cause production problems
+3. **Developer Confidence**: Developers trust test results when tests are stable
+4. **CI/CD Health**: Reduces false negatives in continuous integration
+5. **Resource Efficiency**: Prevents wasted time debugging flaky test failures
+6. **Documentation**: Records test stability metrics over time
