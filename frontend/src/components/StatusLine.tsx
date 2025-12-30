@@ -92,35 +92,21 @@ export function StatusLine({
     }
   }, [thinkerNames, apiBaseUrl, isPolling]);
 
-  // Initial fetch and polling
+  // Initial fetch and continuous polling
+  // We always poll while mounted with thinkers - the render logic decides
+  // whether to show anything based on current status
   useEffect(() => {
     if (thinkerNames.length === 0) return;
 
     // Initial fetch
     fetchAllStatuses();
 
-    // Set up polling for any in-progress research
-    const hasActiveResearch = Array.from(statuses.values()).some(
-      (s) => s.status === 'pending' || s.status === 'in_progress'
-    );
-
-    if (hasActiveResearch) {
-      const interval = setInterval(fetchAllStatuses, pollInterval);
-      return () => clearInterval(interval);
-    }
-  }, [thinkerNames, fetchAllStatuses, pollInterval, statuses]);
-
-  // Poll more frequently when there's active research
-  useEffect(() => {
-    const hasActiveResearch = Array.from(statuses.values()).some(
-      (s) => s.status === 'pending' || s.status === 'in_progress'
-    );
-
-    if (!hasActiveResearch) return;
-
+    // Always set up polling - the component will hide itself when not needed
+    // This fixes the bug where polling would never start because statuses was
+    // empty on first render (hasActiveResearch was always false initially)
     const interval = setInterval(fetchAllStatuses, pollInterval);
     return () => clearInterval(interval);
-  }, [statuses, fetchAllStatuses, pollInterval]);
+  }, [thinkerNames, fetchAllStatuses, pollInterval]);
 
   if (!visible || thinkerNames.length === 0) {
     return null;
