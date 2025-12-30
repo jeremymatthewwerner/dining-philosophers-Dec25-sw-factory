@@ -159,8 +159,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
+        continue-on-error: true
         run: |
-          curl -fsSL https://railway.app/install.sh | sh
+          # Retry logic for Railway CLI installation (GitHub API can be flaky)
+          for attempt in 1 2 3; do
+            echo "Railway CLI install attempt $attempt..."
+            if curl -fsSL https://railway.app/install.sh | sh; then
+              echo "Railway CLI installed successfully"
+              break
+            fi
+            if [ $attempt -lt 3 ]; then
+              sleep $((2 ** attempt))
+            else
+              echo "Warning: Railway CLI installation failed after 3 attempts"
+            fi
+          done
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
       - name: Check for existing incident
@@ -255,8 +268,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
+        continue-on-error: true
         run: |
-          curl -fsSL https://railway.app/install.sh | sh
+          # Retry logic for Railway CLI installation (GitHub API can be flaky)
+          for attempt in 1 2 3; do
+            echo "Railway CLI install attempt $attempt..."
+            if curl -fsSL https://railway.app/install.sh | sh; then
+              echo "Railway CLI installed successfully"
+              break
+            fi
+            if [ $attempt -lt 3 ]; then
+              sleep $((2 ** attempt))
+            else
+              echo "Warning: Railway CLI installation failed after 3 attempts"
+            fi
+          done
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
       - name: Link Railway project
@@ -394,8 +420,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
+        continue-on-error: true
         run: |
-          curl -fsSL https://railway.app/install.sh | sh
+          # Retry logic for Railway CLI installation (GitHub API can be flaky)
+          for attempt in 1 2 3; do
+            echo "Railway CLI install attempt $attempt..."
+            if curl -fsSL https://railway.app/install.sh | sh; then
+              echo "Railway CLI installed successfully"
+              break
+            fi
+            if [ $attempt -lt 3 ]; then
+              sleep $((2 ** attempt))
+            else
+              echo "Warning: Railway CLI installation failed after 3 attempts"
+            fi
+          done
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
       - name: Run Monitoring Audit
