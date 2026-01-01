@@ -383,7 +383,12 @@ jobs:
             5. Create issue to track the new resource
 
             ### For "diagnose":
-            1. Check all health endpoints
+            1. Check health endpoints using the URLs from environment variables:
+               - Backend: $PRODUCTION_BACKEND_URL/health
+               - Frontend: $PRODUCTION_FRONTEND_URL
+               **IMPORTANT:** Do NOT try to reach custom domains (e.g., diningphilosophers.ai) directly -
+               GitHub Actions runners have network restrictions that cause false DNS failures.
+               Always use the Railway URLs from the environment variables.
             2. Get logs from all services
             3. Check recent CI runs
             4. Look at recent commits
@@ -407,6 +412,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          PRODUCTION_BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
+          PRODUCTION_FRONTEND_URL: ${{ secrets.PRODUCTION_FRONTEND_URL }}
 
   # ===========================================
   # WEEKLY MONITORING AUDIT (ensures completeness)
