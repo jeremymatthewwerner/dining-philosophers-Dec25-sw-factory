@@ -192,3 +192,53 @@ export function createMockFetchResponse(
     json: () => Promise.resolve(data),
   };
 }
+
+/**
+ * Create a mock thinker suggestion for NewChatModal testing.
+ *
+ * Reduces duplication across component tests where this pattern appears
+ * multiple times with similar structure.
+ *
+ * @param name - Thinker name (default: "Socrates")
+ * @returns Mock thinker suggestion object
+ */
+export function createThinkerSuggestion(name: string = 'Socrates') {
+  return {
+    name,
+    reason: `${name} would be great`,
+    profile: {
+      name,
+      bio: `Bio of ${name}`,
+      positions: 'Some positions',
+      style: 'Some style',
+    },
+  };
+}
+
+/**
+ * Create default props for NewChatModal testing.
+ *
+ * Reduces duplication in NewChatModal.test.tsx and similar modal tests.
+ *
+ * @param overrides - Optional prop overrides
+ * @returns Default props object
+ */
+export function createNewChatModalProps(
+  overrides: Record<string, unknown> = {}
+) {
+  return {
+    isOpen: true,
+    onClose: jest.fn(),
+    onCreate: jest.fn().mockResolvedValue(undefined),
+    onSuggestThinkers: jest
+      .fn()
+      .mockResolvedValue([createThinkerSuggestion('Socrates')]),
+    onValidateThinker: jest.fn().mockResolvedValue({
+      name: 'Custom',
+      bio: 'Bio',
+      positions: 'Positions',
+      style: 'Style',
+    }),
+    ...overrides,
+  };
+}

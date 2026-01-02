@@ -2,6 +2,7 @@
 
 import gc
 from collections.abc import AsyncGenerator, Generator
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,6 +15,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.models import Base
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 
 # Disable tracemalloc to avoid circular import issues in pytest's unraisable hook
@@ -189,3 +193,165 @@ async def auth_token(async_session: AsyncSession) -> str:
     # Create JWT token with user ID in the 'sub' field
     token = create_access_token(data={"sub": user.id})
     return token
+
+
+# Test client fixture for API tests
+@pytest.fixture
+async def client(engine: AsyncEngine) -> AsyncGenerator["AsyncClient", None]:
+    """Create a test client with database override.
+
+    Centralizes client fixture previously duplicated in test_api.py and
+    test_api_edge_cases.py.
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    from app.core.database import get_db
+    from app.main import app
+
+    async_session = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        async with async_session() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+
+# Test helper functions
+async def register_and_get_token(
+    client: "AsyncClient",
+    username: str = "testuser",
+    password: str = "testpass123",
+    display_name: str | None = None,
+) -> Any:
+    """Helper to register a user and get their auth token.
+
+    Centralized from test_api.py where it was defined but imported by other test files.
+
+    Args:
+        client: AsyncClient for making requests
+        username: Username for registration
+        password: Password for registration
+        display_name: Optional display name (defaults to title-cased username)
+
+    Returns:
+        Response data dict containing access_token and user info
+    """
+    response = await client.post(
+        "/api/auth/register",
+        json={
+            "username": username,
+            "display_name": display_name or username.title(),
+            "password": password,
+        },
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+async def get_auth_headers(
+    client: "AsyncClient",
+    username: str = "testuser",
+    password: str = "testpass123",
+) -> dict[str, str]:
+    """Helper to get authorization headers for an authenticated user.
+
+    Centralized from test_api.py where it was defined but imported by other test files.
+
+    Args:
+        client: AsyncClient for making requests
+        username: Username for authentication
+        password: Password for authentication
+
+    Returns:
+        Dictionary with Authorization header
+    """
+    data = await register_and_get_token(client, username, password)
+    return {"Authorization": f"Bearer {data['access_token']}"}
+
+
+async def create_test_conversation(
+    client: "AsyncClient",
+    headers: dict[str, str],
+    topic: str = "Test Topic",
+    num_thinkers: int = 2,
+) -> str:
+    """Helper to create a test conversation and return its ID.
+
+    Reduces duplication of conversation creation pattern that appears 10+ times
+    in test_api.py with nearly identical structure.
+
+    Args:
+        client: AsyncClient for making requests
+        headers: Auth headers
+        topic: Conversation topic
+        num_thinkers: Number of thinkers to create (default 2)
+
+    Returns:
+        The conversation ID
+    """
+    thinkers = []
+    thinker_names = ["Socrates", "Einstein", "Plato", "Darwin", "Curie"]
+    for i in range(num_thinkers):
+        name = thinker_names[i] if i < len(thinker_names) else f"Thinker{i}"
+        thinkers.append(
+            {
+                "name": name,
+                "bio": f"Bio for {name}",
+                "positions": f"Positions of {name}",
+                "style": f"Style of {name}",
+            }
+        )
+
+    response = await client.post(
+        "/api/conversations",
+        headers=headers,
+        json={"topic": topic, "thinkers": thinkers},
+    )
+    assert response.status_code == 200, f"Failed to create conversation: {response.text}"
+    data: Any = response.json()
+    return str(data["id"])
+
+
+def create_thinker_input(
+    name: str = "Socrates",
+    bio: str | None = None,
+    positions: str | list[str] | None = None,
+    style: str | None = None,
+) -> dict[str, Any]:
+    """Create a thinker input dict for API requests.
+
+    Reduces duplication of thinker object creation across test files.
+
+    Args:
+        name: Thinker name
+        bio: Bio (defaults to "Bio of {name}")
+        positions: Positions (defaults to "Positions of {name}")
+        style: Style (defaults to "Style of {name}")
+
+    Returns:
+        Dictionary with thinker fields
+    """
+    return {
+        "name": name,
+        "bio": bio or f"Bio of {name}",
+        "positions": positions or f"Positions of {name}",
+        "style": style or f"Style of {name}",
+    }

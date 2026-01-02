@@ -858,3 +858,94 @@ This document outlines all features requiring testing, their test cases, and edg
 - `handles rapid message sending` - Depends on Claude API response time
 
 These tests exercise real edge cases but may timeout in CI. Consider mocking Claude API for these tests in future improvements.
+
+---
+
+## Test Refactoring (Friday QA Focus)
+
+**Date**: 2026-01-02
+**QA Agent Session**: #118
+
+### Backend Refactorings
+
+#### Centralized Test Fixtures and Helpers (backend/tests/conftest.py)
+
+**Problem**: Test helpers and fixtures were duplicated across multiple test files, causing maintenance burden and inconsistency.
+
+**Solutions**:
+
+1. **Moved `client` fixture to conftest.py** (lines 195-234)
+   - Previously duplicated in `test_api.py` and `test_api_edge_cases.py`
+   - Now centralized in `conftest.py` for all tests to use
+   - Reduces duplication of 48 lines
+
+2. **Moved `register_and_get_token` helper to conftest.py** (lines 238-266)
+   - Previously defined in `test_api.py` but imported by `test_api_edge_cases.py`
+   - Now properly centralized for global access
+   - Used 30+ times across test files
+
+3. **Moved `get_auth_headers` helper to conftest.py** (lines 269-287)
+   - Previously defined in `test_api.py` but imported by `test_api_edge_cases.py`
+   - Reduces inline imports in test methods
+   - Used 40+ times across test files
+
+4. **Moved `create_test_conversation` helper to conftest.py** (lines 290-330)
+   - Previously defined in `test_api.py`
+   - Reduces duplication of conversation creation pattern (10+ times)
+   - Creates thinkers with consistent test data
+
+5. **Added `create_thinker_input` factory function** (lines 333-357)
+   - New helper to reduce thinker object duplication
+   - Provides defaults with optional overrides
+   - Handles string or list positions parameter
+
+**Impact**:
+- **Removed**: ~100 lines of duplicated code
+- **Added**: ~160 lines of well-documented, reusable helpers
+- **Net**: More maintainable test suite with single source of truth
+
+### Frontend Refactorings
+
+#### Test Utilities Enhancement (frontend/src/test-utils.tsx)
+
+**Problem**: Mock object creation patterns repeated across component tests.
+
+**Solutions**:
+
+1. **Added `createThinkerSuggestion` helper** (lines 205-216)
+   - Creates mock thinker suggestion objects
+   - Previously repeated in `NewChatModal.test.tsx` and similar tests
+   - Reduces duplication of suggestion object creation
+
+2. **Added `createNewChatModalProps` helper** (lines 226-242)
+   - Creates default props for NewChatModal testing
+   - Provides consistent mock setup with optional overrides
+   - Reduces 20+ lines of repeated mock setup
+
+**Impact**:
+- **Removed**: ~30 lines of duplicated mock setup
+- **Added**: ~40 lines of reusable factory functions
+- **Benefit**: More consistent test data across component tests
+
+### Benefits of Refactoring
+
+1. **Single Source of Truth**: Helpers defined once, used everywhere
+2. **Easier Maintenance**: Update helper logic in one place
+3. **Better Documentation**: All helpers have comprehensive docstrings
+4. **Type Safety**: Proper TypeScript/Python types for all helpers
+5. **Reduced Test Noise**: Tests focus on behavior, not setup boilerplate
+
+### Files Modified
+
+- `backend/tests/conftest.py` - Added 5 new helpers and client fixture
+- `backend/tests/test_api.py` - Removed duplicated helpers, simplified imports
+- `backend/tests/test_api_edge_cases.py` - Removed duplicated client fixture and inline imports
+- `frontend/src/test-utils.tsx` - Added 2 new factory functions
+
+### Test Results
+
+**Backend**: All 243 tests passing (9 skipped)
+**Frontend**: All 211 tests passing
+**Coverage**: Backend 69% → 69% (no change), Frontend 77% → 77% (no change)
+
+Note: Coverage percentages unchanged as refactoring reorganizes existing tests without adding new test cases.

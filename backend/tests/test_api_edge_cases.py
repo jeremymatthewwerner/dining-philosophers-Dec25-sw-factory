@@ -4,47 +4,10 @@ Focus on error paths, boundary conditions, and unusual inputs.
 Saturday QA focus: Edge Case Analysis.
 """
 
-from collections.abc import AsyncGenerator
-
 import pytest
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-)
+from httpx import AsyncClient
 
-from app.core.database import get_db
-from app.main import app
-
-
-@pytest.fixture
-async def client(engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
-    """Create a test client with database override."""
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        async with async_session() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-
-    app.dependency_overrides[get_db] = override_get_db
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        yield client
-
-    app.dependency_overrides.clear()
+from tests.conftest import create_test_conversation, get_auth_headers
 
 
 class TestConversationEdgeCases:
@@ -52,7 +15,6 @@ class TestConversationEdgeCases:
 
     async def test_create_conversation_with_empty_thinker_list(self, client: AsyncClient) -> None:
         """Test creating conversation with no thinkers fails validation."""
-        from tests.test_api import get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser1", "password123")
         response = await client.post(
@@ -68,7 +30,6 @@ class TestConversationEdgeCases:
 
     async def test_create_conversation_with_max_thinkers(self, client: AsyncClient) -> None:
         """Test creating conversation with exactly 5 thinkers (max allowed)."""
-        from tests.test_api import get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser2", "password123")
         thinkers = [
@@ -91,7 +52,6 @@ class TestConversationEdgeCases:
 
     async def test_create_conversation_with_over_max_thinkers(self, client: AsyncClient) -> None:
         """Test creating conversation with more than 5 thinkers fails."""
-        from tests.test_api import get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser3", "password123")
         thinkers = [
@@ -113,7 +73,6 @@ class TestConversationEdgeCases:
 
     async def test_create_conversation_with_empty_topic(self, client: AsyncClient) -> None:
         """Test creating conversation with empty topic fails validation."""
-        from tests.test_api import get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser4", "password123")
         response = await client.post(
@@ -136,7 +95,6 @@ class TestConversationEdgeCases:
 
     async def test_get_conversation_invalid_uuid(self, client: AsyncClient) -> None:
         """Test getting conversation with invalid UUID format."""
-        from tests.test_api import get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser5", "password123")
         # Use a non-UUID string
@@ -149,7 +107,6 @@ class TestConversationEdgeCases:
 
     async def test_delete_already_deleted_conversation(self, client: AsyncClient) -> None:
         """Test deleting a conversation twice returns 404 on second attempt."""
-        from tests.test_api import create_test_conversation, get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser6", "password123")
 
@@ -173,7 +130,6 @@ class TestConversationEdgeCases:
 
     async def test_send_message_empty_content(self, client: AsyncClient) -> None:
         """Test sending message with empty content fails validation."""
-        from tests.test_api import create_test_conversation, get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser7", "password123")
         conv_id = await create_test_conversation(client, headers)
@@ -187,7 +143,6 @@ class TestConversationEdgeCases:
 
     async def test_send_message_very_long_content(self, client: AsyncClient) -> None:
         """Test sending message with very long content (10,000 chars)."""
-        from tests.test_api import create_test_conversation, get_auth_headers
 
         headers = await get_auth_headers(client, "edgeuser8", "password123")
         conv_id = await create_test_conversation(client, headers)
@@ -369,7 +324,6 @@ class TestAuthEdgeCases:
 
     async def test_update_language_invalid_preference(self, client: AsyncClient) -> None:
         """Test updating language with invalid preference."""
-        from tests.test_api import get_auth_headers
 
         headers = await get_auth_headers(client, "languser2", "password123")
         response = await client.patch(

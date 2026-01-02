@@ -1,149 +1,12 @@
 """Tests for API endpoints."""
 
-from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.main import app
-from app.models import Base
-
-
-@pytest.fixture
-async def engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite engine for testing."""
-    test_engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        future=True,
-    )
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield test_engine
-    await test_engine.dispose()
-
-
-@pytest.fixture
-async def db_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a database session for testing."""
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    async with async_session() as session:
-        yield session
-
-
-@pytest.fixture
-async def client(engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
-    """Create a test client with database override."""
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        async with async_session() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-
-    app.dependency_overrides[get_db] = override_get_db
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        yield client
-
-    app.dependency_overrides.clear()
-
-
-async def register_and_get_token(
-    client: AsyncClient,
-    username: str = "testuser",
-    password: str = "testpass123",
-    display_name: str | None = None,
-) -> dict[str, Any]:
-    """Helper to register a user and get their auth token."""
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "username": username,
-            "display_name": display_name or username.title(),
-            "password": password,
-        },
-    )
-    assert response.status_code == 200
-    data: dict[str, Any] = response.json()
-    return data
-
-
-async def get_auth_headers(
-    client: AsyncClient,
-    username: str = "testuser",
-    password: str = "testpass123",
-) -> dict[str, str]:
-    """Helper to get authorization headers for an authenticated user."""
-    data = await register_and_get_token(client, username, password)
-    return {"Authorization": f"Bearer {data['access_token']}"}
-
-
-async def create_test_conversation(
-    client: AsyncClient,
-    headers: dict[str, str],
-    topic: str = "Test Topic",
-    num_thinkers: int = 2,
-) -> str:
-    """Helper to create a test conversation and return its ID.
-
-    Reduces duplication of conversation creation pattern that appears 10+ times
-    in test_api.py with nearly identical structure.
-
-    Args:
-        client: AsyncClient for making requests
-        headers: Auth headers
-        topic: Conversation topic
-        num_thinkers: Number of thinkers to create (default 2)
-
-    Returns:
-        The conversation ID
-    """
-    thinkers = []
-    thinker_names = ["Socrates", "Einstein", "Plato", "Darwin", "Curie"]
-    for i in range(num_thinkers):
-        name = thinker_names[i] if i < len(thinker_names) else f"Thinker{i}"
-        thinkers.append(
-            {
-                "name": name,
-                "bio": f"Bio for {name}",
-                "positions": f"Positions of {name}",
-                "style": f"Style of {name}",
-            }
-        )
-
-    response = await client.post(
-        "/api/conversations",
-        headers=headers,
-        json={"topic": topic, "thinkers": thinkers},
-    )
-    assert response.status_code == 200, f"Failed to create conversation: {response.text}"
-    data = response.json()
-    conversation_id: str = data["id"]
-    return conversation_id
+from tests.conftest import get_auth_headers, register_and_get_token
 
 
 class TestAuthAPI:
@@ -745,7 +608,7 @@ class TestThinkerAPI:
 async def create_admin_user(
     client: AsyncClient,
     db_session: AsyncSession,
-) -> dict[str, Any]:
+) -> Any:
     """Helper to create an admin user for testing."""
     from sqlalchemy import update
 
