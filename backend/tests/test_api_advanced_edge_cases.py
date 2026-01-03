@@ -13,7 +13,7 @@ from tests.conftest import get_auth_headers
 class TestConversationsAPIErrorPaths:
     """Test conversation API error handling and edge cases."""
 
-    async def test_get_conversation_with_malformed_uuid(self, client: AsyncClient):
+    async def test_get_conversation_with_malformed_uuid(self, client: AsyncClient) -> None:
         """GET /conversations/{id} with invalid UUID format returns 404.
 
         Edge case: UUID validation for malformed IDs
@@ -27,7 +27,7 @@ class TestConversationsAPIErrorPaths:
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "not found" in response.json()["detail"].lower()
 
-    async def test_get_conversation_with_nonexistent_uuid(self, client: AsyncClient):
+    async def test_get_conversation_with_nonexistent_uuid(self, client: AsyncClient) -> None:
         """GET /conversations/{id} with valid but nonexistent UUID returns 404.
 
         Edge case: Valid UUID format but conversation doesn't exist
@@ -40,7 +40,7 @@ class TestConversationsAPIErrorPaths:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    async def test_delete_conversation_twice(self, client: AsyncClient):
+    async def test_delete_conversation_twice(self, client: AsyncClient) -> None:
         """Deleting the same conversation twice - second returns 404.
 
         Edge case: Race condition simulation - idempotency check
@@ -60,7 +60,7 @@ class TestConversationsAPIErrorPaths:
 class TestAdminAPIErrorPaths:
     """Test admin API error handling and permission edge cases."""
 
-    async def test_admin_operations_without_auth_header(self, client: AsyncClient):
+    async def test_admin_operations_without_auth_header(self, client: AsyncClient) -> None:
         """Admin endpoints return 401 when Authorization header missing.
 
         Edge case: Missing authentication
@@ -79,7 +79,7 @@ class TestAdminAPIErrorPaths:
         response = await client.delete("/api/admin/users/fake-id")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    async def test_admin_update_spend_limit_nonexistent_user(self, client: AsyncClient):
+    async def test_admin_update_spend_limit_nonexistent_user(self, client: AsyncClient) -> None:
         """Admin updating spend limit for non-existent user returns 404.
 
         Edge case: Invalid user ID
@@ -102,7 +102,7 @@ class TestAdminAPIErrorPaths:
 class TestAuthAPIErrorPaths:
     """Test authentication API error handling."""
 
-    async def test_get_me_with_malformed_jwt(self, client: AsyncClient):
+    async def test_get_me_with_malformed_jwt(self, client: AsyncClient) -> None:
         """GET /auth/me with malformed JWT returns 401.
 
         Edge case: Invalid JWT format
@@ -113,7 +113,7 @@ class TestAuthAPIErrorPaths:
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    async def test_get_me_with_expired_token(self, client: AsyncClient):
+    async def test_get_me_with_expired_token(self, client: AsyncClient) -> None:
         """GET /auth/me with invalid token returns 401.
 
         Edge case: Token expiration / invalid signature
@@ -129,7 +129,7 @@ class TestAuthAPIErrorPaths:
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    async def test_login_with_sql_injection_attempt(self, client: AsyncClient):
+    async def test_login_with_sql_injection_attempt(self, client: AsyncClient) -> None:
         """Login endpoint is safe from SQL injection.
 
         Edge case: Security - SQL injection in username
@@ -146,7 +146,7 @@ class TestAuthAPIErrorPaths:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert "detail" in response.json()
 
-    async def test_register_with_xss_attempt_in_display_name(self, client: AsyncClient):
+    async def test_register_with_xss_attempt_in_display_name(self, client: AsyncClient) -> None:
         """Register endpoint sanitizes XSS attempts in display_name.
 
         Edge case: Security - XSS in user input
@@ -169,7 +169,7 @@ class TestAuthAPIErrorPaths:
         # XSS payload stored (backend doesn't sanitize - that's frontend's job)
         # But it shouldn't cause backend to crash
 
-    async def test_login_with_empty_credentials(self, client: AsyncClient):
+    async def test_login_with_empty_credentials(self, client: AsyncClient) -> None:
         """Login with empty username/password returns 401.
 
         Edge case: Empty credentials (different from missing fields)
@@ -185,7 +185,7 @@ class TestAuthAPIErrorPaths:
         # Should return 401 (not 422 validation error)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    async def test_register_with_unicode_username(self, client: AsyncClient):
+    async def test_register_with_unicode_username(self, client: AsyncClient) -> None:
         """Register with Unicode characters in username.
 
         Edge case: International characters
@@ -208,7 +208,7 @@ class TestAuthAPIErrorPaths:
 class TestThinkerAPIErrorPaths:
     """Test thinker API error handling."""
 
-    async def test_suggest_thinkers_with_extremely_long_topic(self, client: AsyncClient):
+    async def test_suggest_thinkers_with_extremely_long_topic(self, client: AsyncClient) -> None:
         """Suggest thinkers with very long topic (10k chars).
 
         Edge case: Large input handling
@@ -235,7 +235,7 @@ class TestThinkerAPIErrorPaths:
             status.HTTP_502_BAD_GATEWAY,
         ]
 
-    async def test_validate_thinker_with_numbers_only(self, client: AsyncClient):
+    async def test_validate_thinker_with_numbers_only(self, client: AsyncClient) -> None:
         """Validate thinker with numeric-only name.
 
         Edge case: Invalid name format
@@ -257,7 +257,9 @@ class TestThinkerAPIErrorPaths:
             # Numbers-only name likely invalid
             assert data["is_valid"] is False
 
-    async def test_suggest_thinkers_with_special_characters_in_topic(self, client: AsyncClient):
+    async def test_suggest_thinkers_with_special_characters_in_topic(
+        self, client: AsyncClient
+    ) -> None:
         """Suggest thinkers with special characters and emojis in topic.
 
         Edge case: Special character handling
