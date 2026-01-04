@@ -213,6 +213,49 @@ jobs:
             - Document the issue
             - Propose alternative approach
 
+            **E) Factory/Workflow Bug** - The CI/CD pipeline itself is broken
+            - THIS IS THE MOST COMMON REASON FOR ESCALATION!
+            - Workflow syntax errors, install script issues, lock file problems
+            - Fix the workflow file directly
+            - See "Factory Diagnosis" section below
+
+            ### Step 3.5: Factory Diagnosis (CRITICAL - DO THIS FIRST!)
+
+            Before assuming it's a code bug, check if the factory itself is broken:
+
+            ```bash
+            # Check recent workflow runs for the Code Agent
+            gh run list --workflow=bug-fix.yml --limit 5 --json databaseId,conclusion,createdAt
+
+            # Get logs from failed runs
+            FAILED_RUN=$(gh run list --workflow=bug-fix.yml --status=failure --limit 1 --json databaseId -q '.[0].databaseId')
+            gh run view $FAILED_RUN --log-failed 2>/dev/null | tail -100
+
+            # Look for common factory failures:
+            # - "Installation failed" → install script syntax error
+            # - "lock" or "another process" → lock file issue
+            # - "Permission denied" → PAT_WITH_WORKFLOW_ACCESS missing/wrong
+            # - "rate limit" → API throttling
+            # - "timeout" → step taking too long
+            ```
+
+            **Common Factory Fixes:**
+
+            | Error Pattern | Likely Cause | Fix |
+            |--------------|--------------|-----|
+            | `Installation failed` | Bad install script args | Check `curl ... \| bash -s --` syntax |
+            | `another process is currently installing` | Lock file | Add `rm -f ~/.claude/.installing` before install |
+            | `Permission denied` on workflow | Missing PAT | Check PAT_WITH_WORKFLOW_ACCESS secret |
+            | `Usage: bash [stable\|latest\|VERSION]` | Invalid flags | Remove invalid flags from install command |
+            | `rate limit exceeded` | API throttling | Add retry with backoff |
+            | Step timeout | Hanging process | Add timeout or fix infinite loop |
+
+            **If you find a factory bug:**
+            1. Fix the workflow file (bug-fix.yml, ci.yml, etc.)
+            2. Commit with message explaining the factory bug
+            3. The original issue will auto-retry once factory is fixed
+            4. Update CLAUDE.md with the learning
+
             ### Step 4: Implement Fix
             Based on root cause:
             - Create branch: `git checkout -b fix/${{ steps.context.outputs.number }}-pe-fix`
@@ -274,14 +317,36 @@ jobs:
             - Use "Fixes #${{ steps.context.outputs.number }}" only in PR description
             - NEVER push directly to main
 
-            ## If Truly Stuck
-            After trying multiple approaches, if you really can't fix it:
-            1. Document everything you tried
-            2. Explain what additional information or decisions are needed
-            3. @mention @jeremymatthewwerner with specific questions
-            4. Set label: status:awaiting-human
+            ## If Truly Stuck - Escalation Criteria
 
-            But try HARD before escalating - you're the last line of defense!
+            **ONLY escalate to human if ALL of the following are true:**
+
+            1. ✅ You've done factory diagnosis (checked workflow logs for common errors)
+            2. ✅ You've verified it's NOT a workflow/infrastructure bug
+            3. ✅ You've tried at least 2 different approaches
+            4. ✅ The issue requires a DECISION you cannot make:
+               - Security implications (credentials, auth)
+               - Breaking API changes
+               - Business/product decisions
+               - Major architecture changes
+               - Cost implications
+
+            **DO NOT escalate for:**
+            - ❌ Workflow syntax errors (FIX THEM!)
+            - ❌ Install/dependency issues (FIX THEM!)
+            - ❌ Flaky tests (FIX OR SKIP THEM!)
+            - ❌ Unclear requirements (MAKE A REASONABLE CHOICE!)
+            - ❌ "I'm not sure which approach is better" (PICK ONE!)
+
+            **If you must escalate:**
+            1. Document everything you tried (with specifics)
+            2. Explain WHY this needs human judgment (not just "I'm stuck")
+            3. Provide 2-3 specific options for the human to choose from
+            4. @mention @jeremymatthewwerner with the specific decision needed
+            5. Set label: status:awaiting-human
+
+            **Remember:** Every human escalation is a factory bug. If you're escalating for
+            something an agent COULD fix, that's a bug in your instructions - fix THAT instead!
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
@@ -300,42 +365,111 @@ jobs:
           gh issue edit ${{ steps.context.outputs.number }} \
             --remove-label "status:bot-working" 2>/dev/null || true
 
-      - name: Handle failure
+      - name: Handle failure - Factory Diagnosis
+        if: failure()
+        id: diagnosis
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Running factory diagnosis before escalating..."
+
+          # Get failed logs from this run
+          FAILED_LOGS=$(gh run view ${{ github.run_id }} --log-failed 2>/dev/null | tail -50 || echo "Could not fetch logs")
+
+          # Check for common factory issues
+          FACTORY_ISSUE=""
+          if echo "$FAILED_LOGS" | grep -qi "installation failed\|Usage: bash"; then
+            FACTORY_ISSUE="Install script syntax error - check curl ... | bash -s -- arguments"
+          elif echo "$FAILED_LOGS" | grep -qi "another process\|lock"; then
+            FACTORY_ISSUE="Lock file issue - add cleanup before install"
+          elif echo "$FAILED_LOGS" | grep -qi "permission denied\|403"; then
+            FACTORY_ISSUE="Permission issue - check PAT_WITH_WORKFLOW_ACCESS secret"
+          elif echo "$FAILED_LOGS" | grep -qi "rate limit"; then
+            FACTORY_ISSUE="Rate limiting - add retry with backoff"
+          elif echo "$FAILED_LOGS" | grep -qi "timeout"; then
+            FACTORY_ISSUE="Timeout - step taking too long, may need optimization"
+          fi
+
+          if [ -n "$FACTORY_ISSUE" ]; then
+            echo "is_factory_bug=true" >> $GITHUB_OUTPUT
+            echo "diagnosis=$FACTORY_ISSUE" >> $GITHUB_OUTPUT
+            echo "🏭 Detected factory bug: $FACTORY_ISSUE"
+          else
+            echo "is_factory_bug=false" >> $GITHUB_OUTPUT
+            echo "diagnosis=Unknown failure - may need human review" >> $GITHUB_OUTPUT
+            echo "❓ Could not auto-diagnose, may need human review"
+          fi
+
+          # Save logs for comment
+          echo "logs<<EOF" >> $GITHUB_OUTPUT
+          echo "$FAILED_LOGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Handle failure - Update and Escalate
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
           ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
+          IS_FACTORY_BUG: ${{ steps.diagnosis.outputs.is_factory_bug }}
+          DIAGNOSIS: ${{ steps.diagnosis.outputs.diagnosis }}
         run: |
           if [ -n "$PROGRESS_COMMENT_ID" ]; then
             gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
               -X PATCH -f body="## 🔧 Principal Engineer Investigation
 
           - [x] 📖 Reading full issue history
+          - [x] 🔍 Running factory diagnosis
           - [?] Investigation incomplete (workflow failed)
 
           **Status:** ❌ Workflow failed - see logs
           **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           ---
-          Even the Principal Engineer got stuck. This issue needs human review.
+          ## 🏭 Factory Diagnosis
+
+          **Is Factory Bug:** ${IS_FACTORY_BUG}
+          **Diagnosis:** ${DIAGNOSIS}
+
+          $(if [ \"$IS_FACTORY_BUG\" = \"true\" ]; then echo \"⚠️ This appears to be a factory/workflow bug, not a code bug. A human should fix the workflow file, then retry.\"; else echo \"This may require human review to determine the root cause.\"; fi)
 
           @jeremymatthewwerner - please investigate.
 
           cc @${ISSUE_AUTHOR}" 2>/dev/null || true
           fi
 
-          gh issue comment ${{ steps.context.outputs.number }} --body "## 🚨 Principal Engineer Also Stuck
+          # Different message based on whether it's a factory bug
+          if [ "$IS_FACTORY_BUG" = "true" ]; then
+            gh issue comment ${{ steps.context.outputs.number }} --body "## 🏭 Factory Bug Detected
 
-          The Principal Engineer agent was unable to resolve this issue automatically.
+          The Principal Engineer identified this as a **factory/workflow bug**, not a code bug.
 
-          **Next steps:**
-          1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          2. This likely needs human investigation
+          **Diagnosis:** ${DIAGNOSIS}
+
+          **Recommended Action:**
+          1. Fix the workflow file (likely \`.github/workflows/bug-fix.yml\` or \`ci.yml\`)
+          2. Once fixed, remove \`needs-human\` label to retry
+
+          [View workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           @jeremymatthewwerner
 
           cc @${ISSUE_AUTHOR}"
+          else
+            gh issue comment ${{ steps.context.outputs.number }} --body "## 🚨 Principal Engineer Needs Help
+
+          The Principal Engineer was unable to resolve this automatically.
+
+          **Diagnosis:** ${DIAGNOSIS}
+
+          **Next steps:**
+          1. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          2. Determine if this is a code bug, workflow bug, or needs a design decision
+
+          @jeremymatthewwerner
+
+          cc @${ISSUE_AUTHOR}"
+          fi
 
           gh issue edit ${{ steps.context.outputs.number }} \
             --remove-label "status:bot-working" \
