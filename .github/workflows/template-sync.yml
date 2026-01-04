@@ -16,6 +16,7 @@ on:
       - '.github/workflows/devops.yml'
       - '.github/workflows/triage.yml'
       - '.github/workflows/ci-monitor.yml'
+      - '.github/workflows/ci-watcher.yml'
       - '.github/workflows/principal-engineer.yml'
       - '.github/workflows/qa.yml'
       - '.github/workflows/release-engineer.yml'
@@ -48,6 +49,7 @@ jobs:
             ".github/workflows/devops.yml"
             ".github/workflows/triage.yml"
             ".github/workflows/ci-monitor.yml"
+            ".github/workflows/ci-watcher.yml"
             ".github/workflows/principal-engineer.yml"
             ".github/workflows/qa.yml"
             ".github/workflows/release-engineer.yml"
