@@ -3,12 +3,16 @@
 These endpoints are only used in test environments to trigger specific error conditions.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.websocket import WSMessage, WSMessageType, manager
-from app.core.config import is_test_mode
+from app.core.config import get_settings, is_test_mode
+from app.core.database import get_db
 from app.exceptions import BillingError
+from app.models import User
 
 router = APIRouter(prefix="/test")
 
@@ -136,3 +140,94 @@ async def trigger_error(request: TriggerErrorRequest) -> dict[str, str]:
         "status": "success",
         "message": f"Error message broadcast to conversation {request.conversation_id}",
     }
+
+
+# Test user prefixes that can be cleaned up
+TEST_USER_PREFIXES = ("smoketest_", "canary_")
+
+
+class CleanupResponse(BaseModel):
+    """Response schema for test user cleanup."""
+
+    deleted_count: int
+    deleted_users: list[str]
+
+
+@router.delete("/cleanup-test-users", response_model=CleanupResponse)
+async def cleanup_test_users(
+    secret: str,
+    db: AsyncSession = Depends(get_db),
+) -> CleanupResponse:
+    """Delete test users created by smoke/canary tests.
+
+    **SECURITY**: This endpoint is protected by TEST_CLEANUP_SECRET and only
+    deletes users whose usernames start with known test prefixes (smoketest_,
+    canary_). This ensures that only automated test accounts are removed.
+
+    **Purpose**: CI workflows create test users to verify the auth flow works
+    in production. These users accumulate over time and clutter the database.
+    This endpoint allows workflows to clean up after themselves.
+
+    **Usage Example** (from CI workflow):
+    ```bash
+    curl -X DELETE "$BACKEND_URL/api/test/cleanup-test-users?secret=$TEST_CLEANUP_SECRET"
+    ```
+
+    **Query Parameters**:
+    - secret: The TEST_CLEANUP_SECRET value (required)
+
+    **Success Response** (200 OK):
+    ```json
+    {
+      "deleted_count": 3,
+      "deleted_users": ["smoketest_1704412800", "canary_1704412900_12345", ...]
+    }
+    ```
+
+    **Error Responses**:
+    - 403 Forbidden: Invalid or missing secret
+    - 500 Internal Server Error: Database error
+
+    Args:
+        secret: The cleanup secret to authenticate the request
+
+    Returns:
+        Count and usernames of deleted test users
+    """
+    settings = get_settings()
+
+    # Verify secret is configured
+    if not settings.test_cleanup_secret:
+        raise HTTPException(
+            status_code=403,
+            detail="Test cleanup secret not configured",
+        )
+
+    # Verify provided secret matches
+    if secret != settings.test_cleanup_secret:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid cleanup secret",
+        )
+
+    # Find all test users
+    deleted_users: list[str] = []
+    for prefix in TEST_USER_PREFIXES:
+        result = await db.execute(select(User).where(User.username.startswith(prefix)))
+        users = result.scalars().all()
+        for user in users:
+            deleted_users.append(user.username)
+
+    if not deleted_users:
+        return CleanupResponse(deleted_count=0, deleted_users=[])
+
+    # Delete all test users
+    for prefix in TEST_USER_PREFIXES:
+        await db.execute(delete(User).where(User.username.startswith(prefix)))
+
+    await db.commit()
+
+    return CleanupResponse(
+        deleted_count=len(deleted_users),
+        deleted_users=deleted_users,
+    )
