@@ -42,6 +42,7 @@ jobs:
           echo "Syncing workflow files to template repo..."
 
           # Files to sync (add more as needed)
+          # NOTE: template-sync.yml is NOT synced (it's specific to this repo)
           FILES=(
             ".github/workflows/bug-fix.yml"
             ".github/workflows/devops.yml"
@@ -59,6 +60,20 @@ jobs:
               cp "source/$file" "template/$file"
             fi
           done
+
+      - name: Generalize project-specific references
+        working-directory: template
+        run: |
+          echo "Generalizing project-specific references..."
+
+          # Replace project-specific domain examples with generic placeholder
+          find .github/workflows -name "*.yml" -exec sed -i \
+            -e 's/diningphilosophers\.ai/example.com/g' \
+            -e 's/dining-philosophers/your-project/g' \
+            -e 's/Dining Philosophers/Your Project/g' \
+            {} \;
+
+          echo "Generalization complete"
 
       - name: Check for changes
         id: changes
@@ -81,10 +96,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add -A
-          git commit -m "sync: workflow improvements from dining-philosophers
+          git commit -m "sync: workflow improvements from upstream
 
-          Auto-synced from jeremymatthewwerner/dining-philosophers-Dec25-sw-factory
-          Commit: ${{ github.sha }}"
+          Auto-synced and generalized from upstream project
+          Source commit: ${{ github.sha }}"
 
           git push
 
