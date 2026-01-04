@@ -24,6 +24,16 @@ async def test_health_check(client: AsyncClient) -> None:
     assert response.json() == {"status": "healthy"}
 
 
+async def test_health_ready_endpoint(client: AsyncClient) -> None:
+    """Test deep health check endpoint returns ready status with database check."""
+    response = await client.get("/health/ready")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ready"
+    assert "checks" in data
+    assert data["checks"]["database"] == "ok"
+
+
 async def test_version_endpoint(client: AsyncClient) -> None:
     """Test version endpoint returns correct version and name."""
     response = await client.get("/api/version")

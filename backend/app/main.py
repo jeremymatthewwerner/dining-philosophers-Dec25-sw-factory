@@ -4,16 +4,17 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import VERSION
 from app.api import api_router, ws_router
 from app.core.auth import get_password_hash
 from app.core.config import get_settings
-from app.core.database import async_session, close_db, init_db
+from app.core.database import async_session, close_db, get_db, init_db
 from app.exceptions import BillingError
 from app.models import User
 
@@ -123,8 +124,47 @@ app.include_router(ws_router)
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
-    """Health check endpoint."""
+    """Basic health check endpoint (liveness probe).
+
+    Returns 200 if the service process is running and can handle requests.
+    Used by container orchestrators to determine if the process is alive.
+    """
     return {"status": "healthy"}
+
+
+@app.get("/health/ready")
+async def health_ready(
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Deep health check endpoint (readiness probe).
+
+    Verifies all dependencies are accessible and the service is ready
+    to handle traffic. Returns 503 if any dependency is degraded.
+
+    Checks:
+    - Database connectivity (executes SELECT 1)
+
+    Used by load balancers to determine if the service should receive traffic.
+    """
+    checks: dict[str, str] = {}
+
+    # Database connectivity check
+    try:
+        await db.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        checks["database"] = f"error: {type(e).__name__}"
+
+    # Determine overall status
+    all_ok = all(v == "ok" for v in checks.values())
+    status = "ready" if all_ok else "degraded"
+    status_code = 200 if all_ok else 503
+
+    return JSONResponse(
+        content={"status": status, "checks": checks},
+        status_code=status_code,
+    )
 
 
 @app.get("/api/version")
