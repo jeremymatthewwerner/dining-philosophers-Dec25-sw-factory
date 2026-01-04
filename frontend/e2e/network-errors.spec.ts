@@ -243,9 +243,9 @@ test.describe('API Error Messages', () => {
     // Try to create conversation
     await page.getByTestId('create-button').click();
 
-    // Should show error message
+    // Should show error message (use specific error element to avoid matching thinker descriptions)
     await expect(
-      page.locator('text=/invalid|error|failed/i')
+      page.locator('.text-red-600, .text-red-400').filter({ hasText: /invalid|error|failed/i })
     ).toBeVisible({ timeout: 5000 });
   });
 
@@ -296,9 +296,9 @@ test.describe('API Error Messages', () => {
 
     await page.getByTestId('next-button').click();
 
-    // Should show error message
+    // Should show error message (use specific error element to avoid matching thinker descriptions)
     await expect(
-      page.locator('text=/error|failed|something went wrong/i')
+      page.locator('.text-red-600, .text-red-400').filter({ hasText: /error|failed|something went wrong/i })
     ).toBeVisible({ timeout: 10000 });
   });
 });
