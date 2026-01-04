@@ -257,7 +257,9 @@ class TestThinkerAPIErrorPaths:
             # Numbers-only name likely invalid
             assert data["is_valid"] is False
 
-    async def test_suggest_thinkers_with_special_characters_in_topic(self, client: AsyncClient) -> None:
+    async def test_suggest_thinkers_with_special_characters_in_topic(
+        self, client: AsyncClient
+    ) -> None:
         """Suggest thinkers with special characters and emojis in topic.
 
         Edge case: Special character handling
