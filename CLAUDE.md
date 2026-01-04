@@ -519,6 +519,29 @@ When agents encounter these situations, apply these defaults instead of asking:
 - Create issue for proper resolution
 - Don't spend >30min on dependency issues
 
+**Transient CI failures (502, 503, timeouts):**
+- CI has retry logic for transient errors (3 attempts with exponential backoff)
+- Distinguish transient errors (retry) from real errors (fail fast)
+- If smoke test fails due to production blip, it will auto-retry
+- See `.github/workflows/ci.yml` smoke-test section for implementation
+
+## Observability & DevOps Hygiene
+
+**See `docs/OBSERVABILITY.md` for full standards.**
+
+Key requirements:
+- **Health endpoints**: `/health` (basic) and `/health/ready` (deep with DB check)
+- **Four Golden Signals**: Track latency, traffic, errors, saturation
+- **Structured logging**: Include timestamp, level, service, request_id
+- **Alerting**: P1/P2/P3 severity levels with defined response times
+
+When adding features, always consider:
+- [ ] Health endpoint updated if new dependencies added
+- [ ] Key operations logged at INFO level
+- [ ] Errors logged with full context
+- [ ] Metrics added for new endpoints
+- [ ] Failure scenarios have alerts
+
 ## Escalation
 
 Assign to @jeremymatthewwerner when:
