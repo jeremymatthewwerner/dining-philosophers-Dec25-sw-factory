@@ -597,33 +597,41 @@ jobs:
           echo "🔄 Checking for PRs with merge conflicts after push to main..."
           echo "   Repository: $GITHUB_REPOSITORY"
 
-          # Get all open PRs - explicitly specify repo
-          PR_DATA=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,title,headRefName,mergeable 2>&1)
-          echo "   PR data: $PR_DATA"
+          # Wait for GitHub to compute mergeable status after push
+          echo "   Waiting 10s for GitHub to update PR status..."
+          sleep 10
 
-          # Check if we got valid data
-          if [ -z "$PR_DATA" ] || [ "$PR_DATA" = "[]" ]; then
+          # Get all open PR numbers
+          PR_NUMBERS=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number --jq '.[].number' 2>/dev/null)
+
+          if [ -z "$PR_NUMBERS" ]; then
             echo "✅ No open PRs to check"
             exit 0
           fi
 
+          echo "   Open PRs: $PR_NUMBERS"
+
           REBASED_COUNT=0
           FAILED_COUNT=0
-
-          # Get PR numbers and process each
-          PR_NUMBERS=$(echo "$PR_DATA" | jq -r '.[].number')
-          echo "   PR numbers: $PR_NUMBERS"
 
           for PR_NUM in $PR_NUMBERS; do
             [ -z "$PR_NUM" ] && continue
 
-            # Get PR details
-            PR_INFO=$(echo "$PR_DATA" | jq -r ".[] | select(.number == $PR_NUM)")
+            # Query each PR individually for accurate mergeable status
+            PR_INFO=$(gh pr view "$PR_NUM" --repo "$GITHUB_REPOSITORY" --json title,headRefName,mergeable 2>/dev/null)
             PR_TITLE=$(echo "$PR_INFO" | jq -r '.title')
             PR_BRANCH=$(echo "$PR_INFO" | jq -r '.headRefName')
             MERGEABLE=$(echo "$PR_INFO" | jq -r '.mergeable')
 
             echo "   Checking PR #$PR_NUM: mergeable=$MERGEABLE"
+
+            # If still UNKNOWN, wait and retry once
+            if [ "$MERGEABLE" = "UNKNOWN" ]; then
+              echo "   Status UNKNOWN, waiting 5s and retrying..."
+              sleep 5
+              MERGEABLE=$(gh pr view "$PR_NUM" --repo "$GITHUB_REPOSITORY" --json mergeable --jq '.mergeable' 2>/dev/null)
+              echo "   Retry result: mergeable=$MERGEABLE"
+            fi
 
             # Check if PR has conflicts
             if [ "$MERGEABLE" = "CONFLICTING" ]; then
