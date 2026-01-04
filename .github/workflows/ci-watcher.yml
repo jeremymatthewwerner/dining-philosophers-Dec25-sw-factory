@@ -102,82 +102,51 @@ jobs:
           RUN_ID: ${{ steps.context.outputs.run_id }}
           PR_NUMBER: ${{ steps.context.outputs.pr_number }}
         run: |
+          set +e  # Don't exit on errors
+
           # Poll and update every 5 minutes for up to 30 minutes
           for i in $(seq 1 6); do
             echo "Update check $i/6..."
 
-            # Get current job statuses
-            JOBS_JSON=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '.jobs')
+            # Get current job statuses as formatted table directly
+            TABLE=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '
+              .jobs |
+              ["| Job | Status | Duration |", "|-----|--------|----------|"] +
+              [.[] |
+                "| \(.name) | " +
+                (if .conclusion == "success" then "✅"
+                 elif .conclusion == "failure" then "❌"
+                 elif .conclusion == "skipped" then "⏭️"
+                 elif .status == "in_progress" then "🔄"
+                 elif .status == "queued" then "⏳"
+                 else "⏸️" end) +
+                " \(.conclusion // .status) | " +
+                (if .completed_at and .started_at then
+                   (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) | tostring) + "s"
+                 elif .started_at then "running"
+                 else "-" end) +
+                " |"
+              ] | join("\n")
+            ' 2>/dev/null || echo "| Error fetching jobs | ❓ | - |")
 
-            # Build status table
-            TABLE="| Job | Status | Duration |\n|-----|--------|----------|"
-            COMPLETED=0
-            TOTAL=0
-            FAILED=0
-
-            while IFS= read -r job; do
-              NAME=$(echo "$job" | jq -r '.name')
-              STATUS=$(echo "$job" | jq -r '.status')
-              CONCLUSION=$(echo "$job" | jq -r '.conclusion')
-              STARTED=$(echo "$job" | jq -r '.started_at // empty')
-              ENDED=$(echo "$job" | jq -r '.completed_at // empty')
-
-              # Calculate duration
-              if [ -n "$STARTED" ] && [ -n "$ENDED" ]; then
-                START_SEC=$(date -d "$STARTED" +%s 2>/dev/null || echo 0)
-                END_SEC=$(date -d "$ENDED" +%s 2>/dev/null || echo 0)
-                DURATION="$((END_SEC - START_SEC))s"
-              elif [ -n "$STARTED" ]; then
-                START_SEC=$(date -d "$STARTED" +%s 2>/dev/null || echo 0)
-                NOW_SEC=$(date +%s)
-                DURATION="$((NOW_SEC - START_SEC))s 🔄"
-              else
-                DURATION="-"
-              fi
-
-              # Status emoji
-              if [ "$CONCLUSION" == "success" ]; then
-                EMOJI="✅"
-                ((COMPLETED++))
-              elif [ "$CONCLUSION" == "failure" ]; then
-                EMOJI="❌"
-                ((COMPLETED++))
-                ((FAILED++))
-              elif [ "$CONCLUSION" == "skipped" ]; then
-                EMOJI="⏭️"
-                ((COMPLETED++))
-              elif [ "$STATUS" == "in_progress" ]; then
-                EMOJI="🔄"
-              elif [ "$STATUS" == "queued" ]; then
-                EMOJI="⏳"
-              else
-                EMOJI="⏸️"
-              fi
-
-              TABLE="$TABLE\n| $NAME | $EMOJI $CONCLUSION$STATUS | $DURATION |"
-              ((TOTAL++))
-            done < <(echo "$JOBS_JSON" | jq -c '.[]')
-
-            # Overall status
-            if [ $FAILED -gt 0 ]; then
-              OVERALL="❌ **$FAILED job(s) failed**"
-            elif [ $COMPLETED -eq $TOTAL ] && [ $TOTAL -gt 0 ]; then
-              OVERALL="✅ **All jobs complete**"
-              # Exit early - completion handler will take over
-              break
-            else
-              OVERALL="🔄 **Running:** $COMPLETED/$TOTAL jobs complete"
-            fi
+            # Get summary stats
+            STATS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '
+              .jobs | {
+                total: length,
+                completed: [.[] | select(.status == "completed")] | length,
+                failed: [.[] | select(.conclusion == "failure")] | length
+              } | "\(.completed)/\(.total) complete, \(.failed) failed"
+            ' 2>/dev/null || echo "unknown")
 
             # Update comment
             BODY="<!-- ci-watcher -->
           ## 🔄 CI Status
 
-          **Status:** $OVERALL
+          **Status:** 🔄 **Running:** $STATS
           **PR:** #$PR_NUMBER
           **Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)
 
-          $(echo -e "$TABLE")
+          $TABLE
 
           *Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
 
@@ -185,7 +154,7 @@ jobs:
               -X PATCH -f body="$BODY" 2>/dev/null || echo "Failed to update comment"
 
             # Check if run is still in progress
-            RUN_STATUS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID --jq '.status')
+            RUN_STATUS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID --jq '.status' 2>/dev/null || echo "unknown")
             if [ "$RUN_STATUS" != "in_progress" ] && [ "$RUN_STATUS" != "queued" ]; then
               echo "Run no longer in progress ($RUN_STATUS), exiting poll loop"
               break
@@ -197,6 +166,8 @@ jobs:
               sleep 300
             fi
           done
+
+          echo "Polling complete"
 
       - name: Handle CI completion
         if: |
@@ -211,41 +182,32 @@ jobs:
           ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
           CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         run: |
+          set +e  # Don't exit on errors
           echo "CI completed with conclusion: $CONCLUSION"
 
-          # Get final job statuses
-          JOBS_JSON=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '.jobs')
+          # Get final job statuses as formatted table
+          TABLE=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '
+            .jobs |
+            ["| Job | Status | Duration |", "|-----|--------|----------|"] +
+            [.[] |
+              "| \(.name) | " +
+              (if .conclusion == "success" then "✅"
+               elif .conclusion == "failure" then "❌"
+               elif .conclusion == "skipped" then "⏭️"
+               elif .conclusion == "cancelled" then "🚫"
+               else "❓" end) +
+              " \(.conclusion // "unknown") | " +
+              (if .completed_at and .started_at then
+                 (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) | tostring) + "s"
+               else "-" end) +
+              " |"
+            ] | join("\n")
+          ' 2>/dev/null || echo "| Error fetching jobs | ❓ | - |")
 
-          # Build final status table
-          TABLE="| Job | Status | Duration |\n|-----|--------|----------|"
-          FAILED_JOBS=""
-
-          while IFS= read -r job; do
-            NAME=$(echo "$job" | jq -r '.name')
-            CONCLUSION_JOB=$(echo "$job" | jq -r '.conclusion')
-            STARTED=$(echo "$job" | jq -r '.started_at // empty')
-            ENDED=$(echo "$job" | jq -r '.completed_at // empty')
-
-            # Calculate duration
-            if [ -n "$STARTED" ] && [ -n "$ENDED" ]; then
-              START_SEC=$(date -d "$STARTED" +%s 2>/dev/null || echo 0)
-              END_SEC=$(date -d "$ENDED" +%s 2>/dev/null || echo 0)
-              DURATION="$((END_SEC - START_SEC))s"
-            else
-              DURATION="-"
-            fi
-
-            # Status emoji
-            case "$CONCLUSION_JOB" in
-              success) EMOJI="✅" ;;
-              failure) EMOJI="❌"; FAILED_JOBS="$FAILED_JOBS $NAME" ;;
-              skipped) EMOJI="⏭️" ;;
-              cancelled) EMOJI="🚫" ;;
-              *) EMOJI="❓" ;;
-            esac
-
-            TABLE="$TABLE\n| $NAME | $EMOJI $CONCLUSION_JOB | $DURATION |"
-          done < <(echo "$JOBS_JSON" | jq -c '.[]')
+          # Get failed job names
+          FAILED_JOBS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '
+            [.jobs[] | select(.conclusion == "failure") | .name] | join(", ")
+          ' 2>/dev/null || echo "unknown")
 
           # Final status message
           if [ "$CONCLUSION" == "success" ]; then
@@ -264,7 +226,7 @@ jobs:
           else
             STATUS_MSG="## ❌ CI Failed
 
-          **Failed jobs:**$FAILED_JOBS
+          **Failed jobs:** $FAILED_JOBS
 
           [View failure logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)
 
@@ -278,7 +240,7 @@ jobs:
           **PR:** #$PR_NUMBER
           **Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)
 
-          $(echo -e "$TABLE")
+          $TABLE
 
           *Completed: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*
 
