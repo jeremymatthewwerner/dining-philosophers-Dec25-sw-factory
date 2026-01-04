@@ -202,20 +202,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create progress comment for continuation work
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          # Create progress comment for continuation work with activity log
           COMMENT_BODY="## 🤖 Continuing Work
 
           Thanks @${{ steps.context.outputs.comment_author }}! Resuming implementation...
 
           - [ ] 📖 Reading your response and previous context
-          - [ ] 🛠️ Implementing the requested changes
+          - [ ] 🛠️ Implementing: *pending*
           - [ ] ✅ Running tests and quality checks
           - [ ] 📝 Creating/updating PR
-          - [ ] 🚀 Waiting for CI
+          - [ ] 🚀 CI Status: *pending*
 
           **Status:** Reading your feedback...
           **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
+          ---
+          ## 📋 Activity Log
+
+          | Time | Event |
+          |------|-------|
+          | $TIMESTAMP | 🔄 Continuing work after human response |
+
+          ---
           cc @${{ steps.context.outputs.issue_author }}"
 
           COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
@@ -230,21 +239,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create initial progress comment with checkboxes using gh api (returns comment ID)
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          # Create initial progress comment with checkboxes and activity log
           COMMENT_BODY="## 🤖 Code Agent Progress
 
           - [ ] 📖 Reading issue and understanding requirements
           - [ ] 🔍 Analyzing codebase and finding affected files
-          - [ ] 🛠️ Implementing fix
+          - [ ] 🛠️ Implementing fix: *pending*
           - [ ] ✅ Running tests and quality checks
           - [ ] 📝 Creating PR
-          - [ ] 🚀 Waiting for CI
+          - [ ] 🚀 CI Status: *pending*
 
           **Status:** 🚀 Starting analysis...
           **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           ---
-          *Detailed analysis will appear here as I investigate the issue...*"
+          ## 📋 Activity Log
+
+          | Time | Event |
+          |------|-------|
+          | $TIMESTAMP | 🚀 Code Agent started |
+
+          ---
+          *Analysis and summary will appear below as I investigate...*"
 
           COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
             -X POST -f body="$COMMENT_BODY" --jq '.id')
@@ -371,51 +388,75 @@ jobs:
                ```
                The backend logs show API errors, exceptions, and slow responses that explain WHY tests failed.
 
-            ## Progress Comment Format - BE VERBOSE LIKE TRIAGE BOT!
+            ## Progress Comment Format - DETAILED ACTIVITY LOG!
 
-            After completing EACH step, update the progress comment with DETAILED analysis.
-            Don't just check boxes - explain your thinking! Users should understand:
-            - What you found during analysis
-            - Why you think this is the root cause
-            - What specific changes you're making and why
-            - What tests you're running
+            The progress comment has TWO key sections you must update:
+
+            ### 1. Checkbox Status (top)
+            Update checkboxes AND add detail to "Implementing fix" row:
+            - `- [x] 🛠️ Implementing fix: Adding rate limiter to /api/chat endpoint`
+            - `- [x] 🚀 CI Status: ✅ Passed` or `- [ ] 🚀 CI Status: ❌ Failed (mypy errors)`
+
+            ### 2. Activity Log (append new rows!)
+            Add a NEW row to the Activity Log table for EACH significant event:
+            - When you start analyzing
+            - When you identify the root cause
+            - When you start implementing
+            - When tests pass/fail
+            - When CI fails (with what failed)
+            - When you retry with a new approach
+
+            **CRITICAL: The Activity Log is an APPEND-ONLY log with timestamps!**
 
             ```bash
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
             gh api repos/${{ github.repository }}/issues/comments/${{ steps.progress.outputs.comment_id }} \
               -X PATCH -f body="## 🤖 Code Agent Progress
 
             - [x] 📖 Reading issue and understanding requirements
             - [x] 🔍 Analyzing codebase and finding affected files
-            - [ ] 🛠️ Implementing fix
+            - [ ] 🛠️ Implementing fix: Adding null check to thinker query
             - [ ] ✅ Running tests and quality checks
             - [ ] 📝 Creating PR
-            - [ ] 🚀 Waiting for CI
+            - [ ] 🚀 CI Status: *pending*
 
             **Status:** [current status message]
             **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
             ---
-            ## 🔍 Analysis
+            ## 📋 Activity Log
 
-            ### Understanding the Issue
-            [Explain what the issue is asking for and any context from comments]
+            | Time | Event |
+            |------|-------|
+            | 2026-01-04 20:00 UTC | 🚀 Code Agent started |
+            | 2026-01-04 20:02 UTC | 📖 Read issue: User reports 500 error on /api/thinkers |
+            | 2026-01-04 20:05 UTC | 🔍 Found root cause: Query missing WHERE clause in get_thinkers() |
+            | $TIMESTAMP | 🛠️ Implementing: Adding filter for active thinkers only |
+
+            ---
+            ## 🔍 Summary
 
             ### Root Cause
-            [Detailed explanation of what's causing the bug/what needs to change for the feature]
+            [1-2 sentence explanation of what's causing the bug]
 
-            ### Files Affected
-            - \`path/to/file1.ts\` - [what changes needed]
-            - \`path/to/file2.py\` - [what changes needed]
+            ### Fix Applied
+            [1-2 sentence explanation of what you changed]
 
-            ### Implementation Plan
-            1. [First specific change]
-            2. [Second specific change]
-            3. [etc.]
-
-            ### Testing Strategy
-            - [What tests will verify the fix]
-            - [Edge cases to consider]"
+            ### Files Changed
+            - \`path/to/file1.ts\` - [brief change description]
+            - \`path/to/file2.py\` - [brief change description]"
             ```
+
+            **Activity Log examples for different events:**
+            - `| $TIMESTAMP | 📖 Read issue: [brief description of what issue asks] |`
+            - `| $TIMESTAMP | 🔍 Found root cause: [what's causing the bug] |`
+            - `| $TIMESTAMP | 🛠️ Implementing: [what fix you're applying] |`
+            - `| $TIMESTAMP | ✅ Tests passed locally |`
+            - `| $TIMESTAMP | ❌ Tests failed: [which test and why] |`
+            - `| $TIMESTAMP | 📝 Created PR #123 |`
+            - `| $TIMESTAMP | ❌ CI failed: mypy errors in auth.py |`
+            - `| $TIMESTAMP | 🔄 Retrying: Fixed type annotation issue |`
+            - `| $TIMESTAMP | ✅ CI passed, PR merged! |`
 
             ## Step 1: Analyze (Check Previous Work First!)
             1. Read the issue AND all comments: gh issue view ${{ steps.context.outputs.number }} --comments
@@ -724,41 +765,69 @@ jobs:
 
                 # CRITICAL: Capture actual failure logs so retry has context
                 echo "Fetching failure logs for PR #$PR_NUMBER..."
+                TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
 
                 # Get the CI run ID for this PR
                 CI_RUN_ID=$(gh run list --branch "$(gh pr view $PR_NUMBER --json headRefName -q .headRefName)" \
                   --workflow=ci.yml --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
 
                 FAILURE_LOGS=""
+                FAILED_JOBS_DETAIL=""
                 if [ -n "$CI_RUN_ID" ]; then
                   # Capture failed job logs (truncated to last 100 lines per job)
                   FAILURE_LOGS=$(gh run view "$CI_RUN_ID" --log-failed 2>/dev/null | tail -150 || echo "Could not fetch logs")
+
+                  # Get detailed breakdown of which jobs failed
+                  FAILED_JOBS_DETAIL=$(gh api repos/${{ github.repository }}/actions/runs/$CI_RUN_ID/jobs --jq '
+                    .jobs | [.[] | select(.conclusion == "failure")] |
+                    map("- **\(.name)**: \(if .steps then ([.steps[] | select(.conclusion == "failure") | .name] | join(", ")) else "unknown step" end)")
+                    | join("\n")
+                  ' 2>/dev/null || echo "- Could not fetch job details")
                 fi
 
                 echo "failure_logs<<LOGS_EOF" >> $GITHUB_OUTPUT
                 echo "$FAILURE_LOGS" >> $GITHUB_OUTPUT
                 echo "LOGS_EOF" >> $GITHUB_OUTPUT
 
-                # Update progress comment with failure
+                # Update progress comment with failure AND add to activity log
                 if [ -n "$PROGRESS_COMMENT_ID" ]; then
+                  # First get the existing comment to preserve the activity log
+                  EXISTING_BODY=$(gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
+
+                  # Extract existing activity log entries (everything between the table header and ---)
+                  EXISTING_LOG=$(echo "$EXISTING_BODY" | sed -n '/| Time | Event |/,/^---/p' | head -n -1 || echo "")
+
                   gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
-                    -X PATCH -f body="## 🤖 Progress Tracker
+                    -X PATCH -f body="## 🤖 Code Agent Progress
 
           - [x] 📖 Reading issue and understanding requirements
           - [x] 🔍 Analyzing codebase and finding affected files
           - [x] 🛠️ Implementing fix
           - [x] ✅ Running tests and quality checks
           - [x] 📝 Creating PR
-          - [ ] 🚀 CI Failed - retrying...
+          - [ ] 🚀 CI Status: ❌ Failed - ${FAILED_CHECKS}
 
-          **Status:** ❌ CI failed: ${FAILED_CHECKS}
-          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+          **Status:** ❌ CI failed, triggering retry...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+          ## 📋 Activity Log
+
+          $EXISTING_LOG
+          | $TIMESTAMP | ❌ CI failed: ${FAILED_CHECKS} |
+
+          ---
+          *Retry in progress...*" 2>/dev/null || true
                 fi
 
-                # Post failure comment WITH actual logs so retry can see them
+                # Post detailed failure comment WITH actual logs so retry can see them
                 gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ CI Failed
 
-          PR #${PR_NUMBER} has failing checks: **${FAILED_CHECKS}**
+          **Time:** $TIMESTAMP
+          **PR:** #${PR_NUMBER}
+
+          ### Failed Jobs
+          ${FAILED_JOBS_DETAIL:-$FAILED_CHECKS}
 
           <details>
           <summary>📋 Failure Logs (click to expand)</summary>
@@ -777,6 +846,7 @@ jobs:
               else
                 # CI passed - auto-merge the PR with retry logic
                 echo "CI passed, auto-merging PR #${PR_NUMBER}..."
+                TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
 
                 MERGE_SUCCESS=false
                 for attempt in 1 2 3; do
@@ -792,20 +862,36 @@ jobs:
                 done
 
                 if [ "$MERGE_SUCCESS" = "true" ]; then
-                  # Update progress comment with success
+                  # Update progress comment with success, preserving activity log
                   if [ -n "$PROGRESS_COMMENT_ID" ]; then
+                    EXISTING_BODY=$(gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
+                    EXISTING_LOG=$(echo "$EXISTING_BODY" | sed -n '/| Time | Event |/,/^---/p' | head -n -1 || echo "")
+
+                    # Try to extract summary section if it exists
+                    SUMMARY_SECTION=$(echo "$EXISTING_BODY" | sed -n '/## 🔍 Summary/,$p' || echo "")
+
                     gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
-                      -X PATCH -f body="## 🤖 Progress Tracker
+                      -X PATCH -f body="## 🤖 Code Agent Progress
 
           - [x] 📖 Reading issue and understanding requirements
           - [x] 🔍 Analyzing codebase and finding affected files
           - [x] 🛠️ Implementing fix
           - [x] ✅ Running tests and quality checks
           - [x] 📝 Creating PR
-          - [x] 🚀 CI Passed & Merged!
+          - [x] 🚀 CI Status: ✅ Passed & Merged!
 
           **Status:** ✅ Complete! Deploying to production...
-          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+          **PR:** #${PR_NUMBER}
+          **CI:** [View passing run](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}/checks)
+
+          ---
+          ## 📋 Activity Log
+
+          $EXISTING_LOG
+          | $TIMESTAMP | ✅ CI passed, PR merged! |
+
+          ---
+          $SUMMARY_SECTION" 2>/dev/null || true
                   fi
 
                   gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed & Merged
