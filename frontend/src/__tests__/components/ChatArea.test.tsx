@@ -198,4 +198,128 @@ describe('ChatArea', () => {
 
     expect(screen.queryByTestId('sidebar-toggle')).not.toBeInTheDocument();
   });
+
+  describe('Speed Control', () => {
+    it('renders speed control when onSpeedChange is provided', () => {
+      const conversation = createConversation();
+      const onSpeedChange = jest.fn();
+      render(
+        <ChatArea
+          {...defaultProps}
+          conversation={conversation}
+          onSpeedChange={onSpeedChange}
+        />
+      );
+
+      expect(screen.getByTestId('speed-control')).toBeInTheDocument();
+      expect(screen.getByTestId('speed-slider')).toBeInTheDocument();
+    });
+
+    it('does not render speed control when onSpeedChange is not provided', () => {
+      const conversation = createConversation();
+      render(<ChatArea {...defaultProps} conversation={conversation} />);
+
+      expect(screen.queryByTestId('speed-control')).not.toBeInTheDocument();
+    });
+
+    it('renders equally-spaced extreme labels (Fast and Contemplative)', () => {
+      const conversation = createConversation();
+      const onSpeedChange = jest.fn();
+      render(
+        <ChatArea
+          {...defaultProps}
+          conversation={conversation}
+          onSpeedChange={onSpeedChange}
+        />
+      );
+
+      expect(screen.getByTestId('speed-label-min')).toHaveTextContent('Fast');
+      expect(screen.getByTestId('speed-label-max')).toHaveTextContent(
+        'Contemplative'
+      );
+    });
+
+    it('displays current pace value below slider', () => {
+      const conversation = createConversation();
+      const onSpeedChange = jest.fn();
+      render(
+        <ChatArea
+          {...defaultProps}
+          conversation={conversation}
+          onSpeedChange={onSpeedChange}
+          speedMultiplier={1.0}
+        />
+      );
+
+      const currentValue = screen.getByTestId('speed-current-value');
+      expect(currentValue).toBeInTheDocument();
+      expect(currentValue).toHaveTextContent('Pace:');
+      expect(currentValue).toHaveTextContent('Normal');
+    });
+
+    it('calls onSpeedChange when slider value changes', () => {
+      const conversation = createConversation();
+      const onSpeedChange = jest.fn();
+      render(
+        <ChatArea
+          {...defaultProps}
+          conversation={conversation}
+          onSpeedChange={onSpeedChange}
+          speedMultiplier={1.0}
+        />
+      );
+
+      const slider = screen.getByTestId('speed-slider');
+      fireEvent.change(slider, { target: { value: '2.0' } });
+      expect(onSpeedChange).toHaveBeenCalledWith(2.0);
+    });
+
+    it('shows correct speed label for different multiplier values', () => {
+      const conversation = createConversation();
+      const onSpeedChange = jest.fn();
+
+      // Test with Fast (0.5)
+      const { rerender } = render(
+        <ChatArea
+          {...defaultProps}
+          conversation={conversation}
+          onSpeedChange={onSpeedChange}
+          speedMultiplier={0.5}
+        />
+      );
+      expect(screen.getByTestId('speed-current-value')).toHaveTextContent(
+        'Fast'
+      );
+
+      // Test with Contemplative (6.0)
+      rerender(
+        <ChatArea
+          {...defaultProps}
+          conversation={conversation}
+          onSpeedChange={onSpeedChange}
+          speedMultiplier={6.0}
+        />
+      );
+      expect(screen.getByTestId('speed-current-value')).toHaveTextContent(
+        'Contemplative'
+      );
+    });
+
+    it('has correct slider attributes (min, max, step)', () => {
+      const conversation = createConversation();
+      const onSpeedChange = jest.fn();
+      render(
+        <ChatArea
+          {...defaultProps}
+          conversation={conversation}
+          onSpeedChange={onSpeedChange}
+        />
+      );
+
+      const slider = screen.getByTestId('speed-slider');
+      expect(slider).toHaveAttribute('min', '0.5');
+      expect(slider).toHaveAttribute('max', '6');
+      expect(slider).toHaveAttribute('step', '0.5');
+    });
+  });
 });
