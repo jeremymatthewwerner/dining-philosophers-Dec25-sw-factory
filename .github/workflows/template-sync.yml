@@ -1,0 +1,101 @@
+name: Sync to Template Repo
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no push)'
+        type: boolean
+        default: false
+  # Auto-trigger when workflows change on main
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bug-fix.yml'
+      - '.github/workflows/devops.yml'
+      - '.github/workflows/triage.yml'
+      - '.github/workflows/ci-monitor.yml'
+      - '.github/workflows/principal-engineer.yml'
+      - '.github/workflows/qa.yml'
+      - '.github/workflows/release-engineer.yml'
+      - '.github/workflows/marketing.yml'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dining-philosophers
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout template repo
+        uses: actions/checkout@v4
+        with:
+          repository: jeremymatthewwerner/claude-software-factory-template
+          token: ${{ secrets.TEMPLATE_SYNC_TOKEN }}
+          path: template
+
+      - name: Sync workflow files
+        run: |
+          echo "Syncing workflow files to template repo..."
+
+          # Files to sync (add more as needed)
+          FILES=(
+            ".github/workflows/bug-fix.yml"
+            ".github/workflows/devops.yml"
+            ".github/workflows/triage.yml"
+            ".github/workflows/ci-monitor.yml"
+            ".github/workflows/principal-engineer.yml"
+            ".github/workflows/qa.yml"
+            ".github/workflows/release-engineer.yml"
+            ".github/workflows/marketing.yml"
+          )
+
+          for file in "${FILES[@]}"; do
+            if [ -f "source/$file" ]; then
+              echo "Copying $file"
+              cp "source/$file" "template/$file"
+            fi
+          done
+
+      - name: Check for changes
+        id: changes
+        working-directory: template
+        run: |
+          git diff --stat
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes to sync"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected"
+          fi
+
+      - name: Commit and push
+        if: steps.changes.outputs.has_changes == 'true' && github.event.inputs.dry_run != 'true'
+        working-directory: template
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "sync: workflow improvements from dining-philosophers
+
+          Auto-synced from jeremymatthewwerner/dining-philosophers-Dec25-sw-factory
+          Commit: ${{ github.sha }}"
+
+          git push
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.changes.outputs.has_changes }}" == "true" ]; then
+            if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+              echo "🔍 Dry run - changes detected but not pushed"
+            else
+              echo "✅ Synced workflow improvements to template repo"
+            fi
+          else
+            echo "ℹ️ No changes to sync"
+          fi
