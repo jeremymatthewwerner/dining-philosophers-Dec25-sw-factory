@@ -4,12 +4,10 @@ Regression prevention tests for January 2026 bug fixes.
 These tests ensure that previously fixed bugs do not regress.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import patch
 
-from app.services.knowledge_research import KnowledgeResearchService
+import pytest
+from httpx import AsyncClient
 
 
 class TestConversationKnowledgeResearch:

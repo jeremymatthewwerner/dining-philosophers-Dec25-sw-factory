@@ -1008,9 +1008,9 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                 speed_mult = raw_speed**1.5
 
                 # Enforce minimum time between messages from this thinker
-                # At 6x (Contemplative), minimum ~150s between messages from same thinker
+                # At 6x (Contemplative), minimum ~220s between messages from same thinker
                 # This ensures truly slow, contemplative pacing
-                min_interval = 10.0 * speed_mult  # 10s base, ~147s at 6x
+                min_interval = 15.0 * speed_mult  # 15s base, ~220s at 6x
                 current_time = asyncio.get_event_loop().time()
                 if last_message_time > 0:
                     elapsed = current_time - last_message_time
@@ -1039,8 +1039,8 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                     await manager.send_thinker_typing(conversation_id, thinker.name)
 
                     # Initial "reading" delay - longer at slower speeds
-                    # At 6x: 3-9 seconds of reading before starting to type
-                    await asyncio.sleep(random.uniform(0.5, 1.5) * speed_mult)
+                    # At 6x: 15-37 seconds of reading before starting to type
+                    await asyncio.sleep(random.uniform(1.0, 2.5) * speed_mult)
 
                     # Check pause state before generating (prevents spend during pause)
                     if self.is_paused(conversation_id):
@@ -1108,11 +1108,11 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
                             # If there are more bubbles, show typing and wait
                             if i < len(bubbles) - 1:
-                                await asyncio.sleep(random.uniform(1.0, 2.5) * speed_mult)
+                                await asyncio.sleep(random.uniform(2.0, 4.0) * speed_mult)
                                 # Show typing for next bubble
                                 await manager.send_thinker_typing(conversation_id, thinker.name)
                                 # Brief typing delay
-                                await asyncio.sleep(random.uniform(1.0, 3.0) * speed_mult)
+                                await asyncio.sleep(random.uniform(2.0, 5.0) * speed_mult)
 
                         last_response_count = len(messages) + len(bubbles)
                         last_message_time = asyncio.get_event_loop().time()
@@ -1123,7 +1123,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
                 # Variable wait before checking again
                 # Base times are longer to ensure proper pacing
-                # At 6x (Contemplative): active = 30-60s, quiet = 60-120s between checks
+                # At 6x (Contemplative): active = 74-147s, quiet = 147-294s between checks
                 if consecutive_silence > 3:
                     wait_time = random.uniform(10.0, 20.0) * speed_mult  # Quiet conversation
                 else:
