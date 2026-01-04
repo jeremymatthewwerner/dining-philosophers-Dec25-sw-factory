@@ -1,6 +1,8 @@
 name: DevOps Agent
 
 on:
+  push:
+    branches: [main]
   schedule:
     # Run health checks every 5 minutes
     - cron: '*/5 * * * *'
@@ -568,3 +570,106 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # ===========================================
+  # AUTO-REBASE (triggered on push to main)
+  # ===========================================
+  auto-rebase:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Auto-rebase conflicting PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 Checking for PRs with merge conflicts after push to main..."
+
+          # Get all open PRs
+          PR_DATA=$(gh pr list --state open --json number,title,headRefName,mergeable 2>/dev/null || echo "[]")
+
+          if [ "$PR_DATA" = "[]" ]; then
+            echo "✅ No open PRs to check"
+            exit 0
+          fi
+
+          REBASED_COUNT=0
+          FAILED_COUNT=0
+
+          # Process each PR
+          echo "$PR_DATA" | jq -c '.[]' | while read -r pr; do
+            PR_NUM=$(echo "$pr" | jq -r '.number')
+            PR_TITLE=$(echo "$pr" | jq -r '.title')
+            PR_BRANCH=$(echo "$pr" | jq -r '.headRefName')
+            MERGEABLE=$(echo "$pr" | jq -r '.mergeable')
+
+            # Check if PR has conflicts
+            if [ "$MERGEABLE" = "CONFLICTING" ]; then
+              echo "🔧 PR #$PR_NUM has conflicts: $PR_TITLE"
+              echo "   Branch: $PR_BRANCH"
+
+              # Fetch the PR branch
+              git fetch origin "$PR_BRANCH" 2>/dev/null || {
+                echo "   ❌ Could not fetch branch $PR_BRANCH"
+                continue
+              }
+
+              # Try to rebase
+              git checkout "$PR_BRANCH" 2>/dev/null || {
+                echo "   ❌ Could not checkout branch $PR_BRANCH"
+                continue
+              }
+
+              if git rebase origin/main 2>/dev/null; then
+                # Rebase succeeded - force push
+                if git push --force-with-lease origin "$PR_BRANCH" 2>/dev/null; then
+                  echo "   ✅ Successfully rebased and pushed PR #$PR_NUM"
+                  gh pr comment "$PR_NUM" --body "🤖 Auto-rebased this PR onto main to resolve merge conflicts."
+                  REBASED_COUNT=$((REBASED_COUNT + 1))
+                else
+                  echo "   ❌ Rebase succeeded but push failed for PR #$PR_NUM"
+                  git rebase --abort 2>/dev/null || true
+                fi
+              else
+                # Rebase failed - conflicts need manual resolution
+                echo "   ⚠️ Auto-rebase failed for PR #$PR_NUM - conflicts need manual resolution"
+                git rebase --abort 2>/dev/null || true
+
+                # Comment on PR about the conflict
+                gh pr comment "$PR_NUM" --body "🤖 Attempted auto-rebase but conflicts require manual resolution.
+
+**Files with conflicts:** Check the PR diff for details.
+
+To resolve manually:
+\`\`\`bash
+git fetch origin $PR_BRANCH
+git checkout $PR_BRANCH
+git rebase origin/main
+# Resolve conflicts, then:
+git add .
+git rebase --continue
+git push --force-with-lease
+\`\`\`"
+                FAILED_COUNT=$((FAILED_COUNT + 1))
+              fi
+
+              # Return to main
+              git checkout main 2>/dev/null || true
+            fi
+          done
+
+          echo ""
+          echo "📊 Auto-rebase summary:"
+          echo "   Rebased: $REBASED_COUNT"
+          echo "   Failed (need manual): $FAILED_COUNT"
