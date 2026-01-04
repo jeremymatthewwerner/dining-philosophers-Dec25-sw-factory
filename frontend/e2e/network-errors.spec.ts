@@ -296,9 +296,10 @@ test.describe('API Error Messages', () => {
 
     await page.getByTestId('next-button').click();
 
-    // Should show error message
+    // Should show error message - use .first() to handle multiple matches
+    // (topic input may contain "error" in the topic name)
     await expect(
-      page.locator('text=/error|failed|something went wrong/i')
+      page.locator('text=/internal server error|something went wrong/i').first()
     ).toBeVisible({ timeout: 10000 });
   });
 });
