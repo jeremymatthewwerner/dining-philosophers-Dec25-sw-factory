@@ -32,6 +32,7 @@ Create these labels (or run: `gh label create <name> --color <color>`):
 - `status:awaiting-human` (#D93F0B) - Blocked waiting for human input
 - `status:awaiting-bot` (#0E8A16) - Human commented, bot will respond
 - `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
+- `factory-improvement` (#1D76DB) - Documents factory/workflow fixes for audit trail
 
 ### 3. Secrets
 Ensure these secrets are set in **Settings → Secrets and variables → Actions**:
@@ -66,6 +67,7 @@ If using branch protection on `main`, ensure:
 2. Update the relevant agent workflow to handle this case autonomously next time
 3. Document the improvement in this file
 4. **Update the template repo** - Make a generic version of the fix in [claude-software-factory-template](https://github.com/jeremymatthewwerner/claude-software-factory-template) so other projects benefit
+5. **Create a closed issue documenting the fix** - File an issue with `factory-improvement` label describing the problem, root cause, and solution. Close it immediately with a reference to the fixing PR. This creates a searchable audit trail of factory learnings.
 
 > **Template Repo:** When improving workflows, CLAUDE.md, or agent behavior, always create a generalized version of the improvement in the template repo at `jeremymatthewwerner/claude-software-factory-template`. This ensures learnings from this project benefit all future projects.
 
