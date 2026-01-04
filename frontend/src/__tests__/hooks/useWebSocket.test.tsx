@@ -829,6 +829,103 @@ describe('useWebSocket', () => {
       });
     });
 
+    it('does not auto-resume after reconnection when manually paused (fixes #133)', async () => {
+      // This test reproduces the bug from issue #133:
+      // 1. User manually pauses the chat
+      // 2. User navigates away from tab (causing reconnection)
+      // 3. User returns to tab
+      // 4. Chat should NOT auto-resume (it was manually paused)
+
+      const { result } = renderHook(() =>
+        useWebSocket({
+          conversationId: 'conv-123',
+        })
+      );
+
+      // Step 1: Connect and manually pause
+      act(() => {
+        mockWsInstance.simulateOpen();
+      });
+
+      act(() => {
+        result.current.sendPause();
+      });
+
+      // Backend confirms pause
+      act(() => {
+        mockWsInstance.simulateMessage({
+          type: 'paused',
+          conversation_id: 'conv-123',
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.isPaused).toBe(true);
+      });
+
+      // Step 2: Simulate tab away then WebSocket reconnection
+      // (In real scenario, tab away might cause WS disconnect/reconnect)
+      Object.defineProperty(document, 'hidden', {
+        writable: true,
+        configurable: true,
+        value: true,
+      });
+
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
+      // WebSocket disconnects and reconnects (simulates network hiccup or browser behavior)
+      act(() => {
+        mockWsInstance.simulateClose();
+      });
+
+      // New connection is established
+      const newMockWsInstance = new MockWebSocket();
+      mockWsInstance = newMockWsInstance;
+
+      // Advance timers to trigger reconnect
+      act(() => {
+        jest.advanceTimersByTime(3500);
+      });
+
+      act(() => {
+        newMockWsInstance.simulateOpen();
+      });
+
+      // Backend sends paused state for the reconnected session
+      act(() => {
+        newMockWsInstance.simulateMessage({
+          type: 'paused',
+          conversation_id: 'conv-123',
+        });
+      });
+
+      // Clear mock to check for new calls
+      newMockWsInstance.send.mockClear();
+
+      // Step 3: User returns to tab
+      Object.defineProperty(document, 'hidden', {
+        writable: true,
+        configurable: true,
+        value: false,
+      });
+
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
+      // Step 4: Should NOT have sent a resume command
+      // The chat should stay paused because user manually paused it
+      expect(newMockWsInstance.send).not.toHaveBeenCalledWith(
+        JSON.stringify({
+          type: 'resume',
+          conversation_id: 'conv-123',
+        })
+      );
+      expect(result.current.isPaused).toBe(true);
+    });
+
     it('clears manual pause flag when user manually resumes', async () => {
       const { result } = renderHook(() =>
         useWebSocket({
