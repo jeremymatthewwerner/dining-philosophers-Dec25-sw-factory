@@ -664,7 +664,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
       - name: Monitor CI and report results
-        if: (steps.context.outputs.mode == 'fix' || steps.context.outputs.mode == 'continue') && success()
+        # Also include 'respond' mode since it can create PRs too
+        if: (steps.context.outputs.mode == 'fix' || steps.context.outputs.mode == 'continue' || steps.context.outputs.mode == 'respond') && success()
         id: ci-monitor
         env:
           # IMPORTANT: Use GITHUB_TOKEN for comments to avoid triggering issue_comment events
