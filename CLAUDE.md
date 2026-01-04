@@ -56,8 +56,10 @@ If using branch protection on `main`, ensure:
 **Key Principles:**
 - **Human intervention = factory bug** - If a human needs to step in to fix something, that's a bug in the factory itself, not just a bug in the code
 - **Fix the factory, not the symptom** - When intervening, always ask: "How can I prevent needing to intervene for this type of issue again?"
+- **Workflow fixes over one-off fixes** - ALWAYS prefer updating workflows/agents to handle issues automatically rather than fixing issues manually. A one-off fix helps once; a workflow fix helps forever.
 - **Visibility enables autonomy** - Agents must post progress updates to issues so humans can monitor without intervening
 - **Self-healing over manual fixes** - CI failures auto-create issues, agents auto-fix them
+- **Immediate triggers over polling** - When possible, use webhooks/events (e.g., `push` to main) to trigger actions immediately rather than waiting for scheduled polls
 
 **When you (human or Claude) intervene:**
 1. Fix the immediate issue
@@ -320,7 +322,7 @@ This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | **Principal Engineer** | `needs-principal-engineer` label | Holistic debugging, fixes factory not just symptoms |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
-| **DevOps** | Every 5 min + manual | Health checks, Railway logs, service restarts, infra provisioning |
+| **DevOps** | Every 5 min + push to main + manual | Health checks, auto-rebase PRs, auto-merge ready PRs, Railway logs, service restarts |
 | **Marketing** | On release | Updates changelog, docs |
 | **CI Monitor** | On CI failure (main) | Auto-creates `ai-ready` issues for failed builds |
 
