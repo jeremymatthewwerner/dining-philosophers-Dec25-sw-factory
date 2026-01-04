@@ -253,9 +253,9 @@ class TestThinkerAPIErrorPaths:
 
         if response.status_code == status.HTTP_200_OK:
             data = response.json()
-            assert "is_valid" in data
+            assert "valid" in data
             # Numbers-only name likely invalid
-            assert data["is_valid"] is False
+            assert data["valid"] is False
 
     async def test_suggest_thinkers_with_special_characters_in_topic(
         self, client: AsyncClient
