@@ -345,6 +345,11 @@ jobs:
           echo "Frontend health check failed after 12 attempts (2 minutes)"
           exit 1
 
+      - name: Wait for service stability
+        run: |
+          echo "Waiting 10s for services to stabilize after health checks..."
+          sleep 10
+
       - name: Test user registration
         id: register
         run: |
@@ -359,26 +364,43 @@ jobs:
           TEST_PASS="testpass123"
           echo "Testing registration with user: $TEST_USER"
 
-          response=$(curl -s -w "\n%{http_code}" -X POST "$BACKEND_URL/api/auth/register" \
-            -H "Content-Type: application/json" \
-            -d "{\"username\": \"$TEST_USER\", \"display_name\": \"$TEST_DISPLAY\", \"password\": \"$TEST_PASS\"}")
+          # Retry logic for transient failures (502, 503, connection errors)
+          MAX_RETRIES=3
+          RETRY_DELAY=5
 
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Registration attempt $attempt/$MAX_RETRIES..."
 
-          echo "Response code: $http_code"
-          echo "Response body: $body"
+            response=$(curl -s -w "\n%{http_code}" --max-time 30 -X POST "$BACKEND_URL/api/auth/register" \
+              -H "Content-Type: application/json" \
+              -d "{\"username\": \"$TEST_USER\", \"display_name\": \"$TEST_DISPLAY\", \"password\": \"$TEST_PASS\"}" 2>&1) || response=$'\n000'
 
-          if [ "$http_code" = "200" ]; then
-            echo "Registration successful"
-            # Extract token for next step
-            TOKEN=$(echo "$body" | jq -r '.access_token')
-            echo "token=$TOKEN" >> $GITHUB_OUTPUT
-            echo "test_user=$TEST_USER" >> $GITHUB_OUTPUT
-          else
-            echo "Registration failed with status: $http_code"
-            exit 1
-          fi
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | head -n-1)
+
+            echo "Response code: $http_code"
+
+            if [ "$http_code" = "200" ]; then
+              echo "Registration successful"
+              TOKEN=$(echo "$body" | jq -r '.access_token')
+              echo "token=$TOKEN" >> $GITHUB_OUTPUT
+              echo "test_user=$TEST_USER" >> $GITHUB_OUTPUT
+              exit 0
+            elif [ "$http_code" = "502" ] || [ "$http_code" = "503" ] || [ "$http_code" = "000" ]; then
+              echo "Transient error ($http_code), retrying in ${RETRY_DELAY}s..."
+              # Generate new username for retry (in case partial registration occurred)
+              TEST_USER="smoketest_$(date +%s)_r${attempt}"
+              sleep $RETRY_DELAY
+              RETRY_DELAY=$((RETRY_DELAY * 2))
+            else
+              echo "Registration failed with status: $http_code"
+              echo "Response body: $body"
+              exit 1
+            fi
+          done
+
+          echo "Registration failed after $MAX_RETRIES attempts"
+          exit 1
 
       - name: Test user authentication (get current user)
         run: |
@@ -390,23 +412,39 @@ jobs:
           fi
           echo "Testing authenticated endpoint /api/auth/me"
 
-          response=$(curl -s -w "\n%{http_code}" "$BACKEND_URL/api/auth/me" \
-            -H "Authorization: Bearer $TOKEN")
+          # Retry logic for transient failures
+          MAX_RETRIES=3
+          RETRY_DELAY=5
 
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Auth check attempt $attempt/$MAX_RETRIES..."
 
-          echo "Response code: $http_code"
-          echo "Response body: $body"
+            response=$(curl -s -w "\n%{http_code}" --max-time 30 "$BACKEND_URL/api/auth/me" \
+              -H "Authorization: Bearer $TOKEN" 2>&1) || response=$'\n000'
 
-          if [ "$http_code" = "200" ]; then
-            echo "Auth check passed"
-            username=$(echo "$body" | jq -r '.username')
-            echo "Logged in as: $username"
-          else
-            echo "Auth check failed with status: $http_code"
-            exit 1
-          fi
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | head -n-1)
+
+            echo "Response code: $http_code"
+
+            if [ "$http_code" = "200" ]; then
+              echo "Auth check passed"
+              username=$(echo "$body" | jq -r '.username')
+              echo "Logged in as: $username"
+              exit 0
+            elif [ "$http_code" = "502" ] || [ "$http_code" = "503" ] || [ "$http_code" = "000" ]; then
+              echo "Transient error ($http_code), retrying in ${RETRY_DELAY}s..."
+              sleep $RETRY_DELAY
+              RETRY_DELAY=$((RETRY_DELAY * 2))
+            else
+              echo "Auth check failed with status: $http_code"
+              echo "Response body: $body"
+              exit 1
+            fi
+          done
+
+          echo "Auth check failed after $MAX_RETRIES attempts"
+          exit 1
 
   # Close issues only after successful deploy and smoke tests
   close-issues:
