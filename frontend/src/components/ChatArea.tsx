@@ -180,30 +180,46 @@ export function ChatArea({
           {/* Speed control */}
           {onSpeedChange && (
             <div
-              className="flex items-center gap-2 sm:gap-2"
+              className="flex flex-col items-center gap-0.5"
               data-testid="speed-control"
             >
-              <label className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap hidden sm:inline">
-                {t.chatArea.paceLabel}
-              </label>
-              <input
-                type="range"
-                min="0.5"
-                max="6"
-                step="0.5"
-                value={speedMultiplier}
-                onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
-                className="w-20 sm:w-24 h-2.5 accent-blue-600 cursor-pointer touch-manipulation"
-                style={{
-                  minHeight: '44px',
-                  padding: '0',
-                  margin: '0',
-                }}
-                title={`${t.chatArea.paceTitle}: ${getSpeedLabel(speedMultiplier)}`}
-                data-testid="speed-slider"
-              />
-              <span className="text-xs text-zinc-600 dark:text-zinc-300 w-12 sm:w-16 text-center">
-                {getSpeedLabel(speedMultiplier)}
+              {/* Slider row with equally-spaced extremes */}
+              <div className="flex items-center gap-1 sm:gap-2">
+                <span
+                  className="text-xs text-zinc-500 dark:text-zinc-400 w-10 sm:w-14 text-right"
+                  data-testid="speed-label-min"
+                >
+                  {t.chatArea.speedFast}
+                </span>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="6"
+                  step="0.5"
+                  value={speedMultiplier}
+                  onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
+                  className="w-16 sm:w-20 h-2.5 accent-blue-600 cursor-pointer touch-manipulation"
+                  style={{
+                    minHeight: '44px',
+                    padding: '0',
+                    margin: '0',
+                  }}
+                  title={`${t.chatArea.paceTitle}: ${getSpeedLabel(speedMultiplier)}`}
+                  data-testid="speed-slider"
+                />
+                <span
+                  className="text-xs text-zinc-500 dark:text-zinc-400 w-10 sm:w-20 text-left"
+                  data-testid="speed-label-max"
+                >
+                  {t.chatArea.speedContemplative}
+                </span>
+              </div>
+              {/* Current value display below slider */}
+              <span
+                className="text-xs text-zinc-600 dark:text-zinc-300 text-center"
+                data-testid="speed-current-value"
+              >
+                {t.chatArea.paceLabel} {getSpeedLabel(speedMultiplier)}
               </span>
             </div>
           )}
