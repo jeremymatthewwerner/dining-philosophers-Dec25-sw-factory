@@ -272,14 +272,20 @@ jobs:
       # Pre-install Claude Code to avoid race condition lock issues
       - name: Pre-install Claude Code
         run: |
-          # Check if claude is already installed
+          # Install Claude Code with --force to avoid lock conflicts
+          # Match version used by claude-code-action (2.0.74)
+          echo "Installing Claude Code v2.0.74 with --force..."
+          curl -fsSL https://claude.ai/install.sh | bash -s -- --force 2.0.74
+
+          # Verify installation
+          export PATH="$HOME/.local/bin:$HOME/.claude/bin:$PATH"
           if command -v claude &> /dev/null; then
-            echo "Claude Code already installed: $(claude --version 2>/dev/null || echo 'unknown version')"
+            echo "Claude Code installed: $(claude --version 2>/dev/null || echo 'unknown version')"
           else
-            echo "Installing Claude Code..."
-            curl -fsSL https://claude.ai/install.sh | bash -s -- stable
+            echo "Warning: Claude not found in PATH after install"
           fi
-          # Add to PATH regardless
+
+          # Add to PATH for subsequent steps
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           echo "$HOME/.claude/bin" >> $GITHUB_PATH
 
