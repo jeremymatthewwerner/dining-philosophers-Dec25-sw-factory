@@ -272,10 +272,12 @@ jobs:
       # Pre-install Claude Code to avoid race condition lock issues
       - name: Pre-install Claude Code
         run: |
-          # Install Claude Code with --force to avoid lock conflicts
-          # Match version used by claude-code-action (2.0.74)
-          echo "Installing Claude Code v2.0.74 with --force..."
-          curl -fsSL https://claude.ai/install.sh | bash -s -- --force 2.0.74
+          # Clean up any stale lock files that might block installation
+          rm -f "$HOME/.claude/.installing" "$HOME/.claude/install.lock" 2>/dev/null || true
+
+          # Install Claude Code - match version used by claude-code-action
+          echo "Installing Claude Code v2.0.74..."
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.74
 
           # Verify installation
           export PATH="$HOME/.local/bin:$HOME/.claude/bin:$PATH"
