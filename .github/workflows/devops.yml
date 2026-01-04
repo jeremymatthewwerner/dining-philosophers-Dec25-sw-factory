@@ -43,6 +43,7 @@ on:
 permissions:
   contents: write
   issues: write
+  pull-requests: write
   id-token: write
 
 env:
@@ -654,7 +655,7 @@ jobs:
                 # Rebase succeeded - force push
                 if git push --force-with-lease origin "$PR_BRANCH" 2>&1; then
                   echo "   ✅ Successfully rebased and pushed PR #$PR_NUM"
-                  gh pr comment "$PR_NUM" --repo "$GITHUB_REPOSITORY" --body "Auto-rebased this PR onto main to resolve merge conflicts."
+                  gh pr comment "$PR_NUM" --repo "$GITHUB_REPOSITORY" --body "Auto-rebased this PR onto main to resolve merge conflicts." || echo "   (Could not comment on PR)"
                   REBASED_COUNT=$((REBASED_COUNT + 1))
                 else
                   echo "   ❌ Rebase succeeded but push failed for PR #$PR_NUM"
@@ -666,7 +667,7 @@ jobs:
                 git rebase --abort 2>/dev/null || true
 
                 # Comment on PR about the conflict
-                gh pr comment "$PR_NUM" --repo "$GITHUB_REPOSITORY" --body "Auto-rebase failed - conflicts require manual resolution. Run: git fetch origin && git checkout $PR_BRANCH && git rebase origin/main"
+                gh pr comment "$PR_NUM" --repo "$GITHUB_REPOSITORY" --body "Auto-rebase failed - conflicts require manual resolution. Run: git fetch origin && git checkout $PR_BRANCH && git rebase origin/main" || echo "   (Could not comment on PR)"
                 FAILED_COUNT=$((FAILED_COUNT + 1))
               fi
 
