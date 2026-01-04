@@ -243,9 +243,10 @@ test.describe('API Error Messages', () => {
     // Try to create conversation
     await page.getByTestId('create-button').click();
 
-    // Should show error message
+    // Should show error message - look for the specific error text
+    // (avoid matching thinker descriptions that may contain "error" or "failed")
     await expect(
-      page.locator('text=/invalid|error|failed/i')
+      page.locator('text=/invalid conversation data/i').first()
     ).toBeVisible({ timeout: 5000 });
   });
 
