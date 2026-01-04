@@ -54,6 +54,8 @@ export function useWebSocket({
   const autoPausedRef = useRef(false);
   // Track user's manual pause preference (don't override if they manually paused)
   const manuallyPausedRef = useRef(false);
+  // Track last conversation ID to detect actual conversation switches
+  const lastConversationIdRef = useRef<string | null>(null);
 
   // Connect when conversationId changes
   useEffect(() => {
@@ -62,6 +64,20 @@ export function useWebSocket({
     let isActive = true;
     // Track the conversation ID this connection belongs to
     const thisConversationId = conversationId;
+
+    // Check if we're switching to a different conversation (not just reconnecting)
+    const isSwitchingConversations =
+      lastConversationIdRef.current !== null &&
+      lastConversationIdRef.current !== conversationId;
+    lastConversationIdRef.current = conversationId;
+
+    // Only reset pause tracking refs when actually switching conversations
+    // This prevents the bug where refs get reset on reconnect, causing
+    // auto-resume to fire when user returns to a manually-paused conversation
+    if (isSwitchingConversations) {
+      autoPausedRef.current = false;
+      manuallyPausedRef.current = false;
+    }
 
     const createConnection = () => {
       if (!isActive) return;
@@ -171,7 +187,9 @@ export function useWebSocket({
 
             case 'paused':
               setIsPaused(true);
-              // If we receive a paused message but didn't auto-pause, it means manual pause
+              // If we didn't auto-pause, treat this as a manual pause.
+              // This ensures manuallyPausedRef is correctly set when receiving
+              // the paused confirmation from backend after user clicks Pause.
               if (!autoPausedRef.current) {
                 manuallyPausedRef.current = true;
               }
@@ -220,9 +238,10 @@ export function useWebSocket({
       // when reconnecting to ensure pause state is preserved across thread switches
       setIsConnected(false);
       setSpeedMultiplier(1.0);
-      // Reset auto-pause tracking when switching conversations
-      autoPausedRef.current = false;
-      manuallyPausedRef.current = false;
+      // Note: We no longer reset autoPausedRef and manuallyPausedRef here.
+      // They are reset at the START of the effect only when switching conversations.
+      // This fixes a bug where reconnecting (without switching conversations)
+      // would reset these refs, causing incorrect auto-resume behavior.
     };
   }, [
     conversationId,
