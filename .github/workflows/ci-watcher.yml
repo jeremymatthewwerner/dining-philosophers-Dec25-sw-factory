@@ -1,0 +1,304 @@
+name: CI Watcher
+
+# Watches CI runs and posts regular status updates to related issues
+on:
+  workflow_run:
+    workflows: ["CI/CD"]
+    types: [requested, in_progress, completed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  actions: read
+  checks: read
+
+jobs:
+  watch-ci:
+    runs-on: ubuntu-latest
+    # Only watch CI runs on PRs (not direct pushes to main)
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Get PR and Issue info
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+
+          echo "CI Run ID: $RUN_ID"
+          echo "Branch: $HEAD_BRANCH"
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+
+          # Extract issue number from branch name (fix/123-desc or feat/123-desc)
+          if [[ "$HEAD_BRANCH" =~ ^(fix|feat)/([0-9]+) ]]; then
+            ISSUE_NUMBER="${BASH_REMATCH[2]}"
+            echo "Found issue number: $ISSUE_NUMBER"
+            echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          else
+            echo "Branch doesn't match issue pattern, skipping"
+            echo "issue_number=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get PR number
+          PR_NUMBER=$(gh pr list --repo ${{ github.repository }} \
+            --head "$HEAD_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "PR: $PR_NUMBER"
+
+          # Get issue author for @mentions
+          if [ -n "$ISSUE_NUMBER" ]; then
+            ISSUE_AUTHOR=$(gh issue view "$ISSUE_NUMBER" --repo ${{ github.repository }} \
+              --json author --jq '.author.login' 2>/dev/null || echo "")
+            echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Find or create CI status comment
+        if: steps.context.outputs.issue_number != ''
+        id: comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
+        run: |
+          # Look for existing CI status comment (marked with hidden identifier)
+          COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+            --jq '.[] | select(.body | contains("<!-- ci-watcher -->")) | .id' 2>/dev/null | tail -1 || echo "")
+
+          if [ -n "$COMMENT_ID" ]; then
+            echo "Found existing CI status comment: $COMMENT_ID"
+            echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+            echo "is_new=false" >> $GITHUB_OUTPUT
+          else
+            # Create new comment
+            BODY="<!-- ci-watcher -->
+          ## 🔄 CI Status
+
+          **Status:** Starting...
+          **Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/${{ steps.context.outputs.run_id }})
+
+          | Job | Status | Duration |
+          |-----|--------|----------|
+          | ... | ⏳ Waiting | - |
+
+          *Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
+
+            COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+              -X POST -f body="$BODY" --jq '.id')
+            echo "Created new CI status comment: $COMMENT_ID"
+            echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+            echo "is_new=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update CI status (in progress)
+        if: |
+          steps.context.outputs.issue_number != '' &&
+          github.event.workflow_run.status == 'in_progress'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
+          COMMENT_ID: ${{ steps.comment.outputs.comment_id }}
+          RUN_ID: ${{ steps.context.outputs.run_id }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+        run: |
+          # Poll and update every 5 minutes for up to 30 minutes
+          for i in $(seq 1 6); do
+            echo "Update check $i/6..."
+
+            # Get current job statuses
+            JOBS_JSON=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '.jobs')
+
+            # Build status table
+            TABLE="| Job | Status | Duration |\n|-----|--------|----------|"
+            COMPLETED=0
+            TOTAL=0
+            FAILED=0
+
+            while IFS= read -r job; do
+              NAME=$(echo "$job" | jq -r '.name')
+              STATUS=$(echo "$job" | jq -r '.status')
+              CONCLUSION=$(echo "$job" | jq -r '.conclusion')
+              STARTED=$(echo "$job" | jq -r '.started_at // empty')
+              ENDED=$(echo "$job" | jq -r '.completed_at // empty')
+
+              # Calculate duration
+              if [ -n "$STARTED" ] && [ -n "$ENDED" ]; then
+                START_SEC=$(date -d "$STARTED" +%s 2>/dev/null || echo 0)
+                END_SEC=$(date -d "$ENDED" +%s 2>/dev/null || echo 0)
+                DURATION="$((END_SEC - START_SEC))s"
+              elif [ -n "$STARTED" ]; then
+                START_SEC=$(date -d "$STARTED" +%s 2>/dev/null || echo 0)
+                NOW_SEC=$(date +%s)
+                DURATION="$((NOW_SEC - START_SEC))s 🔄"
+              else
+                DURATION="-"
+              fi
+
+              # Status emoji
+              if [ "$CONCLUSION" == "success" ]; then
+                EMOJI="✅"
+                ((COMPLETED++))
+              elif [ "$CONCLUSION" == "failure" ]; then
+                EMOJI="❌"
+                ((COMPLETED++))
+                ((FAILED++))
+              elif [ "$CONCLUSION" == "skipped" ]; then
+                EMOJI="⏭️"
+                ((COMPLETED++))
+              elif [ "$STATUS" == "in_progress" ]; then
+                EMOJI="🔄"
+              elif [ "$STATUS" == "queued" ]; then
+                EMOJI="⏳"
+              else
+                EMOJI="⏸️"
+              fi
+
+              TABLE="$TABLE\n| $NAME | $EMOJI $CONCLUSION$STATUS | $DURATION |"
+              ((TOTAL++))
+            done < <(echo "$JOBS_JSON" | jq -c '.[]')
+
+            # Overall status
+            if [ $FAILED -gt 0 ]; then
+              OVERALL="❌ **$FAILED job(s) failed**"
+            elif [ $COMPLETED -eq $TOTAL ] && [ $TOTAL -gt 0 ]; then
+              OVERALL="✅ **All jobs complete**"
+              # Exit early - completion handler will take over
+              break
+            else
+              OVERALL="🔄 **Running:** $COMPLETED/$TOTAL jobs complete"
+            fi
+
+            # Update comment
+            BODY="<!-- ci-watcher -->
+          ## 🔄 CI Status
+
+          **Status:** $OVERALL
+          **PR:** #$PR_NUMBER
+          **Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)
+
+          $(echo -e "$TABLE")
+
+          *Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
+
+            gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID \
+              -X PATCH -f body="$BODY" 2>/dev/null || echo "Failed to update comment"
+
+            # Check if run is still in progress
+            RUN_STATUS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID --jq '.status')
+            if [ "$RUN_STATUS" != "in_progress" ] && [ "$RUN_STATUS" != "queued" ]; then
+              echo "Run no longer in progress ($RUN_STATUS), exiting poll loop"
+              break
+            fi
+
+            # Wait 5 minutes before next update
+            if [ $i -lt 6 ]; then
+              echo "Sleeping 5 minutes..."
+              sleep 300
+            fi
+          done
+
+      - name: Handle CI completion
+        if: |
+          steps.context.outputs.issue_number != '' &&
+          github.event.workflow_run.status == 'completed'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.issue_number }}
+          COMMENT_ID: ${{ steps.comment.outputs.comment_id }}
+          RUN_ID: ${{ steps.context.outputs.run_id }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          echo "CI completed with conclusion: $CONCLUSION"
+
+          # Get final job statuses
+          JOBS_JSON=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '.jobs')
+
+          # Build final status table
+          TABLE="| Job | Status | Duration |\n|-----|--------|----------|"
+          FAILED_JOBS=""
+
+          while IFS= read -r job; do
+            NAME=$(echo "$job" | jq -r '.name')
+            CONCLUSION_JOB=$(echo "$job" | jq -r '.conclusion')
+            STARTED=$(echo "$job" | jq -r '.started_at // empty')
+            ENDED=$(echo "$job" | jq -r '.completed_at // empty')
+
+            # Calculate duration
+            if [ -n "$STARTED" ] && [ -n "$ENDED" ]; then
+              START_SEC=$(date -d "$STARTED" +%s 2>/dev/null || echo 0)
+              END_SEC=$(date -d "$ENDED" +%s 2>/dev/null || echo 0)
+              DURATION="$((END_SEC - START_SEC))s"
+            else
+              DURATION="-"
+            fi
+
+            # Status emoji
+            case "$CONCLUSION_JOB" in
+              success) EMOJI="✅" ;;
+              failure) EMOJI="❌"; FAILED_JOBS="$FAILED_JOBS $NAME" ;;
+              skipped) EMOJI="⏭️" ;;
+              cancelled) EMOJI="🚫" ;;
+              *) EMOJI="❓" ;;
+            esac
+
+            TABLE="$TABLE\n| $NAME | $EMOJI $CONCLUSION_JOB | $DURATION |"
+          done < <(echo "$JOBS_JSON" | jq -c '.[]')
+
+          # Final status message
+          if [ "$CONCLUSION" == "success" ]; then
+            STATUS_MSG="## ✅ CI Passed!
+
+          All checks passed. PR #$PR_NUMBER is ready for merge."
+
+            # Auto-merge if possible
+            echo "Attempting auto-merge..."
+            if gh pr merge "$PR_NUMBER" --repo ${{ github.repository }} --squash --delete-branch 2>/dev/null; then
+              STATUS_MSG="## ✅ CI Passed & Merged!
+
+          All checks passed. PR #$PR_NUMBER has been automatically merged.
+          🚀 **Deploying to production...**"
+            fi
+          else
+            STATUS_MSG="## ❌ CI Failed
+
+          **Failed jobs:**$FAILED_JOBS
+
+          [View failure logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)
+
+          🔄 Code Agent will automatically retry..."
+          fi
+
+          # Update comment with final status
+          BODY="<!-- ci-watcher -->
+          $STATUS_MSG
+
+          **PR:** #$PR_NUMBER
+          **Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)
+
+          $(echo -e "$TABLE")
+
+          *Completed: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*
+
+          cc @$ISSUE_AUTHOR"
+
+          gh api repos/${{ github.repository }}/issues/comments/$COMMENT_ID \
+            -X PATCH -f body="$BODY" 2>/dev/null || echo "Failed to update comment"
+
+          # If failed, trigger Code Agent retry (unless already at limit)
+          if [ "$CONCLUSION" == "failure" ]; then
+            FAILURE_COUNT=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+              --jq '[.[] | select(.body | contains("❌ CI Failed"))] | length' 2>/dev/null || echo "0")
+
+            if [ "$FAILURE_COUNT" -lt 3 ]; then
+              echo "Triggering Code Agent retry (attempt $((FAILURE_COUNT + 1)) of 3)..."
+              gh workflow run bug-fix.yml --repo ${{ github.repository }} \
+                -f issue_number="$ISSUE_NUMBER" 2>/dev/null || echo "Failed to trigger retry"
+            else
+              echo "CI has failed 3+ times, escalating to human"
+              gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} \
+                --add-label "needs-principal-engineer" 2>/dev/null || true
+            fi
+          fi
