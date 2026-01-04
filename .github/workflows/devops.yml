@@ -646,21 +646,8 @@ jobs:
                 echo "   ⚠️ Auto-rebase failed for PR #$PR_NUM - conflicts need manual resolution"
                 git rebase --abort 2>/dev/null || true
 
-                # Comment on PR about the conflict
-                gh pr comment "$PR_NUM" --body "🤖 Attempted auto-rebase but conflicts require manual resolution.
-
-**Files with conflicts:** Check the PR diff for details.
-
-To resolve manually:
-\`\`\`bash
-git fetch origin $PR_BRANCH
-git checkout $PR_BRANCH
-git rebase origin/main
-# Resolve conflicts, then:
-git add .
-git rebase --continue
-git push --force-with-lease
-\`\`\`"
+                # Comment on PR about the conflict - use simple message to avoid YAML escaping issues
+                gh pr comment "$PR_NUM" --body "Auto-rebase failed - conflicts require manual resolution. Run: git fetch origin && git checkout $PR_BRANCH && git rebase origin/main"
                 FAILED_COUNT=$((FAILED_COUNT + 1))
               fi
 
