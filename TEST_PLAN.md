@@ -1067,3 +1067,76 @@ All 14 tests pass reliably:
 - **Average run time**: ~7.6 seconds for full suite
 - **No test dependencies**: Each test is independent and isolated
 
+---
+
+## Regression Prevention - January 2026 (Issue #122, QA Agent Sunday 2026-01-04)
+
+**Focus**: Add tests for recent bug fixes to prevent regression.
+
+### Frontend: StatusLine Polling Lifecycle Tests (Issue #114)
+
+**Background**: Bug in commit 2d864c3 - StatusLine polling never started properly if thinkers array was empty on first render. The race condition was in useEffect hooks where polling setup happened before data was fetched.
+
+**Fix**: Simplified useEffect to always poll while mounted with thinkers. Component's render logic decides whether to show anything based on current status.
+
+#### Tests Added (StatusLine.test.tsx)
+
+**test_statusline_starts_polling_on_mount** (frontend/src/components/__tests__/StatusLine.test.tsx:304-332)
+- Mocks setInterval to verify polling is set up correctly
+- Mounts StatusLine with one thinker
+- Validates: setInterval called with fetchAllStatuses callback and 5000ms interval
+- Edge case: Initial polling setup when component mounts with thinkers
+
+**test_statusline_stops_polling_on_unmount** (frontend/src/components/__tests__/StatusLine.test.tsx:334-370)
+- Mounts StatusLine, then unmounts it
+- Validates: clearInterval called to clean up polling
+- Edge case: Polling cleanup to prevent memory leaks
+
+**test_statusline_restarts_polling_on_thinker_change** (frontend/src/components/__tests__/StatusLine.test.tsx:372-439)
+- Mounts StatusLine with Socrates, then rerenders with Aristotle
+- Validates: Old interval cleared, new interval created with new thinker
+- Edge case: Polling resets when thinker list changes to fetch new status
+
+### Backend: Knowledge Research Trigger Tests (Issue #102)
+
+**Background**: Bug in commit ed94937 - StatusLine only showed research for manually validated thinkers. Thinkers suggested by AI when creating conversations did not trigger background research.
+
+**Fix**: Added `knowledge_service.trigger_research()` call in `create_conversation` endpoint (conversations.py:59) for all thinkers in new conversations.
+
+#### Tests Added (test_regression_prevention_jan2026.py)
+
+**test_create_conversation_triggers_knowledge_research** (backend/tests/test_regression_prevention_jan2026.py:26-82)
+- Mocks knowledge_service.trigger_research() to verify it's called
+- Creates conversation with 2 thinkers (Socrates, Aristotle)
+- Validates: trigger_research() called twice, once per thinker
+- Edge case: Research triggered for all thinkers on conversation creation
+
+**test_create_conversation_with_single_thinker_triggers_research** (backend/tests/test_regression_prevention_jan2026.py:84-128)
+- Creates conversation with 1 thinker (Confucius)
+- Validates: trigger_research() called once
+- Edge case: Single thinker conversation still triggers research
+
+**test_create_conversation_with_max_thinkers_triggers_research** (backend/tests/test_regression_prevention_jan2026.py:130-173)
+- Creates conversation with 5 thinkers (maximum allowed)
+- Validates: trigger_research() called 5 times, once per thinker
+- Edge case: All 5 thinkers at maximum boundary have research triggered
+
+### Coverage Impact
+
+**Before**: Backend 76.61%, Frontend 76.93%
+**After**: Backend 76.61% (260 tests, +3), Frontend 76.93% (214 tests, +3)
+**Test Count**: +6 regression tests total
+
+**Files Enhanced**:
+- `frontend/src/components/__tests__/StatusLine.test.tsx` (3 new tests for polling lifecycle)
+- `backend/tests/test_regression_prevention_jan2026.py` (new file, 3 tests for knowledge research trigger)
+
+### Benefits of Regression Testing
+
+1. **Prevents Bug Recurrence**: Each test documents a real bug that was fixed
+2. **Documents Fixes**: Test names and docstrings reference issue numbers and commits
+3. **Validates Edge Cases**: Tests focus on conditions that caused the original bugs
+4. **Lifecycle Testing**: Frontend tests validate proper setup/cleanup of intervals
+5. **Integration Validation**: Backend tests confirm service interactions work correctly
+6. **Zero Flakiness**: All tests pass reliably across 3 consecutive runs
+

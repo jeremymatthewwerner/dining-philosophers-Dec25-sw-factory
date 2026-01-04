@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { StatusLine } from '../StatusLine';
 
 // Mock the LanguageContext
@@ -266,6 +266,177 @@ describe('StatusLine', () => {
           }),
         })
       );
+    });
+  });
+
+  // Regression tests for issue #114 - polling lifecycle fixes
+  describe('Polling lifecycle (regression #114)', () => {
+    let setIntervalSpy: jest.SpyInstance;
+    let clearIntervalSpy: jest.SpyInstance;
+    let intervals: NodeJS.Timeout[] = [];
+
+    beforeEach(() => {
+      intervals = [];
+      setIntervalSpy = jest.spyOn(global, 'setInterval').mockImplementation(((
+        callback: () => void,
+        ms: number
+      ) => {
+        const intervalId = {
+          _id: Math.random(),
+          callback,
+          ms,
+        } as unknown as NodeJS.Timeout;
+        intervals.push(intervalId);
+        return intervalId;
+      }) as typeof setInterval);
+
+      clearIntervalSpy = jest
+        .spyOn(global, 'clearInterval')
+        .mockImplementation(((id: NodeJS.Timeout) => {
+          intervals = intervals.filter((i) => i !== id);
+        }) as typeof clearInterval);
+    });
+
+    afterEach(() => {
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+    });
+
+    it('starts polling when component mounts with thinkers', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            name: 'Socrates',
+            status: 'pending',
+            has_data: false,
+            updated_at: new Date().toISOString(),
+          }),
+      });
+
+      render(
+        <StatusLine
+          thinkerNames={['Socrates']}
+          apiBaseUrl="http://test.com"
+          pollInterval={5000}
+        />
+      );
+
+      // Initial fetch on mount
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // setInterval should have been called to set up polling
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
+      expect(intervals.length).toBe(1);
+    });
+
+    it('stops polling when component unmounts', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            name: 'Socrates',
+            status: 'pending',
+            has_data: false,
+            updated_at: new Date().toISOString(),
+          }),
+      });
+
+      const { unmount } = render(
+        <StatusLine
+          thinkerNames={['Socrates']}
+          apiBaseUrl="http://test.com"
+          pollInterval={5000}
+        />
+      );
+
+      // Initial fetch on mount
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // setInterval should have been called
+      expect(setIntervalSpy).toHaveBeenCalled();
+      const intervalCountBeforeUnmount = intervals.length;
+      expect(intervalCountBeforeUnmount).toBe(1);
+
+      // Unmount the component
+      unmount();
+
+      // clearInterval should have been called to clean up
+      expect(clearIntervalSpy).toHaveBeenCalled();
+      expect(intervals.length).toBe(0);
+    });
+
+    it('restarts polling when thinker list changes', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            name: 'Socrates',
+            status: 'pending',
+            has_data: false,
+            updated_at: new Date().toISOString(),
+          }),
+      });
+
+      const { rerender } = render(
+        <StatusLine
+          thinkerNames={['Socrates']}
+          apiBaseUrl="http://test.com"
+          pollInterval={5000}
+        />
+      );
+
+      // Initial fetch on mount
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // setInterval should have been called - get the first interval ID
+      const callCountBeforeRerender = setIntervalSpy.mock.calls.length;
+      expect(callCountBeforeRerender).toBeGreaterThanOrEqual(1);
+      const firstIntervalId = intervals[0];
+
+      // Update thinker list - should trigger immediate fetch and restart polling
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            name: 'Aristotle',
+            status: 'pending',
+            has_data: false,
+            updated_at: new Date().toISOString(),
+          }),
+      });
+
+      rerender(
+        <StatusLine
+          thinkerNames={['Aristotle']}
+          apiBaseUrl="http://test.com"
+          pollInterval={5000}
+        />
+      );
+
+      // Should have made a new fetch call for the new thinker
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+      });
+
+      // Old interval should have been cleared and new one created
+      await waitFor(() => {
+        expect(clearIntervalSpy).toHaveBeenCalledWith(firstIntervalId);
+        // setInterval should have been called more times than before rerender
+        expect(setIntervalSpy.mock.calls.length).toBeGreaterThan(
+          callCountBeforeRerender
+        );
+      });
+
+      // Should have one active interval (old cleared, new created)
+      expect(intervals.length).toBe(1);
+      expect(intervals[0]).not.toBe(firstIntervalId);
     });
   });
 });
