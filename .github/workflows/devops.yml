@@ -666,11 +666,23 @@ jobs:
                 echo "   ⚠️ Auto-rebase failed for PR #$PR_NUM - closing for Code Agent to recreate"
                 git rebase --abort 2>/dev/null || true
 
-                # Close the PR with explanation - Code Agent will recreate from the still-open issue
+                # Find related issue from PR body (looks for "Fixes #N" or "Relates to #N")
+                PR_BODY=$(gh pr view "$PR_NUM" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' 2>/dev/null || echo "")
+                RELATED_ISSUE=$(echo "$PR_BODY" | grep -oE '(Fixes|Closes|Relates to|Related to) #[0-9]+' | grep -oE '[0-9]+' | head -1)
+
+                # Close the PR with explanation
                 gh pr close "$PR_NUM" --repo "$GITHUB_REPOSITORY" --comment "Closing this PR due to merge conflicts that require intelligent resolution. The related issue still has the ai-ready label, so the Code Agent will automatically create a fresh PR from the current main branch." || echo "   (Could not close PR)"
 
                 # Delete the stale branch
                 git push origin --delete "$PR_BRANCH" 2>/dev/null || echo "   (Could not delete branch)"
+
+                # Trigger Code Agent by commenting on the related issue
+                if [ -n "$RELATED_ISSUE" ]; then
+                  echo "   Triggering Code Agent on issue #$RELATED_ISSUE"
+                  gh issue comment "$RELATED_ISSUE" --repo "$GITHUB_REPOSITORY" --body "The previous PR was closed due to merge conflicts. Code Agent: please create a fresh PR from current main." || echo "   (Could not comment on issue)"
+                else
+                  echo "   ⚠️ Could not find related issue to trigger Code Agent"
+                fi
 
                 FAILED_COUNT=$((FAILED_COUNT + 1))
               fi
