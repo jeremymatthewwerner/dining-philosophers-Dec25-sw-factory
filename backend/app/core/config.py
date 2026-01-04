@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # Test mode (enables test endpoints)
     test_mode: bool = False
 
+    # Secret for test user cleanup endpoint (used by CI workflows)
+    test_cleanup_secret: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

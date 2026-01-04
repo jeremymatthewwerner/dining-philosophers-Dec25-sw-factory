@@ -42,6 +42,7 @@ Ensure these secrets are set in **Settings → Secrets and variables → Actions
 - `RAILWAY_TOKEN` - Railway API token (for DevOps Agent infrastructure management)
 - `PRODUCTION_BACKEND_URL` - Backend URL for health checks (e.g., `https://api.diningphilosophers.ai`)
 - `PRODUCTION_FRONTEND_URL` - Frontend URL for health checks (e.g., `https://diningphilosophers.ai`)
+- `TEST_CLEANUP_SECRET` - Secret for test user cleanup endpoint (used by smoke/canary tests)
 
 ### 4. Branch Protection (Optional)
 If using branch protection on `main`, ensure:
