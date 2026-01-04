@@ -132,6 +132,69 @@ jobs:
           fi
           echo "Auth flow: OK"
 
+      - name: Check for stuck PRs and issues
+        id: stuck_check
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Checking for stuck PRs and issues..."
+          STUCK_ITEMS=""
+          MERGED_COUNT=0
+
+          # Get list of open PRs
+          PR_NUMBERS=$(gh pr list --state open --json number --jq '.[].number' 2>/dev/null || echo "")
+
+          for PR_NUM in $PR_NUMBERS; do
+            [ -z "$PR_NUM" ] && continue
+            PR_TITLE=$(gh pr view "$PR_NUM" --json title --jq '.title' 2>/dev/null || echo "Unknown")
+
+            # Check if PR CI is passing (all non-skipped checks succeeded)
+            CI_STATUS=$(gh pr checks "$PR_NUM" --json state --jq '[.[] | select(.state != "SKIPPED")] | if length == 0 then false else all(.state == "SUCCESS") end' 2>/dev/null || echo "false")
+
+            if [ "$CI_STATUS" = "true" ]; then
+              # Check if mergeable
+              MERGEABLE=$(gh pr view "$PR_NUM" --json mergeable --jq '.mergeable' 2>/dev/null || echo "UNKNOWN")
+              if [ "$MERGEABLE" = "MERGEABLE" ]; then
+                echo "⚠️ Stuck PR #$PR_NUM: $PR_TITLE - CI passing but not merged"
+                STUCK_ITEMS="${STUCK_ITEMS}PR #${PR_NUM}: ${PR_TITLE} (CI passing, ready to merge)\n"
+
+                # Auto-merge if it's been ready
+                if gh pr merge "$PR_NUM" --squash --delete-branch 2>/dev/null; then
+                  echo "✅ Auto-merged PR #$PR_NUM"
+                  MERGED_COUNT=$((MERGED_COUNT + 1))
+                else
+                  echo "Could not auto-merge PR #$PR_NUM (may need review or have conflicts)"
+                fi
+              elif [ "$MERGEABLE" = "CONFLICTING" ]; then
+                echo "⚠️ PR #$PR_NUM has conflicts: $PR_TITLE"
+                STUCK_ITEMS="${STUCK_ITEMS}PR #${PR_NUM}: ${PR_TITLE} (has merge conflicts)\n"
+              fi
+            fi
+          done
+
+          # Check for issues stuck with needs-human label without recent activity
+          ONE_HOUR_AGO=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)
+          STUCK_ISSUES=$(gh issue list --label "needs-human" --json number,title,updatedAt --jq '.[] | select(.updatedAt < "'"$ONE_HOUR_AGO"'") | "Issue #\(.number): \(.title)"' 2>/dev/null || echo "")
+          if [ -n "$STUCK_ISSUES" ]; then
+            STUCK_ITEMS="${STUCK_ITEMS}${STUCK_ISSUES}\n"
+            echo "⚠️ Issues stuck with needs-human label:"
+            echo "$STUCK_ISSUES"
+          fi
+
+          # Output results
+          if [ -n "$STUCK_ITEMS" ]; then
+            echo "stuck=true" >> $GITHUB_OUTPUT
+            echo "merged=$MERGED_COUNT" >> $GITHUB_OUTPUT
+            echo "items<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$STUCK_ITEMS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "stuck=false" >> $GITHUB_OUTPUT
+            echo "merged=$MERGED_COUNT" >> $GITHUB_OUTPUT
+            echo "✅ No stuck PRs or issues found"
+          fi
+
       - name: Summarize results
         id: summary
         run: |
