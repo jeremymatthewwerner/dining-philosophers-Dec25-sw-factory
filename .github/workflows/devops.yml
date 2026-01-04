@@ -662,12 +662,16 @@ jobs:
                   git rebase --abort 2>/dev/null || true
                 fi
               else
-                # Rebase failed - conflicts need manual resolution
-                echo "   ⚠️ Auto-rebase failed for PR #$PR_NUM - conflicts need manual resolution"
+                # Rebase failed - close PR so Code Agent can recreate fresh
+                echo "   ⚠️ Auto-rebase failed for PR #$PR_NUM - closing for Code Agent to recreate"
                 git rebase --abort 2>/dev/null || true
 
-                # Comment on PR about the conflict
-                gh pr comment "$PR_NUM" --repo "$GITHUB_REPOSITORY" --body "Auto-rebase failed - conflicts require manual resolution. Run: git fetch origin && git checkout $PR_BRANCH && git rebase origin/main" || echo "   (Could not comment on PR)"
+                # Close the PR with explanation - Code Agent will recreate from the still-open issue
+                gh pr close "$PR_NUM" --repo "$GITHUB_REPOSITORY" --comment "Closing this PR due to merge conflicts that require intelligent resolution. The related issue still has the ai-ready label, so the Code Agent will automatically create a fresh PR from the current main branch." || echo "   (Could not close PR)"
+
+                # Delete the stale branch
+                git push origin --delete "$PR_BRANCH" 2>/dev/null || echo "   (Could not delete branch)"
+
                 FAILED_COUNT=$((FAILED_COUNT + 1))
               fi
 
