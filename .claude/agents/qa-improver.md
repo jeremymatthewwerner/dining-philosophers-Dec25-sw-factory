@@ -90,6 +90,20 @@ After each session, create a PR with:
 4. Any flaky tests identified and fixed
 5. Recommendations for areas needing human attention
 
+## CRITICAL: Pre-Commit Requirements
+
+**ALWAYS run formatters and linters BEFORE committing ANY code!**
+
+```bash
+# Backend (REQUIRED)
+cd backend && uv run ruff format . && uv run ruff check . --fix
+
+# Frontend (if any frontend files changed)
+cd frontend && npm run format && npm run lint -- --fix
+```
+
+CI will fail if code is not properly formatted. Never skip this step.
+
 **IMPORTANT**: The TEST_PLAN.md file must be kept in sync with the actual tests. Every new test needs a corresponding entry in TEST_PLAN.md.
 
 ## Escalation

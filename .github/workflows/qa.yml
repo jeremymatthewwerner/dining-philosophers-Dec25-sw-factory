@@ -199,10 +199,20 @@ jobs:
             3. Update TEST_PLAN.md with new test descriptions
             4. **EDIT ISSUE**: Check "📄 Update TEST_PLAN.md" box
 
-            ### Step 5: Create PR and Final Update
-            1. Create PR: `gh pr create --title "test: [description]" --body "Relates to #${{ steps.create-issue.outputs.issue_number }}"`
-            2. **EDIT ISSUE**: Check "🚀 Create PR" box, update "Final Results" with coverage and PR link
-            3. Close the issue: `gh issue close ${{ steps.create-issue.outputs.issue_number }}`
+            ### Step 5: Format, Lint, Create PR
+            **CRITICAL: Run formatters and linters BEFORE committing!**
+            1. Format and lint backend code:
+               ```bash
+               cd backend && uv run ruff format . && uv run ruff check . --fix
+               ```
+            2. Format and lint frontend code (if changed):
+               ```bash
+               cd frontend && npm run format && npm run lint -- --fix
+               ```
+            3. Commit all changes (including format fixes)
+            4. Create PR: `gh pr create --title "test: [description]" --body "Relates to #${{ steps.create-issue.outputs.issue_number }}"`
+            5. **EDIT ISSUE**: Check "🚀 Create PR" box, update "Final Results" with coverage and PR link
+            6. Close the issue: `gh issue close ${{ steps.create-issue.outputs.issue_number }}`
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
