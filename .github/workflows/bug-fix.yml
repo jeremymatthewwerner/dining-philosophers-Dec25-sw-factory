@@ -806,7 +806,8 @@ jobs:
                   EXISTING_BODY=$(gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
 
                   # Extract existing activity log entries (everything between the table header and ---)
-                  EXISTING_LOG=$(echo "$EXISTING_BODY" | sed -n '/| Time | Event |/,/^---/p' | head -n -1 || echo "")
+                  # Note: Pattern handles optional leading whitespace from YAML heredoc formatting
+                  EXISTING_LOG=$(echo "$EXISTING_BODY" | sed -n '/| Time | Event |/,/^[[:space:]]*---/p' | head -n -1 || echo "")
 
                   gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
                     -X PATCH -f body="## 🤖 Code Agent Progress
@@ -876,7 +877,8 @@ jobs:
                   # Update progress comment with success, preserving activity log
                   if [ -n "$PROGRESS_COMMENT_ID" ]; then
                     EXISTING_BODY=$(gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
-                    EXISTING_LOG=$(echo "$EXISTING_BODY" | sed -n '/| Time | Event |/,/^---/p' | head -n -1 || echo "")
+                    # Note: Pattern handles optional leading whitespace from YAML heredoc formatting
+                    EXISTING_LOG=$(echo "$EXISTING_BODY" | sed -n '/| Time | Event |/,/^[[:space:]]*---/p' | head -n -1 || echo "")
 
                     # Try to extract summary section if it exists
                     SUMMARY_SECTION=$(echo "$EXISTING_BODY" | sed -n '/## 🔍 Summary/,$p' || echo "")
