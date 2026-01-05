@@ -715,6 +715,37 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
+      - name: Check activity log quality
+        if: (steps.context.outputs.mode == 'fix' || steps.context.outputs.mode == 'continue') && success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id || steps.continue_progress.outputs.comment_id }}
+        run: |
+          # Quality check: Did Claude Code update the activity log with meaningful entries?
+          if [ -z "$PROGRESS_COMMENT_ID" ]; then
+            echo "⚠️ No progress comment ID found, skipping quality check"
+            exit 0
+          fi
+
+          COMMENT_BODY=$(gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
+
+          # Count activity log entries (lines starting with |, excluding header row)
+          LOG_ENTRIES=$(echo "$COMMENT_BODY" | grep -E '^\s*\|.*\d{4}-\d{2}-\d{2}' | wc -l || echo "0")
+
+          echo "Activity log entries found: $LOG_ENTRIES"
+
+          if [ "$LOG_ENTRIES" -le 1 ]; then
+            echo "⚠️ QUALITY WARNING: Activity log has only $LOG_ENTRIES entry/entries"
+            echo "Claude Code did not update the progress comment with intermediate steps."
+            echo "The activity log should show: analysis, root cause, implementation steps, test results"
+            echo ""
+            echo "This is a known issue - Claude Code receives instructions to update the activity log"
+            echo "but often prioritizes completing the work over status updates."
+            # Future: Could escalate to PE or add a label for tracking
+          else
+            echo "✅ Activity log has $LOG_ENTRIES entries - good progress tracking!"
+          fi
+
       - name: Monitor CI and report results
         # Also include 'respond' mode since it can create PRs too
         if: (steps.context.outputs.mode == 'fix' || steps.context.outputs.mode == 'continue' || steps.context.outputs.mode == 'respond') && success()
