@@ -31,16 +31,24 @@ jobs:
           echo "Branch: $HEAD_BRANCH"
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
 
-          # Extract issue number from branch name (fix/123-desc or feat/123-desc)
+          # Extract issue number from branch name
+          # Patterns supported:
+          #   fix/123-desc, feat/123-desc (Code Agent)
+          #   claude/qa-*-123, claude/*-123 (QA Agent and other Claude branches)
+          ISSUE_NUMBER=""
           if [[ "$HEAD_BRANCH" =~ ^(fix|feat)/([0-9]+) ]]; then
             ISSUE_NUMBER="${BASH_REMATCH[2]}"
-            echo "Found issue number: $ISSUE_NUMBER"
-            echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+            echo "Found issue number from fix/feat pattern: $ISSUE_NUMBER"
+          elif [[ "$HEAD_BRANCH" =~ -([0-9]+)$ ]]; then
+            # Issue number at end of branch name (e.g., claude/qa-coverage-sprint-169)
+            ISSUE_NUMBER="${BASH_REMATCH[1]}"
+            echo "Found issue number from branch suffix: $ISSUE_NUMBER"
           else
-            echo "Branch doesn't match issue pattern, skipping"
+            echo "Branch doesn't match any issue pattern, skipping"
             echo "issue_number=" >> $GITHUB_OUTPUT
             exit 0
           fi
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
 
           # Get PR number
           PR_NUMBER=$(gh pr list --repo ${{ github.repository }} \
