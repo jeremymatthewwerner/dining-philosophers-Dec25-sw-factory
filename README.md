@@ -2,7 +2,7 @@
 
 Real-time multi-party chat with AI-simulated historical and contemporary thinkers.
 
-**Live**: [diningphilosophers.ai](https://diningphilosophers.ai)
+**Live**: [opus45dec25.diningphilosophers.ai](https://opus45dec25.diningphilosophers.ai)
 
 ## Autonomous Software Factory
 
