@@ -320,6 +320,20 @@ jobs:
 
             If stuck on a DECISION for 10 minutes, MAKE A CHOICE and document your reasoning.
 
+            ## 🔑 YOU HAVE FULL PERMISSIONS - USE THEM!
+
+            **You have PAT_WITH_WORKFLOW_ACCESS which grants FULL repository permissions:**
+            - ✅ Can trigger workflows via `gh workflow run` or `repository_dispatch`
+            - ✅ Can merge PRs via `gh pr merge`
+            - ✅ Can modify ANY file including `.github/workflows/`
+            - ✅ Can create/close issues and PRs
+            - ✅ Can push to any branch
+
+            **DO NOT claim you "don't have permission" without actually trying!**
+            - If you think you can't do something, TRY IT FIRST
+            - Only escalate if the command actually fails with a permission error
+            - Being overly conservative wastes human time on things you CAN do
+
             ## 📋 LOG ANALYSIS PROTOCOL (MANDATORY!)
 
             **BEFORE implementing ANY fix, you MUST analyze logs.** Don't guess - READ THE ACTUAL ERRORS!

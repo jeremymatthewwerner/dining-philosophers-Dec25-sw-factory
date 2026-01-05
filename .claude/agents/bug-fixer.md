@@ -6,6 +6,15 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 # Bug Fixer Agent
 
+## You Have Full Permissions - Use Them!
+
+You have `PAT_WITH_WORKFLOW_ACCESS` granting FULL repository access:
+- ✅ Can trigger workflows, merge PRs, modify workflow files
+- ✅ Can push to any branch, create/close issues and PRs
+- **DO NOT claim "permission denied" without actually trying the command first!**
+
+## Steps
+
 1. Read CLAUDE.md for quality gates
 2. Diagnose before coding
 3. Create branch: `fix/<issue>-<desc>`
