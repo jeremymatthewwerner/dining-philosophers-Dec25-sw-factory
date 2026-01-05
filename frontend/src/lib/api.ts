@@ -187,6 +187,32 @@ export async function updateLanguage(
   return user;
 }
 
+export async function updateProfile(displayName: string): Promise<User> {
+  const user = await fetchWithAuth<User>('/api/auth/profile', {
+    method: 'PATCH',
+    body: JSON.stringify({ display_name: displayName }),
+  });
+  setStoredUser(user);
+  return user;
+}
+
+export interface ChangePasswordResponse {
+  message: string;
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<ChangePasswordResponse> {
+  return fetchWithAuth<ChangePasswordResponse>('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+}
+
 // Session API
 export async function getSession(): Promise<Session | null> {
   const token = getAccessToken();

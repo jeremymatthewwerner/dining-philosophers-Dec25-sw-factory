@@ -29,6 +29,7 @@
     "reportIssue": "Report an Issue",
     "closeSidebar": "Close sidebar",
     "adminPanel": "Admin panel",
+    "settings": "Settings",
     "signOut": "Sign out"
   },
   "newChatModal": {
@@ -191,5 +192,37 @@
     "researchComplete": "Background research complete",
     "researchFailed": "Could not load background research",
     "cacheHit": "Using cached research data"
+  },
+  "settingsPage": {
+    "title": "Settings",
+    "description": "Manage your profile and account settings",
+    "backToChat": "Back to Chat",
+    "profileSection": "Profile",
+    "displayName": "Display Name",
+    "displayNamePlaceholder": "Enter your display name",
+    "displayNameHelp": "This is how you'll appear to thinkers in conversations",
+    "displayNameRequired": "Display name is required",
+    "displayNameTooLong": "Display name must be 100 characters or less",
+    "displayNameUpdated": "Display name updated successfully",
+    "displayNameFailed": "Failed to update display name",
+    "updateDisplayName": "Update Display Name",
+    "updating": "Updating...",
+    "languageSection": "Language",
+    "preferredLanguage": "Preferred Language",
+    "passwordSection": "Change Password",
+    "currentPassword": "Current Password",
+    "currentPasswordPlaceholder": "Enter your current password",
+    "newPassword": "New Password",
+    "newPasswordPlaceholder": "Enter your new password",
+    "confirmPassword": "Confirm New Password",
+    "confirmPasswordPlaceholder": "Confirm your new password",
+    "currentPasswordRequired": "Current password is required",
+    "newPasswordRequired": "New password is required",
+    "passwordTooShort": "Password must be at least 6 characters",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "passwordChanged": "Password changed successfully",
+    "passwordChangeFailed": "Failed to change password",
+    "changePassword": "Change Password",
+    "changingPassword": "Changing..."
   }
 }

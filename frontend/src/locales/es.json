@@ -29,6 +29,7 @@
     "reportIssue": "Reportar un Problema",
     "closeSidebar": "Cerrar barra lateral",
     "adminPanel": "Panel de administración",
+    "settings": "Configuración",
     "signOut": "Cerrar sesión"
   },
   "newChatModal": {
@@ -191,5 +192,37 @@
     "researchComplete": "Investigación de fondo completa",
     "researchFailed": "No se pudo cargar la investigación de fondo",
     "cacheHit": "Usando datos de investigación en caché"
+  },
+  "settingsPage": {
+    "title": "Configuración",
+    "description": "Administra tu perfil y configuración de cuenta",
+    "backToChat": "Volver al Chat",
+    "profileSection": "Perfil",
+    "displayName": "Nombre para Mostrar",
+    "displayNamePlaceholder": "Ingresa tu nombre para mostrar",
+    "displayNameHelp": "Así aparecerás ante los pensadores en las conversaciones",
+    "displayNameRequired": "El nombre para mostrar es obligatorio",
+    "displayNameTooLong": "El nombre para mostrar debe tener 100 caracteres o menos",
+    "displayNameUpdated": "Nombre para mostrar actualizado exitosamente",
+    "displayNameFailed": "No se pudo actualizar el nombre para mostrar",
+    "updateDisplayName": "Actualizar Nombre",
+    "updating": "Actualizando...",
+    "languageSection": "Idioma",
+    "preferredLanguage": "Idioma Preferido",
+    "passwordSection": "Cambiar Contraseña",
+    "currentPassword": "Contraseña Actual",
+    "currentPasswordPlaceholder": "Ingresa tu contraseña actual",
+    "newPassword": "Nueva Contraseña",
+    "newPasswordPlaceholder": "Ingresa tu nueva contraseña",
+    "confirmPassword": "Confirmar Nueva Contraseña",
+    "confirmPasswordPlaceholder": "Confirma tu nueva contraseña",
+    "currentPasswordRequired": "La contraseña actual es obligatoria",
+    "newPasswordRequired": "La nueva contraseña es obligatoria",
+    "passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+    "passwordsDoNotMatch": "Las contraseñas no coinciden",
+    "passwordChanged": "Contraseña cambiada exitosamente",
+    "passwordChangeFailed": "No se pudo cambiar la contraseña",
+    "changePassword": "Cambiar Contraseña",
+    "changingPassword": "Cambiando..."
   }
 }
