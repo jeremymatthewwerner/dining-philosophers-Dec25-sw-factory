@@ -2,9 +2,12 @@
 
 from app.schemas.auth import (
     AuthError,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     TokenResponse,
     UserLanguageUpdate,
     UserLogin,
+    UserProfileUpdate,
     UserRegister,
     UserResponse,
     UserWithStats,
@@ -32,6 +35,8 @@ from app.schemas.thinker import (
 
 __all__ = [
     "AuthError",
+    "ChangePasswordRequest",
+    "ChangePasswordResponse",
     "ConversationCreate",
     "ConversationResponse",
     "ConversationSummary",
@@ -53,6 +58,7 @@ __all__ = [
     "TokenResponse",
     "UserLanguageUpdate",
     "UserLogin",
+    "UserProfileUpdate",
     "UserRegister",
     "UserResponse",
     "UserWithStats",

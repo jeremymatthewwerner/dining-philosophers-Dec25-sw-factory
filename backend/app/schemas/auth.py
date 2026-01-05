@@ -66,3 +66,22 @@ class AuthError(BaseModel):
     """Error response for authentication failures."""
 
     detail: str
+
+
+class UserProfileUpdate(BaseModel):
+    """Request schema for updating user profile (display name)."""
+
+    display_name: str = Field(..., min_length=1, max_length=100)
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request schema for changing password."""
+
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6, max_length=100)
+
+
+class ChangePasswordResponse(BaseModel):
+    """Response schema for successful password change."""
+
+    message: str

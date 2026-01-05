@@ -16,9 +16,12 @@ from app.core.auth import (
 from app.core.database import get_db
 from app.models import Session, User
 from app.schemas import (
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     TokenResponse,
     UserLanguageUpdate,
     UserLogin,
+    UserProfileUpdate,
     UserRegister,
     UserResponse,
 )
@@ -207,6 +210,53 @@ async def update_language(
         language_preference=user.language_preference,
         created_at=user.created_at,
     )
+
+
+@router.patch("/profile", response_model=UserResponse)
+async def update_profile(
+    data: UserProfileUpdate,
+    user: Annotated[User, Depends(require_user)],
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Update the current user's display name."""
+    user.display_name = data.display_name
+    await db.commit()
+    await db.refresh(user)
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        is_admin=user.is_admin,
+        total_spend=user.total_spend,
+        spend_limit=user.spend_limit,
+        language_preference=user.language_preference,
+        created_at=user.created_at,
+    )
+
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+async def change_password(
+    data: ChangePasswordRequest,
+    user: Annotated[User, Depends(require_user)],
+    db: AsyncSession = Depends(get_db),
+) -> ChangePasswordResponse:
+    """Change the current user's password.
+
+    Requires the current password for verification.
+    """
+    # Verify current password
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    # Update password
+    user.password_hash = get_password_hash(data.new_password)
+    await db.commit()
+
+    return ChangePasswordResponse(message="Password changed successfully")
 
 
 @router.post("/logout")

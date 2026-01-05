@@ -110,6 +110,114 @@ class TestAuthAPI:
         assert "message" in data
         assert data["message"] == "Logged out successfully"
 
+    async def test_update_profile_display_name(self, client: AsyncClient) -> None:
+        """Test updating user display name."""
+        headers = await get_auth_headers(client, "profileuser", "password123")
+        response = await client.patch(
+            "/api/auth/profile",
+            headers=headers,
+            json={"display_name": "Updated Name"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["display_name"] == "Updated Name"
+        assert data["username"] == "profileuser"
+
+    async def test_update_profile_no_auth(self, client: AsyncClient) -> None:
+        """Test that profile update requires authentication."""
+        response = await client.patch(
+            "/api/auth/profile",
+            json={"display_name": "New Name"},
+        )
+        assert response.status_code == 401
+
+    async def test_update_profile_empty_name(self, client: AsyncClient) -> None:
+        """Test that empty display name is rejected."""
+        headers = await get_auth_headers(client, "emptyprofile", "password123")
+        response = await client.patch(
+            "/api/auth/profile",
+            headers=headers,
+            json={"display_name": ""},
+        )
+        assert response.status_code == 422
+
+    async def test_update_profile_name_too_long(self, client: AsyncClient) -> None:
+        """Test that display name over 100 chars is rejected."""
+        headers = await get_auth_headers(client, "longprofile", "password123")
+        response = await client.patch(
+            "/api/auth/profile",
+            headers=headers,
+            json={"display_name": "A" * 101},
+        )
+        assert response.status_code == 422
+
+    async def test_change_password_success(self, client: AsyncClient) -> None:
+        """Test successful password change."""
+        headers = await get_auth_headers(client, "pwduser", "oldpassword123")
+        response = await client.post(
+            "/api/auth/change-password",
+            headers=headers,
+            json={
+                "current_password": "oldpassword123",
+                "new_password": "newpassword456",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Password changed successfully"
+
+        # Verify can login with new password
+        login_response = await client.post(
+            "/api/auth/login",
+            json={"username": "pwduser", "password": "newpassword456"},
+        )
+        assert login_response.status_code == 200
+
+        # Verify old password no longer works
+        old_login_response = await client.post(
+            "/api/auth/login",
+            json={"username": "pwduser", "password": "oldpassword123"},
+        )
+        assert old_login_response.status_code == 401
+
+    async def test_change_password_wrong_current(self, client: AsyncClient) -> None:
+        """Test that wrong current password is rejected."""
+        headers = await get_auth_headers(client, "wrongpwduser", "correctpassword")
+        response = await client.post(
+            "/api/auth/change-password",
+            headers=headers,
+            json={
+                "current_password": "wrongpassword",
+                "new_password": "newpassword123",
+            },
+        )
+        assert response.status_code == 400
+        assert "incorrect" in response.json()["detail"].lower()
+
+    async def test_change_password_no_auth(self, client: AsyncClient) -> None:
+        """Test that password change requires authentication."""
+        response = await client.post(
+            "/api/auth/change-password",
+            json={
+                "current_password": "old",
+                "new_password": "new123456",
+            },
+        )
+        assert response.status_code == 401
+
+    async def test_change_password_too_short(self, client: AsyncClient) -> None:
+        """Test that new password must be at least 6 characters."""
+        headers = await get_auth_headers(client, "shortpwduser", "password123")
+        response = await client.post(
+            "/api/auth/change-password",
+            headers=headers,
+            json={
+                "current_password": "password123",
+                "new_password": "short",
+            },
+        )
+        assert response.status_code == 422
+
 
 class TestSessionAPI:
     """Tests for session endpoints."""
