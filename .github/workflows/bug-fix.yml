@@ -729,15 +729,23 @@ jobs:
 
           COMMENT_BODY=$(gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
 
-          # Count activity log entries (lines starting with |, excluding header row)
-          LOG_ENTRIES=$(echo "$COMMENT_BODY" | grep -E '^\s*\|.*\d{4}-\d{2}-\d{2}' | wc -l || echo "0")
+          # Count activity log entries (lines with | and timestamp like 2026-01-05)
+          # Note: Using [0-9] instead of \d because grep -E uses POSIX regex, not Perl
+          LOG_ENTRIES=$(echo "$COMMENT_BODY" | grep -E '\|.*[0-9]{4}-[0-9]{2}-[0-9]{2}' | wc -l || echo "0")
 
           echo "Activity log entries found: $LOG_ENTRIES"
+
+          # Show the actual entries found for debugging
+          if [ "$LOG_ENTRIES" -gt 0 ]; then
+            echo "=== Activity log entries ==="
+            echo "$COMMENT_BODY" | grep -E '\|.*[0-9]{4}-[0-9]{2}-[0-9]{2}' || true
+            echo "==="
+          fi
 
           if [ "$LOG_ENTRIES" -le 1 ]; then
             echo "⚠️ QUALITY WARNING: Activity log has only $LOG_ENTRIES entry/entries"
             echo "Claude Code did not update the progress comment with intermediate steps."
-            echo "The activity log should show: analysis, root cause, implementation steps, test results"
+            echo "Expected entries for: analysis, root cause, implementation, test results"
             echo ""
             echo "This is a known issue - Claude Code receives instructions to update the activity log"
             echo "but often prioritizes completing the work over status updates."
