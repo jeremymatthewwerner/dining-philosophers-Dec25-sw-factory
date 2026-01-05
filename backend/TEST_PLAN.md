@@ -1,5 +1,101 @@
 ---
 
+## Coverage Sprint - Conversations API (Issue #169, QA Agent Monday 2026-01-05)
+
+**Focus**: Add coverage-focused tests for `app/api/conversations.py` targeting previously untested code paths.
+
+### Conversations API Coverage Tests (test_conversations_coverage.py)
+
+**15 new tests added targeting error paths, edge cases, and business logic:**
+
+#### Color Assignment Logic
+
+**test_color_assignment_with_custom_color** (test_conversations_coverage.py:18-39)
+- Edge case: Custom colors (non-default) are preserved during thinker creation
+- Validates thinker.color equals provided color when != "#6366f1"
+- Tests lines 52-54 of conversations.py
+
+**test_color_assignment_with_default_color_cycles** (test_conversations_coverage.py:41-69)
+- Happy path: Default color "#6366f1" triggers automatic color cycling
+- Creates 5 thinkers with default colors
+- Validates colors cycle through predefined palette: #6366f1, #ec4899, #10b981, #f59e0b, #8b5cf6
+- Tests lines 44-54 (color cycling logic)
+
+**test_color_assignment_with_mixed_custom_and_default** (test_conversations_coverage.py:71-114)
+- Edge case: Mix of custom and default colors in same conversation
+- First thinker keeps custom color #ff0000
+- Subsequent default colors get cycled colors (indices 1, 2)
+- Validates enumeration logic with mixed inputs
+
+#### List Conversations Aggregation
+
+**test_list_conversations_includes_message_count_and_cost** (test_conversations_coverage.py:120-153)
+- Happy path: list_conversations includes aggregated message_count and total_cost
+- Creates conversation with messages
+- Validates response schema includes message_count >= 1 and total_cost >= 0
+- Tests lines 85-103 (aggregation logic)
+
+**test_list_conversations_with_multiple_messages** (test_conversations_coverage.py:155-201)
+- Edge case: Message count aggregation with multiple messages
+- Sends 3 messages, validates count >= 3
+- Tests summation logic across multiple messages
+
+**test_list_conversations_orders_by_created_at_desc** (test_conversations_coverage.py:203-239)
+- Happy path: Conversations ordered by created_at descending (newest first)
+- Creates 3 conversations sequentially
+- Validates timestamps are in descending order
+- Tests ORDER BY created_at DESC clause (line 81)
+
+#### Error Path Testing - 404 Handling
+
+**test_get_conversation_not_found** (test_conversations_coverage.py:245-253)
+- Error path: GET /conversations/{nonexistent_id} returns 404
+- Tests lines 124-127 (not found check in get_conversation)
+
+**test_get_conversation_from_different_session** (test_conversations_coverage.py:255-284)
+- Security: Users cannot access conversations from other sessions
+- User 1 creates conversation, User 2 tries to access it → 404
+- Validates session isolation (line 117: session_id == session.id)
+
+**test_delete_conversation_not_found** (test_conversations_coverage.py:286-294)
+- Error path: DELETE /conversations/{nonexistent_id} returns 404
+- Tests lines 143-145 (not found check in delete_conversation)
+
+**test_delete_conversation_from_different_session** (test_conversations_coverage.py:296-323)
+- Security: Users cannot delete conversations from other sessions
+- Validates session isolation in delete operation (line 140)
+
+**test_send_message_to_nonexistent_conversation** (test_conversations_coverage.py:325-333)
+- Error path: POST /conversations/{nonexistent_id}/messages returns 404
+- Tests lines 167-169 (not found check in send_message)
+
+**test_send_message_to_different_session_conversation** (test_conversations_coverage.py:335-361)
+- Security: Users cannot send messages to other sessions' conversations
+- Validates session isolation in message sending (line 164)
+
+#### Display Name Fallback Logic
+
+**test_send_message_uses_display_name_when_set** (test_conversations_coverage.py:367-411)
+- Happy path: Messages use user.display_name when available
+- Registers user with display_name="Display Name User"
+- Validates message.sender_name equals display_name
+- Tests lines 172-173 (sender name assignment)
+
+**test_send_message_with_empty_display_name** (test_conversations_coverage.py:413-461)
+- Edge case: Minimal display_name handling
+- Tests display_name usage even with edge case values
+- Validates lines 172-180 (display_name or username fallback)
+
+#### Background Research Trigger
+
+**test_create_conversation_triggers_research_for_each_thinker** (test_conversations_coverage.py:467-496)
+- Integration: Creating conversation triggers knowledge research for all thinkers
+- Creates conversation with 2 thinkers (Einstein, Curie)
+- Validates conversation created successfully (research happens in background)
+- Tests line 59 (knowledge_service.trigger_research call)
+
+---
+
 ## Integration Test Gaps - Thinker Knowledge API (Issue #115, QA Agent Wednesday 2025-12-31)
 
 **Focus**: Add integration tests for untested thinker knowledge research API endpoints.
