@@ -961,10 +961,11 @@ jobs:
 
                   # Trigger CI/CD workflow via repository_dispatch since GITHUB_TOKEN merges don't trigger push events
                   echo "Triggering deploy via repository_dispatch..."
+                  # Note: Use -F (not -f) for client_payload so it's passed as JSON object, not string
                   gh api repos/${{ github.repository }}/dispatches \
                     -X POST \
                     -f event_type=deploy-after-merge \
-                    -f client_payload='{"pr_number": "'${PR_NUMBER}'", "issue_number": "${{ steps.context.outputs.number }}"}' || echo "Warning: Failed to trigger deploy dispatch"
+                    -F client_payload='{"pr_number":"'"${PR_NUMBER}"'","issue_number":"${{ steps.context.outputs.number }}"}' || echo "Warning: Failed to trigger deploy dispatch"
                 else
                   gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
 
