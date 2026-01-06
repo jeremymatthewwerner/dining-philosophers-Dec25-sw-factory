@@ -111,13 +111,14 @@ jobs:
           echo "=== Service Status ===" >> /tmp/diagnostic_output.txt
           timeout 15 railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status" >> /tmp/diagnostic_output.txt
 
-          # Query Railway API to list services (GraphQL)
+          # Query Railway API to list services (GraphQL) - use workspace query for workspace-scoped tokens
           echo "" >> /tmp/diagnostic_output.txt
           echo "=== Railway API - Services ===" >> /tmp/diagnostic_output.txt
+          WORKSPACE_ID="f746dd48-51f9-47e1-a6eb-325b3c06e9ba"
           curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"query": "query { me { projects { edges { node { id name services { edges { node { id name } } } } } } } }"}' \
+            -d "{\"query\": \"query { workspace(id: \\\"$WORKSPACE_ID\\\") { projects { edges { node { id name services { edges { node { id name } } } } } } } }\"}" \
             2>&1 >> /tmp/diagnostic_output.txt || echo "API query failed" >> /tmp/diagnostic_output.txt
 
           # Get backend logs - explicitly specify service AND environment
