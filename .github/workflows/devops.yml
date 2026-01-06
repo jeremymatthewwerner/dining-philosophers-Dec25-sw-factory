@@ -146,25 +146,32 @@ jobs:
       - name: Post diagnostic results
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIAGNOSTIC_OUTPUT: ${{ steps.diagnostic.outputs.output }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "## 🔧 DevOps Diagnostic Results
+          # Write comment body to file to avoid shell escaping issues
+          cat > /tmp/comment_body.md << 'COMMENT_EOF'
+          ## 🔧 DevOps Diagnostic Results
 
           <details>
           <summary>📋 Diagnostic Output (click to expand)</summary>
 
-          \`\`\`
-          ${{ steps.diagnostic.outputs.output }}
-          \`\`\`
+          ```
+          COMMENT_EOF
+          echo "$DIAGNOSTIC_OUTPUT" >> /tmp/comment_body.md
+          cat >> /tmp/comment_body.md << 'COMMENT_EOF'
+          ```
 
           </details>
 
           ---
           **Need more info?** You can request:
-          - \`@devops check user <username>\` - Look for user-related logs
-          - \`@devops check database\` - Check DB connection status
-          - \`@devops check logs <service>\` - Get recent logs for a service
+          - `@devops check user <username>` - Look for user-related logs
+          - `@devops check database` - Check DB connection status
+          - `@devops check logs <service>` - Get recent logs for a service
 
-          **Note:** For direct database queries, use \`railway connect postgres\` locally with your Railway token."
+          **Note:** For direct database queries, use `railway connect postgres` locally with your Railway token.
+          COMMENT_EOF
+          gh issue comment ${{ github.event.issue.number }} --body-file /tmp/comment_body.md
 
   # ===========================================
   # HEALTH MONITORING (runs every 5 minutes)
