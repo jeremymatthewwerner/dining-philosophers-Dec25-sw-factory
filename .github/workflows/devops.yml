@@ -96,8 +96,15 @@ jobs:
         run: |
           echo "Processing diagnostic request..."
 
+          # Debug: Check token type (first 4 chars only for security)
+          echo "=== Token Debug ===" > /tmp/diagnostic_output.txt
+          TOKEN_PREFIX="${RAILWAY_TOKEN:0:4}"
+          echo "Token prefix: $TOKEN_PREFIX" >> /tmp/diagnostic_output.txt
+          echo "Token length: ${#RAILWAY_TOKEN}" >> /tmp/diagnostic_output.txt
+
           # Check Railway CLI version
-          echo "=== Railway CLI Info ===" > /tmp/diagnostic_output.txt
+          echo "" >> /tmp/diagnostic_output.txt
+          echo "=== Railway CLI Info ===" >> /tmp/diagnostic_output.txt
           railway --version >> /tmp/diagnostic_output.txt 2>&1 || echo "Railway CLI not available" >> /tmp/diagnostic_output.txt
 
           echo "" >> /tmp/diagnostic_output.txt
