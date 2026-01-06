@@ -96,23 +96,21 @@ jobs:
         run: |
           echo "Processing diagnostic request..."
 
-          # Check Railway CLI version and token
+          # Check Railway CLI version and available flags
           echo "=== Railway CLI Info ===" > /tmp/diagnostic_output.txt
           railway --version >> /tmp/diagnostic_output.txt 2>&1 || echo "Railway CLI not available" >> /tmp/diagnostic_output.txt
-
-          # List available services for debugging
           echo "" >> /tmp/diagnostic_output.txt
-          echo "=== Available Services ===" >> /tmp/diagnostic_output.txt
-          railway service list 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to list services" >> /tmp/diagnostic_output.txt
+          echo "=== railway logs --help ===" >> /tmp/diagnostic_output.txt
+          railway logs --help 2>&1 >> /tmp/diagnostic_output.txt || true
 
           echo "" >> /tmp/diagnostic_output.txt
           echo "=== Service Status ===" >> /tmp/diagnostic_output.txt
-          timeout 15 railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status - token may not be linked to project" >> /tmp/diagnostic_output.txt
+          timeout 15 railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status" >> /tmp/diagnostic_output.txt
 
-          # Get recent backend logs (use -n flag to limit lines and avoid streaming forever)
+          # Try logs without -n flag first to see raw error
           echo "" >> /tmp/diagnostic_output.txt
-          echo "=== Recent Backend Logs ===" >> /tmp/diagnostic_output.txt
-          railway logs --service backend -n 30 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to fetch backend logs - check RAILWAY_TOKEN" >> /tmp/diagnostic_output.txt
+          echo "=== Backend Logs (raw, 5s timeout) ===" >> /tmp/diagnostic_output.txt
+          timeout 5 railway logs --service backend 2>&1 >> /tmp/diagnostic_output.txt || echo "(timeout or error)" >> /tmp/diagnostic_output.txt
 
           # If the request mentions a specific user, try to find relevant logs
           if echo "$COMMENT_BODY" | grep -qi "user\|username"; then
