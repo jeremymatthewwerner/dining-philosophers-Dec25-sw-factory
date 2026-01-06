@@ -438,5 +438,63 @@ describe('StatusLine', () => {
       expect(intervals.length).toBe(1);
       expect(intervals[0]).not.toBe(firstIntervalId);
     });
+
+    it('continues polling even when fetch takes time (regression #187)', async () => {
+      // Regression test for issue #187: When isPolling was a state variable in
+      // useCallback dependencies, the callback could be recreated with isPolling=true
+      // baked in, causing subsequent interval callbacks to skip fetching.
+
+      // Simulate a slow fetch that returns complete after first call
+      let fetchCount = 0;
+      mockFetch.mockImplementation(() => {
+        fetchCount++;
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              name: 'Socrates',
+              status: fetchCount === 1 ? 'in_progress' : 'complete',
+              has_data: fetchCount > 1,
+              updated_at: new Date().toISOString(),
+            }),
+        });
+      });
+
+      render(
+        <StatusLine
+          thinkerNames={['Socrates']}
+          apiBaseUrl="http://test.com"
+          pollInterval={50}
+        />
+      );
+
+      // Wait for initial fetch
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // The test spies on setInterval above but doesn't fire actual intervals.
+      // To verify the callback works correctly after fetch completes, manually
+      // trigger the interval callback and check that it can fetch again.
+      const intervalCallback = intervals[0] as unknown as {
+        callback: () => void;
+      };
+
+      // Wait for the first fetch to complete (isPollingRef should be false)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Trigger the interval callback - this should start another fetch
+      // because isPollingRef is now false (using ref instead of state)
+      await act(async () => {
+        intervalCallback.callback();
+        // Wait for async operation to complete
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      // The key assertion: The second fetch should have been triggered,
+      // proving that the ref-based polling guard works correctly
+      // (unlike the old state-based approach which could get stuck)
+      expect(fetchCount).toBeGreaterThanOrEqual(2);
+    });
   });
 });
