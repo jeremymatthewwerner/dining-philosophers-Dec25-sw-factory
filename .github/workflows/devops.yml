@@ -100,20 +100,20 @@ jobs:
           echo "=== Railway CLI Info ===" > /tmp/diagnostic_output.txt
           railway --version >> /tmp/diagnostic_output.txt 2>&1 || echo "Railway CLI not available" >> /tmp/diagnostic_output.txt
 
-          # Get recent backend logs (Railway CLI v3 doesn't support --limit, use tail)
+          # Get recent backend logs (Railway CLI v3 streams indefinitely, use timeout + tail)
           echo "" >> /tmp/diagnostic_output.txt
           echo "=== Recent Backend Logs ===" >> /tmp/diagnostic_output.txt
-          (railway logs --service backend 2>&1 || echo "Unable to fetch backend logs - check RAILWAY_TOKEN") | tail -30 >> /tmp/diagnostic_output.txt
+          (timeout 30 railway logs --service backend 2>&1 || echo "Unable to fetch backend logs - check RAILWAY_TOKEN or timeout reached") | tail -30 >> /tmp/diagnostic_output.txt
 
           echo "" >> /tmp/diagnostic_output.txt
           echo "=== Service Status ===" >> /tmp/diagnostic_output.txt
-          railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status - token may not be linked to project" >> /tmp/diagnostic_output.txt
+          timeout 15 railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status - token may not be linked to project" >> /tmp/diagnostic_output.txt
 
           # If the request mentions a specific user, try to find relevant logs
           if echo "$COMMENT_BODY" | grep -qi "user\|username"; then
             echo "" >> /tmp/diagnostic_output.txt
             echo "=== User-Related Logs ===" >> /tmp/diagnostic_output.txt
-            (railway logs --service backend 2>&1 || echo "Unable to fetch logs") | grep -i "user\|auth\|login\|register" | tail -20 >> /tmp/diagnostic_output.txt || echo "No user-related logs found" >> /tmp/diagnostic_output.txt
+            (timeout 30 railway logs --service backend 2>&1 || echo "Unable to fetch logs") | grep -i "user\|auth\|login\|register" | tail -20 >> /tmp/diagnostic_output.txt || echo "No user-related logs found" >> /tmp/diagnostic_output.txt
           fi
 
           # If the request mentions database or DB
@@ -363,9 +363,9 @@ jobs:
         id: railway_logs
         continue-on-error: true
         run: |
-          # Get last 50 lines of logs from each service
-          BACKEND_LOGS=$(railway logs --service backend --limit 50 2>&1 || echo "Unable to fetch backend logs")
-          FRONTEND_LOGS=$(railway logs --service frontend --limit 50 2>&1 || echo "Unable to fetch frontend logs")
+          # Get last 30 lines of logs from each service (Railway CLI v3 streams indefinitely, use timeout)
+          BACKEND_LOGS=$(timeout 30 railway logs --service backend 2>&1 || echo "Unable to fetch backend logs")
+          FRONTEND_LOGS=$(timeout 30 railway logs --service frontend 2>&1 || echo "Unable to fetch frontend logs")
 
           echo "backend_logs<<EOF" >> $GITHUB_OUTPUT
           echo "$BACKEND_LOGS" | tail -30 >> $GITHUB_OUTPUT
@@ -484,12 +484,12 @@ jobs:
             You have access to the Railway CLI. Key commands:
 
             ### Viewing Logs
+            **IMPORTANT:** Railway CLI v3 streams logs indefinitely. Always wrap with timeout:
             ```bash
-            railway logs                           # All services
-            railway logs --service backend         # Specific service
-            railway logs --service frontend
-            railway logs --limit 100               # More lines
-            railway logs --build                   # Build logs
+            timeout 30 railway logs --service backend 2>&1 | tail -50    # Get last 50 lines
+            timeout 30 railway logs --service frontend 2>&1 | tail -50   # Frontend logs
+            timeout 60 railway logs 2>&1 | tail -100                     # All services, more lines
+            railway logs --build                                          # Build logs (these don't stream)
             ```
 
             ### Service Management
@@ -522,7 +522,7 @@ jobs:
 
             ### For "incident-response":
             1. Check health endpoints with curl
-            2. Get Railway logs: `railway logs --service backend --limit 100`
+            2. Get Railway logs: `timeout 60 railway logs --service backend 2>&1 | tail -100`
             3. Look for errors, exceptions, connection issues
             4. Check recent deployments: `gh run list --limit 10`
             5. If code issue: create a fix PR
@@ -531,7 +531,7 @@ jobs:
             8. Escalate SEV1 to @jeremymatthewwerner
 
             ### For "view-logs":
-            1. Run `railway logs --service ${{ github.event.inputs.service }} --limit 100`
+            1. Run `timeout 60 railway logs --service ${{ github.event.inputs.service }} 2>&1 | tail -100`
             2. Look for patterns: errors, warnings, slow queries
             3. Summarize findings in a new issue or comment
 
@@ -635,7 +635,8 @@ jobs:
                - Ensure health checks cover critical dependencies (DB, cache, etc.)
 
             2. **Logging**
-               - Run `railway logs --service backend --limit 50` and `railway logs --service frontend --limit 50`
+               - Run `timeout 30 railway logs --service backend 2>&1 | tail -50` and `timeout 30 railway logs --service frontend 2>&1 | tail -50`
+               - Note: Railway CLI v3 streams indefinitely, so always use timeout wrapper
                - Check logs have proper structure (timestamps, levels, context)
                - Look for any recurring errors that need attention
 
