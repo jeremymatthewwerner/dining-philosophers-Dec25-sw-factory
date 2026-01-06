@@ -40,6 +40,7 @@ Ensure these secrets are set in **Settings → Secrets and variables → Actions
 - `GITHUB_TOKEN` - Auto-provided, but verify workflow permissions
 - `PAT_WITH_WORKFLOW_ACCESS` - Personal Access Token with `workflow` scope (for Code Agent to modify workflows)
 - `RAILWAY_TOKEN` - Railway API token (for DevOps Agent infrastructure management)
+- `RAILWAY_WORKSPACE_ID` - Railway workspace ID (UUID from Railway dashboard URL)
 - `PRODUCTION_BACKEND_URL` - Backend URL for health checks (e.g., `https://api.diningphilosophers.ai`)
 - `PRODUCTION_FRONTEND_URL` - Frontend URL for health checks (e.g., `https://diningphilosophers.ai`)
 - `TEST_CLEANUP_SECRET` - Secret for test user cleanup endpoint (used by smoke/canary tests)
@@ -419,7 +420,8 @@ railway status                      # Check project status
 ```
 
 **Required Secrets:**
-- `RAILWAY_TOKEN` - Get from Railway dashboard → Account → Tokens
+- `RAILWAY_TOKEN` - Get from Railway dashboard → Account → Tokens (workspace-scoped)
+- `RAILWAY_WORKSPACE_ID` - Railway workspace UUID (visible in dashboard URL)
 - `PRODUCTION_BACKEND_URL` - For health checks
 - `PRODUCTION_FRONTEND_URL` - For health checks
 
