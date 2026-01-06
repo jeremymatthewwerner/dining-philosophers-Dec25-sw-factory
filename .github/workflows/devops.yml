@@ -118,7 +118,7 @@ jobs:
           curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": \"query { workspace(id: \\\"$WORKSPACE_ID\\\") { projects { edges { node { id name services { edges { node { id name } } } } } } } }\"}" \
+            -d "{\"query\": \"query { workspace(workspaceId: \\\"$WORKSPACE_ID\\\") { projects { edges { node { id name services { edges { node { id name } } } } } } } }\"}" \
             2>&1 >> /tmp/diagnostic_output.txt || echo "API query failed" >> /tmp/diagnostic_output.txt
 
           # Get backend logs - explicitly specify service AND environment
