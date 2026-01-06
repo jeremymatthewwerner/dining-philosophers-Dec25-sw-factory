@@ -3,6 +3,8 @@ name: DevOps Agent
 on:
   push:
     branches: [main]
+  issue_comment:
+    types: [created]
   schedule:
     # Run health checks every 5 minutes
     - cron: '*/5 * * * *'
@@ -50,6 +52,104 @@ env:
   FAILURE_THRESHOLD: 2
 
 jobs:
+  # ===========================================
+  # DIAGNOSTIC REQUESTS (triggered by @devops mentions)
+  # ===========================================
+  diagnostic-request:
+    if: |
+      github.event_name == 'issue_comment' &&
+      !github.event.issue.pull_request &&
+      (contains(github.event.comment.body, '@devops') ||
+       contains(github.event.comment.body, '@DevOps'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Acknowledge request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "## 🔧 DevOps Agent Responding
+
+          **Request:** Checking production data...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          Please wait while I gather the requested information."
+
+      - name: Install Railway CLI
+        run: |
+          if curl -fsSL https://railway.app/install.sh | sh; then
+            echo "Railway CLI installed"
+          else
+            echo "Failed to install Railway CLI"
+            exit 1
+          fi
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+      - name: Run diagnostic query
+        id: diagnostic
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          echo "Processing diagnostic request..."
+
+          # Get recent backend logs
+          echo "=== Recent Backend Logs ===" > /tmp/diagnostic_output.txt
+          railway logs --service backend --limit 30 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to fetch backend logs" >> /tmp/diagnostic_output.txt
+
+          echo "" >> /tmp/diagnostic_output.txt
+          echo "=== Service Status ===" >> /tmp/diagnostic_output.txt
+          railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status" >> /tmp/diagnostic_output.txt
+
+          # If the request mentions a specific user, try to find relevant logs
+          if echo "$COMMENT_BODY" | grep -qi "user\|username"; then
+            echo "" >> /tmp/diagnostic_output.txt
+            echo "=== User-Related Logs ===" >> /tmp/diagnostic_output.txt
+            railway logs --service backend --limit 100 2>&1 | grep -i "user\|auth\|login\|register" | tail -20 >> /tmp/diagnostic_output.txt || echo "No user-related logs found" >> /tmp/diagnostic_output.txt
+          fi
+
+          # If the request mentions database or DB
+          if echo "$COMMENT_BODY" | grep -qi "database\|db\|postgres"; then
+            echo "" >> /tmp/diagnostic_output.txt
+            echo "=== Database Connection Status ===" >> /tmp/diagnostic_output.txt
+            # Check health endpoint which includes DB status
+            if [ -n "$BACKEND_URL" ]; then
+              curl -s "$BACKEND_URL/health/ready" 2>&1 >> /tmp/diagnostic_output.txt || echo "Health check unavailable" >> /tmp/diagnostic_output.txt
+            fi
+          fi
+
+          # Output for next step
+          DIAGNOSTIC_OUTPUT=$(cat /tmp/diagnostic_output.txt)
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIAGNOSTIC_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post diagnostic results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "## 🔧 DevOps Diagnostic Results
+
+          <details>
+          <summary>📋 Diagnostic Output (click to expand)</summary>
+
+          \`\`\`
+          ${{ steps.diagnostic.outputs.output }}
+          \`\`\`
+
+          </details>
+
+          ---
+          **Need more info?** You can request:
+          - \`@devops check user <username>\` - Look for user-related logs
+          - \`@devops check database\` - Check DB connection status
+          - \`@devops check logs <service>\` - Get recent logs for a service
+
+          **Note:** For direct database queries, use \`railway connect postgres\` locally with your Railway token."
+
   # ===========================================
   # HEALTH MONITORING (runs every 5 minutes)
   # ===========================================

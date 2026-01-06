@@ -336,6 +336,24 @@ jobs:
             - Only escalate if the command actually fails with a permission error
             - Being overly conservative wastes human time on things you CAN do
 
+            ## 🔍 PRODUCTION DIAGNOSTICS - Ask DevOps Agent!
+
+            **Need to check production data to diagnose an issue?** You can request help from the DevOps Agent:
+
+            1. Post a comment on the issue: `@devops please check <what you need>`
+            2. DevOps Agent will query production and post results
+            3. Wait for the response before continuing
+
+            **Example requests:**
+            - `@devops check user logs for authentication errors`
+            - `@devops check database connection status`
+            - `@devops check recent backend logs`
+
+            This is useful when you need to verify:
+            - If a user exists or has certain data in production
+            - If an API is returning expected responses
+            - What errors are occurring in production logs
+
             ## 📋 LOG ANALYSIS PROTOCOL (MANDATORY!)
 
             **BEFORE implementing ANY fix, you MUST analyze logs.** Don't guess - READ THE ACTUAL ERRORS!
