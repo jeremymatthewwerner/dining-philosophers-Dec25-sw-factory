@@ -198,4 +198,24 @@ describe('Sidebar', () => {
     expect(decodedUrl).toContain('OS:');
     expect(decodedUrl).toContain('User Agent:');
   });
+
+  it('renders feedback button when username is provided', () => {
+    render(<Sidebar {...defaultProps} username="testuser" />);
+    const feedbackButton = screen.getByTestId('feedback-button');
+    expect(feedbackButton).toBeInTheDocument();
+    expect(feedbackButton).toHaveTextContent('Feedback');
+  });
+
+  it('opens feedback modal when feedback button is clicked', () => {
+    render(<Sidebar {...defaultProps} username="testuser" />);
+
+    // Modal should not be visible initially
+    expect(screen.queryByTestId('feedback-modal')).not.toBeInTheDocument();
+
+    // Click feedback button
+    fireEvent.click(screen.getByTestId('feedback-button'));
+
+    // Modal should now be visible
+    expect(screen.getByTestId('feedback-modal')).toBeInTheDocument();
+  });
 });

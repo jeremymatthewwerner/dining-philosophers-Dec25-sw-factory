@@ -18,6 +18,12 @@ from app.schemas.conversation import (
     ConversationSummary,
     ConversationWithMessages,
 )
+from app.schemas.feedback import (
+    FeedbackCreate,
+    FeedbackDetail,
+    FeedbackResponse,
+    FeedbackType,
+)
 from app.schemas.message import MessageCreate, MessageResponse
 from app.schemas.session import SessionCreate, SessionResponse
 from app.schemas.thinker import (
@@ -41,6 +47,10 @@ __all__ = [
     "ConversationResponse",
     "ConversationSummary",
     "ConversationWithMessages",
+    "FeedbackCreate",
+    "FeedbackDetail",
+    "FeedbackResponse",
+    "FeedbackType",
     "MessageCreate",
     "MessageResponse",
     "ResearchStatusEnum",
