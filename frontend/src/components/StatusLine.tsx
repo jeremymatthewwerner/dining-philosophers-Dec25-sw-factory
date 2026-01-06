@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 export type ResearchStatus = 'pending' | 'in_progress' | 'complete' | 'failed';
@@ -69,12 +69,16 @@ export function StatusLine({
   const [statuses, setStatuses] = useState<Map<string, ThinkerResearchStatus>>(
     new Map()
   );
-  const [isPolling, setIsPolling] = useState(false);
+  // Use a ref instead of state for the polling guard to avoid callback recreation
+  // This fixes issue #187 where isPolling in the useCallback dependency array
+  // caused the callback to be recreated, leading to stale closure issues where
+  // the interval callback would check an outdated isPolling value
+  const isPollingRef = useRef(false);
 
   const fetchAllStatuses = useCallback(async () => {
-    if (thinkerNames.length === 0 || isPolling) return;
+    if (thinkerNames.length === 0 || isPollingRef.current) return;
 
-    setIsPolling(true);
+    isPollingRef.current = true;
     try {
       const results = await Promise.all(
         thinkerNames.map((name) => fetchThinkerStatus(name, apiBaseUrl))
@@ -88,9 +92,9 @@ export function StatusLine({
       });
       setStatuses(newStatuses);
     } finally {
-      setIsPolling(false);
+      isPollingRef.current = false;
     }
-  }, [thinkerNames, apiBaseUrl, isPolling]);
+  }, [thinkerNames, apiBaseUrl]);
 
   // Initial fetch and continuous polling
   // We always poll while mounted with thinkers - the render logic decides
