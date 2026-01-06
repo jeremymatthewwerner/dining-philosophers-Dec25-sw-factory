@@ -423,6 +423,17 @@ railway status                      # Check project status
 - `PRODUCTION_BACKEND_URL` - For health checks
 - `PRODUCTION_FRONTEND_URL` - For health checks
 
+**Inter-Agent Diagnostics:**
+
+Other agents (like Code Agent) can request production diagnostics by commenting `@devops` on issues:
+```
+@devops please check user logs for authentication errors
+@devops check database connection status
+@devops check recent backend logs
+```
+
+DevOps Agent will query production and post results back to the issue. This enables Code Agent to verify production state when debugging issues without having direct production access.
+
 ### Agent Visibility (IMPORTANT)
 
 All agents MUST post progress updates to their issues for visibility using the **checkbox progress pattern**.
