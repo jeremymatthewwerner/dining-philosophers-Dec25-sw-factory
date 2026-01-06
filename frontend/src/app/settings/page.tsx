@@ -27,12 +27,12 @@ export default function SettingsPage() {
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // Initialize display name from user
+  // Initialize display name from user when user data becomes available
   useEffect(() => {
-    if (user?.display_name) {
-      setDisplayName(user.display_name);
+    if (user) {
+      setDisplayName(user.display_name || '');
     }
-  }, [user?.display_name]);
+  }, [user]);
 
   // Redirect if not authenticated
   useEffect(() => {
