@@ -96,19 +96,24 @@ jobs:
         run: |
           echo "Processing diagnostic request..."
 
-          # Get recent backend logs
-          echo "=== Recent Backend Logs ===" > /tmp/diagnostic_output.txt
-          railway logs --service backend --limit 30 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to fetch backend logs" >> /tmp/diagnostic_output.txt
+          # Check Railway CLI version and token
+          echo "=== Railway CLI Info ===" > /tmp/diagnostic_output.txt
+          railway --version >> /tmp/diagnostic_output.txt 2>&1 || echo "Railway CLI not available" >> /tmp/diagnostic_output.txt
+
+          # Get recent backend logs (Railway CLI v3 doesn't support --limit, use tail)
+          echo "" >> /tmp/diagnostic_output.txt
+          echo "=== Recent Backend Logs ===" >> /tmp/diagnostic_output.txt
+          (railway logs --service backend 2>&1 || echo "Unable to fetch backend logs - check RAILWAY_TOKEN") | tail -30 >> /tmp/diagnostic_output.txt
 
           echo "" >> /tmp/diagnostic_output.txt
           echo "=== Service Status ===" >> /tmp/diagnostic_output.txt
-          railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status" >> /tmp/diagnostic_output.txt
+          railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status - token may not be linked to project" >> /tmp/diagnostic_output.txt
 
           # If the request mentions a specific user, try to find relevant logs
           if echo "$COMMENT_BODY" | grep -qi "user\|username"; then
             echo "" >> /tmp/diagnostic_output.txt
             echo "=== User-Related Logs ===" >> /tmp/diagnostic_output.txt
-            railway logs --service backend --limit 100 2>&1 | grep -i "user\|auth\|login\|register" | tail -20 >> /tmp/diagnostic_output.txt || echo "No user-related logs found" >> /tmp/diagnostic_output.txt
+            (railway logs --service backend 2>&1 || echo "Unable to fetch logs") | grep -i "user\|auth\|login\|register" | tail -20 >> /tmp/diagnostic_output.txt || echo "No user-related logs found" >> /tmp/diagnostic_output.txt
           fi
 
           # If the request mentions database or DB
@@ -118,6 +123,8 @@ jobs:
             # Check health endpoint which includes DB status
             if [ -n "$BACKEND_URL" ]; then
               curl -s "$BACKEND_URL/health/ready" 2>&1 >> /tmp/diagnostic_output.txt || echo "Health check unavailable" >> /tmp/diagnostic_output.txt
+            else
+              echo "PRODUCTION_BACKEND_URL not configured" >> /tmp/diagnostic_output.txt
             fi
           fi
 
