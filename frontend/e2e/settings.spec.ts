@@ -31,6 +31,46 @@ test.describe('Settings Page', () => {
   });
 
   test.describe('Display Name Update', () => {
+    test('should pre-populate display name from user data', async ({ page }) => {
+      // Register with a known display name
+      await page.goto('/');
+
+      const uniqueUsername = `prepoptest_${Date.now()}`;
+      const expectedDisplayName = 'Pre-Populated Test User';
+      const password = 'testpass123';
+
+      // Register via API with specific display name
+      const registerResponse = await page.request.post(
+        `${API_BASE}/api/auth/register`,
+        {
+          data: {
+            username: uniqueUsername,
+            display_name: expectedDisplayName,
+            password: password,
+          },
+        }
+      );
+      expect(registerResponse.ok()).toBe(true);
+      const authData = await registerResponse.json();
+
+      // Store auth in localStorage
+      await page.evaluate(
+        ([token, user]) => {
+          localStorage.setItem('access_token', token);
+          localStorage.setItem('user', JSON.stringify(user));
+        },
+        [authData.access_token, authData.user]
+      );
+
+      // Navigate to settings
+      await page.goto('/settings');
+      await expect(page.locator('h1')).toContainText('Settings');
+
+      // The display name input should be pre-populated with the user's display name
+      const displayNameInput = page.locator('#displayName');
+      await expect(displayNameInput).toHaveValue(expectedDisplayName);
+    });
+
     test('should update display name successfully', async ({ page }) => {
       await setupAuthenticatedUser(page);
 
