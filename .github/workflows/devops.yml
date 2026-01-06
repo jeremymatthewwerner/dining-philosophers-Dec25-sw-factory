@@ -90,7 +90,7 @@ jobs:
       - name: Run diagnostic query
         id: diagnostic
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
@@ -391,7 +391,7 @@ jobs:
           echo "$FRONTEND_LOGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       - name: Update or create incident
         run: |
@@ -480,7 +480,7 @@ jobs:
           # Railway CLI auto-detects project from RAILWAY_TOKEN in CI mode
           railway status || echo "Railway not linked - some features may be limited"
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       - name: Run DevOps Agent
         uses: anthropics/claude-code-action@v1
@@ -600,7 +600,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           PRODUCTION_BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
           PRODUCTION_FRONTEND_URL: ${{ secrets.PRODUCTION_FRONTEND_URL }}
 
@@ -694,7 +694,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # ===========================================
   # AUTO-REBASE (triggered on push to main)
