@@ -26,7 +26,8 @@
     "appTitle": "Dining Philosophers",
     "newConversation": "New Conversation",
     "tagline": "Discuss ideas with AI-simulated thinkers",
-    "reportIssue": "Report an Issue",
+    "reportIssue": "Report on GitHub",
+    "sendFeedback": "Feedback",
     "closeSidebar": "Close sidebar",
     "adminPanel": "Admin panel",
     "settings": "Settings",
@@ -224,5 +225,28 @@
     "passwordChangeFailed": "Failed to change password",
     "changePassword": "Change Password",
     "changingPassword": "Changing..."
+  },
+  "feedbackModal": {
+    "title": "Send Feedback",
+    "close": "Close",
+    "typeLabel": "Type",
+    "typeBug": "Bug Report",
+    "typeFeature": "Feature Request",
+    "typeOther": "Other",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Describe your feedback, bug, or feature request...",
+    "messageTooShort": "Message must be at least 10 characters",
+    "nameLabel": "Name",
+    "namePlaceholder": "Your name",
+    "emailLabel": "Email",
+    "emailPlaceholder": "your@email.com",
+    "optional": "optional",
+    "privacyNote": "Your contact information is optional and will only be used to follow up on your feedback if needed.",
+    "submit": "Submit Feedback",
+    "submitting": "Submitting...",
+    "cancel": "Cancel",
+    "thankYou": "Thank you!",
+    "successMessage": "Your feedback has been submitted successfully. We appreciate you taking the time to help us improve.",
+    "done": "Done"
   }
 }

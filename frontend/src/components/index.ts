@@ -16,6 +16,9 @@ export type { CostMeterProps } from './CostMeter';
 export { ErrorBanner } from './ErrorBanner';
 export type { ErrorBannerProps } from './ErrorBanner';
 
+export { FeedbackModal } from './FeedbackModal';
+export type { FeedbackModalProps } from './FeedbackModal';
+
 export { Message } from './Message';
 export type { MessageProps } from './Message';
 

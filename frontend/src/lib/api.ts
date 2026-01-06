@@ -378,5 +378,42 @@ export async function updateUserSpendLimit(
   );
 }
 
+// Feedback API (no authentication required)
+export type FeedbackType = 'bug' | 'feature' | 'other';
+
+export interface FeedbackSubmission {
+  feedback_type: FeedbackType;
+  message: string;
+  email?: string;
+  name?: string;
+  user_agent?: string;
+}
+
+export interface FeedbackResponse {
+  id: string;
+  message: string;
+}
+
+export async function submitFeedback(
+  data: FeedbackSubmission
+): Promise<FeedbackResponse> {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  const response = await fetch(`${API_URL}/api/feedback`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
 // Export for testing
 export { API_BASE_URL };

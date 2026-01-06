@@ -26,7 +26,8 @@
     "appTitle": "Filósofos Comensales",
     "newConversation": "Nueva Conversación",
     "tagline": "Discute ideas con pensadores simulados por IA",
-    "reportIssue": "Reportar un Problema",
+    "reportIssue": "Reportar en GitHub",
+    "sendFeedback": "Comentarios",
     "closeSidebar": "Cerrar barra lateral",
     "adminPanel": "Panel de administración",
     "settings": "Configuración",
@@ -224,5 +225,28 @@
     "passwordChangeFailed": "No se pudo cambiar la contraseña",
     "changePassword": "Cambiar Contraseña",
     "changingPassword": "Cambiando..."
+  },
+  "feedbackModal": {
+    "title": "Enviar Comentarios",
+    "close": "Cerrar",
+    "typeLabel": "Tipo",
+    "typeBug": "Reporte de Error",
+    "typeFeature": "Solicitud de Función",
+    "typeOther": "Otro",
+    "messageLabel": "Mensaje",
+    "messagePlaceholder": "Describe tu comentario, error o solicitud de función...",
+    "messageTooShort": "El mensaje debe tener al menos 10 caracteres",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "Tu nombre",
+    "emailLabel": "Correo Electrónico",
+    "emailPlaceholder": "tu@correo.com",
+    "optional": "opcional",
+    "privacyNote": "Tu información de contacto es opcional y solo se usará para dar seguimiento a tus comentarios si es necesario.",
+    "submit": "Enviar Comentarios",
+    "submitting": "Enviando...",
+    "cancel": "Cancelar",
+    "thankYou": "¡Gracias!",
+    "successMessage": "Tus comentarios han sido enviados exitosamente. Agradecemos que te hayas tomado el tiempo para ayudarnos a mejorar.",
+    "done": "Listo"
   }
 }

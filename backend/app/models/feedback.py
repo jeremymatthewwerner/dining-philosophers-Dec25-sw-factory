@@ -1,0 +1,60 @@
+"""Feedback model for storing user feedback submitted via the app."""
+
+from enum import Enum as PyEnum
+
+from sqlalchemy import Enum, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, TimestampMixin, generate_uuid
+
+
+class FeedbackType(str, PyEnum):
+    """Type of feedback submitted."""
+
+    BUG = "bug"
+    FEATURE = "feature"
+    OTHER = "other"
+
+
+class FeedbackStatus(str, PyEnum):
+    """Status of feedback item."""
+
+    NEW = "new"
+    REVIEWED = "reviewed"
+    RESOLVED = "resolved"
+
+
+class Feedback(Base, TimestampMixin):
+    """User feedback submitted through the in-app form.
+
+    Allows users without GitHub accounts to submit bug reports and feature requests.
+    Admins can review and optionally convert to GitHub issues.
+    """
+
+    __tablename__ = "feedbacks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+
+    # Feedback content
+    feedback_type: Mapped[str] = mapped_column(
+        Enum(FeedbackType), default=FeedbackType.BUG, nullable=False
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Optional user info (for users who want to be contacted)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Browser/device info for debugging
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Status tracking
+    status: Mapped[str] = mapped_column(
+        Enum(FeedbackStatus), default=FeedbackStatus.NEW, nullable=False
+    )
+
+    # Link to GitHub issue if created
+    github_issue_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # IP address for rate limiting (hashed for privacy)
+    ip_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
