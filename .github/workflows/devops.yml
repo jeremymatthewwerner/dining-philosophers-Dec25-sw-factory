@@ -112,25 +112,46 @@ jobs:
           echo "=== Service Status ===" >> /tmp/diagnostic_output.txt
           timeout 15 railway status 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to get status" >> /tmp/diagnostic_output.txt
 
-          # Query Railway API to list services (GraphQL) - use workspace query for workspace-scoped tokens
+          # Query Railway API to list projects with environments
           echo "" >> /tmp/diagnostic_output.txt
-          echo "=== Railway API - Services ===" >> /tmp/diagnostic_output.txt
-          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+          echo "=== Railway API - Projects & Environments ===" >> /tmp/diagnostic_output.txt
+          PROJECTS_RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": \"query { workspace(workspaceId: \\\"$RAILWAY_WORKSPACE_ID\\\") { projects { edges { node { id name services { edges { node { id name } } } } } } } }\"}" \
-            2>&1 >> /tmp/diagnostic_output.txt || echo "API query failed" >> /tmp/diagnostic_output.txt
+            -d "{\"query\": \"query { workspace(workspaceId: \\\"$RAILWAY_WORKSPACE_ID\\\") { projects { edges { node { id name environments { edges { node { id name } } } services { edges { node { id name } } } } } } } }\"}")
+          echo "$PROJECTS_RESPONSE" >> /tmp/diagnostic_output.txt
 
-          # Get backend logs - explicitly specify service AND environment
-          echo "" >> /tmp/diagnostic_output.txt
-          echo "=== Recent Backend Logs ===" >> /tmp/diagnostic_output.txt
-          railway logs --service backend --environment production -n 30 2>&1 >> /tmp/diagnostic_output.txt || echo "Unable to fetch backend logs" >> /tmp/diagnostic_output.txt
+          # Extract environment ID for thinkers-chat production (or first production env found)
+          # The project name is "thinkers-chat" based on earlier discovery
+          PROD_ENV_ID=$(echo "$PROJECTS_RESPONSE" | jq -r '.data.workspace.projects.edges[] | select(.node.name == "thinkers-chat") | .node.environments.edges[] | select(.node.name == "production") | .node.id' 2>/dev/null | head -1)
 
-          # If the request mentions a specific user, try to find relevant logs
+          if [ -n "$PROD_ENV_ID" ] && [ "$PROD_ENV_ID" != "null" ]; then
+            echo "" >> /tmp/diagnostic_output.txt
+            echo "=== Environment Logs (production: $PROD_ENV_ID) ===" >> /tmp/diagnostic_output.txt
+
+            # Fetch recent logs using environmentLogs query
+            LOGS_RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
+              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"query\": \"query { environmentLogs(environmentId: \\\"$PROD_ENV_ID\\\", beforeLimit: 50) { ... on Log { message timestamp severity tags } } }\"}")
+
+            # Parse and format logs
+            echo "$LOGS_RESPONSE" | jq -r '.data.environmentLogs[]? | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null >> /tmp/diagnostic_output.txt || echo "$LOGS_RESPONSE" >> /tmp/diagnostic_output.txt
+          else
+            echo "" >> /tmp/diagnostic_output.txt
+            echo "=== Recent Backend Logs ===" >> /tmp/diagnostic_output.txt
+            echo "Could not find production environment ID. Projects response above." >> /tmp/diagnostic_output.txt
+          fi
+
+          # If the request mentions a specific user, try to find relevant logs (filter from already-fetched logs)
           if echo "$COMMENT_BODY" | grep -qi "user\|username"; then
             echo "" >> /tmp/diagnostic_output.txt
             echo "=== User-Related Logs ===" >> /tmp/diagnostic_output.txt
-            (railway logs --service backend -n 100 2>&1 || echo "Unable to fetch logs") | grep -i "user\|auth\|login\|register" | tail -20 >> /tmp/diagnostic_output.txt || echo "No user-related logs found" >> /tmp/diagnostic_output.txt
+            if [ -n "$LOGS_RESPONSE" ]; then
+              echo "$LOGS_RESPONSE" | jq -r '.data.environmentLogs[]? | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null | grep -i "user\|auth\|login\|register" | tail -20 >> /tmp/diagnostic_output.txt || echo "No user-related logs found in recent logs" >> /tmp/diagnostic_output.txt
+            else
+              echo "No logs available to filter" >> /tmp/diagnostic_output.txt
+            fi
           fi
 
           # If the request mentions database or DB
