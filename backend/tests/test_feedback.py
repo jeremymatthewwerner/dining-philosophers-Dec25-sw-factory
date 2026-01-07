@@ -1,5 +1,7 @@
 """Tests for the feedback API endpoints."""
 
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
 
@@ -224,3 +226,137 @@ async def test_submit_feedback_screenshot_too_large(client: AsyncClient) -> None
     )
 
     assert response.status_code == 422  # Validation error
+
+
+# =========================================
+# Tests for feedback processor endpoints
+# =========================================
+
+
+TEST_SECRET = "test-feedback-processor-secret"
+
+
+@pytest.mark.asyncio
+async def test_get_pending_feedback_no_secret(client: AsyncClient) -> None:
+    """Test that GET /api/feedback/pending requires a secret."""
+    response = await client.get("/api/feedback/pending")
+    assert response.status_code == 422  # Missing required query param
+
+
+@pytest.mark.asyncio
+async def test_get_pending_feedback_invalid_secret(client: AsyncClient) -> None:
+    """Test that GET /api/feedback/pending rejects invalid secrets."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+        response = await client.get("/api/feedback/pending?secret=wrong-secret")
+        assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_pending_feedback_not_configured(client: AsyncClient) -> None:
+    """Test that GET /api/feedback/pending returns 503 when not configured."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = ""
+        response = await client.get("/api/feedback/pending?secret=any-secret")
+        assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_get_pending_feedback_success(client: AsyncClient) -> None:
+    """Test successful GET /api/feedback/pending."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+
+        # First create some feedback
+        await client.post(
+            "/api/feedback",
+            json={"message": "Test feedback for pending endpoint test."},
+        )
+
+        response = await client.get(f"/api/feedback/pending?secret={TEST_SECRET}")
+        assert response.status_code == 200
+        data = response.json()
+        assert "count" in data
+        assert "feedbacks" in data
+        assert isinstance(data["feedbacks"], list)
+
+
+@pytest.mark.asyncio
+async def test_get_pending_feedback_with_limit(client: AsyncClient) -> None:
+    """Test GET /api/feedback/pending with limit parameter."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+
+        response = await client.get(f"/api/feedback/pending?secret={TEST_SECRET}&limit=5")
+        assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_mark_processed_no_secret(client: AsyncClient) -> None:
+    """Test that PATCH /api/feedback/{id}/processed requires a secret."""
+    response = await client.patch(
+        "/api/feedback/test-id/processed",
+        json={"github_issue_url": "https://github.com/test/test/issues/1"},
+    )
+    assert response.status_code == 422  # Missing required query param
+
+
+@pytest.mark.asyncio
+async def test_mark_processed_invalid_secret(client: AsyncClient) -> None:
+    """Test that PATCH /api/feedback/{id}/processed rejects invalid secrets."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+        response = await client.patch(
+            "/api/feedback/test-id/processed?secret=wrong-secret",
+            json={"github_issue_url": "https://github.com/test/test/issues/1"},
+        )
+        assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_mark_processed_not_found(client: AsyncClient) -> None:
+    """Test that PATCH /api/feedback/{id}/processed returns 404 for unknown ID."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+        response = await client.patch(
+            f"/api/feedback/nonexistent-id/processed?secret={TEST_SECRET}",
+            json={"github_issue_url": "https://github.com/test/test/issues/1"},
+        )
+        assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_mark_processed_success(client: AsyncClient) -> None:
+    """Test successful PATCH /api/feedback/{id}/processed."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+
+        # First create feedback
+        create_response = await client.post(
+            "/api/feedback",
+            json={"message": "Test feedback for mark processed endpoint test."},
+        )
+        feedback_id = create_response.json()["id"]
+
+        # Now mark it as processed
+        response = await client.patch(
+            f"/api/feedback/{feedback_id}/processed?secret={TEST_SECRET}",
+            json={"github_issue_url": "https://github.com/test/test/issues/123"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["feedback_id"] == feedback_id
+        assert data["github_issue_url"] == "https://github.com/test/test/issues/123"
+
+
+@pytest.mark.asyncio
+async def test_mark_processed_missing_url(client: AsyncClient) -> None:
+    """Test that PATCH /api/feedback/{id}/processed requires github_issue_url."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+        response = await client.patch(
+            f"/api/feedback/test-id/processed?secret={TEST_SECRET}",
+            json={},
+        )
+        assert response.status_code == 422  # Validation error

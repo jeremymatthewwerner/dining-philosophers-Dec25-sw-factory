@@ -58,3 +58,24 @@ class FeedbackDetail(BaseModel):
     github_issue_url: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class PendingFeedbackResponse(BaseModel):
+    """Response schema for pending feedback list."""
+
+    count: int
+    feedbacks: list[FeedbackDetail]
+
+
+class MarkProcessedRequest(BaseModel):
+    """Request schema for marking feedback as processed."""
+
+    github_issue_url: str = Field(..., min_length=1, max_length=500)
+
+
+class MarkProcessedResponse(BaseModel):
+    """Response schema for marking feedback as processed."""
+
+    success: bool
+    feedback_id: str
+    github_issue_url: str
