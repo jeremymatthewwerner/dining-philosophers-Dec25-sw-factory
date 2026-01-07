@@ -131,6 +131,11 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
+      # Configure git to use PAT for push operations (enables pushing workflow files)
+      - name: Configure git with PAT
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

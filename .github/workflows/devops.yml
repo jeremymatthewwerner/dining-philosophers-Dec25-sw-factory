@@ -742,6 +742,148 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
 
   # ===========================================
+  # FEEDBACK-TO-ISSUE PROCESSING (runs every 5 minutes)
+  # ===========================================
+  process-feedback:
+    if: github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pending feedback
+        id: fetch
+        run: |
+          BACKEND_URL="${{ secrets.PRODUCTION_BACKEND_URL }}"
+          SECRET="${{ secrets.FEEDBACK_PROCESSOR_SECRET }}"
+
+          if [ -z "$BACKEND_URL" ] || [ -z "$SECRET" ]; then
+            echo "⚠️ PRODUCTION_BACKEND_URL or FEEDBACK_PROCESSOR_SECRET not configured"
+            echo "has_feedback=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Fetching pending feedback from $BACKEND_URL/api/feedback/pending..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 30 \
+            "$BACKEND_URL/api/feedback/pending?secret=$SECRET&limit=10" 2>&1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Failed to fetch pending feedback: HTTP $HTTP_CODE"
+            echo "Response: $BODY"
+            echo "has_feedback=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          COUNT=$(echo "$BODY" | jq -r '.count // 0')
+          echo "Found $COUNT pending feedback items"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "has_feedback=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "has_feedback=true" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "feedbacks<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub issues from feedback
+        if: steps.fetch.outputs.has_feedback == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
+          SECRET: ${{ secrets.FEEDBACK_PROCESSOR_SECRET }}
+          FEEDBACKS: ${{ steps.fetch.outputs.feedbacks }}
+        run: |
+          echo "Processing ${{ steps.fetch.outputs.count }} feedback items..."
+
+          echo "$FEEDBACKS" | jq -c '.feedbacks[]' | while read -r feedback; do
+            FEEDBACK_ID=$(echo "$feedback" | jq -r '.id')
+            FEEDBACK_TYPE=$(echo "$feedback" | jq -r '.feedback_type')
+            MESSAGE=$(echo "$feedback" | jq -r '.message')
+            EMAIL=$(echo "$feedback" | jq -r '.email // "Not provided"')
+            NAME=$(echo "$feedback" | jq -r '.name // "Anonymous"')
+            USER_AGENT=$(echo "$feedback" | jq -r '.user_agent // "Not provided"')
+            CREATED_AT=$(echo "$feedback" | jq -r '.created_at')
+
+            echo "Processing feedback $FEEDBACK_ID (type: $FEEDBACK_TYPE)..."
+
+            # Determine labels based on feedback type
+            if [ "$FEEDBACK_TYPE" = "bug" ]; then
+              LABELS="bug,priority-medium,user-feedback"
+              TITLE_PREFIX="🐛 [User Bug Report]"
+            elif [ "$FEEDBACK_TYPE" = "feature" ]; then
+              LABELS="enhancement,priority-medium,user-feedback"
+              TITLE_PREFIX="💡 [User Feature Request]"
+            else
+              LABELS="question,priority-low,user-feedback"
+              TITLE_PREFIX="💬 [User Feedback]"
+            fi
+
+            # Create title from first 80 chars of message
+            TITLE_MSG=$(echo "$MESSAGE" | head -c 80 | tr '\n' ' ')
+            if [ ${#MESSAGE} -gt 80 ]; then
+              TITLE_MSG="${TITLE_MSG}..."
+            fi
+
+            # Create the GitHub issue using printf to build the body
+            {
+              printf '%s\n' "## User Feedback"
+              printf '\n'
+              printf '%s\n' "**Submitted by:** $NAME ($EMAIL)"
+              printf '%s\n' "**Type:** $FEEDBACK_TYPE"
+              printf '%s\n' "**Submitted:** $CREATED_AT"
+              printf '\n'
+              printf '%s\n' "### Message"
+              printf '\n'
+              printf '%s\n' "$MESSAGE"
+              printf '\n'
+              printf '%s\n' "---"
+              printf '\n'
+              printf '%s\n' "### Browser/Device Info"
+              printf '\n'
+              printf '%s\n' '```'
+              printf '%s\n' "$USER_AGENT"
+              printf '%s\n' '```'
+              printf '\n'
+              printf '%s\n' "---"
+              printf '%s\n' "_This issue was automatically created from user feedback._"
+              printf '%s\n' "_Feedback ID: ${FEEDBACK_ID}_"
+            } > /tmp/issue_body.md
+
+            ISSUE_URL=$(gh issue create \
+              --title "$TITLE_PREFIX $TITLE_MSG" \
+              --label "$LABELS" \
+              --body-file /tmp/issue_body.md 2>&1)
+
+            if [ $? -eq 0 ]; then
+              echo "✅ Created issue: $ISSUE_URL"
+
+              # Mark feedback as processed with the issue URL
+              PATCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
+                --max-time 30 \
+                -H "Content-Type: application/json" \
+                -d "{\"github_issue_url\": \"$ISSUE_URL\"}" \
+                "$BACKEND_URL/api/feedback/$FEEDBACK_ID/processed?secret=$SECRET" 2>&1)
+              PATCH_CODE=$(echo "$PATCH_RESPONSE" | tail -n1)
+
+              if [ "$PATCH_CODE" = "200" ]; then
+                echo "✅ Marked feedback $FEEDBACK_ID as processed"
+              else
+                echo "::warning::Failed to mark feedback $FEEDBACK_ID as processed (HTTP $PATCH_CODE)"
+              fi
+            else
+              echo "::error::Failed to create issue for feedback $FEEDBACK_ID: $ISSUE_URL"
+            fi
+          done
+
+          echo "Feedback processing complete!"
+
+  # ===========================================
   # AUTO-REBASE (triggered on push to main)
   # ===========================================
   auto-rebase:
