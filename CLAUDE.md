@@ -557,30 +557,38 @@ Issue Created → Triage labels → Code Agent fixes → PR created → CI passe
 
 ### Agent-to-Agent Coordination (@mentions)
 
-Agents can request help from other agents using @mentions in issue comments. This is the preferred method for agent coordination because:
+**@mentions are the primary trigger mechanism for agents.** Labels are for categorization only.
+
+Why @mentions over labels:
 - **Comments are immutable** - creates audit trail
-- **Each mention is an event** - triggers workflow reliably
-- **Simple to understand** - no complex state machine
-- **Works regardless of labels** - doesn't depend on ephemeral label state
+- **No race conditions** - unlike labels which can conflict when added together
+- **No PAT workarounds** - comments reliably trigger workflows
+- **Simple to understand** - no complex "if has X AND Y" conditions
 
 **Available @mentions:**
 
-| Mention | Triggers | Use Case |
-|---------|----------|----------|
-| `@claude` | Code Agent | Ask for code changes, bug fixes, feature implementation |
-| `@devops` | DevOps Agent | Request production logs, database diagnostics, service restarts |
-| `@principal-engineer` | Principal Engineer | Escalate complex issues requiring holistic factory fixes |
+| Mention | Agent | Use Case |
+|---------|-------|----------|
+| `@code` | Code Agent | Fix bugs, implement features (preferred over `@claude`) |
+| `@devops` | DevOps Agent | Production logs, diagnostics, service restarts |
+| `@pe` | Principal Engineer | Holistic debugging, factory fixes |
+| `@triage` | Triage Agent | Re-classify or re-prioritize an issue |
+| `@qa` | QA Agent | Request test improvements |
+| `@claude` | Code Agent | Legacy alias for `@code` (still works) |
 
 **Examples:**
 ```
-@devops please check backend logs for errors in the last hour
-@claude the database schema needs updating, please create a migration
-@devops check database connection status
+@code please fix this bug
+@devops please check backend logs for errors
+@pe this issue needs holistic investigation
+@triage please re-evaluate the priority of this issue
 ```
 
-**When to use @mentions vs labels:**
-- **@mentions**: Agent-to-agent requests, re-triggering stuck issues, requesting specific actions
-- **Labels**: Initial triage, marking issues as ready for automation (`ai-ready`), escalation states
+**Labels are for categorization only:**
+- `bug`, `enhancement` - Issue type
+- `priority-high`, `priority-medium`, `priority-low` - Priority
+- `status:bot-working`, `status:awaiting-human` - Current status
+- Do NOT use `ai-ready` label to trigger agents - use `@code` mention instead
 
 ### QA Agent - Test Quality Guardian
 
