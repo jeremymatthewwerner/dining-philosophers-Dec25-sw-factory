@@ -115,7 +115,8 @@ jobs:
       - name: Trigger Code Agent
         if: steps.check-issue.outputs.exists == 'false' && steps.create-issue.outputs.issue_number
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # MUST use PAT to trigger other workflows - GITHUB_TOKEN can't trigger workflows
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
         run: |
           echo "Adding ai-ready label to trigger Code Agent..."
           gh issue edit ${{ steps.create-issue.outputs.issue_number }} \
