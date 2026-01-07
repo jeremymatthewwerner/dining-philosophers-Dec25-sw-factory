@@ -122,12 +122,14 @@ jobs:
             --repo ${{ github.repository }} \
             --add-label "ai-ready"
 
-      - name: Update existing issue
+      - name: Update existing issue and re-trigger Code Agent
         if: steps.check-issue.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.check-issue.outputs.issue_number }}
         run: |
-          gh issue comment ${{ steps.check-issue.outputs.issue_number }} \
+          # Comment with @claude mention to trigger Code Agent
+          gh issue comment "$ISSUE_NUMBER" \
             --repo ${{ github.repository }} \
             --body "## Another CI Failure Detected
 
@@ -135,4 +137,9 @@ jobs:
           **Commit:** ${{ github.event.workflow_run.head_sha }}
           **Run:** ${{ steps.failed-jobs.outputs.run_url }}
 
-          The CI is still failing. Please investigate."
+          @claude The CI is still failing on main. Please investigate this new failure and fix it."
+
+          # Also re-trigger via label toggle (belt and suspenders)
+          gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} --remove-label "ai-ready" || true
+          sleep 2
+          gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} --add-label "ai-ready"
