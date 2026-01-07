@@ -90,7 +90,10 @@ jobs:
       - name: Run diagnostic query
         id: diagnostic
         env:
+          # Project token for CLI commands
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
+          # Workspace token for GraphQL API (different from project token!)
+          RAILWAY_WORKSPACE_TOKEN: ${{ secrets.RAILWAY_WORKSPACE_TOKEN }}
           RAILWAY_WORKSPACE_ID: ${{ secrets.RAILWAY_WORKSPACE_ID }}
           BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
           COMMENT_BODY: ${{ github.event.comment.body }}
@@ -109,7 +112,7 @@ jobs:
           echo "" >> /tmp/diagnostic_output.txt
           echo "=== Railway API - Projects & Environments ===" >> /tmp/diagnostic_output.txt
           PROJECTS_RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Authorization: Bearer $RAILWAY_WORKSPACE_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"query\": \"query { workspace(workspaceId: \\\"$RAILWAY_WORKSPACE_ID\\\") { projects { edges { node { id name environments { edges { node { id name } } } services { edges { node { id name } } } } } } } }\"}")
           echo "$PROJECTS_RESPONSE" >> /tmp/diagnostic_output.txt
@@ -124,7 +127,7 @@ jobs:
 
             # Fetch recent logs using environmentLogs query (200 entries for deeper investigation)
             LOGS_RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
-              -H "Authorization: Bearer $RAILWAY_TOKEN" \
+              -H "Authorization: Bearer $RAILWAY_WORKSPACE_TOKEN" \
               -H "Content-Type: application/json" \
               -d "{\"query\": \"query { environmentLogs(environmentId: \\\"$PROD_ENV_ID\\\", beforeLimit: 200) { ... on Log { message timestamp severity } } }\"}")
 
