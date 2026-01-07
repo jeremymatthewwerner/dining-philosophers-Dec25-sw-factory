@@ -122,17 +122,17 @@ jobs:
             echo "" >> /tmp/diagnostic_output.txt
             echo "=== Environment Logs (production: $PROD_ENV_ID) ===" >> /tmp/diagnostic_output.txt
 
-            # Fetch recent logs using environmentLogs query
+            # Fetch recent logs using environmentLogs query (200 entries for deeper investigation)
             LOGS_RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
               -H "Authorization: Bearer $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"query\": \"query { environmentLogs(environmentId: \\\"$PROD_ENV_ID\\\", beforeLimit: 50) { ... on Log { message timestamp severity } } }\"}")
+              -d "{\"query\": \"query { environmentLogs(environmentId: \\\"$PROD_ENV_ID\\\", beforeLimit: 200) { ... on Log { message timestamp severity } } }\"}")
 
-            # Parse and format logs (most recent first)
+            # Parse and format logs (most recent first, show last 50 by default)
             LOG_COUNT=$(echo "$LOGS_RESPONSE" | jq -r '.data.environmentLogs | length' 2>/dev/null || echo "0")
-            echo "Found $LOG_COUNT log entries (showing last 30):" >> /tmp/diagnostic_output.txt
+            echo "Found $LOG_COUNT log entries (showing last 50):" >> /tmp/diagnostic_output.txt
             echo "" >> /tmp/diagnostic_output.txt
-            echo "$LOGS_RESPONSE" | jq -r '.data.environmentLogs[-30:]? | reverse | .[]? | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null >> /tmp/diagnostic_output.txt || echo "Failed to parse logs: $LOGS_RESPONSE" >> /tmp/diagnostic_output.txt
+            echo "$LOGS_RESPONSE" | jq -r '.data.environmentLogs[-50:]? | reverse | .[]? | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null >> /tmp/diagnostic_output.txt || echo "Failed to parse logs: $LOGS_RESPONSE" >> /tmp/diagnostic_output.txt
           else
             echo "" >> /tmp/diagnostic_output.txt
             echo "=== Recent Backend Logs ===" >> /tmp/diagnostic_output.txt

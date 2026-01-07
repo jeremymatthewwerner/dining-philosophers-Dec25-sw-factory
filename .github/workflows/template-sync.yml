@@ -8,7 +8,7 @@ on:
         description: 'Dry run (no push)'
         type: boolean
         default: false
-  # Auto-trigger when workflows change on main
+  # Auto-trigger when workflows or core docs change on main
   push:
     branches: [main]
     paths:
@@ -21,6 +21,8 @@ on:
       - '.github/workflows/qa.yml'
       - '.github/workflows/release-engineer.yml'
       - '.github/workflows/marketing.yml'
+      - 'CLAUDE.md'
+      - 'REQUIREMENTS.md'
 
 jobs:
   sync:
@@ -38,9 +40,9 @@ jobs:
           token: ${{ secrets.TEMPLATE_SYNC_TOKEN }}
           path: template
 
-      - name: Sync workflow files
+      - name: Sync files
         run: |
-          echo "Syncing workflow files to template repo..."
+          echo "Syncing files to template repo..."
 
           # Files to sync (add more as needed)
           # NOTE: template-sync.yml is NOT synced (it's specific to this repo)
@@ -54,6 +56,8 @@ jobs:
             ".github/workflows/qa.yml"
             ".github/workflows/release-engineer.yml"
             ".github/workflows/marketing.yml"
+            "CLAUDE.md"
+            "REQUIREMENTS.md"
           )
 
           for file in "${FILES[@]}"; do
@@ -68,12 +72,33 @@ jobs:
         run: |
           echo "Generalizing project-specific references..."
 
-          # Replace project-specific domain examples with generic placeholder
-          find .github/workflows -name "*.yml" -exec sed -i \
-            -e 's/diningphilosophers\.ai/example.com/g' \
-            -e 's/dining-philosophers/your-project/g' \
-            -e 's/Dining Philosophers/Your Project/g' \
-            {} \;
+          # Common replacements for all files
+          REPLACEMENTS=(
+            's/diningphilosophers\.ai/example.com/g'
+            's/api\.diningphilosophers\.ai/api.example.com/g'
+            's/dining-philosophers-Dec25-sw-factory/your-project/g'
+            's/dining-philosophers/your-project/g'
+            's/Dining Philosophers/Your Project/g'
+            's/@jeremymatthewwerner/@your-github-username/g'
+            's/jeremymatthewwerner\/your-project/your-org\/your-project/g'
+          )
+
+          # Build sed command
+          SED_ARGS=""
+          for rep in "${REPLACEMENTS[@]}"; do
+            SED_ARGS="$SED_ARGS -e '$rep'"
+          done
+
+          # Apply to workflow files
+          find .github/workflows -name "*.yml" -exec sh -c "sed -i $SED_ARGS \"\$1\"" _ {} \;
+
+          # Apply to markdown docs
+          for file in CLAUDE.md REQUIREMENTS.md; do
+            if [ -f "$file" ]; then
+              echo "Generalizing $file"
+              eval "sed -i $SED_ARGS \"$file\""
+            fi
+          done
 
           echo "Generalization complete"
 
