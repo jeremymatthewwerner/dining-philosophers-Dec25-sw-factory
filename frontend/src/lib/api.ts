@@ -422,7 +422,7 @@ export async function submitFeedback(
     // Handle network errors with user-friendly messages
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
       throw new Error(
-        'Unable to connect to the server. Please check your internet connection and try again.'
+        'Unable to connect to the server. Please check your internet connection and try again. If this persists, the feedback server may be temporarily unavailable.'
       );
     }
     throw error;
