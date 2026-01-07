@@ -524,13 +524,13 @@ jobs:
             ## Step 3: Create/Update PR
             1. Check fifth box [x] and update status to "Creating PR..."
             2. **ALWAYS work on a branch, NEVER push directly to main!**
-               - Pushing to main with "Fixes #N" auto-closes issues even if PR hasn't merged
                - Create branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
             3. Commit with message: "fix: description\n\nRelates to #${{ steps.context.outputs.number }}"
-               - Use "Relates to #N" in commits (NOT "Fixes #N" - that auto-closes issues!)
+               - Use "Relates to #N" in commits (NOT "Fixes #N" - that auto-closes issues prematurely!)
             4. Push to branch and create PR:
-               gh pr create --title "fix: ..." --body "Fixes #${{ steps.context.outputs.number }}"
-               - Put "Fixes #N" only in PR description (closes issue when PR merges)
+               gh pr create --title "fix: ..." --body "Relates to #${{ steps.context.outputs.number }}"
+               - ALWAYS use "Relates to #N" (NOT "Fixes #N") - issues are closed by CI after deploy+smoke tests pass
+               - Using "Fixes #N" closes issues on PR merge, BEFORE code is deployed to production!
             5. Check sixth box [x] and add PR link to progress comment
             6. Final status: "✅ PR created! Waiting for CI..."
 

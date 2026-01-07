@@ -300,15 +300,13 @@ uv run mypy .           # Type check Python code
 3. Push to feature branch and create PR
 4. CI runs on PR - must pass before merge
 5. Merge PR (squash) - triggers deploy
-6. Issues auto-close when PR merges
+6. Issues auto-close after deploy + smoke tests pass (handled by CI `close-issues` job)
 
 **CRITICAL: Issue Reference Rules (prevents premature closure)**
 - **In commit messages:** Use `Relates to #N` (NOT `Fixes #N`)
-- **In PR descriptions:** Use `Fixes #N` ONLY when the PR completely solves the issue
-- **For related-but-not-fixing PRs:** Use `Relates to #N` in PR description too
-  - Example: A workflow fix that "unblocks" an agent to work on an issue is NOT a fix for the issue itself
+- **In PR descriptions:** ALWAYS use `Relates to #N` (NEVER use `Fixes #N`)
 - **NEVER push directly to main** - Always use a feature branch + PR
-- **Why:** GitHub auto-closes issues when "Fixes #N" appears in PR descriptions. If your PR doesn't fully solve the issue, using "Fixes" will close it prematurely.
+- **Why:** GitHub auto-closes issues when `Fixes #N` appears in PR descriptions, but this happens on PR merge - BEFORE the code is deployed to production! We want issues to close only after deploy + smoke tests pass. The CI `close-issues` job handles this automatically.
 
 **Best practices:**
 - Commit frequently with clear messages
