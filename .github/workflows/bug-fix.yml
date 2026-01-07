@@ -132,11 +132,11 @@ jobs:
           token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
       # Configure git to use PAT for push operations (enables pushing workflow files)
-      # The checkout action uses extraheader for auth, so we must override it with the PAT
+      # The checkout action embeds the token in the remote URL, so we must replace it
       - name: Configure git with PAT
         run: |
-          # Remove the default extraheader set by checkout (uses GitHub App token)
-          git config --local --unset-all http.https://github.com/.extraheader || true
+          # Remove the embedded token from the remote URL (checkout embeds ghs_* token)
+          git remote set-url origin https://github.com/${{ github.repository }}.git
           # Set extraheader with PAT that has workflow scope
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $(echo -n 'x-access-token:${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}' | base64)"
 
