@@ -615,11 +615,22 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 - Agents update `AGENT_STATE.md` with their progress
 - Escalation to @jeremymatthewwerner when stuck >30min or after 3 CI failures
 
-### Known Limitations (require human intervention)
+### Workflow File Changes
 
-**Workflow file changes**: The GitHub App cannot modify `.github/workflows/` files due to missing `workflows` permission. When CI fails due to workflow config (like coverage thresholds), a human must update the workflow file.
+**Code Agent CAN modify `.github/workflows/` files** when the checkout uses `PAT_WITH_WORKFLOW_ACCESS`:
 
-**To fix**: Grant `workflows` permission to the GitHub App in repo Settings → Actions → General.
+```yaml
+- uses: actions/checkout@v4
+  with:
+    token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+```
+
+The bug-fix.yml workflow is already configured this way. If you need to modify workflow files:
+1. Make your changes to `.github/workflows/*.yml`
+2. Commit and push normally - the PAT token enables this
+3. Create PR as usual
+
+**Do NOT assume you can't push workflow files** - this was a past limitation that has been fixed.
 
 ## Default Policies (for autonomous decisions)
 
