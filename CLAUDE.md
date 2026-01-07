@@ -33,6 +33,9 @@ Create these labels (or run: `gh label create <name> --color <color>`):
 - `status:awaiting-bot` (#0E8A16) - Human commented, bot will respond
 - `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
 - `factory-improvement` (#1D76DB) - Documents factory/workflow fixes for audit trail
+- `factory-meta` (#5319E7) - Factory Manager issues (excluded from all other agents)
+- `factory-health` (#1D76DB) - Factory health reports and metrics
+- `factory-incident` (#B60205) - Factory incidents detected and resolved
 
 ### 3. Secrets
 Ensure these secrets are set in **Settings → Secrets and variables → Actions**:
@@ -361,7 +364,7 @@ Use labels to categorize issues:
 
 ## Autonomous Agents
 
-This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
+This repo uses 9 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
@@ -373,6 +376,7 @@ This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | **DevOps** | `@devops` mention + Every 5 min + push to main | Health checks, auto-rebase PRs, auto-merge ready PRs, Railway logs, service restarts |
 | **Marketing** | On release | Updates changelog, docs |
 | **CI Monitor** | On CI failure (main) | Auto-creates issues and triggers Code Agent via `@code` |
+| **Factory Manager** | Every 30 min + `@factory-manager` mention | Monitors factory health, detects stuck issues, auto-fixes or escalates |
 
 ### Escalation Flow
 
@@ -575,6 +579,7 @@ Why @mentions over labels:
 | `@pe` | Principal Engineer | Holistic debugging, factory fixes |
 | `@triage` | Triage Agent | Re-classify or re-prioritize an issue |
 | `@qa` | QA Agent | Request test improvements |
+| `@factory-manager` | Factory Manager | Diagnose stuck issues, check factory health |
 | `@claude` | Code Agent | ⚠️ **Deprecated** - use `@code` instead (still works for compatibility) |
 
 **Examples:**
@@ -583,12 +588,15 @@ Why @mentions over labels:
 @devops please check backend logs for errors
 @pe this issue needs holistic investigation
 @triage please re-evaluate the priority of this issue
+@factory-manager why is this issue stuck?
 ```
 
 **Labels are for categorization only:**
 - `bug`, `enhancement` - Issue type
 - `priority-high`, `priority-medium`, `priority-low` - Priority
 - `status:bot-working`, `status:awaiting-human` - Current status
+- `factory-meta` - Factory Manager issues (excluded from all other agents)
+- `factory-health`, `factory-incident` - Factory Manager sub-categories
 - `ai-ready` - ⚠️ **Deprecated** - labels no longer trigger agents, use `@code` mention instead
 - `needs-principal-engineer` - ⚠️ **Deprecated** - labels no longer trigger PE, use `@pe` mention instead
 

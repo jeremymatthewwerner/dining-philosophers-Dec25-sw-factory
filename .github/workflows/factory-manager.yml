@@ -1,0 +1,672 @@
+name: Factory Manager
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Every 30 minutes for health checks
+    - cron: '0 6 * * 1'     # Weekly report on Monday 6am UTC
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - full-health-check
+          - trigger-verification
+          - weekly-report
+          - diagnose-issue
+      issue_number:
+        description: 'Issue number (for diagnose-issue action)'
+        required: false
+        type: number
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: read
+
+# Only one Factory Manager run at a time
+concurrency:
+  group: factory-manager
+  cancel-in-progress: false
+
+jobs:
+  # ===========================================
+  # HEALTH CHECK (every 30 minutes)
+  # ===========================================
+  health-check:
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '*/30 * * * *') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'full-health-check')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for stuck issues
+        id: stuck
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Checking for stuck issues..."
+
+          # Get current time minus 30 minutes (in ISO format)
+          THRESHOLD=$(date -u -d '30 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+
+          # Find issues that:
+          # 1. Have ai-ready label
+          # 2. Have bug OR enhancement label
+          # 3. Don't have factory-meta label
+          # 4. Don't have needs-human label
+          # 5. Haven't been updated in 30 min
+          # 6. Are open
+
+          STUCK_ISSUES=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --label "ai-ready" \
+            --state open \
+            --json number,title,labels,updatedAt \
+            --jq --arg threshold "$THRESHOLD" '
+              [.[] | select(
+                (.labels | map(.name) | (contains(["bug"]) or contains(["enhancement"]))) and
+                (.labels | map(.name) | contains(["factory-meta"]) | not) and
+                (.labels | map(.name) | contains(["needs-human"]) | not) and
+                (.labels | map(.name) | contains(["status:bot-working"]) | not) and
+                (.updatedAt < $threshold)
+              )]
+            ' 2>/dev/null || echo "[]")
+
+          STUCK_COUNT=$(echo "$STUCK_ISSUES" | jq 'length')
+          echo "Found $STUCK_COUNT stuck issues"
+
+          if [ "$STUCK_COUNT" -gt 0 ]; then
+            echo "has_stuck=true" >> $GITHUB_OUTPUT
+            echo "stuck_issues<<EOF" >> $GITHUB_OUTPUT
+            echo "$STUCK_ISSUES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_stuck=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for long-running bot work
+        id: longrunning
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Checking for issues with bot-working for >60 min..."
+
+          THRESHOLD=$(date -u -d '60 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+
+          LONGRUNNING=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --label "status:bot-working" \
+            --state open \
+            --json number,title,updatedAt \
+            --jq --arg threshold "$THRESHOLD" '
+              [.[] | select(.updatedAt < $threshold)]
+            ' 2>/dev/null || echo "[]")
+
+          COUNT=$(echo "$LONGRUNNING" | jq 'length')
+          echo "Found $COUNT long-running issues"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "has_longrunning=true" >> $GITHUB_OUTPUT
+            echo "longrunning_issues<<EOF" >> $GITHUB_OUTPUT
+            echo "$LONGRUNNING" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_longrunning=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for failed workflows
+        id: failed
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Checking for recent failed workflows..."
+
+          # Get failed runs in last 2 hours
+          FAILED_RUNS=$(gh run list \
+            --repo ${{ github.repository }} \
+            --status failure \
+            --limit 20 \
+            --json databaseId,name,conclusion,headBranch,createdAt \
+            --jq '
+              [.[] | select(
+                (.createdAt | fromdateiso8601) > (now - 7200) and
+                (.name != "Factory Manager")
+              )]
+            ' 2>/dev/null || echo "[]")
+
+          COUNT=$(echo "$FAILED_RUNS" | jq 'length')
+          echo "Found $COUNT recent failed runs"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "has_failed=true" >> $GITHUB_OUTPUT
+            echo "failed_runs<<EOF" >> $GITHUB_OUTPUT
+            echo "$FAILED_RUNS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Re-trigger stuck issues
+        if: steps.stuck.outputs.has_stuck == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          STUCK_ISSUES: ${{ steps.stuck.outputs.stuck_issues }}
+        run: |
+          echo "Re-triggering stuck issues..."
+
+          # Track how many we've re-triggered (max 5 per cycle to avoid spam)
+          RETRIGGER_COUNT=0
+          MAX_RETRIGGERS=5
+
+          echo "$STUCK_ISSUES" | jq -c '.[]' | while read -r issue; do
+            [ "$RETRIGGER_COUNT" -ge "$MAX_RETRIGGERS" ] && break
+
+            ISSUE_NUM=$(echo "$issue" | jq -r '.number')
+            ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
+
+            echo "Checking if issue #$ISSUE_NUM was already re-triggered recently..."
+
+            # Check if Factory Manager already commented in last hour
+            RECENT_FM_COMMENT=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUM/comments \
+              --jq '[.[] | select(
+                (.body | contains("[Factory Manager]")) and
+                ((.created_at | fromdateiso8601) > (now - 3600))
+              )] | length' 2>/dev/null || echo "0")
+
+            if [ "$RECENT_FM_COMMENT" -gt 0 ]; then
+              echo "  Issue #$ISSUE_NUM already re-triggered recently, skipping"
+              continue
+            fi
+
+            echo "  Re-triggering issue #$ISSUE_NUM: $ISSUE_TITLE"
+
+            gh issue comment "$ISSUE_NUM" \
+              --repo ${{ github.repository }} \
+              --body "@code [Factory Manager] This issue appears stuck (no agent activity in 30+ min). Please investigate and continue work.
+
+---
+*Automated re-trigger by Factory Manager. If this keeps happening, there may be a systemic issue.*"
+
+            RETRIGGER_COUNT=$((RETRIGGER_COUNT + 1))
+          done
+
+          echo "Re-triggered $RETRIGGER_COUNT issues"
+
+      - name: Handle long-running issues
+        if: steps.longrunning.outputs.has_longrunning == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          LONGRUNNING_ISSUES: ${{ steps.longrunning.outputs.longrunning_issues }}
+        run: |
+          echo "Checking long-running issues..."
+
+          echo "$LONGRUNNING_ISSUES" | jq -c '.[]' | head -3 | while read -r issue; do
+            ISSUE_NUM=$(echo "$issue" | jq -r '.number')
+            ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
+
+            echo "Issue #$ISSUE_NUM has had bot-working for >60 min: $ISSUE_TITLE"
+
+            # Check for recent workflow activity
+            RECENT_RUNS=$(gh run list \
+              --repo ${{ github.repository }} \
+              --workflow=bug-fix.yml \
+              --limit 5 \
+              --json databaseId,status,conclusion \
+              --jq '[.[] | select(.status == "in_progress" or .status == "queued")] | length' 2>/dev/null || echo "0")
+
+            if [ "$RECENT_RUNS" -gt 0 ]; then
+              echo "  Workflow is still running, no action needed"
+            else
+              echo "  No active workflow, posting status update"
+              gh issue comment "$ISSUE_NUM" \
+                --repo ${{ github.repository }} \
+                --body "[Factory Manager] This issue has had \`status:bot-working\` for over 60 minutes but no active workflow is running.
+
+**Possible causes:**
+1. Workflow timed out without cleanup
+2. Workflow failed without status update
+3. Network/infrastructure issue
+
+**Recommended action:** Check [workflow runs](https://github.com/${{ github.repository }}/actions) for this issue.
+
+@jeremymatthewwerner - This may need manual investigation."
+
+              # Remove bot-working, add awaiting-human
+              gh issue edit "$ISSUE_NUM" \
+                --repo ${{ github.repository }} \
+                --remove-label "status:bot-working" \
+                --add-label "status:awaiting-human" 2>/dev/null || true
+            fi
+          done
+
+      - name: Log health check results
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STUCK_COUNT: ${{ steps.stuck.outputs.has_stuck == 'true' && '1' || '0' }}
+          LONGRUNNING_COUNT: ${{ steps.longrunning.outputs.has_longrunning == 'true' && '1' || '0' }}
+          FAILED_COUNT: ${{ steps.failed.outputs.has_failed == 'true' && '1' || '0' }}
+        run: |
+          echo "=== Factory Health Check Complete ==="
+          echo "Stuck issues found: $STUCK_COUNT"
+          echo "Long-running issues found: $LONGRUNNING_COUNT"
+          echo "Failed workflows found: $FAILED_COUNT"
+          echo ""
+          echo "Next check in 30 minutes"
+
+  # ===========================================
+  # WEEKLY REPORT (Monday 6am UTC)
+  # ===========================================
+  weekly-report:
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 6 * * 1') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'weekly-report')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gather metrics
+        id: metrics
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Gathering weekly metrics..."
+
+          # Date range for this week
+          WEEK_AGO=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+          TODAY=$(date -u '+%Y-%m-%d')
+
+          # Count issues created this week
+          CREATED=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --state all \
+            --json number,createdAt \
+            --jq --arg since "$WEEK_AGO" '[.[] | select(.createdAt > $since)] | length' 2>/dev/null || echo "0")
+
+          # Count issues closed this week
+          CLOSED=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --state closed \
+            --json number,closedAt \
+            --jq --arg since "$WEEK_AGO" '[.[] | select(.closedAt > $since)] | length' 2>/dev/null || echo "0")
+
+          # Count PRs merged this week
+          MERGED=$(gh pr list \
+            --repo ${{ github.repository }} \
+            --state merged \
+            --json number,mergedAt \
+            --jq --arg since "$WEEK_AGO" '[.[] | select(.mergedAt > $since)] | length' 2>/dev/null || echo "0")
+
+          # Count factory-incident issues this week
+          INCIDENTS=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --label "factory-incident" \
+            --state all \
+            --json number,createdAt \
+            --jq --arg since "$WEEK_AGO" '[.[] | select(.createdAt > $since)] | length' 2>/dev/null || echo "0")
+
+          # Count escalations (needs-human added this week)
+          ESCALATED=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --label "needs-human" \
+            --state all \
+            --json number \
+            --jq 'length' 2>/dev/null || echo "0")
+
+          # Current open issues
+          OPEN=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --state open \
+            --json number \
+            --jq 'length' 2>/dev/null || echo "0")
+
+          echo "report_date=$TODAY" >> $GITHUB_OUTPUT
+          echo "created=$CREATED" >> $GITHUB_OUTPUT
+          echo "closed=$CLOSED" >> $GITHUB_OUTPUT
+          echo "merged=$MERGED" >> $GITHUB_OUTPUT
+          echo "incidents=$INCIDENTS" >> $GITHUB_OUTPUT
+          echo "escalated=$ESCALATED" >> $GITHUB_OUTPUT
+          echo "open=$OPEN" >> $GITHUB_OUTPUT
+
+      - name: Create weekly report issue
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          REPORT_DATE: ${{ steps.metrics.outputs.report_date }}
+          CREATED: ${{ steps.metrics.outputs.created }}
+          CLOSED: ${{ steps.metrics.outputs.closed }}
+          MERGED: ${{ steps.metrics.outputs.merged }}
+          INCIDENTS: ${{ steps.metrics.outputs.incidents }}
+          ESCALATED: ${{ steps.metrics.outputs.escalated }}
+          OPEN: ${{ steps.metrics.outputs.open }}
+        run: |
+          # Calculate success rate (closed / created, capped at 100%)
+          if [ "$CREATED" -gt 0 ]; then
+            SUCCESS_RATE=$(( (CLOSED * 100) / CREATED ))
+            [ "$SUCCESS_RATE" -gt 100 ] && SUCCESS_RATE=100
+          else
+            SUCCESS_RATE=100
+          fi
+
+          # Determine health status
+          if [ "$INCIDENTS" -gt 5 ] || [ "$ESCALATED" -gt 10 ]; then
+            HEALTH_STATUS="NEEDS_ATTENTION"
+            HEALTH_EMOJI="Warning"
+          elif [ "$INCIDENTS" -gt 2 ] || [ "$ESCALATED" -gt 5 ]; then
+            HEALTH_STATUS="FAIR"
+            HEALTH_EMOJI="Yellow circle"
+          else
+            HEALTH_STATUS="HEALTHY"
+            HEALTH_EMOJI="Green circle"
+          fi
+
+          REPORT_BODY="## Factory Health Report - Week of $REPORT_DATE
+
+### Overall Status: $HEALTH_STATUS
+
+### Issue Flow
+
+| Metric | Count |
+|--------|-------|
+| Issues Created | $CREATED |
+| Issues Closed | $CLOSED |
+| PRs Merged | $MERGED |
+| Currently Open | $OPEN |
+
+### Factory Health
+
+| Metric | Count | Status |
+|--------|-------|--------|
+| Factory Incidents | $INCIDENTS | $([ $INCIDENTS -le 2 ] && echo 'OK' || echo 'Elevated') |
+| Escalations (needs-human) | $ESCALATED | $([ $ESCALATED -le 5 ] && echo 'OK' || echo 'Elevated') |
+| Resolution Rate | ${SUCCESS_RATE}% | $([ $SUCCESS_RATE -ge 70 ] && echo 'OK' || echo 'Low') |
+
+### Workflow Health
+
+Check the [Actions tab](https://github.com/${{ github.repository }}/actions) for workflow run details.
+
+---
+*This report is automatically generated by the Factory Manager every Monday.*
+*For questions or to investigate issues, mention @factory-manager on any issue.*"
+
+          gh issue create \
+            --repo ${{ github.repository }} \
+            --title "Factory Health Report - Week of $REPORT_DATE" \
+            --label "factory-meta,factory-health" \
+            --body "$REPORT_BODY"
+
+          echo "Weekly report created!"
+
+  # ===========================================
+  # RESPOND TO @factory-manager MENTIONS
+  # ===========================================
+  respond:
+    if: |
+      github.event_name == 'issue_comment' &&
+      !github.event.issue.pull_request &&
+      (contains(github.event.comment.body, '@factory-manager') ||
+       contains(github.event.comment.body, '@Factory-Manager'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Acknowledge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --body "## Factory Manager Responding
+
+**Status:** Analyzing this issue and the factory state...
+**Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+      - name: Pre-install Claude Code
+        run: |
+          rm -f "$HOME/.claude/.installing" "$HOME/.claude/install.lock" 2>/dev/null || true
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.74
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+
+      - name: Run Claude for diagnosis
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            You are the Factory Manager - a meta-agent responsible for monitoring and maintaining the autonomous software factory.
+
+            Read CLAUDE.md and docs/FACTORY_MANAGER.md first.
+
+            A user has mentioned @factory-manager on issue #${{ github.event.issue.number }}.
+
+            ## Your Role
+            You diagnose and fix FACTORY issues (how agents work together), not PRODUCT issues (application bugs).
+
+            ## Step 1: Understand the Request
+            Read the issue and comment:
+            ```bash
+            gh issue view ${{ github.event.issue.number }} --comments
+            ```
+
+            Determine: Is this a factory issue or a product issue?
+            - Factory: Agent triggers, workflow failures, stuck issues, escalation problems
+            - Product: Application bugs, feature requests, UI issues
+
+            ## Step 2: If Factory Issue - Diagnose
+
+            Check for common problems:
+            1. **Stuck triggers**: Did the right agent get triggered?
+               ```bash
+               gh run list --workflow=bug-fix.yml --limit 5
+               ```
+
+            2. **Label issues**: Are labels correct?
+               ```bash
+               gh issue view ${{ github.event.issue.number }} --json labels
+               ```
+
+            3. **Workflow failures**: Any recent failures?
+               ```bash
+               gh run list --status failure --limit 10
+               ```
+
+            4. **Progress tracking**: Is progress being tracked?
+               Check for progress comments on the issue.
+
+            ## Step 3: Take Action
+
+            If you find a factory issue:
+            1. Diagnose the root cause
+            2. Attempt to fix (re-trigger agent, fix labels, etc.)
+            3. Post your findings and actions
+
+            If it's a product issue:
+            1. Politely explain this is for factory issues
+            2. Suggest using @code for product issues
+
+            ## Output Format
+
+            Post a comment with:
+            - Your diagnosis
+            - Actions taken
+            - Recommendations
+
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-sonnet-4-20250514
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh:*),Read,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+  # ===========================================
+  # TRIGGER VERIFICATION (weekly or manual)
+  # ===========================================
+  trigger-verification:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'trigger-verification'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test issue
+        id: test
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Creating trigger verification test issue..."
+
+          ISSUE_URL=$(gh issue create \
+            --repo ${{ github.repository }} \
+            --title "[Factory Test] Trigger Verification - $(date '+%Y-%m-%d %H:%M')" \
+            --label "factory-meta,bug" \
+            --body "## Trigger Verification Test
+
+This is an automated test to verify that agent triggers are working correctly.
+
+**Test Plan:**
+1. This issue was created with \`factory-meta\` + \`bug\` labels
+2. Adding \`ai-ready\` label should NOT trigger Code Agent (factory-meta exclusion)
+3. If Code Agent triggers, that's a bug in the trigger logic
+
+**Expected:** No agent activity on this issue.
+
+---
+*Automated test by Factory Manager*")
+
+          ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+          echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+          echo "Created test issue #$ISSUE_NUM"
+
+      - name: Add ai-ready label
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          ISSUE_NUMBER: ${{ steps.test.outputs.issue_number }}
+        run: |
+          echo "Adding ai-ready label to test issue..."
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo ${{ github.repository }} \
+            --add-label "ai-ready"
+
+          echo "Waiting 30 seconds to see if agent triggers..."
+          sleep 30
+
+      - name: Check for agent activity
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          ISSUE_NUMBER: ${{ steps.test.outputs.issue_number }}
+        run: |
+          # Check if any bot commented
+          BOT_COMMENTS=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+            --jq '[.[] | select(.user.login | endswith("[bot]"))] | length' 2>/dev/null || echo "0")
+
+          if [ "$BOT_COMMENTS" -gt 0 ]; then
+            echo "FAIL: Agent triggered on factory-meta issue!"
+            gh issue comment "$ISSUE_NUMBER" \
+              --repo ${{ github.repository }} \
+              --body "## Trigger Test FAILED
+
+An agent triggered on this \`factory-meta\` issue when it should have been excluded.
+
+**This indicates a bug** in the agent trigger logic. The bug-fix.yml workflow needs to be updated to exclude \`factory-meta\` labels."
+            exit 1
+          else
+            echo "PASS: No agent triggered (correct behavior)"
+            gh issue comment "$ISSUE_NUMBER" \
+              --repo ${{ github.repository }} \
+              --body "## Trigger Test PASSED
+
+No agent triggered on this \`factory-meta\` issue, which is the correct behavior.
+
+Closing this test issue."
+            gh issue close "$ISSUE_NUMBER" --repo ${{ github.repository }}
+          fi
+
+  # ===========================================
+  # DIAGNOSE SPECIFIC ISSUE (manual)
+  # ===========================================
+  diagnose-issue:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'diagnose-issue'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Pre-install Claude Code
+        run: |
+          rm -f "$HOME/.claude/.installing" "$HOME/.claude/install.lock" 2>/dev/null || true
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.74
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+
+      - name: Run Claude for deep diagnosis
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            You are the Factory Manager performing a deep diagnosis of issue #${{ github.event.inputs.issue_number }}.
+
+            Read CLAUDE.md and docs/FACTORY_MANAGER.md first.
+
+            ## Step 1: Gather Context
+
+            ```bash
+            # Read the issue
+            gh issue view ${{ github.event.inputs.issue_number }} --comments
+
+            # Check related PRs
+            gh pr list --search "head:fix/${{ github.event.inputs.issue_number }}" --state all
+            gh pr list --search "head:feat/${{ github.event.inputs.issue_number }}" --state all
+
+            # Check workflow runs
+            gh run list --limit 20 --json databaseId,name,status,conclusion,headBranch
+            ```
+
+            ## Step 2: Diagnose
+
+            Look for:
+            1. Was the issue properly labeled?
+            2. Did the right agents trigger?
+            3. Were there workflow failures?
+            4. Was progress tracked?
+            5. Why did it get stuck (if stuck)?
+
+            ## Step 3: Report
+
+            Create a detailed diagnosis comment on the issue with:
+            - Timeline of events
+            - What went wrong
+            - Root cause
+            - Recommended fix
+
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-opus-4-5-20251101
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh:*),Read,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}

@@ -22,13 +22,15 @@ jobs:
     # 1. New issue opened
     # 2. @triage mention in comment (for re-triaging)
     # 3. Manual workflow dispatch
+    # SKIP if: factory-meta label is present (handled by Factory Manager only)
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'issues' ||
-      (github.event_name == 'issue_comment' &&
-       !github.event.issue.pull_request &&
-       (contains(github.event.comment.body, '@triage') ||
-        contains(github.event.comment.body, '@Triage')))
+      !contains(github.event.issue.labels.*.name, 'factory-meta') &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event_name == 'issues' ||
+       (github.event_name == 'issue_comment' &&
+        !github.event.issue.pull_request &&
+        (contains(github.event.comment.body, '@triage') ||
+         contains(github.event.comment.body, '@Triage'))))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
