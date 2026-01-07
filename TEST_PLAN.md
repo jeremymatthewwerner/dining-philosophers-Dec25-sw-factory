@@ -2,6 +2,49 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0. DevOps API Integration Tests (Added 2026-01-07)
+
+### 0.1 DevOps API Authentication
+**File**: `tests/test_devops_api.py`
+**Purpose**: Test authentication for DevOps API endpoints used by autonomous agents
+
+**Tests Added**:
+- ✅ Health check with valid secret (`test_devops_health_with_valid_secret`)
+- ✅ Health check without secret returns 403 (`test_devops_health_without_secret`)
+- ✅ Health check with invalid secret returns 403 (`test_devops_health_with_invalid_secret`)
+- ✅ Health check when DEVOPS_API_SECRET not configured returns 503 (`test_devops_health_not_configured`)
+
+### 0.2 Database Statistics Endpoint
+**File**: `tests/test_devops_api.py`
+**Purpose**: Test `/api/devops/stats` endpoint for database diagnostics
+
+**Tests Added**:
+- ✅ Stats endpoint with valid secret returns correct counts (`test_stats_with_valid_secret`)
+- ✅ Stats endpoint without secret returns 403 (`test_stats_without_secret`)
+- ✅ Stats endpoint with invalid secret returns 403 (`test_stats_with_invalid_secret`)
+
+### 0.3 Stale Session Cleanup
+**File**: `tests/test_devops_api.py`
+**Purpose**: Test `/api/devops/cleanup/stale-sessions` endpoint for session maintenance
+
+**Tests Added**:
+- ✅ Cleanup with dry_run=True previews without deleting (`test_cleanup_stale_sessions_dry_run`)
+- ✅ Cleanup without dry_run actually deletes old sessions (`test_cleanup_stale_sessions_actually_deletes`)
+- ✅ Cleanup respects older_than_hours parameter (`test_cleanup_stale_sessions_respects_threshold`)
+- ✅ Cleanup without secret returns 403 (`test_cleanup_stale_sessions_without_secret`)
+
+### 0.4 Orphan Record Cleanup
+**File**: `tests/test_devops_api.py`
+**Purpose**: Test `/api/devops/cleanup/orphans` endpoint for data integrity
+
+**Tests Added**:
+- ✅ Orphan cleanup with dry_run=True previews without deleting (`test_cleanup_orphans_dry_run`)
+- ⚠️  Orphan cleanup deletes orphaned conversations (`test_cleanup_orphans_deletes_orphaned_conversations`) - passes but times out in full suite
+- ⚠️  Orphan cleanup deletes orphaned messages (`test_cleanup_orphans_deletes_orphaned_messages`) - passes but times out in full suite
+- ✅ Orphan cleanup without secret returns 403 (`test_cleanup_orphans_without_secret`)
+
+**Coverage Impact**: These 15 new tests increased DevOps API coverage from 39% to an estimated 75%+
+
 ## 1. Conversation Management
 
 ### 1.1 Create Conversation
