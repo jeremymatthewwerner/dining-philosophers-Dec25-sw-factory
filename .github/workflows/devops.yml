@@ -135,8 +135,14 @@ jobs:
               -H "Content-Type: application/json" \
               -d "{\"query\": \"query { environmentLogs(environmentId: \\\"$PROD_ENV_ID\\\", beforeLimit: 50) { ... on Log { message timestamp severity tags } } }\"}")
 
+            # Debug: show raw response
+            echo "Raw API response:" >> /tmp/diagnostic_output.txt
+            echo "$LOGS_RESPONSE" >> /tmp/diagnostic_output.txt
+            echo "" >> /tmp/diagnostic_output.txt
+
             # Parse and format logs
-            echo "$LOGS_RESPONSE" | jq -r '.data.environmentLogs[]? | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null >> /tmp/diagnostic_output.txt || echo "$LOGS_RESPONSE" >> /tmp/diagnostic_output.txt
+            echo "Parsed logs:" >> /tmp/diagnostic_output.txt
+            echo "$LOGS_RESPONSE" | jq -r '.data.environmentLogs[]? | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null >> /tmp/diagnostic_output.txt || echo "jq parse failed" >> /tmp/diagnostic_output.txt
           else
             echo "" >> /tmp/diagnostic_output.txt
             echo "=== Recent Backend Logs ===" >> /tmp/diagnostic_output.txt
