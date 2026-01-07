@@ -12,6 +12,12 @@ const mockSubmitFeedback = api.submitFeedback as jest.MockedFunction<
   typeof api.submitFeedback
 >;
 
+// Helper to create a mock file
+const createMockFile = (name: string, size: number, type: string): File => {
+  const content = new Array(size).fill('a').join('');
+  return new File([content], name, { type });
+};
+
 describe('FeedbackModal', () => {
   const defaultProps = {
     isOpen: true,
@@ -209,5 +215,144 @@ describe('FeedbackModal', () => {
 
     fireEvent.click(screen.getByText('Done'));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('renders screenshot upload input', () => {
+    render(<FeedbackModal {...defaultProps} />);
+    expect(screen.getByTestId('screenshot-input')).toBeInTheDocument();
+    expect(screen.getByText(/Screenshot/)).toBeInTheDocument();
+    expect(screen.getByText(/Max 5MB/)).toBeInTheDocument();
+  });
+
+  it('shows error for invalid file type', async () => {
+    render(<FeedbackModal {...defaultProps} />);
+
+    const input = screen.getByTestId('screenshot-input');
+    const file = createMockFile('test.pdf', 1000, 'application/pdf');
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('feedback-error')).toHaveTextContent(
+        'Please upload an image file'
+      );
+    });
+  });
+
+  it('shows error for file too large', async () => {
+    render(<FeedbackModal {...defaultProps} />);
+
+    const input = screen.getByTestId('screenshot-input');
+    // Create a file larger than 5MB
+    const file = createMockFile('large.png', 6 * 1024 * 1024, 'image/png');
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('feedback-error')).toHaveTextContent(
+        'Screenshot must be less than 5MB'
+      );
+    });
+  });
+
+  it('displays uploaded file name and remove button', async () => {
+    render(<FeedbackModal {...defaultProps} />);
+
+    const input = screen.getByTestId('screenshot-input');
+    const file = createMockFile('screenshot.png', 1000, 'image/png');
+
+    // Mock FileReader
+    const mockFileReader = {
+      readAsDataURL: jest.fn(),
+      result: 'data:image/png;base64,dGVzdA==',
+      onload: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+      onerror: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+    };
+    jest
+      .spyOn(window, 'FileReader')
+      .mockImplementation(() => mockFileReader as unknown as FileReader);
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Trigger the onload callback
+    if (mockFileReader.onload) {
+      mockFileReader.onload.call(
+        mockFileReader as unknown as FileReader,
+        {} as ProgressEvent<FileReader>
+      );
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText('screenshot.png')).toBeInTheDocument();
+      expect(screen.getByTestId('remove-screenshot')).toBeInTheDocument();
+    });
+  });
+
+  it('removes screenshot when remove button is clicked', async () => {
+    render(<FeedbackModal {...defaultProps} />);
+
+    const input = screen.getByTestId('screenshot-input');
+    const file = createMockFile('screenshot.png', 1000, 'image/png');
+
+    // Mock FileReader
+    const mockFileReader = {
+      readAsDataURL: jest.fn(),
+      result: 'data:image/png;base64,dGVzdA==',
+      onload: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+      onerror: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+    };
+    jest
+      .spyOn(window, 'FileReader')
+      .mockImplementation(() => mockFileReader as unknown as FileReader);
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Trigger the onload callback
+    if (mockFileReader.onload) {
+      mockFileReader.onload.call(
+        mockFileReader as unknown as FileReader,
+        {} as ProgressEvent<FileReader>
+      );
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText('screenshot.png')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('remove-screenshot'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('screenshot.png')).not.toBeInTheDocument();
+      expect(screen.getByTestId('screenshot-input')).toBeInTheDocument();
+    });
+  });
+
+  it('shows user-friendly error for network failures', async () => {
+    mockSubmitFeedback.mockRejectedValue(
+      new Error(
+        'Unable to connect to the server. Please check your internet connection and try again.'
+      )
+    );
+
+    render(<FeedbackModal {...defaultProps} />);
+
+    fireEvent.change(screen.getByTestId('feedback-message'), {
+      target: { value: 'This is a test feedback message.' },
+    });
+    fireEvent.click(screen.getByTestId('submit-feedback'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('feedback-error')).toHaveTextContent(
+        'Unable to connect to the server'
+      );
+    });
   });
 });

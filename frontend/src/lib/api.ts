@@ -387,6 +387,8 @@ export interface FeedbackSubmission {
   email?: string;
   name?: string;
   user_agent?: string;
+  screenshot_data?: string; // Base64 encoded image data
+  screenshot_filename?: string; // Original filename
 }
 
 export interface FeedbackResponse {
@@ -399,22 +401,32 @@ export async function submitFeedback(
 ): Promise<FeedbackResponse> {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-  const response = await fetch(`${API_URL}/api/feedback`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const response = await fetch(`${API_URL}/api/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
 
-  if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    // Handle network errors with user-friendly messages
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        'Unable to connect to the server. Please check your internet connection and try again.'
+      );
+    }
+    throw error;
   }
-
-  return response.json();
 }
 
 // Export for testing
