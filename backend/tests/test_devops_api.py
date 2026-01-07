@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Conversation, Message, Session
+from app.models.base import generate_uuid
 from tests.conftest import get_auth_headers
 
 # Test secret for DevOps API authentication
@@ -313,7 +314,13 @@ async def test_cleanup_stale_sessions_respects_threshold(
         assert len(remaining_sessions) >= 2
 
         # Verify at least one session is less than 4 days old (our recent session)
-        recent_found = any((datetime.now(UTC) - s.created_at).days < 4 for s in remaining_sessions)
+        # Handle both timezone-aware and naive datetimes from SQLite
+        def days_since_creation(s: Session) -> int:
+            if s.created_at.tzinfo is None:
+                return (datetime.now(UTC).replace(tzinfo=None) - s.created_at).days
+            return (datetime.now(UTC) - s.created_at).days
+
+        recent_found = any(days_since_creation(s) < 4 for s in remaining_sessions)
         assert recent_found, "Recent session was incorrectly deleted"
 
 
@@ -367,43 +374,36 @@ async def test_cleanup_orphans_deletes_orphaned_conversations(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
     """Test orphan cleanup deletes conversations with non-existent sessions."""
+    from sqlalchemy import text
+
     with patch("app.api.devops.get_settings") as mock_settings:
         mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
 
-        # Get auth headers
-        auth_headers = await get_auth_headers(client)
+        # Create an orphan conversation directly in the DB with a non-existent session_id
+        # This bypasses foreign key checks and creates a true orphan
+        orphan_id = "orphan-conv-" + generate_uuid()[:8]
+        fake_session_id = "nonexistent-session-" + generate_uuid()[:8]
 
-        # Create a conversation
-        response = await client.post(
-            "/api/conversations",
-            json={
-                "topic": "Test orphan conversation",
-                "thinkers": [
-                    {
-                        "name": "Aristotle",
-                        "bio": "Ancient Greek philosopher",
-                        "positions": "Logic and reason",
-                        "style": "Systematic analysis",
-                    }
-                ],
+        await async_session.execute(
+            text(
+                "INSERT INTO conversations (id, session_id, topic, is_active, created_at, updated_at) "
+                "VALUES (:id, :session_id, :topic, :is_active, datetime('now'), datetime('now'))"
+            ),
+            {
+                "id": orphan_id,
+                "session_id": fake_session_id,
+                "topic": "Orphan conversation for cleanup test",
+                "is_active": True,
             },
-            headers=auth_headers,
         )
-        assert response.status_code == 200  # Conversations return 200, not 201
-        conversation_id = response.json()["conversation"]["id"]
-
-        # Get the conversation's session_id
-        result = await async_session.execute(
-            select(Conversation).where(Conversation.id == conversation_id)
-        )
-        conversation = result.scalar_one()
-        session_id = conversation.session_id
-
-        # Delete the session to orphan the conversation
-        result = await async_session.execute(select(Session).where(Session.id == session_id))
-        session = result.scalar_one()
-        await async_session.delete(session)
         await async_session.commit()
+
+        # Verify the orphan was created
+        result = await async_session.execute(
+            select(Conversation).where(Conversation.id == orphan_id)
+        )
+        orphan_conv = result.scalar_one_or_none()
+        assert orphan_conv is not None, "Orphan conversation was not created"
 
         # Run orphan cleanup
         response = await client.delete(
@@ -418,7 +418,7 @@ async def test_cleanup_orphans_deletes_orphaned_conversations(
 
         # Verify the orphaned conversation was deleted
         result = await async_session.execute(
-            select(Conversation).where(Conversation.id == conversation_id)
+            select(Conversation).where(Conversation.id == orphan_id)
         )
         deleted_conversation = result.scalar_one_or_none()
         assert deleted_conversation is None
@@ -429,53 +429,35 @@ async def test_cleanup_orphans_deletes_orphaned_messages(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
     """Test orphan cleanup deletes messages with non-existent conversations."""
+    from sqlalchemy import text
+
     with patch("app.api.devops.get_settings") as mock_settings:
         mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
 
-        # Get auth headers
-        auth_headers = await get_auth_headers(client)
+        # Create an orphan message directly in the DB with a non-existent conversation_id
+        # This bypasses foreign key checks and creates a true orphan
+        orphan_msg_id = "orphan-msg-" + generate_uuid()[:8]
+        fake_conv_id = "nonexistent-conv-" + generate_uuid()[:8]
 
-        # Create a conversation with a message
-        response = await client.post(
-            "/api/conversations",
-            json={
-                "topic": "Test for orphan messages",
-                "thinkers": [
-                    {
-                        "name": "Plato",
-                        "bio": "Student of Socrates",
-                        "positions": "Theory of forms",
-                        "style": "Dialogue",
-                    }
-                ],
+        await async_session.execute(
+            text(
+                "INSERT INTO messages (id, conversation_id, sender_type, sender_name, content, created_at, updated_at) "
+                "VALUES (:id, :conv_id, :sender_type, :sender_name, :content, datetime('now'), datetime('now'))"
+            ),
+            {
+                "id": orphan_msg_id,
+                "conv_id": fake_conv_id,
+                "sender_type": "user",
+                "sender_name": "TestUser",
+                "content": "Orphan message for cleanup test",
             },
-            headers=auth_headers,
         )
-        assert response.status_code == 200  # Conversations return 200, not 201
-        conversation_id = response.json()["conversation"]["id"]
-
-        # Send a message
-        response = await client.post(
-            f"/api/conversations/{conversation_id}/messages",
-            json={"content": "Test message for orphan cleanup"},
-            headers=auth_headers,
-        )
-        assert response.status_code == 201
-
-        # Get the message
-        result = await async_session.execute(
-            select(Message).where(Message.conversation_id == conversation_id)
-        )
-        messages = result.scalars().all()
-        assert len(messages) > 0
-
-        # Delete the conversation to orphan the messages
-        result = await async_session.execute(
-            select(Conversation).where(Conversation.id == conversation_id)
-        )
-        conversation = result.scalar_one()
-        await async_session.delete(conversation)
         await async_session.commit()
+
+        # Verify the orphan was created
+        result = await async_session.execute(select(Message).where(Message.id == orphan_msg_id))
+        orphan_msg = result.scalar_one_or_none()
+        assert orphan_msg is not None, "Orphan message was not created"
 
         # Run orphan cleanup
         response = await client.delete(
@@ -487,12 +469,10 @@ async def test_cleanup_orphans_deletes_orphaned_messages(
         data = response.json()
         assert data["details"]["orphan_messages"] >= 1
 
-        # Verify the orphaned messages were deleted
-        result = await async_session.execute(
-            select(Message).where(Message.conversation_id == conversation_id)
-        )
-        deleted_messages = result.scalars().all()
-        assert len(deleted_messages) == 0
+        # Verify the orphaned message was deleted
+        result = await async_session.execute(select(Message).where(Message.id == orphan_msg_id))
+        deleted_msg = result.scalar_one_or_none()
+        assert deleted_msg is None
 
 
 @pytest.mark.asyncio
