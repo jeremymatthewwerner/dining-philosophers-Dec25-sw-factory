@@ -33,14 +33,16 @@ jobs:
     # 1. needs-principal-engineer label (escalation from Code Agent)
     # 2. @pe or @principal-engineer mention in comment
     # 3. Manual workflow dispatch
+    # SKIP if: factory-meta label is present (handled by Factory Manager only)
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issues' && github.event.label.name == 'needs-principal-engineer') ||
-      (github.event_name == 'issue_comment' &&
-       !github.event.issue.pull_request &&
-       (contains(github.event.comment.body, '@pe') ||
-        contains(github.event.comment.body, '@PE') ||
-        contains(github.event.comment.body, '@principal-engineer')))
+      !contains(github.event.issue.labels.*.name, 'factory-meta') &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'issues' && github.event.label.name == 'needs-principal-engineer') ||
+       (github.event_name == 'issue_comment' &&
+        !github.event.issue.pull_request &&
+        (contains(github.event.comment.body, '@pe') ||
+         contains(github.event.comment.body, '@PE') ||
+         contains(github.event.comment.body, '@principal-engineer'))))
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
