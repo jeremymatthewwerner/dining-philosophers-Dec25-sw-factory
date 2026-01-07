@@ -133,7 +133,7 @@ jobs:
             LOGS_RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
               -H "Authorization: Bearer $RAILWAY_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"query\": \"query { environmentLogs(environmentId: \\\"$PROD_ENV_ID\\\", beforeLimit: 50) { ... on Log { message timestamp severity tags } } }\"}")
+              -d "{\"query\": \"query { environmentLogs(environmentId: \\\"$PROD_ENV_ID\\\", beforeLimit: 50) { ... on Log { message timestamp severity } } }\"}")
 
             # Debug: show raw response
             echo "Raw API response:" >> /tmp/diagnostic_output.txt
