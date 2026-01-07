@@ -742,7 +742,8 @@ jobs:
 
       - name: Auto-rebase conflicting PRs
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # MUST use PAT to trigger other workflows when re-adding ai-ready label
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
         run: |
           echo "🔄 Checking for PRs with merge conflicts after push to main..."
           echo "   Repository: $GITHUB_REPOSITORY"

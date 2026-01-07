@@ -125,10 +125,11 @@ jobs:
       - name: Update existing issue and re-trigger Code Agent
         if: steps.check-issue.outputs.exists == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # MUST use PAT to trigger other workflows - GITHUB_TOKEN can't trigger workflows
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           ISSUE_NUMBER: ${{ steps.check-issue.outputs.issue_number }}
         run: |
-          # Comment with @claude mention to trigger Code Agent
+          # Comment about the new failure
           gh issue comment "$ISSUE_NUMBER" \
             --repo ${{ github.repository }} \
             --body "## Another CI Failure Detected
@@ -139,7 +140,7 @@ jobs:
 
           @claude The CI is still failing on main. Please investigate this new failure and fix it."
 
-          # Also re-trigger via label toggle (belt and suspenders)
+          # Re-trigger Code Agent via label toggle (PAT required to trigger workflows)
           gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} --remove-label "ai-ready" || true
           sleep 2
           gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} --add-label "ai-ready"
