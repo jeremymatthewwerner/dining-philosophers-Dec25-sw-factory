@@ -828,7 +828,11 @@ jobs:
                 # Trigger Code Agent by commenting on the related issue
                 if [ -n "$RELATED_ISSUE" ]; then
                   echo "   Triggering Code Agent on issue #$RELATED_ISSUE"
-                  gh issue comment "$RELATED_ISSUE" --repo "$GITHUB_REPOSITORY" --body "The previous PR was closed due to merge conflicts. Code Agent: please create a fresh PR from current main." || echo "   (Could not comment on issue)"
+                  gh issue comment "$RELATED_ISSUE" --repo "$GITHUB_REPOSITORY" --body "The previous PR #$PR_NUM was closed due to merge conflicts. Re-triggering Code Agent to create a fresh PR from current main." || echo "   (Could not comment on issue)"
+                  # Re-trigger Code Agent by removing and re-adding ai-ready label
+                  gh issue edit "$RELATED_ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label "ai-ready" || echo "   (Could not remove ai-ready label)"
+                  sleep 2  # Brief pause to ensure label removal is processed
+                  gh issue edit "$RELATED_ISSUE" --repo "$GITHUB_REPOSITORY" --add-label "ai-ready" || echo "   (Could not re-add ai-ready label)"
                 else
                   echo "   ⚠️ Could not find related issue to trigger Code Agent"
                 fi
