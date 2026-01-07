@@ -2,6 +2,8 @@ name: Triage Agent
 on:
   issues:
     types: [opened]  # Only on NEW issues, not reopened (avoid re-triaging)
+  issue_comment:
+    types: [created]  # Trigger on @triage mentions for re-triaging
   workflow_dispatch:
     inputs:
       issue_number:
@@ -16,6 +18,17 @@ permissions:
 
 jobs:
   triage:
+    # Triggers on:
+    # 1. New issue opened
+    # 2. @triage mention in comment (for re-triaging)
+    # 3. Manual workflow dispatch
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'issues' ||
+      (github.event_name == 'issue_comment' &&
+       !github.event.issue.pull_request &&
+       (contains(github.event.comment.body, '@triage') ||
+        contains(github.event.comment.body, '@Triage')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -57,16 +70,31 @@ jobs:
             2. Check for duplicates: gh issue list --search "similar terms"
             3. Classify as bug, feature/enhancement, or question
             4. Assign priority: P0 (critical), P1 (high), P2 (medium)
-            5. Add classification and priority labels FIRST: gh issue edit ${{ steps.issue.outputs.number }} --add-label "bug,priority-low" (or enhancement, P0, P1, P2, etc.)
-            6. Comment with your assessment: gh issue comment ${{ steps.issue.outputs.number }} --body "..."
-            7. IMPORTANT: Add 'ai-ready' label LAST, in a SEPARATE command: gh issue edit ${{ steps.issue.outputs.number }} --add-label "ai-ready"
-               This ensures the Code Agent triggers correctly (it checks for bug/enhancement labels when ai-ready is added).
+            5. Add classification and priority labels: gh issue edit ${{ steps.issue.outputs.number }} --add-label "bug,priority-low" (or enhancement, priority-high, etc.)
+            6. Post your triage assessment AND trigger Code Agent with @code mention:
+               gh issue comment ${{ steps.issue.outputs.number }} --body "## 🤖 Triage Assessment
 
-            Available labels: bug, enhancement, ai-ready, P0, P1, P2, needs-human
+            **Classification:** Bug/Enhancement
+            **Priority:** High/Medium/Low (P1/P2/P3)
+            **Status:** Ready for autonomous fix
+
+            ### Analysis
+            [Your analysis here]
+
+            ### Next Steps
+            @code please investigate and fix this issue.
+
+            ---
+            *Auto-triaged by Triage Agent*"
+
+            IMPORTANT: The @code mention triggers Code Agent. Do NOT add 'ai-ready' label anymore.
+
+            Available labels: bug, enhancement, priority-high, priority-medium, priority-low, needs-human
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --dangerously-skip-permissions
             --allowedTools "Bash(gh issue:*),Bash(gh search:*),Read,Glob,Grep"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT so the @code comment triggers Code Agent workflow
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}

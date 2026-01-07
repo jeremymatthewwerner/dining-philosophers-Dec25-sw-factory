@@ -483,9 +483,10 @@ jobs:
       - name: Trigger Code Agent for incident
         if: steps.incident.outputs.created == 'true'
         run: |
-          # Add ai-ready label separately to trigger Code Agent
-          # MUST use PAT to trigger other workflows - GITHUB_TOKEN can't trigger workflows
-          gh issue edit ${{ steps.incident.outputs.issue_number }} --add-label "ai-ready"
+          # Post @code comment to trigger Code Agent (cleaner than label approach)
+          # MUST use PAT so the comment triggers Code Agent workflow
+          gh issue comment ${{ steps.incident.outputs.issue_number }} \
+            --body "@code This is a production incident. Please investigate immediately using the Railway logs above and fix the issue."
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 

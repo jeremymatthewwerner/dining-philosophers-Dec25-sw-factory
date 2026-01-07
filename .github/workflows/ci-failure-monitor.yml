@@ -111,26 +111,26 @@ jobs:
           echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
           echo "Created issue #$ISSUE_NUMBER"
 
-      # Add ai-ready label separately to trigger Code Agent's labeled event
-      - name: Trigger Code Agent
+      # Trigger Code Agent via @code comment (cleaner than label toggling)
+      - name: Trigger Code Agent for new issue
         if: steps.check-issue.outputs.exists == 'false' && steps.create-issue.outputs.issue_number
         env:
-          # MUST use PAT to trigger other workflows - GITHUB_TOKEN can't trigger workflows
+          # MUST use PAT so the comment triggers Code Agent workflow
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
         run: |
-          echo "Adding ai-ready label to trigger Code Agent..."
-          gh issue edit ${{ steps.create-issue.outputs.issue_number }} \
+          echo "Posting @code comment to trigger Code Agent..."
+          gh issue comment ${{ steps.create-issue.outputs.issue_number }} \
             --repo ${{ github.repository }} \
-            --add-label "ai-ready"
+            --body "@code Please investigate and fix this CI failure. The failure logs are in the issue description above."
 
       - name: Update existing issue and re-trigger Code Agent
         if: steps.check-issue.outputs.exists == 'true'
         env:
-          # MUST use PAT to trigger other workflows - GITHUB_TOKEN can't trigger workflows
+          # MUST use PAT so the comment triggers Code Agent workflow
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           ISSUE_NUMBER: ${{ steps.check-issue.outputs.issue_number }}
         run: |
-          # Comment about the new failure
+          # Comment about the new failure with @code to re-trigger
           gh issue comment "$ISSUE_NUMBER" \
             --repo ${{ github.repository }} \
             --body "## Another CI Failure Detected
@@ -139,9 +139,4 @@ jobs:
           **Commit:** ${{ github.event.workflow_run.head_sha }}
           **Run:** ${{ steps.failed-jobs.outputs.run_url }}
 
-          @claude The CI is still failing on main. Please investigate this new failure and fix it."
-
-          # Re-trigger Code Agent via label toggle (PAT required to trigger workflows)
-          gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} --remove-label "ai-ready" || true
-          sleep 2
-          gh issue edit "$ISSUE_NUMBER" --repo ${{ github.repository }} --add-label "ai-ready"
+          @code The CI is still failing on main. Please investigate this new failure and fix it."
