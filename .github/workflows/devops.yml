@@ -422,6 +422,7 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_SW_FACTORY }}
 
       - name: Update or create incident
+        id: incident
         run: |
           FAILURES="${{ needs.smoke-test.outputs.failures }}"
 
@@ -435,9 +436,10 @@ jobs:
             SEVERITY="SEV2"
             echo "$FAILURES" | grep -q "backend" && SEVERITY="SEV1"
 
-            gh issue create \
+            # Create issue WITHOUT ai-ready label first
+            ISSUE_URL=$(gh issue create \
               --title "🚨 Production Incident: $FAILURES failing" \
-              --label "bug,priority-high,production-incident,ai-ready" \
+              --label "bug,priority-high,production-incident" \
               --body "## 🚨 Production Incident
 
           **Severity:** $SEVERITY
@@ -468,10 +470,24 @@ jobs:
           - Use \`railway logs --service backend\` locally for full logs
 
           ---
-          *Auto-created by DevOps Agent*"
+          *Auto-created by DevOps Agent*")
+
+            # Extract issue number from URL
+            ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+            echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+            echo "created=true" >> $GITHUB_OUTPUT
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Code Agent for incident
+        if: steps.incident.outputs.created == 'true'
+        run: |
+          # Add ai-ready label separately to trigger Code Agent
+          # MUST use PAT to trigger other workflows - GITHUB_TOKEN can't trigger workflows
+          gh issue edit ${{ steps.incident.outputs.issue_number }} --add-label "ai-ready"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
   # ===========================================
   # MANUAL ACTIONS (workflow_dispatch)
