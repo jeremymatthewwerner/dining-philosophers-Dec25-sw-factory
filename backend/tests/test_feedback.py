@@ -170,3 +170,57 @@ async def test_submit_feedback_name_optional(client: AsyncClient) -> None:
     )
 
     assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_submit_feedback_with_screenshot(client: AsyncClient) -> None:
+    """Test feedback submission with screenshot data."""
+    # Base64 encoded small test image (1x1 PNG)
+    test_screenshot = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+    response = await client.post(
+        "/api/feedback",
+        json={
+            "feedback_type": "bug",
+            "message": "This is a bug report with a screenshot attached.",
+            "screenshot_data": test_screenshot,
+            "screenshot_filename": "bug-screenshot.png",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert "id" in data
+
+
+@pytest.mark.asyncio
+async def test_submit_feedback_screenshot_without_filename(client: AsyncClient) -> None:
+    """Test feedback submission with screenshot data but no filename."""
+    test_screenshot = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+    response = await client.post(
+        "/api/feedback",
+        json={
+            "message": "This is a feedback with screenshot but no filename.",
+            "screenshot_data": test_screenshot,
+        },
+    )
+
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_submit_feedback_screenshot_too_large(client: AsyncClient) -> None:
+    """Test that overly large screenshots are rejected."""
+    # Create a string larger than 7MB (the limit)
+    large_data = "a" * (7_000_001)
+
+    response = await client.post(
+        "/api/feedback",
+        json={
+            "message": "This feedback has a screenshot that is too large.",
+            "screenshot_data": large_data,
+        },
+    )
+
+    assert response.status_code == 422  # Validation error

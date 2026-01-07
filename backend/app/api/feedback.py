@@ -88,6 +88,8 @@ async def submit_feedback(
         email=data.email,
         name=data.name,
         user_agent=data.user_agent,
+        screenshot_data=data.screenshot_data,
+        screenshot_filename=data.screenshot_filename,
         status=FeedbackStatus.NEW,
         ip_hash=ip_hash,
     )

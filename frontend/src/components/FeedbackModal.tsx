@@ -4,9 +4,19 @@
 
 'use client';
 
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { type FeedbackType, submitFeedback } from '@/lib/api';
+
+// Max file size: 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
 export interface FeedbackModalProps {
   isOpen: boolean;
@@ -19,10 +29,15 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [screenshot, setScreenshot] = useState<{
+    data: string;
+    filename: string;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Focus textarea when modal opens
   useEffect(() => {
@@ -38,10 +53,68 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       setMessage('');
       setEmail('');
       setName('');
+      setScreenshot(null);
       setError(null);
       setSuccess(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }, [isOpen]);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setScreenshot(null);
+      return;
+    }
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setError(
+        t.feedbackModal?.invalidFileType ||
+          'Please upload an image file (PNG, JPEG, GIF, or WebP)'
+      );
+      e.target.value = '';
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      setError(
+        t.feedbackModal?.fileTooLarge || 'Screenshot must be less than 5MB'
+      );
+      e.target.value = '';
+      return;
+    }
+
+    setError(null);
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      // Remove the data URL prefix to get just the base64 data
+      const base64Data = base64.split(',')[1];
+      setScreenshot({
+        data: base64Data,
+        filename: file.name,
+      });
+    };
+    reader.onerror = () => {
+      setError(
+        t.feedbackModal?.fileReadError || 'Failed to read screenshot file'
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeScreenshot = () => {
+    setScreenshot(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -65,6 +138,8 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
         name: name.trim() || undefined,
         user_agent:
           typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+        screenshot_data: screenshot?.data,
+        screenshot_filename: screenshot?.filename,
       });
 
       setSuccess(true);
@@ -228,13 +303,94 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                 </div>
               </div>
 
+              {/* Screenshot Upload */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  {t.feedbackModal?.screenshotLabel || 'Screenshot'} (
+                  {t.feedbackModal?.optional || 'optional'})
+                </label>
+                {screenshot ? (
+                  <div className="flex items-center gap-3 p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-8 h-8 text-green-600 dark:text-green-400 flex-shrink-0"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-300 truncate">
+                      {screenshot.filename}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={removeScreenshot}
+                      className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+                      aria-label={
+                        t.feedbackModal?.removeScreenshot || 'Remove screenshot'
+                      }
+                      data-testid="remove-screenshot"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-5 h-5 text-zinc-500"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      onChange={handleFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      data-testid="screenshot-input"
+                    />
+                    <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-zinc-300 dark:border-zinc-600 rounded-lg text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors cursor-pointer">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-5 h-5"
+                      >
+                        <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
+                        <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                      </svg>
+                      <span className="text-sm">
+                        {t.feedbackModal?.uploadScreenshot ||
+                          'Upload screenshot (PNG, JPEG, GIF, WebP)'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  {t.feedbackModal?.screenshotHint || 'Max 5MB'}
+                </p>
+              </div>
+
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 {t.feedbackModal?.privacyNote ||
                   'Your contact information is optional and will only be used to follow up on your feedback if needed.'}
               </p>
 
               {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">
+                <p
+                  className="text-sm text-red-600 dark:text-red-400"
+                  data-testid="feedback-error"
+                >
                   {error}
                 </p>
               )}

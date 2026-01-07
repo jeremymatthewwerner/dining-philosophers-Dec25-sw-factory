@@ -48,6 +48,10 @@ class Feedback(Base, TimestampMixin):
     # Browser/device info for debugging
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Screenshot attachment (base64 encoded)
+    screenshot_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    screenshot_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Status tracking
     status: Mapped[str] = mapped_column(
         Enum(FeedbackStatus), default=FeedbackStatus.NEW, nullable=False
