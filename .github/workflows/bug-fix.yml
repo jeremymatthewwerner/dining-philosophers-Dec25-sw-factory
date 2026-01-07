@@ -1,7 +1,5 @@
 name: Code Agent
 on:
-  issues:
-    types: [labeled]
   issue_comment:
     types: [created]
   schedule:
@@ -101,23 +99,16 @@ jobs:
 
   fix:
     # Triggers on:
-    # 1. ai-ready label added AND issue already has (bug OR enhancement)
-    # 2. bug/enhancement label added AND issue already has ai-ready
-    # 3. Comment containing @claude on an issue with ai-ready label
-    # 4. ANY comment on an issue with status:awaiting-bot label (human responded)
-    # 5. Manual workflow dispatch
+    # 1. Comment containing @code or @claude on an issue
+    # 2. ANY comment on an issue with status:awaiting-bot label (human responded)
+    # 3. Manual workflow dispatch
     # SKIP if: needs-human label is present (escalated, requires human intervention)
     # SKIP if: factory-meta label is present (handled by Factory Manager only)
+    # NOTE: Legacy ai-ready label triggers removed - use @code mention instead
     if: |
       !contains(github.event.issue.labels.*.name, 'needs-human') &&
       !contains(github.event.issue.labels.*.name, 'factory-meta') &&
       (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'issues' &&
-        ((github.event.label.name == 'ai-ready' &&
-          (contains(github.event.issue.labels.*.name, 'bug') ||
-           contains(github.event.issue.labels.*.name, 'enhancement'))) ||
-         ((github.event.label.name == 'bug' || github.event.label.name == 'enhancement') &&
-          contains(github.event.issue.labels.*.name, 'ai-ready')))) ||
        (github.event_name == 'issue_comment' &&
         !github.event.issue.pull_request &&
         (contains(github.event.comment.body, '@code') ||
