@@ -366,20 +366,20 @@ This repo uses 8 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
-| **Code Agent** | `ai-ready` + `bug`/`enhancement` labels | Diagnoses and fixes issues, creates PRs |
-| **Principal Engineer** | `needs-principal-engineer` label | Holistic debugging, fixes factory not just symptoms |
+| **Code Agent** | `@code` mention in comment | Diagnoses and fixes issues, creates PRs |
+| **Principal Engineer** | `@pe` mention in comment | Holistic debugging, fixes factory not just symptoms |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
-| **DevOps** | Every 5 min + push to main + manual | Health checks, auto-rebase PRs, auto-merge ready PRs, Railway logs, service restarts |
+| **DevOps** | `@devops` mention + Every 5 min + push to main | Health checks, auto-rebase PRs, auto-merge ready PRs, Railway logs, service restarts |
 | **Marketing** | On release | Updates changelog, docs |
-| **CI Monitor** | On CI failure (main) | Auto-creates `ai-ready` issues for failed builds |
+| **CI Monitor** | On CI failure (main) | Auto-creates issues and triggers Code Agent via `@code` |
 
 ### Escalation Flow
 
-When Code Agent gets stuck (timeout, 3x CI failure), it adds `needs-principal-engineer` label which triggers the **Principal Engineer**:
+When Code Agent gets stuck (timeout, 3x CI failure), it posts a `@pe` comment which triggers the **Principal Engineer**:
 
 ```
-Code Agent stuck → adds needs-principal-engineer → Principal Engineer investigates
+Code Agent stuck → posts "@pe please investigate" → Principal Engineer investigates
                                                            ↓
                                        Analyzes root cause (code? infra? workflow?)
                                                            ↓
@@ -526,12 +526,12 @@ Issue Created → Triage labels → Code Agent fixes → PR created → CI passe
 
 **CI Monitor** triggers Code Agent automatically:
 1. Creates issue with `bug`, `priority-high`, `ci-failure` labels
-2. Adds `ai-ready` label separately (triggers Code Agent's `labeled` event)
+2. Posts `@code please fix this CI failure` comment to trigger Code Agent
 3. Code Agent picks up and attempts fix
 
 ### Interacting with the Code Agent
 
-**Comment-driven interaction:** You can comment on any issue with `@claude` to ask questions or provide suggestions. The bot will:
+**Comment-driven interaction:** You can comment on any issue with `@code` to ask questions or provide suggestions. The bot will:
 1. Read your comment and the full issue context
 2. Think about your question/suggestion
 3. Post a thoughtful response
@@ -543,15 +543,16 @@ Issue Created → Triage labels → Code Agent fixes → PR created → CI passe
 | `status:bot-working` | Bot is actively working | Wait for bot |
 | `status:awaiting-human` | Bot needs your input | You respond |
 | `status:awaiting-bot` | You commented, bot will respond | Wait for bot |
-| (no status label) | No active work | Add `ai-ready` to trigger |
+| (no status label) | No active work | Comment with `@code` to trigger |
 
 **Example workflow:**
-1. Issue created with `bug` + `ai-ready` labels
-2. Bot starts → `status:bot-working`
-3. Bot has a question → `status:awaiting-human` + comment asking
-4. You reply with `@claude here's the answer...`
-5. Bot responds → `status:bot-working`
-6. Bot creates PR → removes status labels
+1. Issue created, Triage labels it with `bug`
+2. Triage posts `@code please investigate` comment
+3. Bot starts → `status:bot-working`
+4. Bot has a question → `status:awaiting-human` + comment asking
+5. You reply with `@code here's the answer...`
+6. Bot responds → `status:bot-working`
+7. Bot creates PR → removes status labels
 
 **Concurrency:** Only one bot run per issue at a time. Comments are queued, not dropped.
 
@@ -569,12 +570,12 @@ Why @mentions over labels:
 
 | Mention | Agent | Use Case |
 |---------|-------|----------|
-| `@code` | Code Agent | Fix bugs, implement features (preferred over `@claude`) |
+| `@code` | Code Agent | Fix bugs, implement features |
 | `@devops` | DevOps Agent | Production logs, diagnostics, service restarts |
 | `@pe` | Principal Engineer | Holistic debugging, factory fixes |
 | `@triage` | Triage Agent | Re-classify or re-prioritize an issue |
 | `@qa` | QA Agent | Request test improvements |
-| `@claude` | Code Agent | Legacy alias for `@code` (still works) |
+| `@claude` | Code Agent | ⚠️ **Deprecated** - use `@code` instead (still works for compatibility) |
 
 **Examples:**
 ```
@@ -588,7 +589,8 @@ Why @mentions over labels:
 - `bug`, `enhancement` - Issue type
 - `priority-high`, `priority-medium`, `priority-low` - Priority
 - `status:bot-working`, `status:awaiting-human` - Current status
-- Do NOT use `ai-ready` label to trigger agents - use `@code` mention instead
+- `ai-ready` - ⚠️ **Deprecated** - labels no longer trigger agents, use `@code` mention instead
+- `needs-principal-engineer` - ⚠️ **Deprecated** - labels no longer trigger PE, use `@pe` mention instead
 
 ### QA Agent - Test Quality Guardian
 
