@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     # Secret for DevOps API endpoints (used by DevOps agent for maintenance)
     devops_api_secret: str = ""
 
+    # Secret for feedback processor (used by DevOps workflow to convert feedback to issues)
+    feedback_processor_secret: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:
