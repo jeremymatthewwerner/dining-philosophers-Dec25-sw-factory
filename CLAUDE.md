@@ -556,6 +556,33 @@ Issue Created → Triage labels → Code Agent fixes → PR created → CI passe
 
 **Concurrency:** Only one bot run per issue at a time. Comments are queued, not dropped.
 
+### Agent-to-Agent Coordination (@mentions)
+
+Agents can request help from other agents using @mentions in issue comments. This is the preferred method for agent coordination because:
+- **Comments are immutable** - creates audit trail
+- **Each mention is an event** - triggers workflow reliably
+- **Simple to understand** - no complex state machine
+- **Works regardless of labels** - doesn't depend on ephemeral label state
+
+**Available @mentions:**
+
+| Mention | Triggers | Use Case |
+|---------|----------|----------|
+| `@claude` | Code Agent | Ask for code changes, bug fixes, feature implementation |
+| `@devops` | DevOps Agent | Request production logs, database diagnostics, service restarts |
+| `@principal-engineer` | Principal Engineer | Escalate complex issues requiring holistic factory fixes |
+
+**Examples:**
+```
+@devops please check backend logs for errors in the last hour
+@claude the database schema needs updating, please create a migration
+@devops check database connection status
+```
+
+**When to use @mentions vs labels:**
+- **@mentions**: Agent-to-agent requests, re-triggering stuck issues, requesting specific actions
+- **Labels**: Initial triage, marking issues as ready for automation (`ai-ready`), escalation states
+
 ### QA Agent - Test Quality Guardian
 
 The QA agent performs **periodic reflection and enhancement** of the test suite:
