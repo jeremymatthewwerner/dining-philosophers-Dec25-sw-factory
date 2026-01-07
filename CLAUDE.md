@@ -33,6 +33,7 @@ Create these labels (or run: `gh label create <name> --color <color>`):
 - `status:awaiting-bot` (#0E8A16) - Human commented, bot will respond
 - `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
 - `factory-improvement` (#1D76DB) - Documents factory/workflow fixes for audit trail
+- `user-feedback` (#FF6B6B) - User feedback submitted via in-app form
 
 ### 3. Secrets
 Ensure these secrets are set in **Settings → Secrets and variables → Actions**:
@@ -44,6 +45,7 @@ Ensure these secrets are set in **Settings → Secrets and variables → Actions
 - `PRODUCTION_BACKEND_URL` - Backend URL for health checks (e.g., `https://api.diningphilosophers.ai`)
 - `PRODUCTION_FRONTEND_URL` - Frontend URL for health checks (e.g., `https://diningphilosophers.ai`)
 - `TEST_CLEANUP_SECRET` - Secret for test user cleanup endpoint (used by smoke/canary tests)
+- `FEEDBACK_PROCESSOR_SECRET` - Secret for feedback-to-issue processor (used by DevOps agent to convert user feedback to GitHub issues)
 
 ### 4. Branch Protection (Optional)
 If using branch protection on `main`, ensure:

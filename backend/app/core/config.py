@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     # Secret for test user cleanup endpoint (used by CI workflows)
     test_cleanup_secret: str = ""
 
+    # Secret for feedback processor endpoint (used by DevOps agent workflow)
+    feedback_processor_secret: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

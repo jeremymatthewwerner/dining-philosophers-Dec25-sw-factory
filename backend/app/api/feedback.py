@@ -4,15 +4,17 @@ import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models import Feedback
 from app.models.feedback import FeedbackStatus
 from app.models.feedback import FeedbackType as FeedbackTypeModel
-from app.schemas.feedback import FeedbackCreate, FeedbackResponse
+from app.schemas.feedback import FeedbackCreate, FeedbackDetail, FeedbackResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -100,4 +102,163 @@ async def submit_feedback(
     return FeedbackResponse(
         id=feedback.id,
         message="Thank you for your feedback! We appreciate you taking the time to help us improve.",
+    )
+
+
+class PendingFeedbackResponse(BaseModel):
+    """Response schema for pending feedback list."""
+
+    feedbacks: list[FeedbackDetail]
+    count: int
+
+
+@router.get("/pending", response_model=PendingFeedbackResponse)
+async def get_pending_feedback(
+    secret: str = Query(..., description="Feedback processor secret for authentication"),
+    limit: int = Query(default=10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> PendingFeedbackResponse:
+    """Get pending feedback items waiting to be converted to GitHub issues.
+
+    **SECURITY**: This endpoint is protected by FEEDBACK_PROCESSOR_SECRET and is
+    used by the DevOps workflow to fetch feedback that needs to be converted to
+    GitHub issues.
+
+    **Purpose**: Part of the feedback-to-GitHub-issue pipeline. The DevOps agent
+    polls this endpoint to find new feedback, creates GitHub issues, then calls
+    the mark-processed endpoint.
+
+    Args:
+        secret: The feedback processor secret for authentication
+        limit: Maximum number of items to return (default 10, max 100)
+
+    Returns:
+        List of pending feedback items
+    """
+    settings = get_settings()
+
+    # Verify secret is configured
+    if not settings.feedback_processor_secret:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Feedback processor secret not configured",
+        )
+
+    # Verify provided secret matches
+    if secret != settings.feedback_processor_secret:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid feedback processor secret",
+        )
+
+    # Query for pending feedback
+    result = await db.execute(
+        select(Feedback)
+        .where(Feedback.status == FeedbackStatus.NEW)
+        .order_by(Feedback.created_at.asc())
+        .limit(limit)
+    )
+    feedbacks = result.scalars().all()
+
+    return PendingFeedbackResponse(
+        feedbacks=[
+            FeedbackDetail(
+                id=f.id,
+                feedback_type=f.feedback_type.value
+                if hasattr(f.feedback_type, "value")
+                else str(f.feedback_type),
+                message=f.message,
+                email=f.email,
+                name=f.name,
+                user_agent=f.user_agent,
+                status=f.status.value if hasattr(f.status, "value") else str(f.status),
+                github_issue_url=f.github_issue_url,
+                created_at=f.created_at,
+                updated_at=f.updated_at,
+            )
+            for f in feedbacks
+        ],
+        count=len(feedbacks),
+    )
+
+
+class MarkProcessedRequest(BaseModel):
+    """Request schema for marking feedback as processed."""
+
+    github_issue_url: str
+
+
+class MarkProcessedResponse(BaseModel):
+    """Response schema for marking feedback as processed."""
+
+    id: str
+    status: str
+    github_issue_url: str
+    message: str
+
+
+@router.patch("/{feedback_id}/processed", response_model=MarkProcessedResponse)
+async def mark_feedback_processed(
+    feedback_id: str,
+    request: MarkProcessedRequest,
+    secret: str = Query(..., description="Feedback processor secret for authentication"),
+    db: AsyncSession = Depends(get_db),
+) -> MarkProcessedResponse:
+    """Mark a feedback item as processed after creating a GitHub issue.
+
+    **SECURITY**: This endpoint is protected by FEEDBACK_PROCESSOR_SECRET.
+
+    **Purpose**: After the DevOps agent creates a GitHub issue from feedback,
+    it calls this endpoint to mark the feedback as processed and store the
+    issue URL.
+
+    Args:
+        feedback_id: The ID of the feedback to mark as processed
+        request: Contains the GitHub issue URL
+        secret: The feedback processor secret for authentication
+
+    Returns:
+        Updated feedback status
+    """
+    settings = get_settings()
+
+    # Verify secret is configured
+    if not settings.feedback_processor_secret:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Feedback processor secret not configured",
+        )
+
+    # Verify provided secret matches
+    if secret != settings.feedback_processor_secret:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid feedback processor secret",
+        )
+
+    # Find the feedback
+    result = await db.execute(select(Feedback).where(Feedback.id == feedback_id))
+    feedback = result.scalar_one_or_none()
+
+    if not feedback:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feedback not found",
+        )
+
+    # Update the feedback
+    feedback.status = FeedbackStatus.REVIEWED
+    feedback.github_issue_url = request.github_issue_url
+    await db.commit()
+    await db.refresh(feedback)
+
+    logger.info(
+        f"Feedback {feedback_id} marked as processed with issue: {request.github_issue_url}"
+    )
+
+    return MarkProcessedResponse(
+        id=feedback.id,
+        status=feedback.status.value if hasattr(feedback.status, "value") else str(feedback.status),
+        github_issue_url=feedback.github_issue_url or "",
+        message="Feedback marked as processed and linked to GitHub issue",
     )
