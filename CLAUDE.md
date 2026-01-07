@@ -44,6 +44,7 @@ Ensure these secrets are set in **Settings → Secrets and variables → Actions
 - `PRODUCTION_BACKEND_URL` - Backend URL for health checks (e.g., `https://api.diningphilosophers.ai`)
 - `PRODUCTION_FRONTEND_URL` - Frontend URL for health checks (e.g., `https://diningphilosophers.ai`)
 - `TEST_CLEANUP_SECRET` - Secret for test user cleanup endpoint (used by smoke/canary tests)
+- `DEVOPS_API_SECRET` - Secret for DevOps API endpoints (used by DevOps Agent for database maintenance)
 
 ### 4. Branch Protection (Optional)
 If using branch protection on `main`, ensure:
@@ -435,6 +436,38 @@ Other agents (like Code Agent) can request production diagnostics by commenting 
 ```
 
 DevOps Agent will query production and post results back to the issue. This enables Code Agent to verify production state when debugging issues without having direct production access.
+
+### DevOps API - Database Access for Agents
+
+The DevOps agent has access to a protected Admin API for database maintenance operations. This enables autonomous cleanup, diagnostics, and data management.
+
+**API Endpoints (require `X-DevOps-Secret` header):**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/devops/health` | GET | Verify DevOps API authentication |
+| `/api/devops/stats` | GET | Database statistics (users, sessions, messages, etc.) |
+| `/api/devops/cleanup/stale-sessions` | DELETE | Remove sessions older than N hours |
+| `/api/devops/cleanup/orphans` | DELETE | Remove orphaned records (messages without conversations, etc.) |
+
+**Required Secrets:**
+- `DEVOPS_API_SECRET` - Secret for authenticating DevOps API calls
+
+**Self-Evolving API Pattern:**
+
+When an agent needs a new database capability not covered by existing endpoints:
+
+1. **Create issue** with `enhancement` + `admin-api` labels describing the need
+2. **Implement endpoint** following the pattern in `backend/app/api/devops.py`:
+   - Add authentication via `require_devops_secret` dependency
+   - Use Pydantic models for request/response schemas
+   - Support `dry_run` parameter for destructive operations
+   - Log all operations for audit trail
+3. **Add tests** for the new endpoint
+4. **Update REQUIREMENTS.md** Section 7.2 with the new endpoint
+5. **Update this section** to document the new capability
+
+See `REQUIREMENTS.md` Section 7 for full Admin API specification.
 
 ### Agent Visibility (IMPORTANT)
 

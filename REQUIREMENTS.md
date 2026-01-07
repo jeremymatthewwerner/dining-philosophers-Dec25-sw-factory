@@ -227,3 +227,73 @@ When a thinker or user mentions another participant by name, highlight the menti
   - **Decided**: Apply known frameworks to new concepts, with explicit acknowledgment (e.g., "In my time we didn't have X, but applying my views on Y...")
 - [x] Pricing/usage model for LLM costs?
   - **Decided**: Monitor and see. Display a cost meter in the UI showing cost incurred since page load.
+
+## 7. Admin API (DevOps Agent Access)
+
+The Admin API provides programmatic access for the DevOps agent and other autonomous agents to perform maintenance operations on production data. This enables self-healing, cleanup, and diagnostic capabilities.
+
+### 7.1 Design Principles
+
+- **Protected by secret header**: All admin endpoints require `X-Admin-Secret` header matching `ADMIN_API_SECRET` env var
+- **Audit logging**: All admin operations are logged with timestamp, action, and parameters
+- **Self-evolving**: When agents need new capabilities, they create new admin endpoints following this pattern
+- **Idempotent where possible**: Operations should be safe to retry
+- **Dry-run support**: Destructive operations should support `?dry_run=true` to preview effects
+
+### 7.2 Required Endpoints
+
+#### 7.2.1 Smoketest Cleanup
+```
+DELETE /admin/cleanup/smoketest-users
+```
+Removes test users created by CI/CD smoketest runs (identified by email pattern `smoketest-*@test.diningphilosophers.ai`).
+
+**Response**: `{ "deleted_count": N, "users": [...] }`
+
+#### 7.2.2 Stale Session Cleanup
+```
+DELETE /admin/cleanup/stale-sessions?older_than_hours=24
+```
+Removes sessions older than the specified threshold.
+
+**Response**: `{ "deleted_count": N }`
+
+#### 7.2.3 Orphan Data Cleanup
+```
+DELETE /admin/cleanup/orphans
+```
+Removes orphaned records (conversations without users, messages without conversations, etc.).
+
+**Response**: `{ "deleted": { "conversations": N, "messages": N, ... } }`
+
+#### 7.2.4 Health & Stats
+```
+GET /admin/stats
+```
+Returns database statistics for diagnostics.
+
+**Response**: `{ "users": N, "conversations": N, "messages": N, "thinkers": N, ... }`
+
+#### 7.2.5 Generic Record Management (Use with Caution)
+```
+GET /admin/data/{table}?limit=100&offset=0
+DELETE /admin/data/{table}/{id}
+```
+For ad-hoc data access when specific endpoints don't exist. Tables are allowlisted.
+
+### 7.3 Adding New Admin Endpoints
+
+When an agent needs a new admin capability:
+
+1. **Create issue**: Document the need with `enhancement` + `admin-api` labels
+2. **Implement endpoint**: Follow the pattern in `backend/app/api/admin.py`
+3. **Add tests**: Coverage required for new endpoints
+4. **Update this document**: Add the new endpoint to section 7.2
+5. **Update CLAUDE.md**: Document the new capability in the DevOps Agent section
+
+### 7.4 Security Considerations
+
+- Admin API should NEVER be exposed without authentication
+- Rate limiting applied to prevent abuse
+- Destructive operations require explicit confirmation (no silent deletes)
+- PII/sensitive data operations logged but values redacted in logs

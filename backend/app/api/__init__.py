@@ -6,6 +6,7 @@ from app.api import (
     admin,
     auth,
     conversations,
+    devops,
     feedback,
     sessions,
     spend,
@@ -24,6 +25,7 @@ api_router.include_router(thinkers.router, prefix="/thinkers", tags=["thinkers"]
 api_router.include_router(spend.router, prefix="/spend", tags=["spend"])
 api_router.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 api_router.include_router(test_helpers.router, tags=["test-helpers"])
+api_router.include_router(devops.router, tags=["devops"])
 
 # WebSocket route (no prefix - uses /ws/{conversation_id})
 ws_router = websocket.router
