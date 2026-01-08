@@ -2,7 +2,7 @@ name: Factory Manager
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Every 30 minutes for health checks
+    - cron: '*/5 * * * *'   # Every 5 minutes for health checks
     - cron: '0 6 * * 1'     # Weekly report on Monday 6am UTC
   workflow_dispatch:
     inputs:
@@ -35,11 +35,11 @@ concurrency:
 
 jobs:
   # ===========================================
-  # HEALTH CHECK (every 30 minutes)
+  # HEALTH CHECK (every 5 minutes)
   # ===========================================
   health-check:
     if: |
-      (github.event_name == 'schedule' && github.event.schedule == '*/30 * * * *') ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'full-health-check')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -259,7 +259,7 @@ jobs:
           echo "Long-running issues found: $LONGRUNNING_COUNT"
           echo "Failed workflows found: $FAILED_COUNT"
           echo ""
-          echo "Next check in 30 minutes"
+          echo "Next check in 5 minutes"
 
   # ===========================================
   # WEEKLY REPORT (Monday 6am UTC)
