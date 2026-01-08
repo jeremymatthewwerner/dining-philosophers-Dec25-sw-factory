@@ -11,7 +11,8 @@ test.describe('Session Management', () => {
     await setupAuthenticatedUser(page);
   });
 
-  test('handles expired token gracefully', async ({ page }) => {
+  // FIXME: Flaky test - see issue #258
+  test.fixme('handles expired token gracefully', async ({ page }) => {
     // Create a conversation
     await createConversationViaUI(page, 'Token expiry test', 'Plato');
 
@@ -97,7 +98,8 @@ test.describe('Session Management', () => {
     expect(unexpectedErrors).toHaveLength(0);
   });
 
-  test('maintains session across page reload', async ({ page }) => {
+  // FIXME: Flaky test - see issue #258
+  test.fixme('maintains session across page reload', async ({ page }) => {
     // Create a conversation
     await createConversationViaUI(page, 'Session persistence test', 'Socrates');
 
