@@ -166,7 +166,8 @@ jobs:
           RETRIGGER_COUNT=0
           MAX_RETRIGGERS=5
 
-          echo "$STUCK_ISSUES" | jq -c '.[]' | while read -r issue; do
+          # Use process substitution to avoid subshell variable scope issue
+          while read -r issue; do
             [ "$RETRIGGER_COUNT" -ge "$MAX_RETRIGGERS" ] && break
 
             ISSUE_NUM=$(echo "$issue" | jq -r '.number')
@@ -196,7 +197,7 @@ jobs:
 *Automated re-trigger by Factory Manager. If this keeps happening, there may be a systemic issue.*"
 
             RETRIGGER_COUNT=$((RETRIGGER_COUNT + 1))
-          done
+          done < <(echo "$STUCK_ISSUES" | jq -c '.[]')
 
           echo "Re-triggered $RETRIGGER_COUNT issues"
 

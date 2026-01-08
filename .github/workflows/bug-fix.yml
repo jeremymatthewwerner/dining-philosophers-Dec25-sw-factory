@@ -999,8 +999,31 @@ jobs:
                   # Trigger CI/CD workflow via repository_dispatch since GITHUB_TOKEN merges don't trigger push events
                   echo "Triggering deploy via repository_dispatch..."
                   # Note: Must pipe full JSON body - gh api -F flag sends strings, not JSON objects
-                  echo '{"event_type":"deploy-after-merge","client_payload":{"pr_number":"'"${PR_NUMBER}"'","issue_number":"${{ steps.context.outputs.number }}"}}' | \
-                    gh api repos/${{ github.repository }}/dispatches --input - || echo "Warning: Failed to trigger deploy dispatch"
+                  DISPATCH_SUCCESS=false
+                  for attempt in 1 2 3; do
+                    if echo '{"event_type":"deploy-after-merge","client_payload":{"pr_number":"'"${PR_NUMBER}"'","issue_number":"${{ steps.context.outputs.number }}"}}' | \
+                       gh api repos/${{ github.repository }}/dispatches --input -; then
+                      DISPATCH_SUCCESS=true
+                      echo "Deploy dispatch sent successfully"
+                      break
+                    fi
+                    echo "Dispatch attempt $attempt failed, retrying..."
+                    sleep 2
+                  done
+
+                  if [ "$DISPATCH_SUCCESS" != "true" ]; then
+                    echo "::error::Failed to trigger deploy dispatch after 3 attempts"
+                    gh issue comment ${{ steps.context.outputs.number }} --body "## ⚠️ Deployment Warning
+
+          PR #${PR_NUMBER} was merged but the deployment trigger failed.
+
+          **Manual action required:** Please manually trigger a deployment:
+          \`\`\`
+          gh workflow run ci.yml --repo ${{ github.repository }}
+          \`\`\`
+
+          cc @jeremymatthewwerner" 2>/dev/null || true
+                  fi
                 else
                   gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
 

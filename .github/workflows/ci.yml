@@ -521,6 +521,10 @@ jobs:
               echo "Skipping issue #$ISSUE_NUM - has 'status:awaiting-human' label (waiting for human)"
               continue
             fi
+            if echo "$LABELS" | grep -q "status:bot-working"; then
+              echo "Skipping issue #$ISSUE_NUM - has 'status:bot-working' label (bot still working)"
+              continue
+            fi
 
             if [ "$STATE" = "OPEN" ]; then
               echo "Closing issue #$ISSUE_NUM (deploy successful)"
