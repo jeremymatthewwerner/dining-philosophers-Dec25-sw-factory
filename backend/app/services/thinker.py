@@ -48,6 +48,70 @@ def _get_language_instruction(language: str) -> str:
     return f"\n\nIMPORTANT: Respond in {language_name}."
 
 
+def extract_mentions(text: str) -> list[str]:
+    """Extract @mentions from text.
+
+    Supports formats like:
+    - @Socrates
+    - @"Marie Curie" (with quotes for names with spaces)
+    - @Marie Curie (without quotes - will match first word only)
+
+    Args:
+        text: The text to parse for mentions
+
+    Returns:
+        List of mentioned names (without @ symbol)
+    """
+    mentions = []
+
+    # Pattern for @"Name With Spaces"
+    quoted_pattern = r'@"([^"]+)"'
+    for match in re.finditer(quoted_pattern, text):
+        mentions.append(match.group(1))
+
+    # Pattern for @SingleName (word characters, but stop at punctuation/space)
+    # Exclude already matched quoted mentions
+    simple_pattern = r"@(\w+)"
+    for match in re.finditer(simple_pattern, text):
+        name = match.group(1)
+        # Don't add if this was part of a quoted match
+        if name not in mentions:
+            mentions.append(name)
+
+    return mentions
+
+
+def is_mentioned(text: str, thinker_name: str) -> bool:
+    """Check if a thinker is @mentioned in text.
+
+    Handles multi-word names by checking:
+    - Exact match with quoted format: @"Marie Curie"
+    - First name match: @Marie (matches "Marie Curie")
+    - Full name match: @Socrates (matches "Socrates")
+
+    Args:
+        text: The text to check for mentions
+        thinker_name: The thinker's full name
+
+    Returns:
+        True if the thinker is mentioned with @ syntax
+    """
+    mentions = extract_mentions(text)
+    thinker_lower = thinker_name.lower()
+    first_name_lower = thinker_name.split()[0].lower() if thinker_name else ""
+
+    for mention in mentions:
+        mention_lower = mention.lower()
+        # Exact full name match
+        if mention_lower == thinker_lower:
+            return True
+        # First name match (e.g., @Marie matches "Marie Curie")
+        if mention_lower == first_name_lower:
+            return True
+
+    return False
+
+
 class ThinkerService:
     """Service for thinker suggestions, validation, and conversation simulation."""
 
@@ -392,8 +456,14 @@ Return ONLY the JSON, no other text.{language_instruction}"""
         # Check if this thinker just spoke (might want a follow-up)
         just_spoke = recent_messages and recent_messages[-1].sender_name == thinker.name
 
-        # Check if addressed directly
-        was_addressed = any(thinker.name.lower() in m.content.lower() for m in recent_messages[-2:])
+        # Check if @mentioned directly (highest priority)
+        was_at_mentioned = any(is_mentioned(m.content, thinker.name) for m in recent_messages[-2:])
+
+        # Check if addressed by name (without @ symbol)
+        was_addressed = (
+            any(thinker.name.lower() in m.content.lower() for m in recent_messages[-2:])
+            or was_at_mentioned
+        )
 
         # Random selection with HIGH variance for natural feel
         roll = random.random()
@@ -1339,6 +1409,7 @@ Respond with ONLY what you would say, nothing else.{language_instruction}"""
         - Don't respond too frequently
         - Higher chance to respond when addressed or when topic is relevant
         - May stay silent for multiple turns (more realistic)
+        - Very high chance to respond when @mentioned directly
         """
         if not messages:
             return False
@@ -1348,27 +1419,35 @@ Respond with ONLY what you would say, nothing else.{language_instruction}"""
         if new_message_count <= 0:
             return False
 
-        # Check if the thinker was addressed
+        # Check if the thinker was @mentioned (highest priority)
         last_messages = messages[-3:]
+        was_at_mentioned = any(is_mentioned(m.content, thinker.name) for m in last_messages)
+
+        # Check if the thinker was addressed by name (without @ symbol)
         was_addressed = any(thinker.name.lower() in m.content.lower() for m in last_messages)
 
         # Base probability increases with new messages
         base_probability = min(0.25 + (new_message_count * 0.12), 0.7)
 
-        # Higher probability if addressed
-        if was_addressed:
+        # Very high probability if @mentioned - almost guaranteed response
+        if was_at_mentioned:
+            base_probability = 0.98
+
+        # Higher probability if addressed by name (without @)
+        elif was_addressed:
             base_probability = min(base_probability + 0.5, 0.95)
 
         # Increase probability if been silent for a while (should eventually respond)
-        if consecutive_silence > 2:
+        if consecutive_silence > 2 and not was_at_mentioned:
             base_probability = min(base_probability + (consecutive_silence * 0.1), 0.9)
 
         # Don't respond to your own message immediately (but allow follow-ups handled elsewhere)
-        if messages and messages[-1].sender_name == thinker.name:
+        # Exception: if they @mentioned themselves (rare but should still work)
+        if messages and messages[-1].sender_name == thinker.name and not was_at_mentioned:
             base_probability = 0.05  # Very low - follow-ups handled separately
 
-        # Sometimes stay completely silent for variety (unless addressed)
-        if not was_addressed and random.random() < 0.15:
+        # Sometimes stay completely silent for variety (unless @mentioned or addressed)
+        if not was_at_mentioned and not was_addressed and random.random() < 0.15:
             return False
 
         return random.random() < base_probability

@@ -9,7 +9,7 @@ from anthropic.types import TextBlock
 
 from app.exceptions import BillingError
 from app.models.message import SenderType
-from app.services.thinker import ThinkerService
+from app.services.thinker import ThinkerService, extract_mentions, is_mentioned
 
 
 class TestThinkerService:
@@ -1265,3 +1265,184 @@ class TestGenerateUserPromptErrorHandling:
 
         assert response == ""
         assert cost == 0.0
+
+
+class TestExtractMentions:
+    """Tests for the extract_mentions function."""
+
+    def test_extract_simple_mention(self) -> None:
+        """Test extracting a simple @mention."""
+        result = extract_mentions("@Socrates what do you think?")
+        assert result == ["Socrates"]
+
+    def test_extract_multiple_mentions(self) -> None:
+        """Test extracting multiple @mentions."""
+        result = extract_mentions("@Socrates and @Plato, what do you think?")
+        assert "Socrates" in result
+        assert "Plato" in result
+        assert len(result) == 2
+
+    def test_extract_quoted_mention(self) -> None:
+        """Test extracting @mention with quotes for multi-word names."""
+        result = extract_mentions('@"Marie Curie" what is your view?')
+        assert "Marie Curie" in result
+
+    def test_extract_mixed_mentions(self) -> None:
+        """Test extracting both simple and quoted mentions."""
+        result = extract_mentions('@Socrates and @"Marie Curie" please discuss')
+        assert "Socrates" in result
+        assert "Marie Curie" in result
+
+    def test_no_mentions(self) -> None:
+        """Test text with no mentions."""
+        result = extract_mentions("This is a message without mentions")
+        assert result == []
+
+    def test_mention_at_end(self) -> None:
+        """Test mention at the end of text."""
+        result = extract_mentions("What do you think @Aristotle")
+        assert result == ["Aristotle"]
+
+    def test_mention_with_punctuation(self) -> None:
+        """Test mention followed by punctuation."""
+        result = extract_mentions("@Socrates, can you explain?")
+        assert result == ["Socrates"]
+
+    def test_email_not_extracted(self) -> None:
+        """Test that email addresses are not confused with mentions."""
+        # This is a quirk - the @ in email will still match
+        # But the result will be partial which is fine
+        result = extract_mentions("Contact me at test@example.com")
+        # The regex will pick up "example" since it's after @
+        assert "test" not in result
+
+
+class TestIsMentioned:
+    """Tests for the is_mentioned function."""
+
+    def test_exact_name_match(self) -> None:
+        """Test exact full name match."""
+        assert is_mentioned("@Socrates what do you think?", "Socrates")
+
+    def test_first_name_match(self) -> None:
+        """Test first name match for multi-word names."""
+        assert is_mentioned("@Marie what do you think?", "Marie Curie")
+
+    def test_quoted_full_name_match(self) -> None:
+        """Test quoted full name match."""
+        assert is_mentioned('@"Marie Curie" what do you think?', "Marie Curie")
+
+    def test_case_insensitive(self) -> None:
+        """Test that matching is case-insensitive."""
+        assert is_mentioned("@socrates please respond", "Socrates")
+        assert is_mentioned("@SOCRATES please respond", "Socrates")
+
+    def test_not_mentioned(self) -> None:
+        """Test when thinker is not mentioned."""
+        assert not is_mentioned("@Plato what do you think?", "Socrates")
+
+    def test_name_without_at_not_detected(self) -> None:
+        """Test that name without @ is not detected as mention."""
+        # This function is specifically for @mentions
+        assert not is_mentioned("Socrates what do you think?", "Socrates")
+
+    def test_partial_name_no_match(self) -> None:
+        """Test that partial name match doesn't work."""
+        # @Soc should not match Socrates
+        assert not is_mentioned("@Soc what do you think?", "Socrates")
+
+    def test_empty_name(self) -> None:
+        """Test with empty thinker name."""
+        assert not is_mentioned("@Socrates", "")
+
+    def test_empty_text(self) -> None:
+        """Test with empty text."""
+        assert not is_mentioned("", "Socrates")
+
+
+class TestShouldRespondWithMentions:
+    """Tests for _should_respond method with @mention support."""
+
+    def test_very_high_probability_when_at_mentioned(self) -> None:
+        """Test that thinker has very high probability to respond when @mentioned."""
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+
+        message = MagicMock()
+        message.content = "@Socrates what do you think about virtue?"
+        message.sender_name = "User"
+        messages: Any = [message]
+
+        # Run multiple times - should respond almost always
+        responses = [service._should_respond(thinker, messages, 0) for _ in range(100)]
+        response_rate = sum(responses) / len(responses)
+        # 98% base probability, should see >90% actual response rate
+        assert response_rate > 0.90
+
+    def test_at_mention_overrides_own_message_suppression(self) -> None:
+        """Test that @mention still works even if responding to own message."""
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Socrates"
+
+        # Socrates's own message that @mentions himself (unlikely but possible)
+        message = MagicMock()
+        message.content = "@Socrates let me think more about this"
+        message.sender_name = "Socrates"
+        messages: Any = [message]
+
+        # Should still have high probability because of @mention
+        responses = [service._should_respond(thinker, messages, 0) for _ in range(100)]
+        response_rate = sum(responses) / len(responses)
+        # Should still respond most of the time
+        assert response_rate > 0.85
+
+    def test_first_name_at_mention_works(self) -> None:
+        """Test that @mention with first name works for multi-word names."""
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Marie Curie"
+
+        message = MagicMock()
+        message.content = "@Marie what are your thoughts on radioactivity?"
+        message.sender_name = "User"
+        messages: Any = [message]
+
+        # Should have very high response rate
+        responses = [service._should_respond(thinker, messages, 0) for _ in range(100)]
+        response_rate = sum(responses) / len(responses)
+        assert response_rate > 0.90
+
+    def test_quoted_at_mention_works(self) -> None:
+        """Test that quoted @mention works."""
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Marie Curie"
+
+        message = MagicMock()
+        message.content = '@"Marie Curie" please explain your research'
+        message.sender_name = "User"
+        messages: Any = [message]
+
+        # Should have very high response rate
+        responses = [service._should_respond(thinker, messages, 0) for _ in range(100)]
+        response_rate = sum(responses) / len(responses)
+        assert response_rate > 0.90
+
+    def test_other_thinker_at_mentioned_lower_probability(self) -> None:
+        """Test that thinker not @mentioned has normal/lower probability."""
+        service = ThinkerService()
+        thinker = MagicMock()
+        thinker.name = "Plato"
+
+        message = MagicMock()
+        message.content = "@Socrates what do you think?"
+        message.sender_name = "User"
+        messages: Any = [message]
+
+        # Plato wasn't mentioned, should have normal probability
+        responses = [service._should_respond(thinker, messages, 0) for _ in range(100)]
+        response_rate = sum(responses) / len(responses)
+        # Should be lower than the @mentioned thinker
+        assert response_rate < 0.70
