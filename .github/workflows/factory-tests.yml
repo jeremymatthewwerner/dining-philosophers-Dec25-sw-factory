@@ -238,8 +238,9 @@ jobs:
           # The incorrect pattern is using -F with JSON strings
           # Note: Exclude this test file itself from the search
 
-          if grep -l '\-F client_payload=' .github/workflows/*.yml | grep -v factory-tests.yml | xargs -r grep -q '\-F client_payload='; then
-            echo "::error::Found incorrect -F client_payload= syntax (sends string, not JSON object)"
+          BAD_FILES=$(grep -l '\-F client_payload=' .github/workflows/*.yml 2>/dev/null | grep -v factory-tests.yml || true)
+          if [ -n "$BAD_FILES" ]; then
+            echo "::error::Found incorrect -F client_payload= syntax in: $BAD_FILES"
             echo "Use: echo '{...}' | gh api ... --input -"
             exit 1
           fi
