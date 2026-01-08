@@ -13,14 +13,16 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/bug-fix.yml'
-      - '.github/workflows/devops.yml'
-      - '.github/workflows/triage.yml'
+      - '.github/workflows/ci.yml'
       - '.github/workflows/ci-monitor.yml'
       - '.github/workflows/ci-watcher.yml'
+      - '.github/workflows/devops.yml'
+      - '.github/workflows/factory-manager.yml'
       - '.github/workflows/principal-engineer.yml'
       - '.github/workflows/qa.yml'
       - '.github/workflows/release-engineer.yml'
       - '.github/workflows/marketing.yml'
+      - '.github/workflows/triage.yml'
       - 'CLAUDE.md'
       - 'REQUIREMENTS.md'
 
@@ -48,14 +50,16 @@ jobs:
           # NOTE: template-sync.yml is NOT synced (it's specific to this repo)
           FILES=(
             ".github/workflows/bug-fix.yml"
-            ".github/workflows/devops.yml"
-            ".github/workflows/triage.yml"
+            ".github/workflows/ci.yml"
             ".github/workflows/ci-monitor.yml"
             ".github/workflows/ci-watcher.yml"
+            ".github/workflows/devops.yml"
+            ".github/workflows/factory-manager.yml"
             ".github/workflows/principal-engineer.yml"
             ".github/workflows/qa.yml"
             ".github/workflows/release-engineer.yml"
             ".github/workflows/marketing.yml"
+            ".github/workflows/triage.yml"
             "CLAUDE.md"
             "REQUIREMENTS.md"
           )

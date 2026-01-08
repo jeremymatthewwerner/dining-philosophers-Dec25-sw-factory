@@ -7,7 +7,10 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   /* Use 4 workers in CI for parallel test execution across multiple test files */
   workers: process.env.CI ? 4 : undefined,
-  reporter: 'html',
+  /* Use multiple reporters: html for local dev, json for CI parsing */
+  reporter: process.env.CI
+    ? [['html'], ['json', { outputFile: 'test-results/results.json' }]]
+    : 'html',
   /* Increase timeout for tests using real API calls */
   timeout: process.env.CI ? 90000 : 90000,
   use: {
