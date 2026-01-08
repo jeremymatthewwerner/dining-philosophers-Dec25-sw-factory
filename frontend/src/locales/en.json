@@ -51,7 +51,7 @@
     "closeModal": "Close modal"
   },
   "chatArea": {
-    "welcomeHeading": "Welcome to dining philosophers!",
+    "welcomeHeading": "Welcome to dining philosophers",
     "welcomeDescription": "Start a new conversation to discuss topics with historical and contemporary thinkers.",
     "selectConversation": "Select a conversation from the sidebar or create a new one.",
     "paceLabel": "Pace:",
@@ -137,7 +137,7 @@
     "multipleThinkers": "{names} are thinking..."
   },
   "loginPage": {
-    "welcome": "Welcome to dining philosophers!",
+    "welcome": "Welcome to dining philosophers",
     "username": "Username",
     "usernamePlaceholder": "Enter your username",
     "password": "Password",
