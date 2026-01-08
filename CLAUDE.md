@@ -9,6 +9,26 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 - **Hosting**: Railway
 - **Maintainer**: @jeremymatthewwerner
 
+## TL;DR - Critical Rules (READ THIS FIRST!)
+
+**Every agent must follow these rules. No exceptions.**
+
+1. **Check CI after every push** - `gh run list` then `gh run view <id> --log-failed` if failed
+2. **Run formatters before commit** - `npm run format && npm run lint` / `uv run ruff format . && uv run ruff check .`
+3. **Never commit without tests** - Minimum 70% coverage
+4. **Use `Relates to #N`** in commits - NOT `Fixes #N` (prevents premature issue closure)
+5. **Never push to main** - Always use feature branches + PRs
+6. **Make decisions, don't ask** - If stuck 10 min on a DECISION, just decide and document why
+7. **Human intervention = factory bug** - When fixing issues, update workflows to prevent recurrence
+8. **Document factory fixes** - Create closed `factory-improvement` issue with problem/root cause/solution
+9. **Check open issues at session start** - `gh issue list` and work from highest priority
+
+**@mentions for agents:**
+| `@code` | Code Agent - fix bugs, implement features |
+| `@pe` | Principal Engineer - holistic debugging |
+| `@devops` | DevOps - production logs, diagnostics |
+| `@factory-manager` | Factory Manager - stuck issues, health |
+
 ## Repository Setup (One-Time)
 
 **Before the autonomous factory can run without intervention, complete these steps:**
