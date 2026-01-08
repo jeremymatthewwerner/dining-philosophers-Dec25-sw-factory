@@ -339,6 +339,28 @@ jobs:
             - Only escalate if the command actually fails with a permission error
             - Being overly conservative wastes human time on things you CAN do
 
+            ## 📝 DOCUMENT FACTORY FIXES!
+
+            **When you fix a workflow, CLAUDE.md, or agent behavior issue**, create a factory-improvement issue:
+            ```bash
+            gh issue create --label "factory-improvement" \
+              --title "Factory Fix: [brief description]" \
+              --body "## Problem
+            [What went wrong]
+
+            ## Root Cause
+            [Why it happened]
+
+            ## Solution
+            [What you changed]
+
+            ## PR
+            PR #[number]"
+
+            gh issue close [new_issue_number] --comment "Fixed in PR #[number]"
+            ```
+            This creates a searchable audit trail of factory learnings.
+
             ## 🔍 PRODUCTION DIAGNOSTICS - Ask DevOps Agent!
 
             **Need to check production data to diagnose an issue?** You can request help from the DevOps Agent:

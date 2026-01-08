@@ -293,7 +293,26 @@ jobs:
             - Add better error handling to code
             - Create new tests for edge cases
 
-            Document your factory improvement in the PR description.
+            **IMPORTANT: Document factory learnings for posterity!**
+            After fixing a factory issue, create a closed `factory-improvement` issue:
+            ```bash
+            gh issue create --label "factory-improvement" \
+              --title "Factory Fix: [brief description]" \
+              --body "## Problem
+            [What went wrong]
+
+            ## Root Cause
+            [Why it happened]
+
+            ## Solution
+            [What you changed]
+
+            ## PR
+            PR #[number]"
+
+            gh issue close [new_issue_number] --comment "Fixed in PR #[number]"
+            ```
+            This creates a searchable audit trail of factory learnings.
 
             ## Progress Comment Format
             Update comment #${{ steps.progress.outputs.comment_id }} as you work:
@@ -306,6 +325,7 @@ jobs:
             - [x] 🔍 Identifying root cause (code bug vs infrastructure vs workflow)
             - [ ] 🛠️ Implementing fix
             - [ ] 🏭 Updating factory to prevent recurrence
+            - [ ] 📝 Creating factory-improvement issue for audit trail
             - [ ] ✅ Verifying fix works
 
             **Status:** [current status]
