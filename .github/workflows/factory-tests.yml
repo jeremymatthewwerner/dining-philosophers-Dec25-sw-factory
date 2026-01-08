@@ -1,0 +1,350 @@
+name: Factory System Tests
+
+# Run tests when factory-related files change
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/*.yml'
+      - '.claude/**'
+      - 'docs/FACTORY_MANAGER.md'
+      - 'CLAUDE.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/*.yml'
+      - '.claude/**'
+      - 'docs/FACTORY_MANAGER.md'
+      - 'CLAUDE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ==========================================
+  # YAML Syntax Validation
+  # ==========================================
+  yaml-lint:
+    name: YAML Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint workflow files
+        run: |
+          echo "Checking YAML syntax in all workflow files..."
+          yamllint -d '{extends: relaxed, rules: {line-length: {max: 200}, truthy: disable}}' \
+            .github/workflows/*.yml
+          echo "✅ All workflow files have valid YAML syntax"
+
+  # ==========================================
+  # Shell Script Linting
+  # ==========================================
+  shellcheck:
+    name: Shell Script Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Extract and check shell scripts from workflows
+        run: |
+          echo "Extracting shell scripts from workflow files..."
+          mkdir -p /tmp/scripts
+
+          # Extract run: blocks from all workflow files
+          for workflow in .github/workflows/*.yml; do
+            echo "Processing $workflow..."
+
+            # Use yq to extract run commands, handle multi-line properly
+            # Skip if yq not available - basic check only
+            if command -v yq &> /dev/null; then
+              yq eval '.. | select(has("run")) | .run' "$workflow" 2>/dev/null | \
+                grep -v '^---$' | grep -v '^null$' > "/tmp/scripts/$(basename "$workflow").sh" || true
+            fi
+          done
+
+          echo "Running shellcheck on extracted scripts..."
+          ERRORS=0
+          for script in /tmp/scripts/*.sh; do
+            [ ! -s "$script" ] && continue
+            echo "Checking $script..."
+            # SC1091: Don't follow sourced files
+            # SC2086: Double quote to prevent globbing (too many false positives in GHA)
+            # SC2154: Referenced but not assigned (GHA context variables)
+            if ! shellcheck -e SC1091,SC2086,SC2154 -s bash "$script" 2>/dev/null; then
+              echo "::warning::Issues found in $script"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::warning::Found issues in $ERRORS scripts (non-blocking)"
+          else
+            echo "✅ No critical shell script issues found"
+          fi
+
+  # ==========================================
+  # Trigger Condition Tests
+  # ==========================================
+  trigger-tests:
+    name: Trigger Condition Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Test factory-meta exclusion in all agent workflows
+        run: |
+          echo "Checking that all agent workflows exclude factory-meta label..."
+          FAILED=0
+
+          # Workflows that should exclude factory-meta
+          AGENT_WORKFLOWS="bug-fix.yml principal-engineer.yml triage.yml"
+
+          for workflow in $AGENT_WORKFLOWS; do
+            FILE=".github/workflows/$workflow"
+            [ ! -f "$FILE" ] && continue
+
+            echo "Checking $workflow..."
+
+            # Check if workflow mentions factory-meta exclusion
+            if grep -q "factory-meta" "$FILE"; then
+              echo "  ✅ factory-meta mentioned in $workflow"
+            else
+              echo "  ❌ factory-meta NOT mentioned in $workflow"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED workflows missing factory-meta exclusion"
+            exit 1
+          fi
+          echo "✅ All agent workflows properly exclude factory-meta"
+
+      - name: Test @mention triggers exist
+        run: |
+          echo "Checking @mention triggers in agent workflows..."
+          FAILED=0
+
+          # Check Code Agent
+          if grep -q "@code\|@claude" .github/workflows/bug-fix.yml; then
+            echo "✅ Code Agent has @code/@claude trigger"
+          else
+            echo "❌ Code Agent missing @mention trigger"
+            FAILED=$((FAILED + 1))
+          fi
+
+          # Check PE Agent
+          if grep -q "@pe" .github/workflows/principal-engineer.yml; then
+            echo "✅ PE Agent has @pe trigger"
+          else
+            echo "❌ PE Agent missing @pe trigger"
+            FAILED=$((FAILED + 1))
+          fi
+
+          # Check Factory Manager
+          if grep -q "@factory-manager" .github/workflows/factory-manager.yml; then
+            echo "✅ Factory Manager has @factory-manager trigger"
+          else
+            echo "❌ Factory Manager missing @factory-manager trigger"
+            FAILED=$((FAILED + 1))
+          fi
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED agents missing @mention triggers"
+            exit 1
+          fi
+          echo "✅ All agents have proper @mention triggers"
+
+      - name: Test concurrency settings
+        run: |
+          echo "Checking concurrency settings prevent race conditions..."
+          ISSUES=0
+
+          # Workflows that need concurrency control
+          for workflow in bug-fix.yml factory-manager.yml; do
+            FILE=".github/workflows/$workflow"
+            [ ! -f "$FILE" ] && continue
+
+            if grep -q "concurrency:" "$FILE"; then
+              echo "✅ $workflow has concurrency settings"
+            else
+              echo "❌ $workflow missing concurrency settings"
+              ISSUES=$((ISSUES + 1))
+            fi
+          done
+
+          if [ "$ISSUES" -gt 0 ]; then
+            echo "::warning::$ISSUES workflows may have race condition risks"
+          fi
+          echo "✅ Concurrency check complete"
+
+  # ==========================================
+  # Label Consistency Tests
+  # ==========================================
+  label-tests:
+    name: Label Consistency Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check status label handling
+        run: |
+          echo "Checking status label handling patterns..."
+
+          # Check that status:bot-working is added before work starts
+          if grep -rq "status:bot-working" .github/workflows/bug-fix.yml; then
+            echo "✅ bug-fix.yml manages status:bot-working"
+          else
+            echo "::warning::bug-fix.yml may not properly manage status:bot-working"
+          fi
+
+          # Check close-issues respects bot-working
+          if grep -q "status:bot-working" .github/workflows/ci.yml; then
+            echo "✅ ci.yml close-issues checks status:bot-working"
+          else
+            echo "::error::ci.yml close-issues doesn't check status:bot-working"
+            exit 1
+          fi
+
+          echo "✅ Label handling checks complete"
+
+  # ==========================================
+  # Repository Dispatch Tests
+  # ==========================================
+  dispatch-tests:
+    name: Dispatch Syntax Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check repository_dispatch syntax
+        run: |
+          echo "Checking repository_dispatch call syntax..."
+
+          # The correct pattern is piping JSON to --input -
+          # The incorrect pattern is using -F with JSON strings
+          # Note: Exclude this test file itself from the search
+
+          BAD_FILES=$(grep -l '\-F client_payload=' .github/workflows/*.yml 2>/dev/null | grep -v factory-tests.yml || true)
+          if [ -n "$BAD_FILES" ]; then
+            echo "::error::Found incorrect -F client_payload= syntax in: $BAD_FILES"
+            echo "Use: echo '{...}' | gh api ... --input -"
+            exit 1
+          fi
+
+          # Check for proper dispatch pattern
+          if grep -q 'gh api.*dispatches.*--input' .github/workflows/bug-fix.yml; then
+            echo "✅ bug-fix.yml uses correct dispatch syntax"
+          else
+            echo "::warning::Could not verify dispatch syntax in bug-fix.yml"
+          fi
+
+          echo "✅ Repository dispatch syntax checks complete"
+
+  # ==========================================
+  # Documentation Consistency
+  # ==========================================
+  docs-tests:
+    name: Documentation Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check CLAUDE.md mentions all agents
+        run: |
+          echo "Checking CLAUDE.md documents all agents..."
+          MISSING=0
+
+          AGENTS="Code Principal Factory Triage QA DevOps"
+
+          for agent in $AGENTS; do
+            if grep -qi "$agent" CLAUDE.md; then
+              echo "✅ $agent documented in CLAUDE.md"
+            else
+              echo "::warning::$agent not found in CLAUDE.md"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+
+          if [ "$MISSING" -gt 2 ]; then
+            echo "::error::Too many agents undocumented"
+            exit 1
+          fi
+
+          echo "✅ Documentation consistency check complete"
+
+  # ==========================================
+  # Summary
+  # ==========================================
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [yaml-lint, shellcheck, trigger-tests, label-tests, dispatch-tests, docs-tests]
+    if: always()
+    steps:
+      - name: Check all tests
+        run: |
+          echo "## Factory System Test Results"
+          echo ""
+
+          if [ "${{ needs.yaml-lint.result }}" == "success" ]; then
+            echo "✅ YAML Syntax: Passed"
+          else
+            echo "❌ YAML Syntax: Failed"
+          fi
+
+          if [ "${{ needs.shellcheck.result }}" == "success" ]; then
+            echo "✅ Shell Scripts: Passed"
+          else
+            echo "⚠️ Shell Scripts: Warnings"
+          fi
+
+          if [ "${{ needs.trigger-tests.result }}" == "success" ]; then
+            echo "✅ Trigger Conditions: Passed"
+          else
+            echo "❌ Trigger Conditions: Failed"
+          fi
+
+          if [ "${{ needs.label-tests.result }}" == "success" ]; then
+            echo "✅ Label Handling: Passed"
+          else
+            echo "❌ Label Handling: Failed"
+          fi
+
+          if [ "${{ needs.dispatch-tests.result }}" == "success" ]; then
+            echo "✅ Dispatch Syntax: Passed"
+          else
+            echo "❌ Dispatch Syntax: Failed"
+          fi
+
+          if [ "${{ needs.docs-tests.result }}" == "success" ]; then
+            echo "✅ Documentation: Passed"
+          else
+            echo "⚠️ Documentation: Warnings"
+          fi
+
+          # Fail if critical tests failed
+          if [ "${{ needs.yaml-lint.result }}" != "success" ] || \
+             [ "${{ needs.trigger-tests.result }}" != "success" ] || \
+             [ "${{ needs.label-tests.result }}" != "success" ] || \
+             [ "${{ needs.dispatch-tests.result }}" != "success" ]; then
+            echo ""
+            echo "::error::Factory system tests failed - fix before merging"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ All critical factory tests passed!"
