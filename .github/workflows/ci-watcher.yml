@@ -221,26 +221,13 @@ jobs:
           if [ "$CONCLUSION" == "success" ]; then
             STATUS_MSG="## ✅ CI Passed!
 
-          All checks passed. PR #$PR_NUMBER is ready for merge."
+          All checks passed. PR #$PR_NUMBER is ready for merge.
 
-            # Auto-merge if possible
-            echo "Attempting auto-merge..."
-            if gh pr merge "$PR_NUMBER" --repo ${{ github.repository }} --squash --delete-branch 2>/dev/null; then
-              STATUS_MSG="## ✅ CI Passed & Merged!
+          *Note: Auto-merge is handled by Code Agent (bug-fix.yml) to avoid race conditions.*"
 
-          All checks passed. PR #$PR_NUMBER has been automatically merged.
-          🚀 **Deploying to production...**"
-
-              # Explicitly close issues referenced with "Fixes #N" or "Closes #N"
-              # GitHub's auto-close doesn't work when merging via API/CLI
-              PR_BODY=$(gh pr view "$PR_NUMBER" --repo ${{ github.repository }} --json body --jq '.body' 2>/dev/null || echo "")
-              FIXED_ISSUES=$(echo "$PR_BODY" | grep -oE '(Fixes|Closes|Resolves) #[0-9]+' | grep -oE '[0-9]+' || echo "")
-              for FIXED_ISSUE in $FIXED_ISSUES; do
-                echo "Closing related issue #$FIXED_ISSUE..."
-                gh issue close "$FIXED_ISSUE" --repo ${{ github.repository }} \
-                  --comment "Closed by PR #$PR_NUMBER" 2>/dev/null || echo "Failed to close #$FIXED_ISSUE"
-              done
-            fi
+            # NOTE: Auto-merge disabled here - Code Agent (bug-fix.yml) handles this
+            # with proper retry logic and repository_dispatch for deployment.
+            # Having two workflows attempt auto-merge causes race conditions.
           else
             STATUS_MSG="## ❌ CI Failed
 

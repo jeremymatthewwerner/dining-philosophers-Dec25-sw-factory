@@ -96,7 +96,7 @@ jobs:
 
           ISSUE_URL=$(gh issue create \
             --title "🤖 QA Agent: $FOCUS ($DAY)" \
-            --label "qa-agent,automation" \
+            --label "qa-agent,automation,factory-meta" \
             --body "## QA Agent Work Session
 
           **Focus:** $FOCUS
