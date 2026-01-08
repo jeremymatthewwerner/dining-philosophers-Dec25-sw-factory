@@ -594,7 +594,8 @@ jobs:
               gh issue comment "$RELATED_ISSUE" --repo ${{ github.repository }} --body-file "$ISSUE_FILE" 2>/dev/null || true
               rm -f "$ISSUE_FILE"
             else
-              # No related issue - create one
+              # No related issue - create one and then comment to trigger Code Agent
+              # (Code Agent triggers on comments, not issue body @mentions)
               ISSUE_FILE=$(mktemp)
               {
                 echo "## E2E Tests Stuck and Cancelled"
@@ -605,14 +606,21 @@ jobs:
                 echo "**Branch:** $RUN_BRANCH"
                 echo "**Slow job(s):** $SLOW_JOBS"
                 echo "**Run logs:** https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
-                echo ""
-                echo "@code Please investigate why E2E tests got stuck and fix it."
               } > "$ISSUE_FILE"
-              gh issue create --repo ${{ github.repository }} \
+              NEW_ISSUE_URL=$(gh issue create --repo ${{ github.repository }} \
                 --title "E2E tests stuck on PR #$PR_NUM" \
                 --label "bug,priority-high,ci-failure" \
-                --body-file "$ISSUE_FILE" 2>/dev/null || true
+                --body-file "$ISSUE_FILE" 2>/dev/null || echo "")
               rm -f "$ISSUE_FILE"
+
+              # Post comment to trigger Code Agent
+              if [ -n "$NEW_ISSUE_URL" ]; then
+                NEW_ISSUE_NUM=$(echo "$NEW_ISSUE_URL" | grep -oE '[0-9]+$')
+                if [ -n "$NEW_ISSUE_NUM" ]; then
+                  gh issue comment "$NEW_ISSUE_NUM" --repo ${{ github.repository }} \
+                    --body "@code Please investigate why E2E tests got stuck and fix it." 2>/dev/null || true
+                fi
+              fi
             fi
           done
 
@@ -675,16 +683,23 @@ jobs:
               echo ""
               echo "---"
               echo "_Auto-created by Factory Manager. CI Monitor may have missed this._"
-              echo ""
-              echo "@code please investigate this CI failure and fix it."
             } > "$ISSUE_FILE"
 
-            gh issue create \
+            NEW_ISSUE_URL=$(gh issue create \
               --repo ${{ github.repository }} \
               --title "CI Failure: $RUN_NAME on main" \
               --label "bug,priority-high,ci-failure" \
-              --body-file "$ISSUE_FILE"
+              --body-file "$ISSUE_FILE" 2>/dev/null || echo "")
             rm -f "$ISSUE_FILE"
+
+            # Post comment to trigger Code Agent (body @code doesn't trigger, comments do)
+            if [ -n "$NEW_ISSUE_URL" ]; then
+              NEW_ISSUE_NUM=$(echo "$NEW_ISSUE_URL" | grep -oE '[0-9]+$')
+              if [ -n "$NEW_ISSUE_NUM" ]; then
+                gh issue comment "$NEW_ISSUE_NUM" --repo ${{ github.repository }} \
+                  --body "@code please investigate this CI failure and fix it." 2>/dev/null || true
+              fi
+            fi
           done
 
       - name: Trigger Code Agent on untriggered issues
