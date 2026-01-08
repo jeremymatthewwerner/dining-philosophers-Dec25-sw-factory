@@ -112,6 +112,69 @@ jobs:
         run: |
           set +e  # Don't exit on errors
 
+          # Function to get E2E test details from artifact
+          get_e2e_details() {
+            local run_id="$1"
+
+            # Try to download e2e-results artifact
+            ARTIFACT_ID=$(gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts \
+              --jq '.artifacts[] | select(.name == "e2e-results") | .id' 2>/dev/null || echo "")
+
+            if [ -z "$ARTIFACT_ID" ]; then
+              echo ""
+              return
+            fi
+
+            # Download and extract artifact
+            mkdir -p /tmp/e2e-results
+            if ! gh api repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip > /tmp/e2e-results.zip 2>/dev/null; then
+              echo ""
+              return
+            fi
+
+            if ! unzip -o -q /tmp/e2e-results.zip -d /tmp/e2e-results 2>/dev/null; then
+              echo ""
+              return
+            fi
+
+            # Parse Playwright JSON results
+            if [ -f /tmp/e2e-results/results.json ]; then
+              # Generate sub-rows for each test file
+              cat /tmp/e2e-results/results.json | jq -r '
+                .suites[]? |
+                "| ↳ \(.title // .file | split("/") | last) | " +
+                (
+                  (.specs // []) as $specs |
+                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
+                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
+                  ($specs | map(select(.tests[0].results[0].status == "timedOut")) | length) as $timedout |
+                  ($specs | map(select(.tests[0].results[0].status == "skipped")) | length) as $skipped |
+                  ($specs | length) as $total |
+                  if $failed > 0 or $timedout > 0 then "❌"
+                  elif $passed == $total then "✅"
+                  elif $passed > 0 then "🔄"
+                  else "⏳" end
+                ) + " " +
+                (
+                  (.specs // []) as $specs |
+                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
+                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
+                  ($specs | length) as $total |
+                  "\($passed)/\($total) passed" + (if $failed > 0 then " (\($failed) failed)" else "" end)
+                ) + " | " +
+                (
+                  (.specs // []) |
+                  map(.tests[0].results[0].duration // 0) |
+                  add // 0 |
+                  . / 1000 |
+                  if . > 0 then "\(. | floor)s" else "-" end
+                ) + " |"
+              ' 2>/dev/null || echo ""
+            else
+              echo ""
+            fi
+          }
+
           # Poll and update every 5 minutes for up to 30 minutes
           for i in $(seq 1 6); do
             echo "Update check $i/6..."
@@ -136,6 +199,16 @@ jobs:
                 " |"
               ] | join("\n")
             ' 2>/dev/null || echo "| Error fetching jobs | ❓ | - |")
+
+            # Try to get E2E test details and insert after E2E Tests row
+            E2E_DETAILS=$(get_e2e_details "$RUN_ID")
+            if [ -n "$E2E_DETAILS" ]; then
+              # Insert E2E details after the E2E Tests row
+              TABLE=$(echo "$TABLE" | awk -v details="$E2E_DETAILS" '
+                /E2E Tests/ { print; print details; next }
+                { print }
+              ')
+            fi
 
             # Get summary stats
             STATS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '
@@ -193,6 +266,69 @@ jobs:
           set +e  # Don't exit on errors
           echo "CI completed with conclusion: $CONCLUSION"
 
+          # Function to get E2E test details from artifact
+          get_e2e_details() {
+            local run_id="$1"
+
+            # Try to download e2e-results artifact
+            ARTIFACT_ID=$(gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts \
+              --jq '.artifacts[] | select(.name == "e2e-results") | .id' 2>/dev/null || echo "")
+
+            if [ -z "$ARTIFACT_ID" ]; then
+              echo ""
+              return
+            fi
+
+            # Download and extract artifact
+            mkdir -p /tmp/e2e-results
+            if ! gh api repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip > /tmp/e2e-results.zip 2>/dev/null; then
+              echo ""
+              return
+            fi
+
+            if ! unzip -o -q /tmp/e2e-results.zip -d /tmp/e2e-results 2>/dev/null; then
+              echo ""
+              return
+            fi
+
+            # Parse Playwright JSON results
+            if [ -f /tmp/e2e-results/results.json ]; then
+              # Generate sub-rows for each test file
+              cat /tmp/e2e-results/results.json | jq -r '
+                .suites[]? |
+                "| ↳ \(.title // .file | split("/") | last) | " +
+                (
+                  (.specs // []) as $specs |
+                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
+                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
+                  ($specs | map(select(.tests[0].results[0].status == "timedOut")) | length) as $timedout |
+                  ($specs | map(select(.tests[0].results[0].status == "skipped")) | length) as $skipped |
+                  ($specs | length) as $total |
+                  if $failed > 0 or $timedout > 0 then "❌"
+                  elif $passed == $total then "✅"
+                  elif $passed > 0 then "🔄"
+                  else "⏳" end
+                ) + " " +
+                (
+                  (.specs // []) as $specs |
+                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
+                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
+                  ($specs | length) as $total |
+                  "\($passed)/\($total) passed" + (if $failed > 0 then " (\($failed) failed)" else "" end)
+                ) + " | " +
+                (
+                  (.specs // []) |
+                  map(.tests[0].results[0].duration // 0) |
+                  add // 0 |
+                  . / 1000 |
+                  if . > 0 then "\(. | floor)s" else "-" end
+                ) + " |"
+              ' 2>/dev/null || echo ""
+            else
+              echo ""
+            fi
+          }
+
           # Get final job statuses as formatted table
           TABLE=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '
             .jobs |
@@ -211,6 +347,16 @@ jobs:
               " |"
             ] | join("\n")
           ' 2>/dev/null || echo "| Error fetching jobs | ❓ | - |")
+
+          # Try to get E2E test details and insert after E2E Tests row
+          E2E_DETAILS=$(get_e2e_details "$RUN_ID")
+          if [ -n "$E2E_DETAILS" ]; then
+            # Insert E2E details after the E2E Tests row
+            TABLE=$(echo "$TABLE" | awk -v details="$E2E_DETAILS" '
+              /E2E Tests/ { print; print details; next }
+              { print }
+            ')
+          fi
 
           # Get failed job names
           FAILED_JOBS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs --jq '
