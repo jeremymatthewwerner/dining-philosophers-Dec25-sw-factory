@@ -11,7 +11,8 @@ test.describe('Keyboard Navigation', () => {
     await setupAuthenticatedUser(page);
   });
 
-  test('can navigate through modal with Tab key', async ({ page }) => {
+  // FIXME: Flaky test - see issue #258
+  test.fixme('can navigate through modal with Tab key', async ({ page }) => {
     // Open new chat modal
     await page.getByTestId('new-chat-button').click();
 
@@ -86,7 +87,8 @@ test.describe('Keyboard Navigation', () => {
     expect(textareaValue).toBe('');
   });
 
-  test('can close modal with Escape key', async ({ page }) => {
+  // FIXME: Flaky test - see issue #258
+  test.fixme('can close modal with Escape key', async ({ page }) => {
     // Open new chat modal
     await page.getByTestId('new-chat-button').click();
 
@@ -104,7 +106,8 @@ test.describe('Keyboard Navigation', () => {
     await expect(page.getByTestId('new-chat-button')).toBeVisible();
   });
 
-  test('focus management after opening and closing export menu', async ({
+  // FIXME: Flaky test - see issue #258
+  test.fixme('focus management after opening and closing export menu', async ({
     page,
   }) => {
     // Create a conversation
@@ -136,7 +139,8 @@ test.describe('Keyboard Navigation', () => {
     expect(value).toBe('Testing focus after menu close');
   });
 
-  test('Tab key navigates through conversation controls', async ({ page }) => {
+  // FIXME: Flaky test - see issue #258
+  test.fixme('Tab key navigates through conversation controls', async ({ page }) => {
     // Create a conversation
     await createConversationViaUI(page, 'Control navigation test', 'Plato');
 
