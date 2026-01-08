@@ -61,6 +61,21 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
+      # Pre-install Claude Code to avoid race condition lock issues
+      - name: Pre-install Claude Code
+        if: steps.check_triaged.outputs.skip != 'true'
+        run: |
+          # Clean up any stale lock files that might block installation
+          rm -f "$HOME/.claude/.installing" "$HOME/.claude/install.lock" 2>/dev/null || true
+
+          # Install Claude Code - match version used by claude-code-action
+          echo "Installing Claude Code..."
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.74
+
+          # Add to PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+
       - uses: anthropics/claude-code-action@v1
         if: steps.check_triaged.outputs.skip != 'true'
         with:

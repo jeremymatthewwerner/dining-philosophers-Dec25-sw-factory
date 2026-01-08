@@ -229,6 +229,39 @@ jobs:
             echo "has_untriggered=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check for unlabeled issues (failed triage)
+        id: unlabeled
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Checking for unlabeled issues (triage may have failed)..."
+
+          THRESHOLD=$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+
+          # Find issues older than 15 min with NO labels at all (triage probably failed)
+          UNLABELED=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --state open \
+            --json number,title,labels,createdAt \
+            --jq --arg threshold "$THRESHOLD" '
+              [.[] | select(
+                (.createdAt < $threshold) and
+                ((.labels | length) == 0)
+              ) | {number, title, createdAt}]
+            ' 2>/dev/null || echo "[]")
+
+          COUNT=$(echo "$UNLABELED" | jq 'length')
+          echo "Found $COUNT unlabeled issues (possible failed triage)"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "has_unlabeled=true" >> $GITHUB_OUTPUT
+            echo "unlabeled_issues<<EOF" >> $GITHUB_OUTPUT
+            echo "$UNLABELED" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_unlabeled=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Re-trigger stuck issues
         if: steps.stuck.outputs.has_stuck == 'true'
         env:
@@ -507,6 +540,49 @@ jobs:
 
           echo "Triggered Code Agent on $TRIGGERED_COUNT issues"
 
+      - name: Re-triage unlabeled issues
+        if: steps.unlabeled.outputs.has_unlabeled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          UNLABELED_ISSUES: ${{ steps.unlabeled.outputs.unlabeled_issues }}
+        run: |
+          echo "Re-triggering triage for unlabeled issues..."
+
+          RETRIAGE_COUNT=0
+          MAX_RETRIAGE=3
+
+          echo "$UNLABELED_ISSUES" | jq -c '.[]' | head -$MAX_RETRIAGE | while read -r issue; do
+            ISSUE_NUM=$(echo "$issue" | jq -r '.number')
+            ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
+
+            echo "Re-triggering triage for issue #$ISSUE_NUM: $ISSUE_TITLE"
+
+            # Check if Factory Manager already commented recently
+            RECENT_FM_COMMENT=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUM/comments \
+              --jq '[.[] | select(
+                (.body | contains("[Factory Manager]")) and
+                ((.created_at | fromdateiso8601) > (now - 3600))
+              )] | length' 2>/dev/null || echo "0")
+
+            if [ "$RECENT_FM_COMMENT" -gt 0 ]; then
+              echo "  Already commented recently, skipping"
+              continue
+            fi
+
+            RETRIAGE_FILE=$(mktemp)
+            {
+              echo "@triage [Factory Manager] This issue has no labels - triage may have failed. Please re-triage."
+              echo ""
+              echo "_Auto-triggered by Factory Manager because issue had no labels after 15 minutes._"
+            } > "$RETRIAGE_FILE"
+
+            gh issue comment "$ISSUE_NUM" --repo ${{ github.repository }} --body-file "$RETRIAGE_FILE"
+            rm -f "$RETRIAGE_FILE"
+            RETRIAGE_COUNT=$((RETRIAGE_COUNT + 1))
+          done
+
+          echo "Re-triggered triage on $RETRIAGE_COUNT issues"
+
       - name: Log health check results
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -515,6 +591,7 @@ jobs:
           FAILED_COUNT: ${{ steps.failed.outputs.has_failed == 'true' && '1' || '0' }}
           STUCK_PRS_COUNT: ${{ steps.stuck_prs.outputs.has_stuck_prs == 'true' && '1' || '0' }}
           UNTRIGGERED_COUNT: ${{ steps.untriggered.outputs.has_untriggered == 'true' && '1' || '0' }}
+          UNLABELED_COUNT: ${{ steps.unlabeled.outputs.has_unlabeled == 'true' && '1' || '0' }}
         run: |
           echo "=== Factory Health Check Complete ==="
           echo "Stuck issues found: $STUCK_COUNT"
@@ -522,6 +599,7 @@ jobs:
           echo "Failed workflows found: $FAILED_COUNT"
           echo "Stuck PRs with failing CI: $STUCK_PRS_COUNT"
           echo "Untriggered triaged issues: $UNTRIGGERED_COUNT"
+          echo "Unlabeled issues (failed triage): $UNLABELED_COUNT"
           echo ""
           echo "Next check in 5 minutes"
 
