@@ -199,11 +199,12 @@ describe('Sidebar', () => {
     expect(decodedUrl).toContain('User Agent:');
   });
 
-  it('renders feedback button when username is provided', () => {
+  it('renders feedback button with icon when username is provided', () => {
     render(<Sidebar {...defaultProps} username="testuser" />);
     const feedbackButton = screen.getByTestId('feedback-button');
     expect(feedbackButton).toBeInTheDocument();
-    expect(feedbackButton).toHaveTextContent('Feedback');
+    // Button now uses an icon instead of text
+    expect(feedbackButton.querySelector('svg')).toBeInTheDocument();
   });
 
   it('opens feedback modal when feedback button is clicked', () => {
