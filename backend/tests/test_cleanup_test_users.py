@@ -142,12 +142,12 @@ async def test_cleanup_deletes_canary_users(client: AsyncClient, session: AsyncS
 
 
 @pytest.mark.asyncio
-async def test_cleanup_deletes_mixed_test_users(client: AsyncClient, session: AsyncSession) -> None:
-    """Test cleanup deletes both smoketest_ and canary_ users."""
-    # Create test users
-    await create_test_user(session, "smoketest_abc")
-    await create_test_user(session, "canary_xyz")
-    await create_test_user(session, "regular_user")
+async def test_cleanup_deletes_testuser_users(client: AsyncClient, session: AsyncSession) -> None:
+    """Test cleanup deletes users with testuser_ prefix (E2E test users)."""
+    # Create test users following the E2E pattern: testuser_{timestamp}_{random}
+    await create_test_user(session, "testuser_1704412800_abc123")
+    await create_test_user(session, "testuser_1704412900_xyz456")
+    await create_test_user(session, "real_user")  # Should not be deleted
 
     with patch("app.api.test_helpers.get_settings") as mock_settings:
         mock_settings.return_value.test_cleanup_secret = "test-secret"
@@ -157,6 +157,28 @@ async def test_cleanup_deletes_mixed_test_users(client: AsyncClient, session: As
         assert response.status_code == 200
         data = response.json()
         assert data["deleted_count"] == 2
+        assert "testuser_1704412800_abc123" in data["deleted_users"]
+        assert "testuser_1704412900_xyz456" in data["deleted_users"]
+        assert "real_user" not in data["deleted_users"]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_deletes_mixed_test_users(client: AsyncClient, session: AsyncSession) -> None:
+    """Test cleanup deletes smoketest_, canary_, and testuser_ users."""
+    # Create test users
+    await create_test_user(session, "smoketest_abc")
+    await create_test_user(session, "canary_xyz")
+    await create_test_user(session, "testuser_123_def")
+    await create_test_user(session, "regular_user")
+
+    with patch("app.api.test_helpers.get_settings") as mock_settings:
+        mock_settings.return_value.test_cleanup_secret = "test-secret"
+
+        response = await client.delete("/api/test/cleanup-test-users?secret=test-secret")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["deleted_count"] == 3
 
 
 @pytest.mark.asyncio

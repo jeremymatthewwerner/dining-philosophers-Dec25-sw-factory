@@ -143,7 +143,11 @@ async def trigger_error(request: TriggerErrorRequest) -> dict[str, str]:
 
 
 # Test user prefixes that can be cleaned up
-TEST_USER_PREFIXES = ("smoketest_", "canary_")
+# - smoketest_: Created by CI smoke tests after deployment
+# - canary_: Reserved for future canary tests
+# - testuser_: Created by E2E tests (testuser_{timestamp}_{random})
+# NOTE: All prefixes must be lowercase for case-sensitive matching
+TEST_USER_PREFIXES = ("smoketest_", "canary_", "testuser_")
 
 
 class CleanupResponse(BaseModel):
@@ -162,7 +166,7 @@ async def cleanup_test_users(
 
     **SECURITY**: This endpoint is protected by TEST_CLEANUP_SECRET and only
     deletes users whose usernames start with known test prefixes (smoketest_,
-    canary_). This ensures that only automated test accounts are removed.
+    canary_, testuser_). This ensures that only automated test accounts are removed.
 
     **Purpose**: CI workflows create test users to verify the auth flow works
     in production. These users accumulate over time and clutter the database.
