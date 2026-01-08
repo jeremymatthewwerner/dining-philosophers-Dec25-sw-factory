@@ -511,7 +511,6 @@ jobs:
           echo "$LONGRUNNING_RUNS" | jq -c '.[]' | head -3 | while read -r run; do
             RUN_ID=$(echo "$run" | jq -r '.runId')
             RUN_BRANCH=$(echo "$run" | jq -r '.branch')
-            RUN_CREATED=$(echo "$run" | jq -r '.createdAt')
 
             echo "Checking run $RUN_ID on branch $RUN_BRANCH..."
 
@@ -528,16 +527,16 @@ jobs:
               continue
             fi
 
-            # Check if we already commented
+            # Check if we already commented about cancelling
             RECENT_FM_COMMENT=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
               --jq '[.[] | select(
                 (.body | contains("[Factory Manager]")) and
-                (.body | contains("long-running")) and
+                (.body | contains("cancelled")) and
                 ((.created_at | fromdateiso8601) > (now - 3600))
               )] | length' 2>/dev/null || echo "0")
 
             if [ "$RECENT_FM_COMMENT" -gt 0 ]; then
-              echo "  Already notified about this run, skipping"
+              echo "  Already handled this run, skipping"
               continue
             fi
 
@@ -550,22 +549,29 @@ jobs:
             # Get running time from the run data
             RUNNING_MINS=$(echo "$run" | jq -r '.runningMins // "10+"')
 
+            # CANCEL the stuck run
+            echo "  Cancelling stuck run $RUN_ID (running $RUNNING_MINS min)..."
+            if gh run cancel "$RUN_ID" --repo ${{ github.repository }} 2>/dev/null; then
+              CANCEL_STATUS="cancelled"
+            else
+              CANCEL_STATUS="cancel failed"
+            fi
+
             # Post notification on PR
             COMMENT_FILE=$(mktemp)
             {
-              echo "## [Factory Manager] Long-Running CI Detected"
+              echo "## [Factory Manager] Stuck CI Cancelled"
               echo ""
-              echo "The E2E Tests step has been running for **$RUNNING_MINS minutes** (normal: ~6-7 min)."
+              echo "The E2E Tests step was running for **$RUNNING_MINS minutes** (normal: ~6-7 min) and appeared stuck."
               echo ""
+              echo "**Action taken:** Run $CANCEL_STATUS"
               echo "**Slow job(s):** $SLOW_JOBS"
               echo "**Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)"
               echo ""
-              echo "This could indicate:"
-              echo "- Tests hanging or timing out"
-              echo "- Slow external dependencies"
-              echo "- Infrastructure issues"
-              echo ""
-              echo "_The E2E job has a 15-minute timeout. If tests are genuinely this slow, consider optimizing them._"
+              echo "**Next steps:**"
+              echo "1. Check if there's a test hanging or infinite loop"
+              echo "2. Push a fix and CI will re-run automatically"
+              echo "3. Or manually re-run: \`gh run rerun $RUN_ID\`"
             } > "$COMMENT_FILE"
 
             gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body-file "$COMMENT_FILE"
@@ -575,11 +581,11 @@ jobs:
             if [ -n "$RELATED_ISSUE" ]; then
               ISSUE_FILE=$(mktemp)
               {
-                echo "[Factory Manager] PR #$PR_NUM E2E tests have been running for $RUNNING_MINS min (normal: ~6-7 min)."
+                echo "[Factory Manager] PR #$PR_NUM E2E tests were stuck ($RUNNING_MINS min) and have been cancelled."
                 echo ""
                 echo "Slow job(s): $SLOW_JOBS"
                 echo ""
-                echo "[View CI run](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)"
+                echo "Please investigate and push a fix."
               } > "$ISSUE_FILE"
               gh issue comment "$RELATED_ISSUE" --repo ${{ github.repository }} --body-file "$ISSUE_FILE" 2>/dev/null || true
               rm -f "$ISSUE_FILE"
