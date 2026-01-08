@@ -39,7 +39,7 @@ jobs:
   # ===========================================
   health-check:
     if: |
-      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *') ||
+      (github.event_name == 'schedule' && github.event.schedule != '0 6 * * 1') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'full-health-check')
     runs-on: ubuntu-latest
     timeout-minutes: 15
