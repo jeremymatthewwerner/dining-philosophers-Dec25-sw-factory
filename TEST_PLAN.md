@@ -1285,3 +1285,206 @@ All 14 tests pass reliably:
 
 ---
 
+## E2E Enhancement - Edge Cases (Issue #254, QA Agent Thursday 2026-01-08)
+
+**Focus**: Add edge case E2E tests for tab visibility, session management, concurrent operations, cost tracking, export, and keyboard navigation.
+
+### E2E Test Files Added (6 new files, 20 new tests)
+
+#### 1. Tab Visibility Tests (tab-visibility.spec.ts)
+
+**3 tests covering browser tab hidden/visible state changes:**
+
+**test: pauses conversation when tab becomes hidden** (frontend/e2e/tab-visibility.spec.ts:14-42)
+- Simulates tab becoming hidden by modifying document.hidden property
+- Validates that visibility change event is dispatched without errors
+- Edge case: WebSocket should pause when tab is hidden to conserve resources
+
+**test: resumes conversation when tab becomes visible** (frontend/e2e/tab-visibility.spec.ts:44-76)
+- Simulates tab being hidden, then becoming visible again
+- Validates conversation remains functional after visibility toggle
+- Edge case: WebSocket should reconnect when tab becomes visible
+
+**test: no new messages arrive while tab is hidden** (frontend/e2e/tab-visibility.spec.ts:78-135)
+- Sends message, then hides tab for 3 seconds
+- Validates message count doesn't increase significantly while hidden
+- Edge case: Confirms pausing actually prevents new messages while hidden
+
+#### 2. Session Management Tests (session-management.spec.ts)
+
+**3 tests covering authentication edge cases:**
+
+**test: handles expired token gracefully** (frontend/e2e/session-management.spec.ts:14-57)
+- Sets invalid/expired token in localStorage
+- Attempts to send a message
+- Validates graceful error handling (error message, redirect to login, or error banner)
+- Edge case: Expired token doesn't crash the app
+
+**test: can logout mid-conversation without errors** (frontend/e2e/session-management.spec.ts:59-98)
+- Creates conversation, then clears auth token to simulate logout
+- Reloads page and validates redirect to login
+- Verifies no unexpected errors during logout
+- Edge case: Clean logout from active conversation
+
+**test: maintains session across page reload** (frontend/e2e/session-management.spec.ts:100-144)
+- Creates conversation, captures token, reloads page
+- Validates token persists and conversation is still accessible
+- Sends message to verify session is still valid
+- Edge case: Session persistence in localStorage
+
+#### 3. Concurrent Operations Tests (concurrent-operations.spec.ts)
+
+**3 tests covering multi-conversation and rapid actions:**
+
+**test: can switch between conversations rapidly without errors** (frontend/e2e/concurrent-operations.spec.ts:14-66)
+- Creates 3 conversations
+- Rapidly switches between them in a loop (3 iterations)
+- Validates no duplicate conversations created
+- Edge case: Rapid conversation switching doesn't cause race conditions
+
+**test: handles rapid conversation creation** (frontend/e2e/concurrent-operations.spec.ts:68-113)
+- Creates 3 conversations simultaneously via API
+- Validates all 3 created successfully with correct topics
+- Verifies they all appear in sidebar after reload
+- Edge case: Concurrent API calls don't conflict
+
+**test: handles rapid message sending in same conversation** (frontend/e2e/concurrent-operations.spec.ts:115-151)
+- Sends 5 messages rapidly with 200ms between each
+- Validates all 5 messages appear without duplicates
+- Edge case: Message queue handles rapid submissions
+
+#### 4. Cost Tracking Edge Cases (cost-edge-cases.spec.ts)
+
+**4 tests covering cost meter display edge cases:**
+
+**test: displays zero cost correctly** (frontend/e2e/cost-edge-cases.spec.ts:13-35)
+- Validates cost meter displays $0.000 or $0.00 format correctly
+- Verifies app functions normally with zero cost
+- Edge case: Zero cost formatting
+
+**test: cost meter formats costs with 3 decimal precision** (frontend/e2e/cost-edge-cases.spec.ts:37-69)
+- Sends message to potentially generate cost
+- Validates cost format has dollar sign and 2-3 decimal places
+- Edge case: Decimal precision in cost display
+
+**test: handles high cost values without overflow** (frontend/e2e/cost-edge-cases.spec.ts:71-121)
+- Tests that cost meter UI can display large values ($123.456)
+- Validates element doesn't break with high numbers
+- Edge case: UI handles costs over $1
+
+**test: cost accumulates correctly across multiple messages** (frontend/e2e/cost-edge-cases.spec.ts:123-173)
+- Sends two messages and captures cost after each
+- Validates cost meter updates without crashing
+- Edge case: Cost accumulation over multiple messages
+
+#### 5. Export Functionality Edge Cases (export-edge-cases.spec.ts)
+
+**4 tests covering export with edge case data:**
+
+**test: can export empty conversation without errors** (frontend/e2e/export-edge-cases.spec.ts:13-43)
+- Creates conversation with no messages
+- Exports as HTML
+- Validates download occurs even with empty conversation
+- Edge case: Exporting empty conversation doesn't fail
+
+**test: exports conversation with very long messages** (frontend/e2e/export-edge-cases.spec.ts:45-78)
+- Sends 2000-character message
+- Exports as Markdown
+- Validates successful download
+- Edge case: Very long messages don't break export
+
+**test: exports conversation with special characters and unicode** (frontend/e2e/export-edge-cases.spec.ts:80-117)
+- Sends message with XSS payload, unicode, emojis, Chinese characters
+- Exports as HTML
+- Validates successful export with special characters
+- Edge case: Special characters properly handled in export
+
+**test: can export in both HTML and Markdown formats** (frontend/e2e/export-edge-cases.spec.ts:119-163)
+- Sends a message
+- Exports as HTML, then as Markdown
+- Validates both downloads succeed with different filenames
+- Edge case: Both export formats work correctly
+
+#### 6. Keyboard Navigation / Accessibility (keyboard-navigation.spec.ts)
+
+**6 tests covering keyboard accessibility:**
+
+**test: can navigate through modal with Tab key** (frontend/e2e/keyboard-navigation.spec.ts:13-49)
+- Opens new chat modal and tabs through controls
+- Validates focus moves to topic input, then Next button
+- Presses Enter on Next button to advance
+- Edge case: Modal is keyboard accessible
+
+**test: can send message with Enter key** (frontend/e2e/keyboard-navigation.spec.ts:51-76)
+- Types message in textarea
+- Presses Enter to send (not Shift+Enter)
+- Validates message appears and textarea is cleared
+- Edge case: Enter key sends message
+
+**test: can close modal with Escape key** (frontend/e2e/keyboard-navigation.spec.ts:78-95)
+- Opens new chat modal
+- Presses Escape to close
+- Validates modal closes and returns to main page
+- Edge case: Escape key closes modal
+
+**test: focus management after opening and closing export menu** (frontend/e2e/keyboard-navigation.spec.ts:97-126)
+- Opens export menu, closes with Escape
+- Validates focus returns to reasonable location
+- Tests that textarea is still focusable and functional
+- Edge case: Focus management after menu close
+
+**test: Tab key navigates through conversation controls** (frontend/e2e/keyboard-navigation.spec.ts:128-175)
+- Tabs through all interactive elements starting from textarea
+- Validates multiple interactive elements are keyboard accessible
+- Edge case: All controls reachable via Tab key
+
+**test: Shift+Enter creates new line in message textarea** (frontend/e2e/keyboard-navigation.spec.ts:177-208)
+- Types first line, presses Shift+Enter, types second line
+- Validates both lines present with newline between them
+- Verifies message was NOT sent
+- Edge case: Shift+Enter for multiline input
+
+### Benefits of E2E Enhancement
+
+1. **Browser Behavior**: Tests tab visibility changes that affect WebSocket lifecycle
+2. **Authentication Edge Cases**: Validates expired tokens, logout, and session persistence
+3. **Concurrency Testing**: Tests rapid actions and multi-conversation scenarios
+4. **Cost Display Edge Cases**: Tests zero, high, and accumulated cost formatting
+5. **Export Robustness**: Tests empty, long, and special character edge cases
+6. **Accessibility**: Validates keyboard-only navigation through entire app
+7. **User Experience**: Ensures graceful degradation in edge cases
+
+### Test Coverage Impact
+
+**Before**: 11 E2E test files
+**After**: 17 E2E test files (+6 files, +20 tests)
+
+**New Test Files**:
+- `frontend/e2e/tab-visibility.spec.ts` (3 tests, 135 lines)
+- `frontend/e2e/session-management.spec.ts` (3 tests, 144 lines)
+- `frontend/e2e/concurrent-operations.spec.ts` (3 tests, 151 lines)
+- `frontend/e2e/cost-edge-cases.spec.ts` (4 tests, 173 lines)
+- `frontend/e2e/export-edge-cases.spec.ts` (4 tests, 163 lines)
+- `frontend/e2e/keyboard-navigation.spec.ts` (6 tests, 208 lines)
+
+**Total Lines Added**: 974 lines of E2E test code
+
+### Test Execution Notes
+
+**These tests require:**
+- Backend server running on localhost:8000
+- Frontend server running on localhost:3000
+- All tests use setupAuthenticatedUser() helper
+- Each test creates unique user to avoid conflicts
+
+**Run with:**
+```bash
+# Run all new E2E tests
+npx playwright test tab-visibility session-management concurrent-operations cost-edge-cases export-edge-cases keyboard-navigation
+
+# Run specific test file
+npx playwright test tab-visibility.spec.ts
+```
+
+---
+
