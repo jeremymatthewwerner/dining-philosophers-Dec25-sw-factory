@@ -152,6 +152,10 @@ export default function Home() {
         sendUserMessage(content); // Notify via WebSocket
       } catch (error) {
         console.error('Failed to send message:', error);
+        // Show error to user (unless it's a 401 which triggers redirect)
+        if (error instanceof Error && !error.message.includes('401')) {
+          setErrorMessage(`Failed to send message: ${error.message}`);
+        }
       }
     },
     [currentConversation, sendUserMessage]
