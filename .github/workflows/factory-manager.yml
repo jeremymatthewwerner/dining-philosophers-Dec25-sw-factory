@@ -191,6 +191,41 @@ jobs:
             echo "has_stuck_prs=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check for long-running CI
+        id: longrunning_ci
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Checking for PRs with long-running CI (>20 min)..."
+
+          # Get time 20 minutes ago
+          THRESHOLD=$(date -u -d '20 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+
+          # Find runs that are in_progress and started more than 20 min ago
+          LONGRUNNING_RUNS=$(gh run list \
+            --repo ${{ github.repository }} \
+            --status in_progress \
+            --limit 20 \
+            --json databaseId,name,headBranch,createdAt,status \
+            --jq --arg threshold "$THRESHOLD" '
+              [.[] | select(
+                (.createdAt < $threshold) and
+                (.name == "CI/CD")
+              ) | {runId: .databaseId, branch: .headBranch, createdAt}]
+            ' 2>/dev/null || echo "[]")
+
+          COUNT=$(echo "$LONGRUNNING_RUNS" | jq 'length')
+          echo "Found $COUNT long-running CI runs"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "has_longrunning_ci=true" >> $GITHUB_OUTPUT
+            echo "longrunning_runs<<EOF" >> $GITHUB_OUTPUT
+            echo "$LONGRUNNING_RUNS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_longrunning_ci=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Check for untriggered issues
         id: untriggered
         env:
@@ -438,6 +473,90 @@ jobs:
 
           echo "Handled $HANDLED_COUNT stuck PRs"
 
+      - name: Handle long-running CI
+        if: steps.longrunning_ci.outputs.has_longrunning_ci == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          LONGRUNNING_RUNS: ${{ steps.longrunning_ci.outputs.longrunning_runs }}
+        run: |
+          echo "Checking long-running CI runs..."
+
+          echo "$LONGRUNNING_RUNS" | jq -c '.[]' | head -3 | while read -r run; do
+            RUN_ID=$(echo "$run" | jq -r '.runId')
+            RUN_BRANCH=$(echo "$run" | jq -r '.branch')
+            RUN_CREATED=$(echo "$run" | jq -r '.createdAt')
+
+            echo "Checking run $RUN_ID on branch $RUN_BRANCH..."
+
+            # Get the specific job that's taking long
+            SLOW_JOBS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs \
+              --jq '[.jobs[] | select(.status == "in_progress") | .name] | join(", ")' 2>/dev/null || echo "unknown")
+
+            # Find PR number for this branch
+            PR_NUM=$(gh pr list --repo ${{ github.repository }} \
+              --head "$RUN_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+            if [ -z "$PR_NUM" ]; then
+              echo "  No PR found for branch $RUN_BRANCH, skipping"
+              continue
+            fi
+
+            # Check if we already commented
+            RECENT_FM_COMMENT=$(gh api repos/${{ github.repository }}/issues/$PR_NUM/comments \
+              --jq '[.[] | select(
+                (.body | contains("[Factory Manager]")) and
+                (.body | contains("long-running")) and
+                ((.created_at | fromdateiso8601) > (now - 3600))
+              )] | length' 2>/dev/null || echo "0")
+
+            if [ "$RECENT_FM_COMMENT" -gt 0 ]; then
+              echo "  Already notified about this run, skipping"
+              continue
+            fi
+
+            # Extract issue number from branch
+            RELATED_ISSUE=""
+            if [[ "$RUN_BRANCH" =~ -([0-9]+)$ ]] || [[ "$RUN_BRANCH" =~ /([0-9]+)- ]]; then
+              RELATED_ISSUE="${BASH_REMATCH[1]}"
+            fi
+
+            # Post notification on PR
+            COMMENT_FILE=$(mktemp)
+            {
+              echo "## [Factory Manager] Long-Running CI Detected"
+              echo ""
+              echo "This CI run has been in progress for over 20 minutes."
+              echo ""
+              echo "**Slow job(s):** $SLOW_JOBS"
+              echo "**Started:** $RUN_CREATED"
+              echo "**Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)"
+              echo ""
+              echo "This could indicate:"
+              echo "- Tests hanging or timing out"
+              echo "- Slow external dependencies"
+              echo "- Infrastructure issues"
+              echo ""
+              echo "_If tests are genuinely taking this long, consider optimizing them._"
+            } > "$COMMENT_FILE"
+
+            gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body-file "$COMMENT_FILE"
+            rm -f "$COMMENT_FILE"
+
+            # Also notify on related issue if found
+            if [ -n "$RELATED_ISSUE" ]; then
+              ISSUE_FILE=$(mktemp)
+              {
+                echo "[Factory Manager] PR #$PR_NUM has CI running for over 20 minutes."
+                echo ""
+                echo "Slow job(s): $SLOW_JOBS"
+                echo ""
+                echo "[View CI run](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)"
+              } > "$ISSUE_FILE"
+              gh issue comment "$RELATED_ISSUE" --repo ${{ github.repository }} --body-file "$ISSUE_FILE" 2>/dev/null || true
+              rm -f "$ISSUE_FILE"
+            fi
+          done
+
       - name: Handle failed workflows (create issues)
         if: steps.failed.outputs.has_failed == 'true'
         env:
@@ -590,6 +709,7 @@ jobs:
           LONGRUNNING_COUNT: ${{ steps.longrunning.outputs.has_longrunning == 'true' && '1' || '0' }}
           FAILED_COUNT: ${{ steps.failed.outputs.has_failed == 'true' && '1' || '0' }}
           STUCK_PRS_COUNT: ${{ steps.stuck_prs.outputs.has_stuck_prs == 'true' && '1' || '0' }}
+          LONGRUNNING_CI_COUNT: ${{ steps.longrunning_ci.outputs.has_longrunning_ci == 'true' && '1' || '0' }}
           UNTRIGGERED_COUNT: ${{ steps.untriggered.outputs.has_untriggered == 'true' && '1' || '0' }}
           UNLABELED_COUNT: ${{ steps.unlabeled.outputs.has_unlabeled == 'true' && '1' || '0' }}
         run: |
@@ -598,6 +718,7 @@ jobs:
           echo "Long-running issues found: $LONGRUNNING_COUNT"
           echo "Failed workflows found: $FAILED_COUNT"
           echo "Stuck PRs with failing CI: $STUCK_PRS_COUNT"
+          echo "Long-running CI (>20 min): $LONGRUNNING_CI_COUNT"
           echo "Untriggered triaged issues: $UNTRIGGERED_COUNT"
           echo "Unlabeled issues (failed triage): $UNLABELED_COUNT"
           echo ""
