@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Conversation, Message } from '@/types';
 import { exportAsHtml, exportAsMarkdown } from '@/lib/export';
 import { MessageInput } from './MessageInput';
@@ -110,6 +110,21 @@ export function ChatArea({
       setShowExportMenu(false);
     }
   };
+
+  // Handle Escape key to close export menu
+  useEffect(() => {
+    if (!showExportMenu) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowExportMenu(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showExportMenu]);
 
   if (!conversation) {
     return (
