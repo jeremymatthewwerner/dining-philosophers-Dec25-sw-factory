@@ -12,9 +12,16 @@ test.describe('Settings Page', () => {
   test('should navigate to settings page from sidebar', async ({ page }) => {
     await setupAuthenticatedUser(page);
 
-    // Click settings link in sidebar
-    const settingsLink = page.getByTestId('settings-link');
-    await settingsLink.waitFor({ state: 'visible' });
+    // First, open the user menu dropdown
+    const userMenuButton = page.getByTestId('user-menu-button');
+    await userMenuButton.click();
+
+    // Wait for the dropdown to appear
+    const dropdown = page.getByTestId('user-menu-dropdown');
+    await expect(dropdown).toBeVisible();
+
+    // Click settings link in the dropdown menu
+    const settingsLink = page.getByTestId('user-menu-settings');
     await settingsLink.click();
 
     // Should be on settings page

@@ -39,9 +39,17 @@ test.describe('Homepage', () => {
   });
 
   test('logout redirects to login page', async ({ page }) => {
-    // Click the logout button
-    const logoutButton = page.getByTestId('logout-button');
-    await logoutButton.click();
+    // First, open the user menu dropdown
+    const userMenuButton = page.getByTestId('user-menu-button');
+    await userMenuButton.click();
+
+    // Wait for the dropdown to appear
+    const dropdown = page.getByTestId('user-menu-dropdown');
+    await expect(dropdown).toBeVisible();
+
+    // Click the logout/sign out button in the dropdown
+    const signOutButton = page.getByTestId('user-menu-signout');
+    await signOutButton.click();
 
     // Should redirect to login page
     await expect(page).toHaveURL(/\/login/);
