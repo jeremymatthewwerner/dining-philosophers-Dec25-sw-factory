@@ -146,6 +146,7 @@ async def trigger_error(request: TriggerErrorRequest) -> dict[str, str]:
 # - smoketest_: Created by CI smoke tests after deployment
 # - canary_: Reserved for future canary tests
 # - testuser_: Created by E2E tests (testuser_{timestamp}_{random})
+# NOTE: All prefixes must be lowercase for case-sensitive matching
 TEST_USER_PREFIXES = ("smoketest_", "canary_", "testuser_")
 
 
