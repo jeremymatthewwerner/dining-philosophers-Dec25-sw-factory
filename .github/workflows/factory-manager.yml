@@ -577,17 +577,41 @@ jobs:
             gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body-file "$COMMENT_FILE"
             rm -f "$COMMENT_FILE"
 
-            # Also notify on related issue if found
+            # Trigger Code Agent to investigate and fix
             if [ -n "$RELATED_ISSUE" ]; then
               ISSUE_FILE=$(mktemp)
               {
                 echo "[Factory Manager] PR #$PR_NUM E2E tests were stuck ($RUNNING_MINS min) and have been cancelled."
                 echo ""
-                echo "Slow job(s): $SLOW_JOBS"
+                echo "**Slow job(s):** $SLOW_JOBS"
+                echo "**Run logs:** https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
                 echo ""
-                echo "Please investigate and push a fix."
+                echo "@code Please investigate why E2E tests got stuck and fix it. Check:"
+                echo "1. The test logs for hanging tests or infinite loops"
+                echo "2. Backend logs for errors or slow responses"
+                echo "3. Any recent changes that might cause timeouts"
               } > "$ISSUE_FILE"
               gh issue comment "$RELATED_ISSUE" --repo ${{ github.repository }} --body-file "$ISSUE_FILE" 2>/dev/null || true
+              rm -f "$ISSUE_FILE"
+            else
+              # No related issue - create one
+              ISSUE_FILE=$(mktemp)
+              {
+                echo "## E2E Tests Stuck and Cancelled"
+                echo ""
+                echo "PR #$PR_NUM had E2E tests running for $RUNNING_MINS min (normal: ~6-7 min)."
+                echo "The run was automatically cancelled by Factory Manager."
+                echo ""
+                echo "**Branch:** $RUN_BRANCH"
+                echo "**Slow job(s):** $SLOW_JOBS"
+                echo "**Run logs:** https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
+                echo ""
+                echo "@code Please investigate why E2E tests got stuck and fix it."
+              } > "$ISSUE_FILE"
+              gh issue create --repo ${{ github.repository }} \
+                --title "E2E tests stuck on PR #$PR_NUM" \
+                --label "bug,priority-high,ci-failure" \
+                --body-file "$ISSUE_FILE" 2>/dev/null || true
               rm -f "$ISSUE_FILE"
             fi
           done
