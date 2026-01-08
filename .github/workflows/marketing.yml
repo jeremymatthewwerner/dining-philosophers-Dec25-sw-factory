@@ -17,12 +17,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: |
             Read CLAUDE.md and .claude/agents/marketing-docs.md first.
-            
+
             Update content for the latest release:
             1. Get release info: gh release view
             2. Update CHANGELOG.md with user-friendly entries
