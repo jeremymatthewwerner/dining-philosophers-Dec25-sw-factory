@@ -196,23 +196,50 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
         run: |
-          echo "Checking for PRs with long-running CI (>20 min)..."
+          echo "Checking for PRs with long-running CI (>10 min)..."
 
-          # Get time 20 minutes ago
-          THRESHOLD=$(date -u -d '20 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+          # Check in_progress CI runs and look at specific E2E job duration
+          # Normal E2E tests take ~6-7 min, so 10+ min is suspicious
+          LONGRUNNING_RUNS="[]"
 
-          # Find runs that are in_progress and started more than 20 min ago
-          LONGRUNNING_RUNS=$(gh run list \
+          # Get all in_progress CI/CD runs
+          IN_PROGRESS_RUNS=$(gh run list \
             --repo ${{ github.repository }} \
             --status in_progress \
             --limit 20 \
-            --json databaseId,name,headBranch,createdAt,status \
-            --jq --arg threshold "$THRESHOLD" '
-              [.[] | select(
-                (.createdAt < $threshold) and
-                (.name == "CI/CD")
-              ) | {runId: .databaseId, branch: .headBranch, createdAt}]
-            ' 2>/dev/null || echo "[]")
+            --json databaseId,name,headBranch,createdAt \
+            --jq '[.[] | select(.name == "CI/CD")]' 2>/dev/null || echo "[]")
+
+          # For each run, check if E2E Tests job has been running >10 min
+          THRESHOLD_SECS=600  # 10 minutes
+          NOW_SECS=$(date +%s)
+
+          STUCK_RUNS=$(echo "$IN_PROGRESS_RUNS" | jq -c '.[]' | while read -r run; do
+            RUN_ID=$(echo "$run" | jq -r '.databaseId')
+            BRANCH=$(echo "$run" | jq -r '.headBranch')
+
+            # Get E2E Tests job status
+            E2E_JOB=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs \
+              --jq '.jobs[] | select(.name == "E2E Tests") | {status, started_at, steps: [.steps[] | select(.name == "Run E2E tests") | {status, started_at}]}' 2>/dev/null || echo "{}")
+
+            E2E_STATUS=$(echo "$E2E_JOB" | jq -r '.status // "unknown"')
+            E2E_STEP_STARTED=$(echo "$E2E_JOB" | jq -r '.steps[0].started_at // ""')
+            E2E_STEP_STATUS=$(echo "$E2E_JOB" | jq -r '.steps[0].status // "unknown"')
+
+            # Only check if E2E step is actually in_progress
+            if [ "$E2E_STEP_STATUS" = "in_progress" ] && [ -n "$E2E_STEP_STARTED" ]; then
+              STEP_START_SECS=$(date -d "$E2E_STEP_STARTED" +%s 2>/dev/null || echo 0)
+              if [ "$STEP_START_SECS" -gt 0 ]; then
+                RUNNING_SECS=$((NOW_SECS - STEP_START_SECS))
+                if [ "$RUNNING_SECS" -gt "$THRESHOLD_SECS" ]; then
+                  RUNNING_MINS=$((RUNNING_SECS / 60))
+                  echo "{\"runId\": $RUN_ID, \"branch\": \"$BRANCH\", \"runningMins\": $RUNNING_MINS}"
+                fi
+              fi
+            fi
+          done | jq -s '.' 2>/dev/null || echo "[]")
+
+          LONGRUNNING_RUNS="$STUCK_RUNS"
 
           COUNT=$(echo "$LONGRUNNING_RUNS" | jq 'length')
           echo "Found $COUNT long-running CI runs"
@@ -520,15 +547,17 @@ jobs:
               RELATED_ISSUE="${BASH_REMATCH[1]}"
             fi
 
+            # Get running time from the run data
+            RUNNING_MINS=$(echo "$run" | jq -r '.runningMins // "10+"')
+
             # Post notification on PR
             COMMENT_FILE=$(mktemp)
             {
               echo "## [Factory Manager] Long-Running CI Detected"
               echo ""
-              echo "This CI run has been in progress for over 20 minutes."
+              echo "The E2E Tests step has been running for **$RUNNING_MINS minutes** (normal: ~6-7 min)."
               echo ""
               echo "**Slow job(s):** $SLOW_JOBS"
-              echo "**Started:** $RUN_CREATED"
               echo "**Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/$RUN_ID)"
               echo ""
               echo "This could indicate:"
@@ -536,7 +565,7 @@ jobs:
               echo "- Slow external dependencies"
               echo "- Infrastructure issues"
               echo ""
-              echo "_If tests are genuinely taking this long, consider optimizing them._"
+              echo "_The E2E job has a 15-minute timeout. If tests are genuinely this slow, consider optimizing them._"
             } > "$COMMENT_FILE"
 
             gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body-file "$COMMENT_FILE"
@@ -546,7 +575,7 @@ jobs:
             if [ -n "$RELATED_ISSUE" ]; then
               ISSUE_FILE=$(mktemp)
               {
-                echo "[Factory Manager] PR #$PR_NUM has CI running for over 20 minutes."
+                echo "[Factory Manager] PR #$PR_NUM E2E tests have been running for $RUNNING_MINS min (normal: ~6-7 min)."
                 echo ""
                 echo "Slow job(s): $SLOW_JOBS"
                 echo ""
@@ -718,7 +747,7 @@ jobs:
           echo "Long-running issues found: $LONGRUNNING_COUNT"
           echo "Failed workflows found: $FAILED_COUNT"
           echo "Stuck PRs with failing CI: $STUCK_PRS_COUNT"
-          echo "Long-running CI (>20 min): $LONGRUNNING_CI_COUNT"
+          echo "Long-running E2E tests (>10 min): $LONGRUNNING_CI_COUNT"
           echo "Untriggered triaged issues: $UNTRIGGERED_COUNT"
           echo "Unlabeled issues (failed triage): $UNLABELED_COUNT"
           echo ""
