@@ -6,17 +6,19 @@ Real-time multi-party chat with AI-simulated historical and contemporary thinker
 
 ## Autonomous Software Factory
 
-This repository uses 7 AI-powered GitHub Actions agents for autonomous development:
+This repository uses 9 AI-powered GitHub Actions agents for autonomous development:
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
-| **Code Agent** | `ai-ready` + `bug`/`enhancement` labels | Diagnoses and fixes issues, creates PRs |
+| **Code Agent** | `@code` mention in comment | Diagnoses and fixes issues, creates PRs |
+| **Principal Engineer** | `@pe` mention in comment | Holistic debugging, fixes factory not just symptoms |
+| **Factory Manager** | Every 5 min + `@factory-manager` mention | Monitors factory health, detects stuck issues, auto-fixes |
 | **QA** | Nightly 2am UTC | Improves test coverage, hunts flaky tests |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates |
-| **DevOps** | Every 6 hours | Health checks, incident response |
+| **DevOps** | `@devops` mention + Every 5 min + push to main | Health checks, incident response, auto-merge |
 | **Marketing** | On release | Updates changelog, docs |
-| **CI Monitor** | On CI failure (main) | Auto-creates issues for failed builds |
+| **CI Monitor** | On CI failure (main) | Auto-creates issues and triggers Code Agent |
 
 Add `ANTHROPIC_API_KEY` to repo secrets to enable automation.
 
@@ -26,15 +28,24 @@ Add `ANTHROPIC_API_KEY` to repo secrets to enable automation.
 
 1. **Create an issue** describing the bug or feature
 2. **Triage Agent** automatically adds labels within minutes
-3. **Add `ai-ready` label** when you want the Code Agent to work on it
+3. **Comment `@code please fix`** when you want the Code Agent to work on it
 4. The Code Agent will analyze, implement, and create a PR
 
 ### Talking to the Bot
 
-**Mention `@claude` in any comment** on an `ai-ready` issue to:
-- Ask clarifying questions: `@claude what files are affected?`
-- Give suggestions: `@claude consider using the existing helper in utils.py`
-- Request actions: `@claude please also add a test for the error case`
+**Use @mentions to trigger agents:**
+
+| Mention | Agent | Example |
+|---------|-------|---------|
+| `@code` | Code Agent | `@code please fix this bug` |
+| `@pe` | Principal Engineer | `@pe this needs holistic investigation` |
+| `@devops` | DevOps Agent | `@devops check backend logs` |
+| `@factory-manager` | Factory Manager | `@factory-manager why is this stuck?` |
+
+**Examples:**
+- Ask clarifying questions: `@code what files are affected?`
+- Give suggestions: `@code consider using the existing helper in utils.py`
+- Request actions: `@code please also add a test for the error case`
 
 The bot will read the full context, think about your input, and respond.
 
@@ -43,9 +54,9 @@ The bot will read the full context, think about your input, and respond.
 | Label | What It Means | What You Do |
 |-------|---------------|-------------|
 | `status:bot-working` | Bot is actively working | Wait — check back in 10-15 min |
-| `status:awaiting-human` | Bot needs your input | Read its question and reply with `@claude` |
+| `status:awaiting-human` | Bot needs your input | Read its question and reply with `@code` |
 | `status:awaiting-bot` | You commented, bot will respond | Wait — it will respond soon |
-| *(no status label)* | No active work | Add `ai-ready` to trigger the bot |
+| *(no status label)* | No active work | Comment `@code` to trigger the bot |
 
 ### Notifications to Watch
 
@@ -69,14 +80,14 @@ The factory is designed to run autonomously. Intervene only when:
 ```
 1. You create issue: "Button doesn't work on mobile"
 2. Triage Agent adds: bug, priority-medium
-3. You add: ai-ready
+3. You comment: "@code please fix this"
 4. Code Agent starts → status:bot-working
 5. Code Agent comments: "## Analysis - Root cause: missing touch handler..."
-6. You comment: "@claude make sure to test on iOS Safari too"
+6. You comment: "@code make sure to test on iOS Safari too"
 7. Code Agent responds and incorporates feedback → status:bot-working
 8. Code Agent creates PR → removes status labels
-9. CI passes → you merge (or it auto-merges)
-10. Issue auto-closes
+9. CI passes → auto-merges → deploys
+10. Issue auto-closes after smoke tests pass
 ```
 
 ## Quick Start (Local Development)
@@ -150,7 +161,7 @@ Add these secrets in **Settings** → **Secrets and variables** → **Actions**:
 
 ```
 dining-philosophers-Dec25-sw-factory/
-├── .github/workflows/     # 7 autonomous agent workflows
+├── .github/workflows/     # 9 autonomous agent workflows + factory tests
 ├── .claude/agents/        # Agent role definitions
 ├── backend/               # FastAPI backend
 │   ├── app/

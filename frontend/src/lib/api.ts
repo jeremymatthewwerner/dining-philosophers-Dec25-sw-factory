@@ -104,6 +104,18 @@ async function fetchWithAuth<T>(
       const error = await response
         .json()
         .catch(() => ({ detail: 'Unknown error' }));
+
+      // Handle 401 Unauthorized - clear auth and redirect to login
+      if (response.status === 401) {
+        clearAuth();
+        if (
+          typeof window !== 'undefined' &&
+          !window.location.pathname.includes('/login')
+        ) {
+          window.location.href = '/login';
+        }
+      }
+
       throw new Error(error.detail || `HTTP ${response.status}`);
     }
 
