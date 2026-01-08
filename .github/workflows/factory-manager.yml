@@ -639,33 +639,18 @@ jobs:
 
             echo "Checking failed run $RUN_ID ($RUN_NAME) on main..."
 
-            # Check if CI Monitor already created an issue for this
+            # Check if an issue already exists for this run ID
+            # NOTE: Don't use --search (has indexing delays), check body content directly
             EXISTING_ISSUE=$(gh issue list \
               --repo ${{ github.repository }} \
               --label "ci-failure" \
-              --state open \
-              --search "$RUN_ID in:body" \
-              --json number \
-              --jq 'length' 2>/dev/null || echo "0")
+              --state all \
+              --limit 50 \
+              --json number,body \
+              --jq --arg run_id "$RUN_ID" '[.[] | select(.body | contains($run_id))] | length' 2>/dev/null || echo "0")
 
             if [ "$EXISTING_ISSUE" -gt 0 ]; then
-              echo "  Issue already exists for this run"
-              continue
-            fi
-
-            # Check if issue was created in last hour (avoid duplicates)
-            RECENT_ISSUE=$(gh issue list \
-              --repo ${{ github.repository }} \
-              --label "ci-failure" \
-              --state all \
-              --json number,createdAt,title \
-              --jq --arg name "$RUN_NAME" '[.[] | select(
-                (.title | contains($name)) and
-                ((.createdAt | fromdateiso8601) > (now - 3600))
-              )] | length' 2>/dev/null || echo "0")
-
-            if [ "$RECENT_ISSUE" -gt 0 ]; then
-              echo "  Recent issue already exists for $RUN_NAME failures"
+              echo "  Issue already exists for run $RUN_ID"
               continue
             fi
 
