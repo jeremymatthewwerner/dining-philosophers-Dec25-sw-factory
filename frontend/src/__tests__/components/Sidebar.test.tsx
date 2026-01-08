@@ -125,18 +125,20 @@ describe('Sidebar', () => {
     expect(screen.getByText('T')).toBeInTheDocument(); // Avatar initial
   });
 
-  it('displays logout button when username is provided', () => {
+  it('displays user menu button when username is provided', () => {
     render(<Sidebar {...defaultProps} username="testuser" />);
-    expect(screen.getByTestId('logout-button')).toBeInTheDocument();
+    expect(screen.getByTestId('user-menu-button')).toBeInTheDocument();
   });
 
-  it('calls onLogout when logout button is clicked', () => {
+  it('calls onLogout when sign out menu item is clicked', () => {
     const onLogout = jest.fn();
     render(
       <Sidebar {...defaultProps} username="testuser" onLogout={onLogout} />
     );
 
-    fireEvent.click(screen.getByTestId('logout-button'));
+    // Open user menu first
+    fireEvent.click(screen.getByTestId('user-menu-button'));
+    fireEvent.click(screen.getByTestId('user-menu-signout'));
     expect(onLogout).toHaveBeenCalled();
   });
 
@@ -147,9 +149,11 @@ describe('Sidebar', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders bug report link when username is provided', () => {
+  it('renders bug report link in user menu when username is provided', () => {
     render(<Sidebar {...defaultProps} username="testuser" />);
-    const bugReportLink = screen.getByTestId('bug-report-link');
+    // Open user menu first
+    fireEvent.click(screen.getByTestId('user-menu-button'));
+    const bugReportLink = screen.getByTestId('user-menu-bug-report');
     expect(bugReportLink).toBeInTheDocument();
     expect(bugReportLink).toHaveAttribute('target', '_blank');
     expect(bugReportLink).toHaveAttribute('rel', 'noopener noreferrer');
@@ -157,8 +161,10 @@ describe('Sidebar', () => {
 
   it('bug report URL includes username in the body', () => {
     render(<Sidebar {...defaultProps} username="testuser" />);
+    // Open user menu first
+    fireEvent.click(screen.getByTestId('user-menu-button'));
     const bugReportLink = screen.getByTestId(
-      'bug-report-link'
+      'user-menu-bug-report'
     ) as HTMLAnchorElement;
 
     const url = bugReportLink.href;
@@ -178,8 +184,10 @@ describe('Sidebar', () => {
     render(
       <Sidebar {...defaultProps} username="testuser" displayName="Test User" />
     );
+    // Open user menu first
+    fireEvent.click(screen.getByTestId('user-menu-button'));
     const bugReportLink = screen.getByTestId(
-      'bug-report-link'
+      'user-menu-bug-report'
     ) as HTMLAnchorElement;
 
     const decodedUrl = decodeURIComponent(bugReportLink.href);
@@ -189,8 +197,10 @@ describe('Sidebar', () => {
 
   it('bug report URL includes browser and OS information', () => {
     render(<Sidebar {...defaultProps} username="testuser" />);
+    // Open user menu first
+    fireEvent.click(screen.getByTestId('user-menu-button'));
     const bugReportLink = screen.getByTestId(
-      'bug-report-link'
+      'user-menu-bug-report'
     ) as HTMLAnchorElement;
 
     const decodedUrl = decodeURIComponent(bugReportLink.href);
@@ -199,22 +209,25 @@ describe('Sidebar', () => {
     expect(decodedUrl).toContain('User Agent:');
   });
 
-  it('renders feedback button with icon when username is provided', () => {
+  it('renders feedback menu item with icon when username is provided', () => {
     render(<Sidebar {...defaultProps} username="testuser" />);
-    const feedbackButton = screen.getByTestId('feedback-button');
+    // Open user menu first
+    fireEvent.click(screen.getByTestId('user-menu-button'));
+    const feedbackButton = screen.getByTestId('user-menu-feedback');
     expect(feedbackButton).toBeInTheDocument();
     // Button now uses an icon instead of text
     expect(feedbackButton.querySelector('svg')).toBeInTheDocument();
   });
 
-  it('opens feedback modal when feedback button is clicked', () => {
+  it('opens feedback modal when feedback menu item is clicked', () => {
     render(<Sidebar {...defaultProps} username="testuser" />);
 
     // Modal should not be visible initially
     expect(screen.queryByTestId('feedback-modal')).not.toBeInTheDocument();
 
-    // Click feedback button
-    fireEvent.click(screen.getByTestId('feedback-button'));
+    // Open user menu and click feedback
+    fireEvent.click(screen.getByTestId('user-menu-button'));
+    fireEvent.click(screen.getByTestId('user-menu-feedback'));
 
     // Modal should now be visible
     expect(screen.getByTestId('feedback-modal')).toBeInTheDocument();
