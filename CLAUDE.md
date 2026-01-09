@@ -403,7 +403,7 @@ This repo uses 9 AI-powered GitHub Actions agents. See `.github/workflows/` and 
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
-| **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
+| **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels, routes to appropriate agent |
 | **Code Agent** | `@code` mention in comment | Diagnoses and fixes issues, creates PRs |
 | **Principal Engineer** | `@pe` mention in comment | Holistic debugging, fixes factory not just symptoms |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
