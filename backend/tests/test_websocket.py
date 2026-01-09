@@ -136,6 +136,11 @@ class TestWebSocketEndpoint:
             assert data["type"] == "user_joined"
             assert data["conversation_id"] == "test-conversation"
 
+            # Should receive resumed message (conversation starts unpaused)
+            data = websocket.receive_json()
+            assert data["type"] == "resumed"
+            assert data["conversation_id"] == "test-conversation"
+
     def test_websocket_send_message(self) -> None:
         """Test sending a message via WebSocket."""
         token = get_test_token()
@@ -144,6 +149,8 @@ class TestWebSocketEndpoint:
             test_client.websocket_connect(f"/ws/test-conversation?token={token}") as websocket,
         ):
             # Skip the join message
+            websocket.receive_json()
+            # Skip the initial resumed message (conversation starts unpaused)
             websocket.receive_json()
 
             # Send a user message
@@ -169,6 +176,8 @@ class TestWebSocketEndpoint:
         ):
             # Skip the join message
             websocket.receive_json()
+            # Skip the initial resumed message (conversation starts unpaused)
+            websocket.receive_json()
 
             # Send invalid JSON
             websocket.send_text("not valid json")
@@ -188,6 +197,8 @@ class TestWebSocketEndpoint:
         ):
             # Skip join message for ws1
             ws1.receive_json()
+            # Skip the initial resumed message (conversation starts unpaused)
+            ws1.receive_json()
 
             with test_client.websocket_connect(f"/ws/multi-test?token={token2}") as ws2:
                 # ws1 should receive user_joined for ws2
@@ -197,6 +208,10 @@ class TestWebSocketEndpoint:
                 # ws2 should receive its own user_joined
                 data = ws2.receive_json()
                 assert data["type"] == "user_joined"
+
+                # ws2 should also receive the resumed message
+                data = ws2.receive_json()
+                assert data["type"] == "resumed"
 
                 # ws1 sends a message
                 ws1.send_json(
@@ -228,6 +243,8 @@ class TestWebSocketMessageTypes:
         ):
             # Skip join message
             websocket.receive_json()
+            # Skip the initial resumed message (conversation starts unpaused)
+            websocket.receive_json()
 
             # Send typing start
             websocket.send_json({"type": "typing_start"})
@@ -243,6 +260,8 @@ class TestWebSocketMessageTypes:
             test_client.websocket_connect(f"/ws/typing-test?token={token}") as websocket,
         ):
             # Skip join message
+            websocket.receive_json()
+            # Skip the initial resumed message (conversation starts unpaused)
             websocket.receive_json()
 
             # Send typing stop
@@ -260,6 +279,10 @@ class TestWebSocketMessageTypes:
         ):
             # Skip join message
             websocket.receive_json()
+
+            # Skip initial resumed message (conversation starts unpaused)
+            data = websocket.receive_json()
+            assert data["type"] == "resumed"
 
             # Send pause
             websocket.send_json({"type": "pause"})
@@ -290,6 +313,10 @@ class TestWebSocketMessageTypes:
                 # Skip join message
                 ws1.receive_json()
 
+                # Skip initial resumed message (conversation starts unpaused)
+                data = ws1.receive_json()
+                assert data["type"] == "resumed"
+
                 # Pause the conversation
                 ws1.send_json({"type": "pause"})
 
@@ -316,8 +343,12 @@ class TestWebSocketMessageTypes:
                 # Verify backend still knows it's paused
                 assert thinker_service.is_paused(conversation_id) is True
 
-    def test_unpaused_conversation_no_pause_message_on_connect(self) -> None:
-        """Test that unpaused conversations don't receive a pause message on connect."""
+    def test_unpaused_conversation_sends_resumed_on_connect(self) -> None:
+        """Test that unpaused conversations send a resumed message on connect.
+
+        This ensures clients always know the correct pause state when switching threads,
+        fixing the bug where the UI showed the wrong pause state after thread switching.
+        """
         from app.services.thinker import thinker_service
 
         token = get_test_token()
@@ -330,12 +361,16 @@ class TestWebSocketMessageTypes:
             TestClient(app) as test_client,
             test_client.websocket_connect(f"/ws/{conversation_id}?token={token}") as websocket,
         ):
-            # Should only receive join message, not pause message
+            # Should receive join message first
             data = websocket.receive_json()
             assert data["type"] == "user_joined"
 
-            # Verify no pause message comes through
-            # (we can't directly check "no message", but we can verify the state)
+            # Should receive resumed message to sync client state
+            data = websocket.receive_json()
+            assert data["type"] == "resumed"
+            assert data["conversation_id"] == conversation_id
+
+            # Verify backend state is not paused
             assert thinker_service.is_paused(conversation_id) is False
 
 
