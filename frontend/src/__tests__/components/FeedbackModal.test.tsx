@@ -1,5 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@/test-utils';
-import { FeedbackModal } from '@/components/FeedbackModal';
+import {
+  FeedbackModal,
+  getSavedFeedbackInfo,
+  saveFeedbackInfo,
+  clearFeedbackInfo,
+  FEEDBACK_NAME_KEY,
+  FEEDBACK_EMAIL_KEY,
+} from '@/components/FeedbackModal';
 import * as api from '@/lib/api';
 
 // Mock the API
@@ -421,6 +428,196 @@ describe('FeedbackModal', () => {
       expect(screen.getByTestId('feedback-error')).toHaveTextContent(
         'Unable to connect to the server'
       );
+    });
+  });
+
+  describe('localStorage persistence', () => {
+    let storage: Record<string, string>;
+
+    beforeEach(() => {
+      storage = {};
+      (localStorage.getItem as jest.Mock).mockImplementation(
+        (key: string) => storage[key] || null
+      );
+      (localStorage.setItem as jest.Mock).mockImplementation(
+        (key: string, value: string) => {
+          storage[key] = value;
+        }
+      );
+      (localStorage.removeItem as jest.Mock).mockImplementation(
+        (key: string) => {
+          delete storage[key];
+        }
+      );
+    });
+
+    it('loads saved name and email when modal opens', () => {
+      storage[FEEDBACK_NAME_KEY] = 'Saved User';
+      storage[FEEDBACK_EMAIL_KEY] = 'saved@example.com';
+
+      render(<FeedbackModal {...defaultProps} />);
+
+      expect(screen.getByTestId('feedback-name')).toHaveValue('Saved User');
+      expect(screen.getByTestId('feedback-email')).toHaveValue(
+        'saved@example.com'
+      );
+    });
+
+    it('saves name and email to localStorage on successful submit', async () => {
+      render(<FeedbackModal {...defaultProps} />);
+
+      fireEvent.change(screen.getByTestId('feedback-message'), {
+        target: { value: 'This is a test feedback message.' },
+      });
+      fireEvent.change(screen.getByTestId('feedback-name'), {
+        target: { value: 'New User' },
+      });
+      fireEvent.change(screen.getByTestId('feedback-email'), {
+        target: { value: 'new@example.com' },
+      });
+
+      fireEvent.click(screen.getByTestId('submit-feedback'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Thank you!')).toBeInTheDocument();
+      });
+
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        FEEDBACK_NAME_KEY,
+        'New User'
+      );
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        FEEDBACK_EMAIL_KEY,
+        'new@example.com'
+      );
+    });
+
+    it('does not overwrite existing values when submitting with empty fields', async () => {
+      storage[FEEDBACK_NAME_KEY] = 'Existing';
+      storage[FEEDBACK_EMAIL_KEY] = 'existing@example.com';
+
+      render(<FeedbackModal {...defaultProps} />);
+
+      // Clear the pre-populated values
+      fireEvent.change(screen.getByTestId('feedback-name'), {
+        target: { value: '' },
+      });
+      fireEvent.change(screen.getByTestId('feedback-email'), {
+        target: { value: '' },
+      });
+      fireEvent.change(screen.getByTestId('feedback-message'), {
+        target: { value: 'This is a test feedback message.' },
+      });
+
+      // Clear previous mock calls
+      (localStorage.setItem as jest.Mock).mockClear();
+
+      fireEvent.click(screen.getByTestId('submit-feedback'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Thank you!')).toBeInTheDocument();
+      });
+
+      // setItem should not be called for empty values
+      expect(localStorage.setItem).not.toHaveBeenCalledWith(
+        FEEDBACK_NAME_KEY,
+        expect.any(String)
+      );
+      expect(localStorage.setItem).not.toHaveBeenCalledWith(
+        FEEDBACK_EMAIL_KEY,
+        expect.any(String)
+      );
+    });
+  });
+});
+
+describe('Feedback localStorage utilities', () => {
+  // Create a real storage object for these tests
+  let storage: Record<string, string>;
+
+  beforeEach(() => {
+    storage = {};
+    (localStorage.getItem as jest.Mock).mockImplementation(
+      (key: string) => storage[key] || null
+    );
+    (localStorage.setItem as jest.Mock).mockImplementation(
+      (key: string, value: string) => {
+        storage[key] = value;
+      }
+    );
+    (localStorage.removeItem as jest.Mock).mockImplementation((key: string) => {
+      delete storage[key];
+    });
+    (localStorage.clear as jest.Mock).mockImplementation(() => {
+      storage = {};
+    });
+  });
+
+  describe('getSavedFeedbackInfo', () => {
+    it('returns empty strings when nothing is saved', () => {
+      const result = getSavedFeedbackInfo();
+      expect(result).toEqual({ name: '', email: '' });
+    });
+
+    it('returns saved values', () => {
+      storage[FEEDBACK_NAME_KEY] = 'Test User';
+      storage[FEEDBACK_EMAIL_KEY] = 'test@example.com';
+
+      const result = getSavedFeedbackInfo();
+      expect(result).toEqual({
+        name: 'Test User',
+        email: 'test@example.com',
+      });
+    });
+  });
+
+  describe('saveFeedbackInfo', () => {
+    it('saves name and email to localStorage', () => {
+      saveFeedbackInfo('New Name', 'new@email.com');
+
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        FEEDBACK_NAME_KEY,
+        'New Name'
+      );
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        FEEDBACK_EMAIL_KEY,
+        'new@email.com'
+      );
+    });
+
+    it('trims whitespace', () => {
+      saveFeedbackInfo('  Name  ', '  email@test.com  ');
+
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        FEEDBACK_NAME_KEY,
+        'Name'
+      );
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        FEEDBACK_EMAIL_KEY,
+        'email@test.com'
+      );
+    });
+
+    it('does not save empty values', () => {
+      // Clear any previous calls
+      (localStorage.setItem as jest.Mock).mockClear();
+
+      saveFeedbackInfo('', '');
+
+      // setItem should not be called with empty values
+      expect(localStorage.setItem).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('clearFeedbackInfo', () => {
+    it('removes saved values from localStorage', () => {
+      storage[FEEDBACK_NAME_KEY] = 'Test';
+      storage[FEEDBACK_EMAIL_KEY] = 'test@test.com';
+
+      clearFeedbackInfo();
+
+      expect(localStorage.removeItem).toHaveBeenCalledWith(FEEDBACK_NAME_KEY);
+      expect(localStorage.removeItem).toHaveBeenCalledWith(FEEDBACK_EMAIL_KEY);
     });
   });
 });

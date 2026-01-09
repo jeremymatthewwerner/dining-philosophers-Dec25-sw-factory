@@ -18,6 +18,45 @@ import { type FeedbackType, getStoredUser, submitFeedback } from '@/lib/api';
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
+// localStorage keys for remembering feedback info
+export const FEEDBACK_NAME_KEY = 'feedback_name';
+export const FEEDBACK_EMAIL_KEY = 'feedback_email';
+
+/**
+ * Get saved feedback contact info from localStorage.
+ */
+export function getSavedFeedbackInfo(): { name: string; email: string } {
+  if (typeof window === 'undefined') {
+    return { name: '', email: '' };
+  }
+  return {
+    name: localStorage.getItem(FEEDBACK_NAME_KEY) || '',
+    email: localStorage.getItem(FEEDBACK_EMAIL_KEY) || '',
+  };
+}
+
+/**
+ * Save feedback contact info to localStorage.
+ */
+export function saveFeedbackInfo(name: string, email: string): void {
+  if (typeof window === 'undefined') return;
+  if (name.trim()) {
+    localStorage.setItem(FEEDBACK_NAME_KEY, name.trim());
+  }
+  if (email.trim()) {
+    localStorage.setItem(FEEDBACK_EMAIL_KEY, email.trim());
+  }
+}
+
+/**
+ * Clear saved feedback contact info from localStorage.
+ */
+export function clearFeedbackInfo(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(FEEDBACK_NAME_KEY);
+  localStorage.removeItem(FEEDBACK_EMAIL_KEY);
+}
+
 export interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -39,9 +78,12 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Focus textarea when modal opens
+  // Load saved name/email when modal opens
   useEffect(() => {
     if (isOpen && !success) {
+      const saved = getSavedFeedbackInfo();
+      setName(saved.name);
+      setEmail(saved.email);
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [isOpen, success]);
@@ -51,8 +93,10 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     if (!isOpen) {
       setFeedbackType('bug');
       setMessage('');
-      setEmail('');
-      setName('');
+      // Reload saved values when modal reopens
+      const saved = getSavedFeedbackInfo();
+      setEmail(saved.email);
+      setName(saved.name);
       setScreenshot(null);
       setError(null);
       setSuccess(false);
@@ -145,6 +189,9 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
         screenshot_data: screenshot?.data,
         screenshot_filename: screenshot?.filename,
       });
+
+      // Save contact info for next time
+      saveFeedbackInfo(name, email);
 
       setSuccess(true);
     } catch (err) {

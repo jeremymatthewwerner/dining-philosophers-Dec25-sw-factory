@@ -288,4 +288,126 @@ test.describe('Settings Page', () => {
     // Should be on home page
     await expect(page).toHaveURL('/');
   });
+
+  test.describe('Feedback Contact Info', () => {
+    test('should display feedback info section', async ({ page }) => {
+      await setupAuthenticatedUser(page);
+
+      await page.goto('/settings');
+
+      // Check section heading exists
+      await expect(page.locator('text=Feedback Contact Info')).toBeVisible();
+
+      // Check form elements exist
+      await expect(page.getByTestId('settings-feedback-name')).toBeVisible();
+      await expect(page.getByTestId('settings-feedback-email')).toBeVisible();
+      await expect(page.getByTestId('update-feedback-info')).toBeVisible();
+      await expect(page.getByTestId('clear-feedback-info')).toBeVisible();
+    });
+
+    test('should save and display feedback info', async ({ page }) => {
+      await setupAuthenticatedUser(page);
+
+      await page.goto('/settings');
+
+      // Fill in feedback info
+      const nameInput = page.getByTestId('settings-feedback-name');
+      const emailInput = page.getByTestId('settings-feedback-email');
+
+      await nameInput.fill('Test Feedback User');
+      await emailInput.fill('feedback@test.com');
+
+      // Click update button
+      await page.getByTestId('update-feedback-info').click();
+
+      // Should show success message
+      await expect(
+        page.locator('text=Feedback contact info updated')
+      ).toBeVisible();
+
+      // Reload page and verify persistence
+      await page.reload();
+
+      await expect(nameInput).toHaveValue('Test Feedback User');
+      await expect(emailInput).toHaveValue('feedback@test.com');
+    });
+
+    test('should clear saved feedback info', async ({ page }) => {
+      await setupAuthenticatedUser(page);
+
+      // First set some values
+      await page.evaluate(() => {
+        localStorage.setItem('feedback_name', 'Clear Test');
+        localStorage.setItem('feedback_email', 'clear@test.com');
+      });
+
+      await page.goto('/settings');
+
+      // Verify values are loaded
+      const nameInput = page.getByTestId('settings-feedback-name');
+      const emailInput = page.getByTestId('settings-feedback-email');
+
+      await expect(nameInput).toHaveValue('Clear Test');
+      await expect(emailInput).toHaveValue('clear@test.com');
+
+      // Click clear button
+      await page.getByTestId('clear-feedback-info').click();
+
+      // Should show cleared message
+      await expect(
+        page.locator('text=Feedback contact info cleared')
+      ).toBeVisible();
+
+      // Fields should be empty
+      await expect(nameInput).toHaveValue('');
+      await expect(emailInput).toHaveValue('');
+
+      // Verify localStorage is cleared
+      const storedName = await page.evaluate(() =>
+        localStorage.getItem('feedback_name')
+      );
+      const storedEmail = await page.evaluate(() =>
+        localStorage.getItem('feedback_email')
+      );
+      expect(storedName).toBeNull();
+      expect(storedEmail).toBeNull();
+    });
+
+    test('should pre-fill feedback modal with saved info', async ({ page }) => {
+      await setupAuthenticatedUser(page);
+
+      // Set feedback info in localStorage before navigating
+      await page.evaluate(() => {
+        localStorage.setItem('feedback_name', 'Modal Test User');
+        localStorage.setItem('feedback_email', 'modal@test.com');
+      });
+
+      await page.goto('/');
+
+      // Open user menu dropdown (feedback button is inside user menu)
+      const userMenuButton = page.getByTestId('user-menu-button');
+      await userMenuButton.click();
+
+      // Wait for dropdown to appear
+      const dropdown = page.getByTestId('user-menu-dropdown');
+      await expect(dropdown).toBeVisible();
+
+      // Click the feedback button in the dropdown
+      const feedbackButton = page.getByTestId('user-menu-feedback');
+      await feedbackButton.click();
+
+      // Wait for modal
+      await expect(page.getByTestId('feedback-modal')).toBeVisible({
+        timeout: 5000,
+      });
+
+      // Verify fields are pre-filled
+      await expect(page.getByTestId('feedback-name')).toHaveValue(
+        'Modal Test User'
+      );
+      await expect(page.getByTestId('feedback-email')).toHaveValue(
+        'modal@test.com'
+      );
+    });
+  });
 });
