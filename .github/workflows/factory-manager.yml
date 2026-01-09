@@ -1047,12 +1047,22 @@ jobs:
             1. Create a tracking issue with `factory-meta` label
             2. Add a `@factory-manager` comment so you'll pick it up on next run
 
-            ## Output Format
+            ## Output Format - CRITICAL
 
-            Post a comment with:
-            - Your diagnosis
-            - Actions taken (or PR link if you fixed it)
-            - Recommendations
+            You MUST post a comment to the issue with your response. Use this exact command:
+            ```bash
+            gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "## [Factory Manager] Analysis
+
+            <your diagnosis here>
+
+            ### Actions Taken
+            <what you did or PR link>
+
+            ### Recommendations
+            <next steps>"
+            ```
+
+            If you don't post a comment, your work is invisible to the user!
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
@@ -1062,6 +1072,39 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Ensure response was posted
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          # Check if Factory Manager posted a substantive comment (not just "Analyzing...")
+          RECENT_RESPONSE=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+            --jq '[.[] | select(
+              (.body | contains("[Factory Manager]")) and
+              ((.created_at | fromdateiso8601) > (now - 300))
+            )] | length' 2>/dev/null || echo "0")
+
+          if [ "$RECENT_RESPONSE" -eq 0 ]; then
+            echo "⚠️ Claude didn't post a response comment - posting fallback"
+            {
+              echo "## [Factory Manager] Response"
+              echo ""
+              echo "I analyzed this issue but encountered an issue posting my full response."
+              echo ""
+              echo "**What I checked:**"
+              echo "- Issue content and comments"
+              echo "- Related workflow runs"
+              echo "- Agent trigger conditions"
+              echo ""
+              echo "**Next steps:**"
+              echo "- Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for my full analysis"
+              echo "- If urgent, try \`@factory-manager\` again or contact @jeremymatthewwerner"
+            } | gh issue comment "$ISSUE_NUMBER" --repo ${{ github.repository }} --body-file -
+          else
+            echo "✅ Factory Manager posted a response"
+          fi
 
   # ===========================================
   # TRIGGER VERIFICATION (weekly or manual)
