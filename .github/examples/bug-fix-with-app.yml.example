@@ -1,0 +1,118 @@
+# Example: Code Agent workflow using GitHub App authentication
+#
+# Key changes from PAT-based authentication:
+# 1. Use actions/create-github-app-token to get installation token
+# 2. All comments appear from "DP Code Agent[bot]"
+# 3. @mentions of the bot trigger workflows
+# 4. Can assign issues to the bot
+#
+# To migrate: Replace PAT_WITH_WORKFLOW_ACCESS with app token steps
+
+name: Code Agent
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [assigned]  # NEW: Can trigger on assignment
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to fix'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+  actions: read
+  checks: read
+  # NOTE: No workflows:write needed - Factory Manager handles workflow changes
+
+concurrency:
+  group: code-agent-issue-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    # Trigger on:
+    # 1. @dp-code-agent mention in comment
+    # 2. Issue assigned to dp-code-agent[bot]
+    # 3. Manual workflow dispatch
+    if: |
+      (github.event_name == 'issue_comment' &&
+       !github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@dp-code-agent')) ||
+      (github.event_name == 'issues' &&
+       github.event.action == 'assigned' &&
+       github.event.assignee.login == 'dp-code-agent[bot]') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # Step 1: Generate app installation token
+      # This is the key change - use the app's identity
+      - name: Generate Code Agent Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CODE_AGENT_APP_ID }}
+          private-key: ${{ secrets.CODE_AGENT_PRIVATE_KEY }}
+
+      # Step 2: Checkout with app token
+      # Commits will be attributed to "DP Code Agent[bot]"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      # Step 3: Configure git with app identity
+      - name: Configure git
+        run: |
+          git config user.name "dp-code-agent[bot]"
+          git config user.email "dp-code-agent[bot]@users.noreply.github.com"
+
+      # Step 4: Post acknowledgment (appears from app)
+      - name: Acknowledge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo ${{ github.repository }} \
+            --body "## 🤖 Code Agent Responding
+
+          I'm starting to work on this issue.
+
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+      # ... rest of workflow uses ${{ steps.app-token.outputs.token }}
+      # instead of ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          # ... claude configuration
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        env:
+          # Use app token for all GitHub operations
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      # When delegating to Factory Manager, the comment WILL trigger
+      # because it comes from the app, not GITHUB_TOKEN
+      - name: Delegate workflow changes (if needed)
+        if: failure() && contains(env.ERROR_MESSAGE, 'workflow')
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          # This comment WILL trigger Factory Manager because it
+          # comes from the Code Agent app, not github-actions[bot]
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo ${{ github.repository }} \
+            --body "@dp-factory-manager This issue requires workflow changes.
+
+          Please see my analysis above and apply the fix."

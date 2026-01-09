@@ -1,0 +1,25 @@
+{
+  "name": "DP DevOps Agent",
+  "description": "DevOps agent for infrastructure management, health checks, and incident response",
+  "url": "https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory",
+  "hook_attributes": {
+    "url": "",
+    "active": false
+  },
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "issues": "write",
+    "pull_requests": "write",
+    "actions": "read",
+    "checks": "read",
+    "metadata": "read",
+    "deployments": "write"
+  },
+  "default_events": [
+    "issue_comment",
+    "issues",
+    "deployment",
+    "deployment_status"
+  ]
+}

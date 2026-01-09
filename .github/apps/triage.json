@@ -1,0 +1,18 @@
+{
+  "name": "DP Triage Agent",
+  "description": "Triage agent for classifying issues, detecting duplicates, and adding labels",
+  "url": "https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory",
+  "hook_attributes": {
+    "url": "",
+    "active": false
+  },
+  "public": false,
+  "default_permissions": {
+    "contents": "read",
+    "issues": "write",
+    "metadata": "read"
+  },
+  "default_events": [
+    "issues"
+  ]
+}

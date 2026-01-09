@@ -29,6 +29,11 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 | `@devops` | DevOps - production logs, diagnostics |
 | `@factory-manager` | Factory Manager - stuck issues, health |
 
+> **Future: GitHub Apps** - We're migrating to GitHub Apps for each agent, which will give
+> each agent a distinct identity (e.g., `@dp-code-agent[bot]`). This enables issue assignment,
+> proper @mentions, and fixes the issue where bot comments don't trigger workflows.
+> See `docs/GITHUB_APPS.md` and run `./scripts/setup-github-apps.sh` to set up.
+
 ## Repository Setup (One-Time)
 
 **Before the autonomous factory can run without intervention, complete these steps:**
@@ -71,6 +76,15 @@ Ensure these secrets are set in **Settings → Secrets and variables → Actions
 - `DEVOPS_API_SECRET` - Secret for DevOps API endpoints (used by DevOps Agent for database maintenance)
 - `FEEDBACK_PROCESSOR_SECRET` - Secret for feedback-to-issue conversion (used by DevOps workflow to process user feedback)
 - `TEMPLATE_SYNC_TOKEN` - PAT with repo scope for pushing to template repo (used by template-sync workflow)
+
+**GitHub Apps Secrets (Optional - for distinct agent identities):**
+- `CODE_AGENT_APP_ID` / `CODE_AGENT_PRIVATE_KEY` - Code Agent GitHub App
+- `FACTORY_MANAGER_APP_ID` / `FACTORY_MANAGER_PRIVATE_KEY` - Factory Manager GitHub App
+- `DEVOPS_APP_ID` / `DEVOPS_PRIVATE_KEY` - DevOps Agent GitHub App
+- `TRIAGE_APP_ID` / `TRIAGE_PRIVATE_KEY` - Triage Agent GitHub App
+- `QA_APP_ID` / `QA_PRIVATE_KEY` - QA Agent GitHub App
+
+See `docs/GITHUB_APPS.md` for setup instructions.
 
 ### 4. Branch Protection (Optional)
 If using branch protection on `main`, ensure:

@@ -1,0 +1,21 @@
+{
+  "name": "DP QA Agent",
+  "description": "QA agent for test quality improvement and coverage analysis",
+  "url": "https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory",
+  "hook_attributes": {
+    "url": "",
+    "active": false
+  },
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "issues": "write",
+    "pull_requests": "write",
+    "checks": "read",
+    "metadata": "read"
+  },
+  "default_events": [
+    "issues",
+    "pull_request"
+  ]
+}

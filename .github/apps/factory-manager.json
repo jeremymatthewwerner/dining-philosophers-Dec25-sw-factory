@@ -1,0 +1,25 @@
+{
+  "name": "DP Factory Manager",
+  "description": "Factory Manager agent for monitoring and maintaining the autonomous software factory",
+  "url": "https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory",
+  "hook_attributes": {
+    "url": "",
+    "active": false
+  },
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "issues": "write",
+    "pull_requests": "write",
+    "actions": "write",
+    "checks": "read",
+    "metadata": "read",
+    "workflows": "write"
+  },
+  "default_events": [
+    "issue_comment",
+    "issues",
+    "pull_request",
+    "workflow_run"
+  ]
+}
