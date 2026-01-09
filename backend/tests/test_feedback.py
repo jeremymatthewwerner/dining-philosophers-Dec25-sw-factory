@@ -175,6 +175,39 @@ async def test_submit_feedback_name_optional(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_submit_feedback_with_username(client: AsyncClient) -> None:
+    """Test feedback submission with a Dining Philosophers username."""
+    response = await client.post(
+        "/api/feedback",
+        json={
+            "feedback_type": "bug",
+            "message": "This is a bug report from a logged-in user.",
+            "email": "test@example.com",
+            "name": "Test User",
+            "username": "testuser123",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert "id" in data
+
+
+@pytest.mark.asyncio
+async def test_submit_feedback_username_optional(client: AsyncClient) -> None:
+    """Test that username is optional (anonymous users can submit feedback)."""
+    response = await client.post(
+        "/api/feedback",
+        json={
+            "message": "This feedback is from an anonymous user.",
+            "username": None,
+        },
+    )
+
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
 async def test_submit_feedback_with_screenshot(client: AsyncClient) -> None:
     """Test feedback submission with screenshot data."""
     # Base64 encoded small test image (1x1 PNG)
@@ -279,6 +312,34 @@ async def test_get_pending_feedback_success(client: AsyncClient) -> None:
         assert "count" in data
         assert "feedbacks" in data
         assert isinstance(data["feedbacks"], list)
+
+
+@pytest.mark.asyncio
+async def test_get_pending_feedback_includes_username(client: AsyncClient) -> None:
+    """Test that GET /api/feedback/pending includes the username field."""
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+
+        # Create feedback with a username
+        await client.post(
+            "/api/feedback",
+            json={
+                "message": "Test feedback with username for pending endpoint.",
+                "username": "testuser456",
+            },
+        )
+
+        response = await client.get(f"/api/feedback/pending?secret={TEST_SECRET}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] >= 1
+
+        # Find our feedback with the username
+        feedbacks_with_username = [
+            f for f in data["feedbacks"] if f.get("username") == "testuser456"
+        ]
+        assert len(feedbacks_with_username) >= 1
+        assert "username" in feedbacks_with_username[0]
 
 
 @pytest.mark.asyncio

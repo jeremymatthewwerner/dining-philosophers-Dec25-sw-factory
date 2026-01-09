@@ -398,6 +398,7 @@ export interface FeedbackSubmission {
   message: string;
   email?: string;
   name?: string;
+  username?: string; // Dining Philosophers username if logged in
   user_agent?: string;
   screenshot_data?: string; // Base64 encoded image data
   screenshot_filename?: string; // Original filename

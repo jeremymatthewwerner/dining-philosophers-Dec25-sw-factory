@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { type FeedbackType, submitFeedback } from '@/lib/api';
+import { type FeedbackType, getStoredUser, submitFeedback } from '@/lib/api';
 
 // Max file size: 5MB
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -131,11 +131,15 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     setError(null);
 
     try {
+      // Get the current user's username if logged in
+      const currentUser = getStoredUser();
+
       await submitFeedback({
         feedback_type: feedbackType,
         message: message.trim(),
         email: email.trim() || undefined,
         name: name.trim() || undefined,
+        username: currentUser?.username || undefined,
         user_agent:
           typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
         screenshot_data: screenshot?.data,

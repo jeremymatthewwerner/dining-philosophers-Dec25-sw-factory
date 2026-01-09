@@ -25,6 +25,9 @@ class FeedbackCreate(BaseModel):
     message: str = Field(..., min_length=10, max_length=5000)
     email: str | None = Field(default=None, max_length=255)
     name: str | None = Field(default=None, max_length=100)
+    username: str | None = Field(
+        default=None, max_length=50, description="Dining Philosophers username if logged in"
+    )
     user_agent: str | None = Field(default=None, max_length=1000)
     screenshot_data: str | None = Field(default=None, description="Base64 encoded screenshot image")
     screenshot_filename: str | None = Field(default=None, max_length=255)
@@ -53,6 +56,7 @@ class FeedbackDetail(BaseModel):
     message: str
     email: str | None
     name: str | None
+    username: str | None
     user_agent: str | None
     status: str
     github_issue_url: str | None
