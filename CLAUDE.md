@@ -621,6 +621,12 @@ Why @mentions over labels:
 - `ai-ready` - ⚠️ **Deprecated** - labels no longer trigger agents, use `@code` mention instead
 - `needs-principal-engineer` - ⚠️ **Deprecated** - labels no longer trigger PE, use `@pe` mention instead
 
+**@mention Best Practices (IMPORTANT):**
+- **Only use `@code`, `@devops`, `@pe`, etc. when you INTEND to trigger that agent**
+- For informational references, say "the DevOps agent" or "Code Agent" (no @)
+- Multiple @mentions in one comment will trigger MULTIPLE agents simultaneously
+- Example: `@code please fix this` (triggers Code Agent) vs "logs are available from the DevOps agent" (doesn't trigger)
+
 ### QA Agent - Test Quality Guardian
 
 The QA agent performs **periodic reflection and enhancement** of the test suite:
