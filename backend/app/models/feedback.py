@@ -36,8 +36,16 @@ class Feedback(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
 
     # Feedback content
+    # Note: values_callable ensures SQLAlchemy uses enum values (lowercase)
+    # instead of enum names (uppercase) when storing to PostgreSQL
     feedback_type: Mapped[str] = mapped_column(
-        Enum(FeedbackType), default=FeedbackType.BUG, nullable=False
+        Enum(
+            FeedbackType,
+            values_callable=lambda x: [e.value for e in x],
+            name="feedbacktype",
+        ),
+        default=FeedbackType.BUG,
+        nullable=False,
     )
     message: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -54,7 +62,13 @@ class Feedback(Base, TimestampMixin):
 
     # Status tracking
     status: Mapped[str] = mapped_column(
-        Enum(FeedbackStatus), default=FeedbackStatus.NEW, nullable=False
+        Enum(
+            FeedbackStatus,
+            values_callable=lambda x: [e.value for e in x],
+            name="feedbackstatus",
+        ),
+        default=FeedbackStatus.NEW,
+        nullable=False,
     )
 
     # Link to GitHub issue if created
