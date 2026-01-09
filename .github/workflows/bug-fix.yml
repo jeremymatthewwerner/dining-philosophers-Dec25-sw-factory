@@ -19,7 +19,7 @@ permissions:
   id-token: write
   actions: read
   checks: read
-  workflows: write  # Required to push workflow file changes
+  # NOTE: No workflows:write - Code Agent delegates workflow changes to Factory Manager
 
 # Prevent concurrent runs on the same issue
 concurrency:
