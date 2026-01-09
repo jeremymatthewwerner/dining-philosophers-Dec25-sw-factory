@@ -114,10 +114,12 @@ describe('ScrollingText', () => {
     expect(container).toHaveClass('whitespace-nowrap');
   });
 
-  it('text span has inline-block class', () => {
+  it('text span has block truncate class when not animating', () => {
     render(<ScrollingText text="Test" />);
     const textSpan = screen.getByText('Test');
-    expect(textSpan).toHaveClass('inline-block');
+    // When not hovering/animating, text shows with truncate class for ellipsis
+    expect(textSpan).toHaveClass('block');
+    expect(textSpan).toHaveClass('truncate');
   });
 
   it('cleans up animation frame on unmount', () => {
@@ -175,6 +177,13 @@ describe('ScrollingText animation behavior', () => {
 
     // requestAnimationFrame should be called
     expect(global.requestAnimationFrame).toHaveBeenCalled();
+
+    // When animating, text span should have inline-block class (not truncate)
+    const animatingSpan = screen.getByText(
+      'This is a long text that should be truncated'
+    );
+    expect(animatingSpan).toHaveClass('inline-block');
+    expect(animatingSpan).not.toHaveClass('truncate');
   });
 
   it('stops animation on mouse leave', () => {
@@ -205,8 +214,10 @@ describe('ScrollingText animation behavior', () => {
       fireEvent.mouseLeave(container);
     });
 
-    // Transform should reset to 0
-    expect(textSpan).toHaveStyle('transform: translateX(-0px)');
+    // After mouse leave, text should revert to truncate mode (no transform style)
+    const updatedTextSpan = screen.getByText('Long text content here');
+    expect(updatedTextSpan).toHaveClass('block');
+    expect(updatedTextSpan).toHaveClass('truncate');
   });
 
   it('does not start animation when text is not truncated', () => {
@@ -220,10 +231,10 @@ describe('ScrollingText animation behavior', () => {
       fireEvent.mouseEnter(container);
     });
 
-    // requestAnimationFrame may be called but won't animate
-    expect(screen.getByText('Short')).toHaveStyle(
-      'transform: translateX(-0px)'
-    );
+    // When not truncated, even on hover, text remains in truncate mode (no animation)
+    const textSpan = screen.getByText('Short');
+    expect(textSpan).toHaveClass('block');
+    expect(textSpan).toHaveClass('truncate');
   });
 
   it('cancels animation frame on unmount during animation', () => {
