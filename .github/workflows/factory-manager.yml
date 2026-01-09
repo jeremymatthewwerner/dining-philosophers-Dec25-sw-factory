@@ -67,11 +67,11 @@ jobs:
           # 5. Haven't been updated in 30 min
           # 6. Are open
 
+          # Note: must pipe to jq instead of using jq --arg (gh doesn't support --arg)
           STUCK_ISSUES=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number,title,labels,updatedAt,comments \
-            --jq --arg threshold "$THRESHOLD" '
+            --json number,title,labels,updatedAt,comments | jq --arg threshold "$THRESHOLD" '
               [.[] | select(
                 (.labels | map(.name) | (contains(["bug"]) or contains(["enhancement"]))) and
                 (.labels | map(.name) | contains(["factory-meta"]) | not) and
@@ -107,8 +107,8 @@ jobs:
             --repo ${{ github.repository }} \
             --label "status:bot-working" \
             --state open \
-            --json number,title,updatedAt \
-            --jq --arg threshold "$THRESHOLD" '
+            --json number,title,updatedAt |
+            jq --arg threshold "$THRESHOLD" '
               [.[] | select(.updatedAt < $threshold)]
             ' 2>/dev/null || echo "[]")
 
@@ -136,7 +136,7 @@ jobs:
             --repo ${{ github.repository }} \
             --status failure \
             --limit 20 \
-            --json databaseId,name,conclusion,headBranch,createdAt \
+            --json databaseId,name,conclusion,headBranch,createdAt |
             --jq '
               [.[] | select(
                 (.createdAt | fromdateiso8601) > (now - 7200) and
@@ -170,8 +170,8 @@ jobs:
           STUCK_PRS=$(gh pr list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number,title,headRefName,updatedAt,statusCheckRollup,author \
-            --jq --arg threshold "$THRESHOLD" '
+            --json number,title,headRefName,updatedAt,statusCheckRollup,author |
+            jq --arg threshold "$THRESHOLD" '
               [.[] | select(
                 (.updatedAt < $threshold) and
                 (
@@ -209,7 +209,7 @@ jobs:
             --repo ${{ github.repository }} \
             --status in_progress \
             --limit 20 \
-            --json databaseId,name,headBranch,createdAt \
+            --json databaseId,name,headBranch,createdAt |
             --jq '[.[] | select(.name == "CI/CD")]' 2>/dev/null || echo "[]")
 
           # For each run, check if E2E Tests job has been running >10 min
@@ -263,14 +263,15 @@ jobs:
           echo "Checking for triaged issues with no @code mention..."
 
           THRESHOLD=$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+          echo "Using threshold: $THRESHOLD"
 
           # Find issues that have been triaged (bug or enhancement label) but no @code mention
           # This is @mention based - labels are for categorization only
+          # Note: must pipe to jq instead of using jq --arg (gh doesn't support --arg)
           UNTRIGGERED=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number,title,labels,createdAt,comments \
-            --jq --arg threshold "$THRESHOLD" '
+            --json number,title,labels,createdAt,comments | jq --arg threshold "$THRESHOLD" '
               [.[] | select(
                 (.createdAt < $threshold) and
                 (.labels | map(.name) | (contains(["bug"]) or contains(["enhancement"]))) and
@@ -306,8 +307,8 @@ jobs:
           UNLABELED=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number,title,labels,createdAt \
-            --jq --arg threshold "$THRESHOLD" '
+            --json number,title,labels,createdAt |
+            jq --arg threshold "$THRESHOLD" '
               [.[] | select(
                 (.createdAt < $threshold) and
                 ((.labels | length) == 0)
@@ -392,7 +393,7 @@ jobs:
               --repo ${{ github.repository }} \
               --workflow=bug-fix.yml \
               --limit 5 \
-              --json databaseId,status,conclusion \
+              --json databaseId,status,conclusion |
               --jq '[.[] | select(.status == "in_progress" or .status == "queued")] | length' 2>/dev/null || echo "0")
 
             if [ "$RECENT_RUNS" -gt 0 ]; then
@@ -454,7 +455,7 @@ jobs:
 
             # Get the failed checks
             FAILED_CHECKS=$(gh pr view "$PR_NUM" --repo ${{ github.repository }} \
-              --json statusCheckRollup \
+              --json statusCheckRollup |
               --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE") | .name] | join(", ")' 2>/dev/null || echo "unknown")
 
             # Find related issue from branch name (claude/fix-XXX-*)
@@ -648,8 +649,8 @@ jobs:
               --label "ci-failure" \
               --state all \
               --limit 50 \
-              --json number,body \
-              --jq --arg run_id "$RUN_ID" '[.[] | select(.body | contains($run_id))] | length' 2>/dev/null || echo "0")
+              --json number,body |
+              jq --arg run_id "$RUN_ID" '[.[] | select(.body | contains($run_id))] | length' 2>/dev/null || echo "0")
 
             if [ "$EXISTING_ISSUE" -gt 0 ]; then
               echo "  Issue already exists for run $RUN_ID"
@@ -813,44 +814,44 @@ jobs:
           CREATED=$(gh issue list \
             --repo ${{ github.repository }} \
             --state all \
-            --json number,createdAt \
-            --jq --arg since "$WEEK_AGO" '[.[] | select(.createdAt > $since)] | length' 2>/dev/null || echo "0")
+            --json number,createdAt |
+            jq --arg since "$WEEK_AGO" '[.[] | select(.createdAt > $since)] | length' 2>/dev/null || echo "0")
 
           # Count issues closed this week
           CLOSED=$(gh issue list \
             --repo ${{ github.repository }} \
             --state closed \
-            --json number,closedAt \
-            --jq --arg since "$WEEK_AGO" '[.[] | select(.closedAt > $since)] | length' 2>/dev/null || echo "0")
+            --json number,closedAt |
+            jq --arg since "$WEEK_AGO" '[.[] | select(.closedAt > $since)] | length' 2>/dev/null || echo "0")
 
           # Count PRs merged this week
           MERGED=$(gh pr list \
             --repo ${{ github.repository }} \
             --state merged \
-            --json number,mergedAt \
-            --jq --arg since "$WEEK_AGO" '[.[] | select(.mergedAt > $since)] | length' 2>/dev/null || echo "0")
+            --json number,mergedAt |
+            jq --arg since "$WEEK_AGO" '[.[] | select(.mergedAt > $since)] | length' 2>/dev/null || echo "0")
 
           # Count factory-incident issues this week
           INCIDENTS=$(gh issue list \
             --repo ${{ github.repository }} \
             --label "factory-incident" \
             --state all \
-            --json number,createdAt \
-            --jq --arg since "$WEEK_AGO" '[.[] | select(.createdAt > $since)] | length' 2>/dev/null || echo "0")
+            --json number,createdAt |
+            jq --arg since "$WEEK_AGO" '[.[] | select(.createdAt > $since)] | length' 2>/dev/null || echo "0")
 
           # Count escalations (needs-human added this week)
           ESCALATED=$(gh issue list \
             --repo ${{ github.repository }} \
             --label "needs-human" \
             --state all \
-            --json number \
+            --json number |
             --jq 'length' 2>/dev/null || echo "0")
 
           # Current open issues
           OPEN=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number \
+            --json number |
             --jq 'length' 2>/dev/null || echo "0")
 
           echo "report_date=$TODAY" >> $GITHUB_OUTPUT
