@@ -269,3 +269,80 @@ describe('ScrollingText animation behavior', () => {
     });
   });
 });
+
+describe('ScrollingText ResizeObserver behavior', () => {
+  let mockResizeObserver: jest.Mock;
+  let mockObserve: jest.Mock;
+  let mockDisconnect: jest.Mock;
+  let resizeCallback: ((entries: unknown[]) => void) | null = null;
+
+  beforeEach(() => {
+    mockObserve = jest.fn();
+    mockDisconnect = jest.fn();
+    mockResizeObserver = jest.fn((callback) => {
+      resizeCallback = callback;
+      return {
+        observe: mockObserve,
+        disconnect: mockDisconnect,
+        unobserve: jest.fn(),
+      };
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (global as any).ResizeObserver = mockResizeObserver;
+  });
+
+  afterEach(() => {
+    resizeCallback = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (global as any).ResizeObserver;
+  });
+
+  it('uses ResizeObserver to detect container size changes', () => {
+    render(<ScrollingText text="Test text for resize" />);
+
+    // ResizeObserver should be created and observe called on container
+    expect(mockResizeObserver).toHaveBeenCalled();
+    expect(mockObserve).toHaveBeenCalled();
+  });
+
+  it('disconnects ResizeObserver on unmount', () => {
+    const { unmount } = render(<ScrollingText text="Test text" />);
+
+    unmount();
+
+    expect(mockDisconnect).toHaveBeenCalled();
+  });
+
+  it('rechecks truncation when ResizeObserver fires', () => {
+    render(<ScrollingText text="Text that might be truncated" />);
+
+    const container = screen.getByText(
+      'Text that might be truncated'
+    ).parentElement!;
+    const textSpan = screen.getByText('Text that might be truncated');
+
+    // Initially not truncated (no title)
+    expect(container).not.toHaveAttribute('title');
+
+    // Now mock truncation
+    Object.defineProperty(container, 'clientWidth', {
+      value: 50,
+      configurable: true,
+    });
+    Object.defineProperty(textSpan, 'scrollWidth', {
+      value: 200,
+      configurable: true,
+    });
+
+    // Simulate ResizeObserver callback (container resized)
+    act(() => {
+      if (resizeCallback) {
+        resizeCallback([{ contentRect: { width: 50 } }]);
+      }
+    });
+
+    // After resize, truncation should be detected and title set
+    expect(container).toHaveAttribute('title', 'Text that might be truncated');
+  });
+});

@@ -46,12 +46,30 @@ export function ScrollingText({
     }
   }, []);
 
-  // Check truncation on mount and when text changes
+  // Check truncation on mount, text changes, and container resizes
   useEffect(() => {
     checkTruncation();
+
     // Also check on window resize
     window.addEventListener('resize', checkTruncation);
-    return () => window.removeEventListener('resize', checkTruncation);
+
+    // Use ResizeObserver for flex layouts where container width isn't finalized immediately
+    const container = containerRef.current;
+    let resizeObserver: ResizeObserver | null = null;
+
+    if (container && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        checkTruncation();
+      });
+      resizeObserver.observe(container);
+    }
+
+    return () => {
+      window.removeEventListener('resize', checkTruncation);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
   }, [text, checkTruncation]);
 
   // Reset scroll position when hover ends
