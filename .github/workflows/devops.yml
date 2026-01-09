@@ -823,15 +823,15 @@ jobs:
 
             echo "Processing feedback $FEEDBACK_ID (type: $FEEDBACK_TYPE)..."
 
-            # Determine labels based on feedback type
+            # Use only user-feedback label - let Triage Agent determine classification
+            LABELS="user-feedback"
+
+            # Set title prefix based on feedback type for context
             if [ "$FEEDBACK_TYPE" = "bug" ]; then
-              LABELS="bug,priority-medium,user-feedback"
               TITLE_PREFIX="🐛 [User Bug Report]"
             elif [ "$FEEDBACK_TYPE" = "feature" ]; then
-              LABELS="enhancement,priority-medium,user-feedback"
               TITLE_PREFIX="💡 [User Feature Request]"
             else
-              LABELS="question,priority-low,user-feedback"
               TITLE_PREFIX="💬 [User Feedback]"
             fi
 
@@ -874,12 +874,11 @@ jobs:
             if [ $? -eq 0 ]; then
               echo "✅ Created issue: $ISSUE_URL"
 
-              # Extract issue number and trigger Code Agent
-              # (Feedback issues have pre-assigned labels so Triage Agent skips them)
+              # Extract issue number and trigger Triage Agent first
               ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
               if [ -n "$ISSUE_NUM" ]; then
-                echo "Triggering Code Agent on issue #$ISSUE_NUM..."
-                gh issue comment "$ISSUE_NUM" --body "@code This issue was created from user feedback. Please investigate and address the user's ${FEEDBACK_TYPE} report." || echo "::warning::Failed to trigger Code Agent for issue #$ISSUE_NUM"
+                echo "Triggering Triage Agent on issue #$ISSUE_NUM..."
+                gh issue comment "$ISSUE_NUM" --body "@triage This issue was created from user feedback (type: ${FEEDBACK_TYPE}). Please triage and then trigger the appropriate agent to address the user's report." || echo "::warning::Failed to trigger Triage Agent for issue #$ISSUE_NUM"
               fi
 
               # Mark feedback as processed with the issue URL
