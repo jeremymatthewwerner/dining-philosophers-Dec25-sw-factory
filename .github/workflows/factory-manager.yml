@@ -946,6 +946,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Configure git with PAT
+        run: |
+          git remote set-url origin https://github.com/${{ github.repository }}.git
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $(echo -n 'x-access-token:${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}' | base64)"
+          git config --local user.email "factory-manager[bot]@users.noreply.github.com"
+          git config --local user.name "factory-manager[bot]"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -1019,27 +1029,36 @@ jobs:
 
             ## Step 3: Take Action
 
-            If you find a factory issue:
-            1. Diagnose the root cause
-            2. Attempt to fix (re-trigger agent, fix labels, etc.)
-            3. Post your findings and actions
-
-            If it's a product issue:
+            If it's a **product issue**:
             1. Politely explain this is for factory issues
-            2. Suggest using @code for product issues
+            2. Trigger Code Agent: post a comment with `@code please fix this`
+
+            If it's a **factory issue** (workflow/agent problems):
+            **YOU fix it yourself - do NOT trigger @code for workflow changes!**
+
+            You have full permissions to modify workflow files. Follow this process:
+            1. Create a branch: `git checkout -b factory-fix/${{ github.event.issue.number }}`
+            2. Make the fix to `.github/workflows/*.yml` or `CLAUDE.md`
+            3. Commit: `git add . && git commit -m "fix(factory): [description]"`
+            4. Push: `git push -u origin factory-fix/${{ github.event.issue.number }}`
+            5. Create PR: `gh pr create --title "fix(factory): [description]" --body "..."`
+
+            If you can't complete the fix (timeout, complexity):
+            1. Create a tracking issue with `factory-meta` label
+            2. Add a `@factory-manager` comment so you'll pick it up on next run
 
             ## Output Format
 
             Post a comment with:
             - Your diagnosis
-            - Actions taken
+            - Actions taken (or PR link if you fixed it)
             - Recommendations
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --model claude-sonnet-4-20250514
             --dangerously-skip-permissions
-            --allowedTools "Bash(gh:*),Read,Glob,Grep"
+            --allowedTools "Bash(gh:*),Bash(git:*),Read,Write,Edit,Glob,Grep"
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
@@ -1144,6 +1163,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Configure git with PAT
+        run: |
+          git remote set-url origin https://github.com/${{ github.repository }}.git
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $(echo -n 'x-access-token:${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}' | base64)"
+          git config --local user.email "factory-manager[bot]@users.noreply.github.com"
+          git config --local user.name "factory-manager[bot]"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -1189,19 +1218,31 @@ jobs:
             4. Was progress tracked?
             5. Why did it get stuck (if stuck)?
 
-            ## Step 3: Report
+            ## Step 3: Fix or Report
+
+            If it's a **factory issue** (workflow/agent problems):
+            **YOU fix it yourself - do NOT trigger @code for workflow changes!**
+
+            You have full permissions to modify workflow files:
+            1. Create a branch: `git checkout -b factory-fix/${{ github.event.inputs.issue_number }}`
+            2. Make the fix to `.github/workflows/*.yml` or `CLAUDE.md`
+            3. Commit: `git add . && git commit -m "fix(factory): [description]"`
+            4. Push: `git push -u origin factory-fix/${{ github.event.inputs.issue_number }}`
+            5. Create PR: `gh pr create --title "fix(factory): [description]" --body "..."`
+
+            If it's a **product issue**, trigger Code Agent with `@code please fix this`.
 
             Create a detailed diagnosis comment on the issue with:
             - Timeline of events
             - What went wrong
             - Root cause
-            - Recommended fix
+            - Fix applied (with PR link) or recommended next steps
 
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
             --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
-            --allowedTools "Bash(gh:*),Read,Glob,Grep"
+            --allowedTools "Bash(gh:*),Bash(git:*),Read,Write,Edit,Glob,Grep"
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
