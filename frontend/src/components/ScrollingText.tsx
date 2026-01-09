@@ -155,6 +155,9 @@ export function ScrollingText({
     };
   }, [isHovered, isTruncated, delayMs, speedPxPerSecond]);
 
+  // When not hovering and truncated, show ellipsis; when hovering, animate
+  const isAnimating = isHovered && isTruncated;
+
   return (
     <div
       ref={containerRef}
@@ -165,11 +168,15 @@ export function ScrollingText({
     >
       <span
         ref={textRef}
-        className="inline-block"
-        style={{
-          transform: `translateX(-${scrollOffset}px)`,
-          transition: scrollOffset === 0 ? 'none' : undefined,
-        }}
+        className={isAnimating ? 'inline-block' : 'block truncate'}
+        style={
+          isAnimating
+            ? {
+                transform: `translateX(-${scrollOffset}px)`,
+                transition: scrollOffset === 0 ? 'none' : undefined,
+              }
+            : undefined
+        }
       >
         {text}
       </span>
