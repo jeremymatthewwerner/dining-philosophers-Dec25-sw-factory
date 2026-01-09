@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/*
+ * Dark mode configuration for Tailwind v4
+ * Uses selector strategy: .dark class on html OR system preference (when no class set)
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -12,8 +18,15 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Dark mode: applied via .dark class on html element */
+html.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+/* Fallback: respect system preference when no explicit theme class is set */
 @media (prefers-color-scheme: dark) {
-  :root {
+  html:not(.light):not(.dark) {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
