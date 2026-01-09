@@ -23,6 +23,10 @@ on:
       - '.github/workflows/release-engineer.yml'
       - '.github/workflows/marketing.yml'
       - '.github/workflows/triage.yml'
+      - '.github/apps/**'
+      - 'scripts/setup-github-apps.sh'
+      - 'docs/GITHUB_APPS.md'
+      - '.github/examples/**'
       - 'CLAUDE.md'
       - 'REQUIREMENTS.md'
 
@@ -64,6 +68,32 @@ jobs:
             "REQUIREMENTS.md"
           )
 
+          # GitHub Apps files
+          GITHUB_APPS_FILES=(
+            ".github/apps/code-agent.json"
+            ".github/apps/devops.json"
+            ".github/apps/factory-manager.json"
+            ".github/apps/qa.json"
+            ".github/apps/triage.json"
+            ".github/examples/bug-fix-with-app.yml.example"
+            "scripts/setup-github-apps.sh"
+            "docs/GITHUB_APPS.md"
+          )
+
+          # Create directories if needed
+          mkdir -p template/.github/apps
+          mkdir -p template/.github/examples
+          mkdir -p template/scripts
+          mkdir -p template/docs
+
+          # Copy GitHub Apps files
+          for file in "${GITHUB_APPS_FILES[@]}"; do
+            if [ -f "source/$file" ]; then
+              echo "Copying $file"
+              cp "source/$file" "template/$file"
+            fi
+          done
+
           for file in "${FILES[@]}"; do
             if [ -f "source/$file" ]; then
               echo "Copying $file"
@@ -97,12 +127,34 @@ jobs:
           find .github/workflows -name "*.yml" -exec sh -c "sed -i $SED_ARGS \"\$1\"" _ {} \;
 
           # Apply to markdown docs
-          for file in CLAUDE.md REQUIREMENTS.md; do
+          for file in CLAUDE.md REQUIREMENTS.md docs/GITHUB_APPS.md; do
             if [ -f "$file" ]; then
               echo "Generalizing $file"
               eval "sed -i $SED_ARGS \"$file\""
             fi
           done
+
+          # Generalize GitHub Apps manifests (remove "DP " prefix from names)
+          if [ -d ".github/apps" ]; then
+            echo "Generalizing GitHub Apps manifests..."
+            for file in .github/apps/*.json; do
+              if [ -f "$file" ]; then
+                # Remove "DP " prefix from app names
+                sed -i 's/"DP /"/' "$file"
+              fi
+            done
+          fi
+
+          # Generalize setup script
+          if [ -f "scripts/setup-github-apps.sh" ]; then
+            echo "Generalizing setup script..."
+            sed -i 's/dining-philosophers-Dec25-sw-factory/your-project/g' scripts/setup-github-apps.sh
+            sed -i 's/DP Code Agent/Code Agent/g' scripts/setup-github-apps.sh
+            sed -i 's/DP Factory Manager/Factory Manager/g' scripts/setup-github-apps.sh
+            sed -i 's/DP DevOps/DevOps/g' scripts/setup-github-apps.sh
+            sed -i 's/DP Triage/Triage/g' scripts/setup-github-apps.sh
+            sed -i 's/DP QA/QA/g' scripts/setup-github-apps.sh
+          fi
 
           echo "Generalization complete"
 
