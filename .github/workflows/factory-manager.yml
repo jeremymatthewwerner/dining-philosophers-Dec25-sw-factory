@@ -1355,6 +1355,7 @@ jobs:
       - name: Run Claude for diagnosis
         uses: anthropics/claude-code-action@v1
         with:
+          github_token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           prompt: |
             You are the Factory Manager - a meta-agent responsible for monitoring and maintaining the autonomous software factory.
 
@@ -1602,6 +1603,7 @@ jobs:
       - name: Run Claude for deep diagnosis
         uses: anthropics/claude-code-action@v1
         with:
+          github_token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           prompt: |
             You are the Factory Manager performing a deep diagnosis of issue #${{ github.event.inputs.issue_number }}.
 
