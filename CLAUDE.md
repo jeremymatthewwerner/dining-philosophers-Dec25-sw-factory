@@ -70,6 +70,7 @@ Ensure these secrets are set in **Settings → Secrets and variables → Actions
 - `TEST_CLEANUP_SECRET` - Secret for test user cleanup endpoint (used by smoke/canary tests)
 - `DEVOPS_API_SECRET` - Secret for DevOps API endpoints (used by DevOps Agent for database maintenance)
 - `FEEDBACK_PROCESSOR_SECRET` - Secret for feedback-to-issue conversion (used by DevOps workflow to process user feedback)
+- `TEMPLATE_SYNC_TOKEN` - PAT with repo scope for pushing to template repo (used by template-sync workflow)
 
 ### 4. Branch Protection (Optional)
 If using branch protection on `main`, ensure:
