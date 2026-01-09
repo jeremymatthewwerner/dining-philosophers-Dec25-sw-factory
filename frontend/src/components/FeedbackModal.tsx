@@ -6,7 +6,10 @@
 
 import {
   type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
   type FormEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -17,6 +20,14 @@ import { type FeedbackType, getStoredUser, submitFeedback } from '@/lib/api';
 // Max file size: 5MB
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+interface ScreenshotData {
+  data: string; // base64 data
+  filename: string;
+  previewUrl: string; // data URL for thumbnail preview
+}
+
+type UploadState = 'idle' | 'loading' | 'done';
 
 // localStorage keys for remembering feedback info
 export const FEEDBACK_NAME_KEY = 'feedback_name';
@@ -68,15 +79,15 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [screenshot, setScreenshot] = useState<{
-    data: string;
-    filename: string;
-  } | null>(null);
+  const [screenshot, setScreenshot] = useState<ScreenshotData | null>(null);
+  const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   // Load saved name/email when modal opens
   useEffect(() => {
@@ -97,68 +108,166 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       const saved = getSavedFeedbackInfo();
       setEmail(saved.email);
       setName(saved.name);
+      // Revoke object URL to prevent memory leaks
+      if (screenshot?.previewUrl) {
+        URL.revokeObjectURL(screenshot.previewUrl);
+      }
       setScreenshot(null);
+      setUploadState('idle');
       setError(null);
       setSuccess(false);
+      setIsDragging(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
-  }, [isOpen]);
+  }, [isOpen, screenshot?.previewUrl]);
+
+  // Process a file and update screenshot state
+  const processFile = useCallback(
+    (file: File, inputElement?: HTMLInputElement) => {
+      // Validate file type
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setError(
+          t.feedbackModal?.invalidFileType ||
+            'Please upload an image file (PNG, JPEG, GIF, or WebP)'
+        );
+        if (inputElement) inputElement.value = '';
+        setUploadState('idle');
+        return;
+      }
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        setError(
+          t.feedbackModal?.fileTooLarge || 'Screenshot must be less than 5MB'
+        );
+        if (inputElement) inputElement.value = '';
+        setUploadState('idle');
+        return;
+      }
+
+      setError(null);
+      setUploadState('loading');
+
+      // Revoke previous preview URL if exists
+      if (screenshot?.previewUrl) {
+        URL.revokeObjectURL(screenshot.previewUrl);
+      }
+
+      // Create object URL for preview (faster than waiting for FileReader)
+      const previewUrl = URL.createObjectURL(file);
+
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        // Remove the data URL prefix to get just the base64 data
+        const base64Data = base64.split(',')[1];
+        setScreenshot({
+          data: base64Data,
+          filename: file.name,
+          previewUrl,
+        });
+        setUploadState('done');
+      };
+      reader.onerror = () => {
+        setError(
+          t.feedbackModal?.fileReadError || 'Failed to read screenshot file'
+        );
+        URL.revokeObjectURL(previewUrl);
+        setUploadState('idle');
+      };
+      reader.readAsDataURL(file);
+    },
+    [t.feedbackModal, screenshot?.previewUrl]
+  );
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
       setScreenshot(null);
+      setUploadState('idle');
       return;
     }
-
-    // Validate file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      setError(
-        t.feedbackModal?.invalidFileType ||
-          'Please upload an image file (PNG, JPEG, GIF, or WebP)'
-      );
-      e.target.value = '';
-      return;
-    }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      setError(
-        t.feedbackModal?.fileTooLarge || 'Screenshot must be less than 5MB'
-      );
-      e.target.value = '';
-      return;
-    }
-
-    setError(null);
-
-    // Convert to base64
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      // Remove the data URL prefix to get just the base64 data
-      const base64Data = base64.split(',')[1];
-      setScreenshot({
-        data: base64Data,
-        filename: file.name,
-      });
-    };
-    reader.onerror = () => {
-      setError(
-        t.feedbackModal?.fileReadError || 'Failed to read screenshot file'
-      );
-    };
-    reader.readAsDataURL(file);
+    processFile(file, e.target);
   };
 
   const removeScreenshot = () => {
+    // Revoke object URL to prevent memory leaks
+    if (screenshot?.previewUrl) {
+      URL.revokeObjectURL(screenshot.previewUrl);
+    }
     setScreenshot(null);
+    setUploadState('idle');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
+
+  // Handle clipboard paste
+  const handlePaste = useCallback(
+    (e: ClipboardEvent<HTMLDivElement>) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            // Generate a filename for pasted images
+            const extension = item.type.split('/')[1] || 'png';
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const pastedFile = new File(
+              [file],
+              `screenshot-${timestamp}.${extension}`,
+              { type: file.type }
+            );
+            processFile(pastedFile);
+          }
+          break;
+        }
+      }
+    },
+    [processFile]
+  );
+
+  // Handle drag and drop
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set isDragging to false if we're leaving the drop zone entirely
+    if (!dropZoneRef.current?.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        // Take only the first image file
+        for (const file of files) {
+          if (ALLOWED_TYPES.includes(file.type)) {
+            processFile(file);
+            break;
+          }
+        }
+      }
+    },
+    [processFile]
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -360,48 +469,99 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   {t.feedbackModal?.screenshotLabel || 'Screenshot'} (
                   {t.feedbackModal?.optional || 'optional'})
                 </label>
-                {screenshot ? (
-                  <div className="flex items-center gap-3 p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                {uploadState === 'loading' ? (
+                  /* Loading state with spinner */
+                  <div
+                    className="flex items-center justify-center gap-3 p-6 bg-zinc-100 dark:bg-zinc-800 rounded-lg"
+                    data-testid="screenshot-loading"
+                  >
                     <svg
+                      className="animate-spin h-6 w-6 text-blue-600"
                       xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
                       viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="w-8 h-8 text-green-600 dark:text-green-400 flex-shrink-0"
                     >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
                       <path
-                        fillRule="evenodd"
-                        d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z"
-                        clipRule="evenodd"
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-300 truncate">
-                      {screenshot.filename}
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {t.feedbackModal?.processingScreenshot ||
+                        'Processing screenshot...'}
                     </span>
-                    <button
-                      type="button"
-                      onClick={removeScreenshot}
-                      className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-                      aria-label={
-                        t.feedbackModal?.removeScreenshot || 'Remove screenshot'
-                      }
-                      data-testid="remove-screenshot"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        className="w-5 h-5 text-zinc-500"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
-                          clipRule="evenodd"
+                  </div>
+                ) : screenshot ? (
+                  /* Screenshot preview with thumbnail */
+                  <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      {/* Thumbnail preview */}
+                      <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-200 dark:bg-zinc-700">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={screenshot.previewUrl}
+                          alt="Screenshot preview"
+                          className="w-full h-full object-cover"
+                          data-testid="screenshot-preview"
                         />
-                      </svg>
-                    </button>
+                      </div>
+                      {/* File info and remove button */}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-sm text-zinc-700 dark:text-zinc-300 truncate"
+                          title={screenshot.filename}
+                        >
+                          {screenshot.filename}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={removeScreenshot}
+                          className="mt-2 flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                          aria-label={
+                            t.feedbackModal?.removeScreenshot ||
+                            'Remove screenshot'
+                          }
+                          data-testid="remove-screenshot"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="w-4 h-4"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          {t.feedbackModal?.removeScreenshot ||
+                            'Remove screenshot'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="relative">
+                  /* Upload area with drag & drop and paste support */
+                  <div
+                    ref={dropZoneRef}
+                    className="relative"
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onPaste={handlePaste}
+                    tabIndex={0}
+                    data-testid="screenshot-dropzone"
+                  >
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -410,25 +570,38 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       data-testid="screenshot-input"
                     />
-                    <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-zinc-300 dark:border-zinc-600 rounded-lg text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors cursor-pointer">
+                    <div
+                      className={`flex flex-col items-center justify-center gap-2 px-4 py-5 border-2 border-dashed rounded-lg transition-colors cursor-pointer ${
+                        isDragging
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                          : 'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                      }`}
+                    >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 20 20"
                         fill="currentColor"
-                        className="w-5 h-5"
+                        className="w-6 h-6"
                       >
                         <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
                         <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
                       </svg>
-                      <span className="text-sm">
-                        {t.feedbackModal?.uploadScreenshot ||
-                          'Upload screenshot (PNG, JPEG, GIF, WebP)'}
+                      <span className="text-sm font-medium">
+                        {isDragging
+                          ? t.feedbackModal?.dropScreenshot || 'Drop image here'
+                          : t.feedbackModal?.uploadScreenshot ||
+                            'Upload screenshot'}
+                      </span>
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                        {t.feedbackModal?.pasteHint ||
+                          'or paste from clipboard (Ctrl+V / Cmd+V)'}
                       </span>
                     </div>
                   </div>
                 )}
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  {t.feedbackModal?.screenshotHint || 'Max 5MB'}
+                  {t.feedbackModal?.screenshotHint ||
+                    'Max 5MB. Supports PNG, JPEG, GIF, WebP'}
                 </p>
               </div>
 

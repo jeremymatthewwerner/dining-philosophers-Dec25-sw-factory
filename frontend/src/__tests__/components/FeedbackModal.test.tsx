@@ -29,6 +29,10 @@ const createMockFile = (name: string, size: number, type: string): File => {
   return new File([content], name, { type });
 };
 
+// Mock URL.createObjectURL and URL.revokeObjectURL
+const mockCreateObjectURL = jest.fn(() => 'blob:mock-url');
+const mockRevokeObjectURL = jest.fn();
+
 describe('FeedbackModal', () => {
   const defaultProps = {
     isOpen: true,
@@ -43,6 +47,10 @@ describe('FeedbackModal', () => {
     });
     // Default to no user logged in
     mockGetStoredUser.mockReturnValue(null);
+
+    // Setup URL mocks
+    URL.createObjectURL = mockCreateObjectURL;
+    URL.revokeObjectURL = mockRevokeObjectURL;
   });
 
   it('renders modal when open', () => {
@@ -330,7 +338,7 @@ describe('FeedbackModal', () => {
     });
   });
 
-  it('displays uploaded file name and remove button', async () => {
+  it('displays uploaded file name, thumbnail preview, and remove button', async () => {
     render(<FeedbackModal {...defaultProps} />);
 
     const input = screen.getByTestId('screenshot-input');
@@ -364,6 +372,12 @@ describe('FeedbackModal', () => {
     await waitFor(() => {
       expect(screen.getByText('screenshot.png')).toBeInTheDocument();
       expect(screen.getByTestId('remove-screenshot')).toBeInTheDocument();
+      // Check for thumbnail preview
+      expect(screen.getByTestId('screenshot-preview')).toBeInTheDocument();
+      expect(screen.getByTestId('screenshot-preview')).toHaveAttribute(
+        'src',
+        'blob:mock-url'
+      );
     });
   });
 
@@ -428,6 +442,103 @@ describe('FeedbackModal', () => {
       expect(screen.getByTestId('feedback-error')).toHaveTextContent(
         'Unable to connect to the server'
       );
+    });
+  });
+
+  it('shows loading state while processing screenshot', async () => {
+    render(<FeedbackModal {...defaultProps} />);
+
+    const input = screen.getByTestId('screenshot-input');
+    const file = createMockFile('screenshot.png', 1000, 'image/png');
+
+    // Mock FileReader but don't trigger onload yet
+    const mockFileReader = {
+      readAsDataURL: jest.fn(),
+      result: 'data:image/png;base64,dGVzdA==',
+      onload: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+      onerror: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+    };
+    jest
+      .spyOn(window, 'FileReader')
+      .mockImplementation(() => mockFileReader as unknown as FileReader);
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Should show loading state
+    await waitFor(() => {
+      expect(screen.getByTestId('screenshot-loading')).toBeInTheDocument();
+      expect(screen.getByText('Processing screenshot...')).toBeInTheDocument();
+    });
+
+    // Trigger the onload callback
+    if (mockFileReader.onload) {
+      mockFileReader.onload.call(
+        mockFileReader as unknown as FileReader,
+        {} as ProgressEvent<FileReader>
+      );
+    }
+
+    // Should now show preview
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('screenshot-loading')
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId('screenshot-preview')).toBeInTheDocument();
+    });
+  });
+
+  it('shows drop zone with paste hint text', () => {
+    render(<FeedbackModal {...defaultProps} />);
+
+    expect(screen.getByTestId('screenshot-dropzone')).toBeInTheDocument();
+    expect(screen.getByText(/paste from clipboard/i)).toBeInTheDocument();
+  });
+
+  it('revokes object URL when screenshot is removed', async () => {
+    render(<FeedbackModal {...defaultProps} />);
+
+    const input = screen.getByTestId('screenshot-input');
+    const file = createMockFile('screenshot.png', 1000, 'image/png');
+
+    // Mock FileReader
+    const mockFileReader = {
+      readAsDataURL: jest.fn(),
+      result: 'data:image/png;base64,dGVzdA==',
+      onload: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+      onerror: null as
+        | ((this: FileReader, ev: ProgressEvent<FileReader>) => unknown)
+        | null,
+    };
+    jest
+      .spyOn(window, 'FileReader')
+      .mockImplementation(() => mockFileReader as unknown as FileReader);
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Trigger the onload callback
+    if (mockFileReader.onload) {
+      mockFileReader.onload.call(
+        mockFileReader as unknown as FileReader,
+        {} as ProgressEvent<FileReader>
+      );
+    }
+
+    await waitFor(() => {
+      expect(screen.getByTestId('screenshot-preview')).toBeInTheDocument();
+    });
+
+    // Remove screenshot
+    fireEvent.click(screen.getByTestId('remove-screenshot'));
+
+    // Check that revokeObjectURL was called
+    await waitFor(() => {
+      expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
     });
   });
 
