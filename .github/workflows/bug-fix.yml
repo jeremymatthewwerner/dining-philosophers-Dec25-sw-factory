@@ -1014,10 +1014,10 @@ jobs:
 
           cc @${ISSUE_AUTHOR}"
 
-                  # Explicitly close issue - GitHub's auto-close doesn't work when merging via API/CLI
-                  echo "Closing issue #${{ steps.context.outputs.number }}..."
-                  gh issue close ${{ steps.context.outputs.number }} \
-                    --comment "Closed by PR #${PR_NUMBER}" 2>/dev/null || echo "Issue already closed or not found"
+                  # NOTE: Do NOT close issue here - violates CLAUDE.md workflow rules!
+                  # Issues are closed by CI close-issues job AFTER deploy + smoke tests pass
+                  # This ensures issues are only marked "complete" when fixes are actually in production
+                  echo "PR #${PR_NUMBER} merged successfully - issue will close after deploy"
 
                   # Trigger CI/CD workflow via repository_dispatch since GITHUB_TOKEN merges don't trigger push events
                   echo "Triggering deploy via repository_dispatch..."
