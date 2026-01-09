@@ -20,7 +20,8 @@
   },
   "languages": {
     "en": "English",
-    "es": "Español"
+    "es": "Español",
+    "fr": "Français"
   },
   "sidebar": {
     "appTitle": "Dining Philosophers",
