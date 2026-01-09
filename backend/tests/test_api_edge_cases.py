@@ -316,7 +316,7 @@ class TestAuthEdgeCases:
                 "username": "languser",
                 "display_name": "Lang User",
                 "password": "password123",
-                "language_preference": "fr",  # Only 'en' and 'es' are valid
+                "language_preference": "invalid",  # Only 'en', 'es', and 'fr' are valid
             },
         )
         assert response.status_code == 422  # Validation error

@@ -30,6 +30,7 @@ THINKING_COST_PER_TOKEN = 0.000015  # $15 per million thinking tokens
 LANGUAGE_NAMES = {
     "en": "English",
     "es": "Spanish",
+    "fr": "French",
 }
 
 
@@ -829,6 +830,19 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                 ("Déjame ", "Veamos... "),
                 ("Puedo ", "Podría "),
             ]
+        elif language == "fr":
+            # French replacements
+            replacements = [
+                ("Je devrais ", "Peut-être que je devrais "),
+                ("J'ai besoin de ", "Hmm, j'ai besoin de "),
+                ("Je pense que ", ""),
+                ("Je crois que ", ""),
+                ("Je vais ", "Je pourrais "),
+                ("L'utilisateur ", "Ils "),
+                ("l'utilisateur ", "ils "),
+                ("Laissez-moi ", "Voyons... "),
+                ("Je peux ", "Je pourrais "),
+            ]
         else:
             # English replacements (default)
             replacements = [
@@ -860,6 +874,18 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
             ]
             # Spanish starter detection
             starter_prefixes = ("hmm", "veamos", "déjame", "interesante", "*")
+        elif language == "fr":
+            starters = [
+                "Hmm... ",
+                "Voyons... ",
+                "Intéressant... ",
+                "Laissez-moi réfléchir... ",
+                "*réfléchissant* ",
+                "",  # Sometimes no prefix
+                "",
+            ]
+            # French starter detection
+            starter_prefixes = ("hmm", "voyons", "laissez", "intéressant", "*")
         else:
             starters = [
                 "Hmm... ",
