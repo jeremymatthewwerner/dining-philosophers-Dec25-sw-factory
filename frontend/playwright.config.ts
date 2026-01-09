@@ -7,9 +7,18 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   /* Use 4 workers in CI for parallel test execution across multiple test files */
   workers: process.env.CI ? 4 : undefined,
-  /* Use multiple reporters: html for local dev, json for CI parsing */
+  /* Use multiple reporters: html for local dev, json for CI parsing, github-progress for real-time updates */
   reporter: process.env.CI
-    ? [['html'], ['json', { outputFile: 'test-results/results.json' }]]
+    ? process.env.CI_COMMENT_ID
+      ? [
+          ['html'],
+          ['json', { outputFile: 'test-results/results.json' }],
+          ['./e2e/github-progress-reporter.ts'],
+        ]
+      : [
+          ['html'],
+          ['json', { outputFile: 'test-results/results.json' }],
+        ]
     : 'html',
   /* Increase timeout for tests using real API calls */
   timeout: process.env.CI ? 90000 : 90000,

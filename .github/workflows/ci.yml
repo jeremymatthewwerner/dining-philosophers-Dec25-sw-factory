@@ -161,8 +161,58 @@ jobs:
       - name: Wait for backend
         run: sleep 5
 
+      - name: Setup real-time progress reporting
+        id: progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract issue number from branch name (patterns: fix/123-desc, feat/123-desc, or ending with -123)
+          BRANCH="${{ github.head_ref }}"
+          ISSUE_NUMBER=""
+          if [[ "$BRANCH" =~ ^(fix|feat)/([0-9]+) ]]; then
+            ISSUE_NUMBER="${BASH_REMATCH[2]}"
+          elif [[ "$BRANCH" =~ -([0-9]+)$ ]]; then
+            ISSUE_NUMBER="${BASH_REMATCH[1]}"
+          fi
+
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "No issue number found in branch name, skipping real-time progress"
+            echo "comment_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Found issue number: $ISSUE_NUMBER"
+
+          # Look for existing CI status comment
+          COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+            --jq '.[] | select(.body | contains("<!-- ci-watcher -->")) | .id' 2>/dev/null | tail -1 || echo "")
+
+          if [ -z "$COMMENT_ID" ]; then
+            # Create new comment for real-time progress
+            BODY="<!-- ci-watcher -->
+          ## 🔄 CI Status
+
+          **Status:** ⏳ Starting E2E tests...
+          **Run:** [View logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          *Starting: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
+
+            COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+              -X POST -f body="$BODY" --jq '.id' 2>/dev/null || echo "")
+            echo "Created new CI status comment: $COMMENT_ID"
+          else
+            echo "Found existing CI status comment: $COMMENT_ID"
+          fi
+
+          echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+
       - name: Run E2E tests
         working-directory: frontend
+        env:
+          # Real-time progress reporter configuration
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          CI_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
         # Only run chromium project - WebKit/iOS projects require additional browser install
         run: npm run test:e2e -- --project=chromium
 
