@@ -3,6 +3,7 @@
 import { createContext, useContext, useState } from 'react';
 import en from '@/locales/en.json';
 import es from '@/locales/es.json';
+import fr from '@/locales/fr.json';
 import { useAuth } from './AuthContext';
 import * as api from '@/lib/api';
 
@@ -11,6 +12,7 @@ type Translations = typeof en;
 const translations: Record<string, Translations> = {
   en,
   es,
+  fr,
 };
 
 /**

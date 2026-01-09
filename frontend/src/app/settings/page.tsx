@@ -255,6 +255,7 @@ export default function SettingsPage() {
             >
               <option value="en">{t.languages.en}</option>
               <option value="es">{t.languages.es}</option>
+              <option value="fr">{t.languages.fr}</option>
             </select>
           </div>
         </div>
