@@ -138,37 +138,31 @@ jobs:
             fi
 
             # Parse Playwright JSON results
+            # Structure: .suites[] (per file) -> .suites[] (describe blocks) -> .specs[] (tests)
+            # Each spec has .ok (boolean) and nested .tests[].results[].duration (ms)
             if [ -f /tmp/e2e-results/results.json ]; then
               # Generate sub-rows for each test file
               cat /tmp/e2e-results/results.json | jq -r '
                 .suites[]? |
-                "| ↳ \(.title // .file | split("/") | last) | " +
-                (
-                  (.specs // []) as $specs |
-                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
-                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
-                  ($specs | map(select(.tests[0].results[0].status == "timedOut")) | length) as $timedout |
-                  ($specs | map(select(.tests[0].results[0].status == "skipped")) | length) as $skipped |
-                  ($specs | length) as $total |
-                  if $failed > 0 or $timedout > 0 then "❌"
-                  elif $passed == $total then "✅"
-                  elif $passed > 0 then "🔄"
-                  else "⏳" end
-                ) + " " +
-                (
-                  (.specs // []) as $specs |
-                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
-                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
-                  ($specs | length) as $total |
-                  "\($passed)/\($total) passed" + (if $failed > 0 then " (\($failed) failed)" else "" end)
-                ) + " | " +
-                (
-                  (.specs // []) |
-                  map(.tests[0].results[0].duration // 0) |
-                  add // 0 |
-                  . / 1000 |
-                  if . > 0 then "\(. | floor)s" else "-" end
-                ) + " |"
+                . as $file |
+                # Collect all specs from nested suites (describe blocks)
+                [.suites[]?.specs[]?] as $all_specs |
+                # Count passed/failed using .ok field on each spec
+                ($all_specs | map(select(.ok == true)) | length) as $passed |
+                ($all_specs | map(select(.ok == false)) | length) as $failed |
+                ($all_specs | length) as $total |
+                # Calculate total duration from all test results (in ms)
+                ($all_specs | [.[].tests[]?.results[]?.duration // 0] | add // 0) as $duration_ms |
+                # Format duration as seconds with 1 decimal
+                (if $duration_ms > 0 then (($duration_ms / 1000 * 10 | floor) / 10 | tostring) + "s" else "-" end) as $duration |
+                # Status icon
+                (if $total == 0 then "⏳"
+                 elif $failed > 0 then "❌"
+                 elif $passed == $total then "✅"
+                 elif $passed > 0 then "🔄"
+                 else "⏳" end) as $icon |
+                # Output table row
+                "| ↳ \(.title // .file | split("/") | last) | \($icon) \($passed)/\($total) passed\(if $failed > 0 then " (\($failed) failed)" else "" end) | \($duration) |"
               ' 2>/dev/null || echo ""
             else
               echo ""
@@ -292,37 +286,31 @@ jobs:
             fi
 
             # Parse Playwright JSON results
+            # Structure: .suites[] (per file) -> .suites[] (describe blocks) -> .specs[] (tests)
+            # Each spec has .ok (boolean) and nested .tests[].results[].duration (ms)
             if [ -f /tmp/e2e-results/results.json ]; then
               # Generate sub-rows for each test file
               cat /tmp/e2e-results/results.json | jq -r '
                 .suites[]? |
-                "| ↳ \(.title // .file | split("/") | last) | " +
-                (
-                  (.specs // []) as $specs |
-                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
-                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
-                  ($specs | map(select(.tests[0].results[0].status == "timedOut")) | length) as $timedout |
-                  ($specs | map(select(.tests[0].results[0].status == "skipped")) | length) as $skipped |
-                  ($specs | length) as $total |
-                  if $failed > 0 or $timedout > 0 then "❌"
-                  elif $passed == $total then "✅"
-                  elif $passed > 0 then "🔄"
-                  else "⏳" end
-                ) + " " +
-                (
-                  (.specs // []) as $specs |
-                  ($specs | map(select(.tests[0].results[0].status == "passed")) | length) as $passed |
-                  ($specs | map(select(.tests[0].results[0].status == "failed")) | length) as $failed |
-                  ($specs | length) as $total |
-                  "\($passed)/\($total) passed" + (if $failed > 0 then " (\($failed) failed)" else "" end)
-                ) + " | " +
-                (
-                  (.specs // []) |
-                  map(.tests[0].results[0].duration // 0) |
-                  add // 0 |
-                  . / 1000 |
-                  if . > 0 then "\(. | floor)s" else "-" end
-                ) + " |"
+                . as $file |
+                # Collect all specs from nested suites (describe blocks)
+                [.suites[]?.specs[]?] as $all_specs |
+                # Count passed/failed using .ok field on each spec
+                ($all_specs | map(select(.ok == true)) | length) as $passed |
+                ($all_specs | map(select(.ok == false)) | length) as $failed |
+                ($all_specs | length) as $total |
+                # Calculate total duration from all test results (in ms)
+                ($all_specs | [.[].tests[]?.results[]?.duration // 0] | add // 0) as $duration_ms |
+                # Format duration as seconds with 1 decimal
+                (if $duration_ms > 0 then (($duration_ms / 1000 * 10 | floor) / 10 | tostring) + "s" else "-" end) as $duration |
+                # Status icon
+                (if $total == 0 then "⏳"
+                 elif $failed > 0 then "❌"
+                 elif $passed == $total then "✅"
+                 elif $passed > 0 then "🔄"
+                 else "⏳" end) as $icon |
+                # Output table row
+                "| ↳ \(.title // .file | split("/") | last) | \($icon) \($passed)/\($total) passed\(if $failed > 0 then " (\($failed) failed)" else "" end) | \($duration) |"
               ' 2>/dev/null || echo ""
             else
               echo ""
