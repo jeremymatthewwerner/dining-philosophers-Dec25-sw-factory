@@ -7,19 +7,21 @@
 
 import React from 'react';
 import { render as rtlRender, RenderOptions } from '@testing-library/react';
-import { AuthProvider, LanguageProvider } from '@/contexts';
+import { AuthProvider, LanguageProvider, ThemeProvider } from '@/contexts';
 
 /**
  * Custom render function that wraps components with necessary providers.
  *
- * This ensures all components have access to AuthContext and LanguageContext
+ * This ensures all components have access to AuthContext, LanguageContext, and ThemeContext
  * during testing, preventing "useLanguage must be used within a LanguageProvider" errors.
  */
 function AllTheProviders({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <LanguageProvider>{children}</LanguageProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <LanguageProvider>{children}</LanguageProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

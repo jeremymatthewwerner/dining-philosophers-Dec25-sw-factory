@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useTheme, ThemeMode } from '@/contexts';
 import * as api from '@/lib/api';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, updateDisplayName } = useAuth();
   const { t, locale, setLocale } = useLanguage();
+  const { theme, setTheme } = useTheme();
 
   // Display name form state
   const [displayName, setDisplayName] = useState('');
@@ -221,6 +223,35 @@ export default function SettingsPage() {
               <option value="en">{t.languages.en}</option>
               <option value="es">{t.languages.es}</option>
             </select>
+          </div>
+        </div>
+
+        {/* Theme Section */}
+        <div className="mb-6 rounded-lg bg-white p-6 shadow dark:bg-zinc-800">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            {t.settingsPage.themeSection}
+          </h2>
+
+          <div>
+            <label
+              htmlFor="theme"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            >
+              {t.settingsPage.themePreference}
+            </label>
+            <select
+              id="theme"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as ThemeMode)}
+              className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+            >
+              <option value="system">{t.settingsPage.themeSystem}</option>
+              <option value="light">{t.settingsPage.themeLight}</option>
+              <option value="dark">{t.settingsPage.themeDark}</option>
+            </select>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {t.settingsPage.themeHelp}
+            </p>
           </div>
         </div>
 
