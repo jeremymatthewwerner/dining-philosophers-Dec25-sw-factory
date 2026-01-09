@@ -376,6 +376,48 @@ jobs:
             echo "has_untriggered=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check for pending @factory-manager mentions
+        id: pending_mentions
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Checking for @factory-manager mentions from bots (don't trigger workflows)..."
+
+          # Bot comments don't trigger issue_comment events, so we need to poll
+          # Find issues with @factory-manager mentions that Factory Manager hasn't responded to
+
+          PENDING_ISSUES=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --state open \
+            --json number,title,comments | jq '
+              [.[] |
+                # Check if there is a @factory-manager mention
+                select(.comments | map(.body) | join(" ") | test("@factory-manager|@Factory-Manager")) |
+                # Check if Factory Manager has NOT responded after the mention
+                select(
+                  # Get index of last @factory-manager mention
+                  (.comments | to_entries | map(select(.value.body | test("@factory-manager|@Factory-Manager"))) | last | .key) as $mention_idx |
+                  # Get index of last Factory Manager response
+                  ((.comments | to_entries | map(select(.value.body | contains("[Factory Manager]"))) | last | .key) // -1) as $response_idx |
+                  # Pending if mention is after response (or no response)
+                  $mention_idx > $response_idx
+                ) |
+                {number, title}
+              ]
+            ' 2>/dev/null || echo "[]")
+
+          COUNT=$(echo "$PENDING_ISSUES" | jq 'length')
+          echo "Found $COUNT issues with pending @factory-manager mentions"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "has_pending_mentions=true" >> $GITHUB_OUTPUT
+            echo "pending_issues<<EOF" >> $GITHUB_OUTPUT
+            echo "$PENDING_ISSUES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "has_pending_mentions=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Check for unlabeled issues (failed triage)
         id: unlabeled
         env:
@@ -844,6 +886,36 @@ jobs:
 
           echo "Re-triggered triage on $RETRIAGE_COUNT issues"
 
+      - name: Handle pending @factory-manager mentions
+        if: steps.pending_mentions.outputs.has_pending_mentions == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          PENDING_ISSUES: ${{ steps.pending_mentions.outputs.pending_issues }}
+        run: |
+          echo "Handling pending @factory-manager mentions (bot comments don't trigger workflows)..."
+
+          HANDLED_COUNT=0
+          MAX_HANDLE=2  # Limit to avoid long health check runs
+
+          echo "$PENDING_ISSUES" | jq -c '.[]' | head -$MAX_HANDLE | while read -r issue; do
+            ISSUE_NUM=$(echo "$issue" | jq -r '.number')
+            ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
+
+            echo "Triggering diagnose-issue for #$ISSUE_NUM: $ISSUE_TITLE"
+
+            # Trigger Factory Manager's diagnose-issue via workflow_dispatch
+            gh workflow run factory-manager.yml \
+              --repo ${{ github.repository }} \
+              -f action=diagnose-issue \
+              -f issue_number="$ISSUE_NUM" 2>/dev/null || {
+              echo "::warning::Failed to trigger diagnose-issue for #$ISSUE_NUM"
+            }
+
+            HANDLED_COUNT=$((HANDLED_COUNT + 1))
+          done
+
+          echo "Triggered diagnose-issue for $HANDLED_COUNT pending mentions"
+
       - name: Log health check results
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -854,6 +926,7 @@ jobs:
           LONGRUNNING_CI_COUNT: ${{ steps.longrunning_ci.outputs.has_longrunning_ci == 'true' && '1' || '0' }}
           UNTRIGGERED_COUNT: ${{ steps.untriggered.outputs.has_untriggered == 'true' && '1' || '0' }}
           UNLABELED_COUNT: ${{ steps.unlabeled.outputs.has_unlabeled == 'true' && '1' || '0' }}
+          PENDING_MENTIONS_COUNT: ${{ steps.pending_mentions.outputs.has_pending_mentions == 'true' && '1' || '0' }}
         run: |
           echo "=== Factory Health Check Complete ==="
           echo "Stuck issues found: $STUCK_COUNT"
@@ -863,6 +936,7 @@ jobs:
           echo "Long-running E2E tests (>10 min): $LONGRUNNING_CI_COUNT"
           echo "Untriggered triaged issues: $UNTRIGGERED_COUNT"
           echo "Unlabeled issues (failed triage): $UNLABELED_COUNT"
+          echo "Pending @factory-manager mentions: $PENDING_MENTIONS_COUNT"
           echo ""
           echo "Next check in 5 minutes"
 
