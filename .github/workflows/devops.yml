@@ -874,6 +874,14 @@ jobs:
             if [ $? -eq 0 ]; then
               echo "✅ Created issue: $ISSUE_URL"
 
+              # Extract issue number and trigger Code Agent
+              # (Feedback issues have pre-assigned labels so Triage Agent skips them)
+              ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+              if [ -n "$ISSUE_NUM" ]; then
+                echo "Triggering Code Agent on issue #$ISSUE_NUM..."
+                gh issue comment "$ISSUE_NUM" --body "@code This issue was created from user feedback. Please investigate and address the user's ${FEEDBACK_TYPE} report." || echo "::warning::Failed to trigger Code Agent for issue #$ISSUE_NUM"
+              fi
+
               # Mark feedback as processed with the issue URL
               PATCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
                 --max-time 30 \
