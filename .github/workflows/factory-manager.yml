@@ -28,6 +28,7 @@ permissions:
   pull-requests: write
   actions: read
   id-token: write
+  workflows: write  # Required to push workflow file changes
 
 # Only one Factory Manager run at a time
 concurrency:
