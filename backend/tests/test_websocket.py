@@ -347,32 +347,9 @@ class TestCostAccumulation:
         self, db_session: AsyncSession
     ) -> None:
         """Test that saving a thinker message updates the user's total_spend."""
-        # Create a user
-        user = User(
-            username="test_user",
-            password_hash="test_hash",
-            total_spend=0.0,
-        )
-        db_session.add(user)
-        await db_session.commit()
-        await db_session.refresh(user)
+        from tests.conftest import create_test_user_session_conversation
 
-        # Create a session for the user
-        session = Session(
-            user_id=user.id,
-        )
-        db_session.add(session)
-        await db_session.commit()
-        await db_session.refresh(session)
-
-        # Create a conversation for the session
-        conversation = Conversation(
-            session_id=session.id,
-            topic="Test conversation about philosophy",
-        )
-        db_session.add(conversation)
-        await db_session.commit()
-        await db_session.refresh(conversation)
+        user, session, conversation = await create_test_user_session_conversation(db_session)
 
         # Save a thinker message with cost
         cost_1 = 0.05
@@ -415,32 +392,9 @@ class TestCostAccumulation:
     @pytest.mark.asyncio
     async def test_save_thinker_message_with_zero_cost(self, db_session: AsyncSession) -> None:
         """Test that saving a message with zero cost still works correctly."""
-        # Create a user
-        user = User(
-            username="test_user_zero",
-            password_hash="test_hash",
-            total_spend=0.0,
-        )
-        db_session.add(user)
-        await db_session.commit()
-        await db_session.refresh(user)
+        from tests.conftest import create_test_user_session_conversation
 
-        # Create a session for the user
-        session = Session(
-            user_id=user.id,
-        )
-        db_session.add(session)
-        await db_session.commit()
-        await db_session.refresh(session)
-
-        # Create a conversation for the session
-        conversation = Conversation(
-            session_id=session.id,
-            topic="Test conversation",
-        )
-        db_session.add(conversation)
-        await db_session.commit()
-        await db_session.refresh(conversation)
+        user, session, conversation = await create_test_user_session_conversation(db_session)
 
         # Save a message with zero cost
         message = await save_thinker_message(

@@ -2,7 +2,52 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
-## 0. DevOps API Integration Tests (Added 2026-01-07)
+## 0. Test Refactoring - Friday Focus (Added 2026-01-09)
+
+### 0.1 Backend Test Helper Functions
+**File**: `backend/tests/conftest.py`
+**Purpose**: Reduce duplication in test setup code across backend tests
+
+**Helpers Added**:
+- ✅ `create_test_user_session_conversation(db_session)` - Creates user, session, and conversation for WebSocket tests
+  - Consolidates 25+ lines of repeated database setup code
+  - Used in `test_websocket.py::TestCostAccumulation`
+
+**Files Refactored**:
+- `backend/tests/test_websocket.py` - Replaced 50+ lines of duplicate DB setup with helper calls
+
+**Impact**:
+- Reduced ~50 lines of duplication in test_websocket.py
+- Future WebSocket tests can reuse this helper
+- No coverage change (maintained 77%)
+
+### 0.2 Frontend Test Factory Functions
+**File**: `frontend/src/test-utils.tsx`
+**Purpose**: Reduce duplication of test data creation across component tests
+
+**Factories Added**:
+- ✅ `createThinker(overrides)` - Creates mock Thinker object
+- ✅ `createConversation(overrides)` - Creates mock Conversation object with default thinkers
+- ✅ `createMessage(overrides)` - Creates mock Message object
+- ✅ `createConversationSummary(overrides)` - Creates mock ConversationSummary for sidebar tests
+
+**Files Refactored**:
+- `frontend/src/__tests__/components/ChatArea.test.tsx` - Replaced local factories with centralized ones
+- `frontend/src/__tests__/components/Sidebar.test.tsx` - Replaced local factories with centralized ones
+
+**Impact**:
+- Reduced ~40 lines of duplication across component tests
+- Future component tests can reuse these factories
+- All 278 frontend tests still pass
+- No coverage change (maintained 75%)
+
+**Benefits**:
+- Consistency: All tests use same default values for test objects
+- Maintainability: Changing test data structure requires updates in one place
+- Readability: Factory functions have clear names and intent
+- DRY principle: Eliminated copy-paste of object creation code
+
+## 1. DevOps API Integration Tests (Added 2026-01-07)
 
 ### 0.1 DevOps API Authentication
 **File**: `tests/test_devops_api.py`

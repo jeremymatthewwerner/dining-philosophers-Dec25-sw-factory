@@ -1,36 +1,12 @@
-import { render, screen, fireEvent } from '@/test-utils';
+import {
+  render,
+  screen,
+  fireEvent,
+  createConversation,
+  createMessage,
+} from '@/test-utils';
 import { ChatArea } from '@/components/ChatArea';
 import type { Conversation, Message } from '@/types';
-
-const createConversation = (): Conversation => ({
-  id: 'conv-1',
-  session_id: 'session-1',
-  topic: 'Philosophy of Mind',
-  thinkers: [
-    {
-      id: 'thinker-1',
-      name: 'Socrates',
-      bio: 'Ancient philosopher',
-      positions: 'Socratic method',
-      style: 'Questions everything',
-      color: '#3B82F6',
-    },
-  ],
-  messages: [],
-  total_cost: 0,
-  created_at: '2024-01-15T10:00:00Z',
-  updated_at: new Date().toISOString(),
-});
-
-const createMessage = (id: string, content: string): Message => ({
-  id,
-  conversation_id: 'conv-1',
-  sender_type: 'user',
-  sender_name: null,
-  content,
-  cost: null,
-  created_at: new Date().toISOString(),
-});
 
 describe('ChatArea', () => {
   const defaultProps = {
@@ -60,7 +36,10 @@ describe('ChatArea', () => {
 
   it('renders messages', () => {
     const conversation = createConversation();
-    const messages = [createMessage('1', 'Hello'), createMessage('2', 'World')];
+    const messages = [
+      createMessage({ id: '1', content: 'Hello' }),
+      createMessage({ id: '2', content: 'World' }),
+    ];
     render(
       <ChatArea
         {...defaultProps}

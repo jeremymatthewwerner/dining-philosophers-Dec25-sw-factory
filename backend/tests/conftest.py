@@ -355,3 +355,49 @@ def create_thinker_input(
         "positions": positions or f"Positions of {name}",
         "style": style or f"Style of {name}",
     }
+
+
+# WebSocket test helpers
+async def create_test_user_session_conversation(
+    db_session: AsyncSession,
+) -> tuple[Any, Any, Any]:
+    """Create test user, session, and conversation for WebSocket tests.
+
+    Reduces duplication of database setup pattern that appears in test_websocket.py.
+
+    Args:
+        db_session: Database session
+
+    Returns:
+        Tuple of (user, session, conversation)
+    """
+    from app.models import Conversation, Session, User
+
+    # Create a user
+    user = User(
+        username="test_user",
+        password_hash="test_hash",
+        total_spend=0.0,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    # Create a session for the user
+    session = Session(
+        user_id=user.id,
+    )
+    db_session.add(session)
+    await db_session.commit()
+    await db_session.refresh(session)
+
+    # Create a conversation for the session
+    conversation = Conversation(
+        session_id=session.id,
+        topic="Test conversation about philosophy",
+    )
+    db_session.add(conversation)
+    await db_session.commit()
+    await db_session.refresh(conversation)
+
+    return user, session, conversation

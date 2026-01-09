@@ -242,3 +242,94 @@ export function createNewChatModalProps(
     ...overrides,
   };
 }
+
+/**
+ * Create a mock Thinker object for testing.
+ *
+ * Reduces duplication of thinker object creation across component tests
+ * (ChatArea.test.tsx, NewChatModal.test.tsx, etc.).
+ *
+ * @param overrides - Optional overrides for default values
+ * @returns Mock Thinker object
+ */
+export function createThinker(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'thinker-1',
+    name: 'Socrates',
+    bio: 'Ancient philosopher',
+    positions: 'Socratic method',
+    style: 'Questions everything',
+    color: '#3B82F6',
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock Conversation object for testing.
+ *
+ * Reduces duplication of conversation object creation across component tests
+ * (ChatArea.test.tsx, MessageList.test.tsx, etc.).
+ *
+ * @param overrides - Optional overrides for default values
+ * @returns Mock Conversation object
+ */
+export function createConversation(overrides: Record<string, unknown> = {}) {
+  return {
+    id: TEST_CONVERSATION_ID,
+    session_id: 'session-1',
+    topic: 'Philosophy of Mind',
+    thinkers: [createThinker()],
+    messages: [],
+    total_cost: 0,
+    created_at: TEST_TIMESTAMP,
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock Message object for testing.
+ *
+ * Reduces duplication of message object creation across component tests
+ * (ChatArea.test.tsx, MessageList.test.tsx, Message.test.tsx, etc.).
+ *
+ * @param overrides - Optional overrides for default values
+ * @returns Mock Message object
+ */
+export function createMessage(overrides: Record<string, unknown> = {}) {
+  return {
+    id: TEST_MESSAGE_ID,
+    conversation_id: TEST_CONVERSATION_ID,
+    sender_type: 'user' as const,
+    sender_name: null,
+    content: 'Test message content',
+    cost: null,
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock ConversationSummary object for testing.
+ *
+ * Reduces duplication of conversation summary object creation in Sidebar tests,
+ * ConversationList tests, etc.
+ *
+ * @param overrides - Optional overrides for default values
+ * @returns Mock ConversationSummary object
+ */
+export function createConversationSummary(
+  overrides: Record<string, unknown> = {}
+) {
+  return {
+    id: TEST_CONVERSATION_ID,
+    topic: 'Philosophy of Mind',
+    thinker_names: ['Socrates'],
+    thinkers: [{ name: 'Socrates', image_url: null }],
+    message_count: 5,
+    total_cost: 0.01,
+    created_at: TEST_TIMESTAMP,
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
+}

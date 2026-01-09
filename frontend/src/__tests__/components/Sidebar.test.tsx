@@ -1,20 +1,11 @@
-import { fireEvent, render, screen } from '@/test-utils';
+import {
+  fireEvent,
+  render,
+  screen,
+  createConversationSummary,
+} from '@/test-utils';
 import { Sidebar } from '@/components/Sidebar';
 import type { ConversationSummary } from '@/types';
-
-const createConversation = (
-  id: string,
-  topic: string
-): ConversationSummary => ({
-  id,
-  topic,
-  thinker_names: ['Socrates'],
-  thinkers: [{ name: 'Socrates', image_url: null }],
-  message_count: 5,
-  total_cost: 0.01,
-  created_at: '2024-01-15T10:00:00Z',
-  updated_at: new Date().toISOString(),
-});
 
 describe('Sidebar', () => {
   const defaultProps = {
@@ -79,8 +70,8 @@ describe('Sidebar', () => {
 
   it('renders conversation list', () => {
     const conversations = [
-      createConversation('1', 'Philosophy'),
-      createConversation('2', 'Science'),
+      createConversationSummary({ id: '1', topic: 'Philosophy' }),
+      createConversationSummary({ id: '2', topic: 'Science' }),
     ];
     render(<Sidebar {...defaultProps} conversations={conversations} />);
 
@@ -90,7 +81,9 @@ describe('Sidebar', () => {
 
   it('passes onSelect to conversation list', () => {
     const onSelectConversation = jest.fn();
-    const conversations = [createConversation('1', 'Philosophy')];
+    const conversations = [
+      createConversationSummary({ id: '1', topic: 'Philosophy' }),
+    ];
     render(
       <Sidebar
         {...defaultProps}
