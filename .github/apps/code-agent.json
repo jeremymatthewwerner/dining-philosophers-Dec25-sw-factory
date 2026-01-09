@@ -1,0 +1,23 @@
+{
+  "name": "DP Code Agent",
+  "description": "Autonomous code agent for fixing bugs and implementing features in Dining Philosophers",
+  "url": "https://github.com/jeremymatthewwerner/dining-philosophers-Dec25-sw-factory",
+  "hook_attributes": {
+    "url": "",
+    "active": false
+  },
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "issues": "write",
+    "pull_requests": "write",
+    "actions": "read",
+    "checks": "read",
+    "metadata": "read"
+  },
+  "default_events": [
+    "issue_comment",
+    "issues",
+    "pull_request"
+  ]
+}
