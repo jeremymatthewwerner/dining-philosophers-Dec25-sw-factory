@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '*/5 * * * *'   # Every 5 minutes for health checks
     - cron: '0 6 * * 1'     # Weekly report on Monday 6am UTC
+    - cron: '0 12 * * *'    # Daily canary test at 12pm UTC
   workflow_dispatch:
     inputs:
       action:
@@ -15,6 +16,7 @@ on:
           - trigger-verification
           - weekly-report
           - diagnose-issue
+          - canary-test
       issue_number:
         description: 'Issue number (for diagnose-issue action)'
         required: false
@@ -41,13 +43,75 @@ jobs:
   # ===========================================
   health-check:
     if: |
-      (github.event_name == 'schedule' && github.event.schedule != '0 6 * * 1') ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'full-health-check')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Self-test jq queries
+        id: selftest
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "=== Factory Manager Self-Test ==="
+          echo "Testing that jq queries work correctly with --arg..."
+
+          SELFTEST_PASSED=true
+
+          # Test 1: Verify jq --arg works with threshold-based queries
+          TEST_THRESHOLD="2020-01-01T00:00:00Z"
+          TEST_DATA='[{"createdAt": "2019-01-01T00:00:00Z", "number": 1}, {"createdAt": "2021-01-01T00:00:00Z", "number": 2}]'
+
+          RESULT=$(echo "$TEST_DATA" | jq --arg threshold "$TEST_THRESHOLD" '[.[] | select(.createdAt < $threshold)] | length' 2>&1)
+          if [ "$RESULT" != "1" ]; then
+            echo "::error::Self-test FAILED: jq --arg threshold query returned '$RESULT' instead of '1'"
+            SELFTEST_PASSED=false
+          else
+            echo "✓ Test 1 passed: jq --arg threshold query works"
+          fi
+
+          # Test 2: Verify gh issue list returns valid JSON
+          echo "Testing gh issue list returns valid JSON..."
+          GH_RESULT=$(gh issue list --repo ${{ github.repository }} --state open --limit 1 --json number 2>&1)
+          if ! echo "$GH_RESULT" | jq empty 2>/dev/null; then
+            echo "::error::Self-test FAILED: gh issue list did not return valid JSON: $GH_RESULT"
+            SELFTEST_PASSED=false
+          else
+            echo "✓ Test 2 passed: gh issue list returns valid JSON"
+          fi
+
+          # Test 3: Verify piped jq works with gh output
+          echo "Testing gh | jq pipeline..."
+          PIPE_RESULT=$(gh issue list --repo ${{ github.repository }} --state open --limit 1 --json number | jq 'length' 2>&1)
+          if ! [[ "$PIPE_RESULT" =~ ^[0-9]+$ ]]; then
+            echo "::error::Self-test FAILED: gh | jq pipeline returned non-numeric: $PIPE_RESULT"
+            SELFTEST_PASSED=false
+          else
+            echo "✓ Test 3 passed: gh | jq pipeline works"
+          fi
+
+          # Test 4: Verify error handling works (intentionally bad query should fail gracefully)
+          echo "Testing error handling for bad queries..."
+          BAD_RESULT=$(echo "not json" | jq '.foo' 2>&1 || echo "CAUGHT")
+          if [[ "$BAD_RESULT" == *"CAUGHT"* ]] || [[ "$BAD_RESULT" == *"parse error"* ]]; then
+            echo "✓ Test 4 passed: bad queries fail with visible error"
+          else
+            echo "::warning::Test 4 unclear: bad query result was: $BAD_RESULT"
+          fi
+
+          if [ "$SELFTEST_PASSED" = "true" ]; then
+            echo "=== All self-tests PASSED ==="
+            echo "selftest_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "=== Self-tests FAILED ==="
+            echo "selftest_passed=false" >> $GITHUB_OUTPUT
+            # Don't exit 1 - we want to continue and see what happens
+            # but log clearly that self-tests failed
+            echo "::warning::Factory Manager self-tests failed - queries may not work correctly"
+          fi
 
       - name: Check for stuck issues
         id: stuck
@@ -68,10 +132,19 @@ jobs:
           # 6. Are open
 
           # Note: must pipe to jq instead of using jq --arg (gh doesn't support --arg)
+          # Error handling: log errors visibly but provide fallback for graceful degradation
+          QUERY_ERROR=""
           STUCK_ISSUES=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number,title,labels,updatedAt,comments | jq --arg threshold "$THRESHOLD" '
+            --json number,title,labels,updatedAt,comments 2>&1) || QUERY_ERROR="gh issue list failed"
+
+          if [ -n "$QUERY_ERROR" ] || ! echo "$STUCK_ISSUES" | jq empty 2>/dev/null; then
+            echo "::error::Stuck issues query failed: ${QUERY_ERROR:-invalid JSON response}"
+            echo "Response was: $STUCK_ISSUES"
+            STUCK_ISSUES="[]"
+          else
+            STUCK_ISSUES=$(echo "$STUCK_ISSUES" | jq --arg threshold "$THRESHOLD" '
               [.[] | select(
                 (.labels | map(.name) | (contains(["bug"]) or contains(["enhancement"]))) and
                 (.labels | map(.name) | contains(["factory-meta"]) | not) and
@@ -80,7 +153,8 @@ jobs:
                 (.comments | map(.body) | join(" ") | test("@code|@Code|@claude|@Claude")) and
                 (.updatedAt < $threshold)
               ) | {number, title, updatedAt}]
-            ' 2>/dev/null || echo "[]")
+            ' 2>&1) || { echo "::error::jq filter failed: $STUCK_ISSUES"; STUCK_ISSUES="[]"; }
+          fi
 
           STUCK_COUNT=$(echo "$STUCK_ISSUES" | jq 'length')
           echo "Found $STUCK_COUNT stuck issues"
@@ -136,8 +210,7 @@ jobs:
             --repo ${{ github.repository }} \
             --status failure \
             --limit 20 \
-            --json databaseId,name,conclusion,headBranch,createdAt |
-            --jq '
+            --json databaseId,name,conclusion,headBranch,createdAt | jq '
               [.[] | select(
                 (.createdAt | fromdateiso8601) > (now - 7200) and
                 (.name != "Factory Manager")
@@ -209,8 +282,7 @@ jobs:
             --repo ${{ github.repository }} \
             --status in_progress \
             --limit 20 \
-            --json databaseId,name,headBranch,createdAt |
-            --jq '[.[] | select(.name == "CI/CD")]' 2>/dev/null || echo "[]")
+            --json databaseId,name,headBranch,createdAt | jq '[.[] | select(.name == "CI/CD")]' 2>/dev/null || echo "[]")
 
           # For each run, check if E2E Tests job has been running >10 min
           THRESHOLD_SECS=600  # 10 minutes
@@ -268,10 +340,19 @@ jobs:
           # Find issues that have been triaged (bug or enhancement label) but no @code mention
           # This is @mention based - labels are for categorization only
           # Note: must pipe to jq instead of using jq --arg (gh doesn't support --arg)
-          UNTRIGGERED=$(gh issue list \
+          # Error handling: log errors visibly but provide fallback for graceful degradation
+          QUERY_ERROR=""
+          UNTRIGGERED_RAW=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number,title,labels,createdAt,comments | jq --arg threshold "$THRESHOLD" '
+            --json number,title,labels,createdAt,comments 2>&1) || QUERY_ERROR="gh issue list failed"
+
+          if [ -n "$QUERY_ERROR" ] || ! echo "$UNTRIGGERED_RAW" | jq empty 2>/dev/null; then
+            echo "::error::Untriggered issues query failed: ${QUERY_ERROR:-invalid JSON response}"
+            echo "Response was: $UNTRIGGERED_RAW"
+            UNTRIGGERED="[]"
+          else
+            UNTRIGGERED=$(echo "$UNTRIGGERED_RAW" | jq --arg threshold "$THRESHOLD" '
               [.[] | select(
                 (.createdAt < $threshold) and
                 (.labels | map(.name) | (contains(["bug"]) or contains(["enhancement"]))) and
@@ -280,7 +361,8 @@ jobs:
                 (.labels | map(.name) | contains(["status:bot-working"]) | not) and
                 ((.comments | length == 0) or (.comments | map(.body) | join(" ") | test("@code|@Code|@claude|@Claude") | not))
               ) | {number, title}]
-            ' 2>/dev/null || echo "[]")
+            ' 2>&1) || { echo "::error::Untriggered jq filter failed: $UNTRIGGERED"; UNTRIGGERED="[]"; }
+          fi
 
           COUNT=$(echo "$UNTRIGGERED" | jq 'length')
           echo "Found $COUNT triaged issues needing Code Agent trigger"
@@ -393,8 +475,7 @@ jobs:
               --repo ${{ github.repository }} \
               --workflow=bug-fix.yml \
               --limit 5 \
-              --json databaseId,status,conclusion |
-              --jq '[.[] | select(.status == "in_progress" or .status == "queued")] | length' 2>/dev/null || echo "0")
+              --json databaseId,status,conclusion | jq '[.[] | select(.status == "in_progress" or .status == "queued")] | length' 2>/dev/null || echo "0")
 
             if [ "$RECENT_RUNS" -gt 0 ]; then
               echo "  Workflow is still running, no action needed"
@@ -455,8 +536,7 @@ jobs:
 
             # Get the failed checks
             FAILED_CHECKS=$(gh pr view "$PR_NUM" --repo ${{ github.repository }} \
-              --json statusCheckRollup |
-              --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE") | .name] | join(", ")' 2>/dev/null || echo "unknown")
+              --json statusCheckRollup | jq -r '[.statusCheckRollup[] | select(.conclusion == "FAILURE") | .name] | join(", ")' 2>/dev/null || echo "unknown")
 
             # Find related issue from branch name (claude/fix-XXX-*)
             RELATED_ISSUE=""
@@ -844,15 +924,13 @@ jobs:
             --repo ${{ github.repository }} \
             --label "needs-human" \
             --state all \
-            --json number |
-            --jq 'length' 2>/dev/null || echo "0")
+            --json number | jq 'length' 2>/dev/null || echo "0")
 
           # Current open issues
           OPEN=$(gh issue list \
             --repo ${{ github.repository }} \
             --state open \
-            --json number |
-            --jq 'length' 2>/dev/null || echo "0")
+            --json number | jq 'length' 2>/dev/null || echo "0")
 
           echo "report_date=$TODAY" >> $GITHUB_OUTPUT
           echo "created=$CREATED" >> $GITHUB_OUTPUT
@@ -933,6 +1011,220 @@ jobs:
             --body-file -
 
           echo "Weekly report created!"
+
+  # ===========================================
+  # CANARY TEST (daily at 12pm UTC)
+  # Tests the full factory pipeline by creating a test issue
+  # ===========================================
+  canary-test:
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'canary-test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create canary issue
+        id: canary
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "=== Creating Canary Test Issue ==="
+          CANARY_ID="canary-$(date +%Y%m%d-%H%M%S)"
+
+          CANARY_BODY_FILE=$(mktemp)
+          cat > "$CANARY_BODY_FILE" << 'CANARYBODYEOF'
+          ## Canary Test Issue
+
+          This is an automated canary test to verify the factory pipeline is working correctly.
+
+          **Test ID:** CANARY_ID_PLACEHOLDER
+
+          **Expected behavior:**
+          1. Triage Agent should add `bug` or `enhancement` label within 5 minutes
+          2. Factory Manager should detect no `@code` trigger and add one within 15 minutes
+          3. Code Agent should respond (or the factory-meta label should prevent trigger)
+
+          **Success criteria:**
+          - Issue gets triaged (labels added)
+          - `@code` trigger is added (or factory-meta prevents it)
+          - No silent failures in any step
+
+          This issue will be auto-closed by the canary verification step.
+
+          ---
+          _Automated canary test by Factory Manager_
+          CANARYBODYEOF
+
+          # Replace placeholder with actual canary ID
+          sed -i "s/CANARY_ID_PLACEHOLDER/$CANARY_ID/" "$CANARY_BODY_FILE"
+
+          CANARY_URL=$(gh issue create \
+            --repo ${{ github.repository }} \
+            --title "[Canary] Factory Pipeline Test - $CANARY_ID" \
+            --body-file "$CANARY_BODY_FILE")
+          rm -f "$CANARY_BODY_FILE"
+
+          CANARY_NUM=$(echo "$CANARY_URL" | grep -oE '[0-9]+$')
+          echo "Created canary issue #$CANARY_NUM"
+          echo "canary_number=$CANARY_NUM" >> $GITHUB_OUTPUT
+          echo "canary_id=$CANARY_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for triage (5 minutes)
+        run: |
+          echo "Waiting 5 minutes for Triage Agent to process the canary issue..."
+          sleep 300
+
+      - name: Verify triage
+        id: verify_triage
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          CANARY_NUMBER: ${{ steps.canary.outputs.canary_number }}
+        run: |
+          echo "=== Verifying Triage ==="
+
+          # Check if labels were added
+          LABELS=$(gh issue view "$CANARY_NUMBER" --repo ${{ github.repository }} --json labels --jq '.labels | map(.name) | join(",")' 2>&1) || {
+            echo "::error::Failed to get canary issue labels: $LABELS"
+            echo "triage_passed=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          echo "Current labels: $LABELS"
+
+          if [[ "$LABELS" == *"bug"* ]] || [[ "$LABELS" == *"enhancement"* ]]; then
+            echo "✓ Triage PASSED: Issue was triaged with appropriate labels"
+            echo "triage_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Triage may have failed: No bug/enhancement label found"
+            echo "triage_passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for @code trigger (if not factory-meta)
+        id: verify_trigger
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          CANARY_NUMBER: ${{ steps.canary.outputs.canary_number }}
+        run: |
+          echo "=== Verifying @code Trigger ==="
+
+          # Check if the issue has factory-meta label (which would prevent @code trigger)
+          LABELS=$(gh issue view "$CANARY_NUMBER" --repo ${{ github.repository }} --json labels --jq '.labels | map(.name) | join(",")' 2>&1)
+
+          if [[ "$LABELS" == *"factory-meta"* ]]; then
+            echo "Issue has factory-meta label - @code trigger should be excluded"
+            echo "trigger_check=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check for @code mention in comments
+          COMMENTS=$(gh api repos/${{ github.repository }}/issues/$CANARY_NUMBER/comments --jq '.[].body' 2>&1) || {
+            echo "::error::Failed to get canary issue comments: $COMMENTS"
+            echo "trigger_check=failed" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          if echo "$COMMENTS" | grep -qiE '@code|@claude'; then
+            echo "✓ Trigger PASSED: @code mention found in comments"
+            echo "trigger_check=passed" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::No @code trigger found yet (Factory Manager runs every 5 min)"
+            echo "trigger_check=pending" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Report canary results
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          CANARY_NUMBER: ${{ steps.canary.outputs.canary_number }}
+          CANARY_ID: ${{ steps.canary.outputs.canary_id }}
+          TRIAGE_PASSED: ${{ steps.verify_triage.outputs.triage_passed }}
+          TRIGGER_CHECK: ${{ steps.verify_trigger.outputs.trigger_check }}
+        run: |
+          echo "=== Canary Test Results ==="
+
+          RESULT_STATUS="PASSED"
+          if [ "$TRIAGE_PASSED" != "true" ]; then
+            RESULT_STATUS="FAILED"
+          fi
+
+          RESULT_FILE=$(mktemp)
+          {
+            echo "## Canary Test Results"
+            echo ""
+            echo "**Test ID:** $CANARY_ID"
+            echo "**Overall Status:** $RESULT_STATUS"
+            echo ""
+            echo "### Test Results"
+            echo ""
+            echo "| Test | Result |"
+            echo "|------|--------|"
+            if [ "$TRIAGE_PASSED" = "true" ]; then
+              echo "| Triage (labels added) | ✅ Passed |"
+            else
+              echo "| Triage (labels added) | ❌ Failed |"
+            fi
+            if [ "$TRIGGER_CHECK" = "passed" ]; then
+              echo "| @code trigger | ✅ Passed |"
+            elif [ "$TRIGGER_CHECK" = "skipped" ]; then
+              echo "| @code trigger | ⏭️ Skipped (factory-meta) |"
+            elif [ "$TRIGGER_CHECK" = "pending" ]; then
+              echo "| @code trigger | ⏳ Pending |"
+            else
+              echo "| @code trigger | ❌ Failed |"
+            fi
+            echo ""
+            echo "---"
+            echo "_Canary test completed at $(date -u '+%Y-%m-%d %H:%M:%S') UTC_"
+          } > "$RESULT_FILE"
+
+          gh issue comment "$CANARY_NUMBER" --repo ${{ github.repository }} --body-file "$RESULT_FILE"
+          rm -f "$RESULT_FILE"
+
+          # Close the canary issue
+          gh issue close "$CANARY_NUMBER" --repo ${{ github.repository }} --comment "Canary test completed. Status: $RESULT_STATUS"
+
+          # If the test failed, create an incident issue
+          if [ "$RESULT_STATUS" = "FAILED" ]; then
+            echo "::error::Canary test FAILED - creating incident issue"
+
+            INCIDENT_FILE=$(mktemp)
+            {
+              echo "## Factory Incident: Canary Test Failed"
+              echo ""
+              echo "The daily canary test failed, indicating a problem with the factory pipeline."
+              echo ""
+              echo "**Canary Issue:** #$CANARY_NUMBER"
+              echo "**Test ID:** $CANARY_ID"
+              echo ""
+              echo "### Failures"
+              echo ""
+              if [ "$TRIAGE_PASSED" != "true" ]; then
+                echo "- ❌ **Triage failed** - Issue was not properly labeled"
+              fi
+              if [ "$TRIGGER_CHECK" = "failed" ]; then
+                echo "- ❌ **Trigger check failed** - Could not verify @code trigger"
+              fi
+              echo ""
+              echo "### Recommended Actions"
+              echo ""
+              echo "1. Check the Triage workflow logs"
+              echo "2. Check the Factory Manager health check logs"
+              echo "3. Verify jq queries are working (self-tests should catch this)"
+              echo ""
+              echo "@jeremymatthewwerner - Factory pipeline issue detected"
+            } > "$INCIDENT_FILE"
+
+            gh issue create \
+              --repo ${{ github.repository }} \
+              --title "Factory Incident: Canary Test Failed - $CANARY_ID" \
+              --label "factory-meta,factory-incident,priority-high" \
+              --body-file "$INCIDENT_FILE"
+            rm -f "$INCIDENT_FILE"
+          else
+            echo "✓ Canary test PASSED"
+          fi
 
   # ===========================================
   # RESPOND TO @factory-manager MENTIONS
