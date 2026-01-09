@@ -31,6 +31,9 @@ export type { MessageListProps } from './MessageList';
 export { NewChatModal } from './NewChatModal';
 export type { NewChatModalProps } from './NewChatModal';
 
+export { ResizeDivider } from './ResizeDivider';
+export type { ResizeDividerProps } from './ResizeDivider';
+
 export { Sidebar } from './Sidebar';
 export type { SidebarProps } from './Sidebar';
 

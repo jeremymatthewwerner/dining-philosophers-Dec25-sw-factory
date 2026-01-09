@@ -30,6 +30,8 @@ export interface SidebarProps {
   displayName?: string | null;
   isAdmin?: boolean;
   onLogout?: () => void;
+  /** Width in pixels for desktop view. Ignored on mobile. */
+  width?: number;
 }
 
 export function Sidebar({
@@ -47,6 +49,7 @@ export function Sidebar({
   displayName,
   isAdmin = false,
   onLogout,
+  width,
 }: SidebarProps) {
   const { t } = useLanguage();
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
@@ -67,9 +70,10 @@ export function Sidebar({
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-30 w-72 bg-zinc-50 dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed lg:static inset-y-0 left-0 z-30 w-72 lg:w-auto bg-zinc-50 dark:bg-zinc-950 border-r lg:border-r-0 border-zinc-200 dark:border-zinc-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex-shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={width ? { width: `${width}px` } : undefined}
         data-testid="sidebar"
       >
         <div className="flex flex-col h-full">
