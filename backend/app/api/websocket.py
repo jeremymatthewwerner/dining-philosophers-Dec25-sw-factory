@@ -376,11 +376,20 @@ async def websocket_endpoint(
         ),
     )
 
-    # Send current pause state to the newly connected client
+    # Always send current pause state to the newly connected client
+    # This ensures the frontend syncs correctly when switching between threads
+    # (even if the new thread is not paused, we need to tell the frontend to unpause)
     if thinker_service.is_paused(conversation_id):
         await websocket.send_text(
             WSMessage(
                 type=WSMessageType.PAUSED,
+                conversation_id=conversation_id,
+            ).model_dump_json()
+        )
+    else:
+        await websocket.send_text(
+            WSMessage(
+                type=WSMessageType.RESUMED,
                 conversation_id=conversation_id,
             ).model_dump_json()
         )
