@@ -53,6 +53,9 @@ class Feedback(Base, TimestampMixin):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Dining Philosophers username (if logged in when submitting)
+    username: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # Browser/device info for debugging
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
 

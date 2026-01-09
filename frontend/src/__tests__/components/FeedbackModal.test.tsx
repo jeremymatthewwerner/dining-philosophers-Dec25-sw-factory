@@ -6,10 +6,14 @@ import * as api from '@/lib/api';
 jest.mock('@/lib/api', () => ({
   ...jest.requireActual('@/lib/api'),
   submitFeedback: jest.fn(),
+  getStoredUser: jest.fn(),
 }));
 
 const mockSubmitFeedback = api.submitFeedback as jest.MockedFunction<
   typeof api.submitFeedback
+>;
+const mockGetStoredUser = api.getStoredUser as jest.MockedFunction<
+  typeof api.getStoredUser
 >;
 
 // Helper to create a mock file
@@ -30,6 +34,8 @@ describe('FeedbackModal', () => {
       id: 'feedback-123',
       message: 'Thank you!',
     });
+    // Default to no user logged in
+    mockGetStoredUser.mockReturnValue(null);
   });
 
   it('renders modal when open', () => {
@@ -150,8 +156,42 @@ describe('FeedbackModal', () => {
       message: 'This is a test bug report for testing.',
       name: 'Test User',
       email: 'test@example.com',
+      username: undefined, // No user logged in
       user_agent: expect.any(String),
+      screenshot_data: undefined,
+      screenshot_filename: undefined,
     });
+  });
+
+  it('includes username when user is logged in', async () => {
+    // Mock a logged-in user
+    mockGetStoredUser.mockReturnValue({
+      id: 'user-123',
+      username: 'testuser123',
+      display_name: 'Test User',
+      is_admin: false,
+      total_spend: 0,
+      spend_limit: 100,
+      language_preference: 'en',
+      created_at: '2026-01-01T00:00:00Z',
+    });
+
+    render(<FeedbackModal {...defaultProps} />);
+
+    fireEvent.change(screen.getByTestId('feedback-message'), {
+      target: { value: 'This is feedback from a logged in user.' },
+    });
+    fireEvent.click(screen.getByTestId('submit-feedback'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Thank you!')).toBeInTheDocument();
+    });
+
+    expect(mockSubmitFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: 'testuser123',
+      })
+    );
   });
 
   it('shows success message after submission', async () => {
