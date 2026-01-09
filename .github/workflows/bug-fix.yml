@@ -19,6 +19,7 @@ permissions:
   id-token: write
   actions: read
   checks: read
+  workflows: write  # Required to push workflow file changes
 
 # Prevent concurrent runs on the same issue
 concurrency:
