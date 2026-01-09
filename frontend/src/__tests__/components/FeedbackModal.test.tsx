@@ -217,7 +217,7 @@ describe('FeedbackModal', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('auto-closes modal after successful submission (1.5s delay)', async () => {
+  it('does not auto-close modal after successful submission (user clicks Done)', async () => {
     jest.useFakeTimers();
     const onClose = jest.fn();
     render(<FeedbackModal {...defaultProps} onClose={onClose} />);
@@ -232,50 +232,14 @@ describe('FeedbackModal', () => {
       expect(screen.getByText('Thank you!')).toBeInTheDocument();
     });
 
-    // onClose should not be called yet
-    expect(onClose).not.toHaveBeenCalled();
-
-    // Fast-forward 1.5 seconds
-    jest.advanceTimersByTime(1500);
-
-    // Now onClose should have been called
-    await waitFor(() => {
-      expect(onClose).toHaveBeenCalledTimes(1);
-    });
-
-    jest.useRealTimers();
-  });
-
-  it('does not auto-close if modal is manually closed before timeout', async () => {
-    jest.useFakeTimers();
-    const onClose = jest.fn();
-    const { rerender } = render(
-      <FeedbackModal {...defaultProps} onClose={onClose} />
-    );
-
-    fireEvent.change(screen.getByTestId('feedback-message'), {
-      target: { value: 'This is a test feedback message.' },
-    });
-    fireEvent.click(screen.getByTestId('submit-feedback'));
-
-    // Wait for success state
-    await waitFor(() => {
-      expect(screen.getByText('Thank you!')).toBeInTheDocument();
-    });
-
-    // User clicks Done before timeout
-    fireEvent.click(screen.getByText('Done'));
-    expect(onClose).toHaveBeenCalledTimes(1);
-
-    // Simulate modal being closed by re-rendering with isOpen=false
-    rerender(
-      <FeedbackModal {...defaultProps} onClose={onClose} isOpen={false} />
-    );
-
-    // Fast-forward past the timeout
+    // Fast-forward 2 seconds - modal should NOT auto-close
     jest.advanceTimersByTime(2000);
 
-    // onClose should not have been called again by the timeout
+    // onClose should not have been called automatically
+    expect(onClose).not.toHaveBeenCalled();
+
+    // User must click Done to close
+    fireEvent.click(screen.getByText('Done'));
     expect(onClose).toHaveBeenCalledTimes(1);
 
     jest.useRealTimers();

@@ -46,16 +46,6 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     }
   }, [isOpen, success]);
 
-  // Auto-close modal after successful submission (1.5s delay)
-  useEffect(() => {
-    if (success && isOpen) {
-      const timer = setTimeout(() => {
-        onClose();
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [success, isOpen, onClose]);
-
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
