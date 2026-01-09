@@ -376,7 +376,7 @@ test.describe('Settings Page', () => {
     test('should pre-fill feedback modal with saved info', async ({ page }) => {
       await setupAuthenticatedUser(page);
 
-      // Set feedback info
+      // Set feedback info in localStorage before navigating
       await page.evaluate(() => {
         localStorage.setItem('feedback_name', 'Modal Test User');
         localStorage.setItem('feedback_email', 'modal@test.com');
@@ -384,22 +384,17 @@ test.describe('Settings Page', () => {
 
       await page.goto('/');
 
-      // Open sidebar and click feedback button
-      // Note: The feedback button may be in the sidebar
-      const feedbackButton = page.locator('[data-testid="feedback-button"]');
-      if (await feedbackButton.isVisible()) {
-        await feedbackButton.click();
-      } else {
-        // If not visible, might need to open sidebar first
-        const sidebarToggle = page.locator('[data-testid="sidebar-toggle"]');
-        if (await sidebarToggle.isVisible()) {
-          await sidebarToggle.click();
-          await page.waitForTimeout(300);
-        }
-        // Look for feedback link in sidebar
-        const feedbackLink = page.locator('text=Feedback').first();
-        await feedbackLink.click();
-      }
+      // Open user menu dropdown (feedback button is inside user menu)
+      const userMenuButton = page.getByTestId('user-menu-button');
+      await userMenuButton.click();
+
+      // Wait for dropdown to appear
+      const dropdown = page.getByTestId('user-menu-dropdown');
+      await expect(dropdown).toBeVisible();
+
+      // Click the feedback button in the dropdown
+      const feedbackButton = page.getByTestId('user-menu-feedback');
+      await feedbackButton.click();
 
       // Wait for modal
       await expect(page.getByTestId('feedback-modal')).toBeVisible({
