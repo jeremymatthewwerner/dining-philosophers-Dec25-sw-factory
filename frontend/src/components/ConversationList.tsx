@@ -6,6 +6,7 @@
 
 import type { ConversationSummary } from '@/types';
 import { ThinkerAvatar } from './ThinkerAvatar';
+import { ScrollingText } from './ScrollingText';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface ConversationListProps {
@@ -97,12 +98,11 @@ export function ConversationList({
                 }
                 data-testid="status-indicator"
               />
-              <h3
-                className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate"
+              <ScrollingText
+                text={conv.topic}
+                className="font-medium text-sm text-zinc-900 dark:text-zinc-100 flex-1 min-w-0"
                 title={conv.topic}
-              >
-                {conv.topic}
-              </h3>
+              />
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               <span className="text-xs text-zinc-400 dark:text-zinc-500">
