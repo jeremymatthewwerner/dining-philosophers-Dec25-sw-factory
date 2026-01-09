@@ -9,7 +9,7 @@ import type {
   ThinkerProfile,
   ThinkerSuggestion,
 } from '@/types';
-import { ChatArea, NewChatModal, Sidebar } from '@/components';
+import { ChatArea, NewChatModal, ResizeDivider, Sidebar } from '@/components';
 import { useAuth, useLanguage } from '@/contexts';
 import { useWebSocket } from '@/hooks';
 import * as api from '@/lib/api';
@@ -19,6 +19,12 @@ export default function Home() {
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const { locale } = useLanguage();
 
+  // Constants for sidebar width
+  const DEFAULT_SIDEBAR_WIDTH = 288; // 18rem = 288px (same as w-72)
+  const MIN_SIDEBAR_WIDTH = 200;
+  const MAX_SIDEBAR_WIDTH = 500;
+  const SIDEBAR_WIDTH_KEY = 'dining-philosophers-sidebar-width';
+
   // State
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [currentConversation, setCurrentConversation] =
@@ -27,10 +33,32 @@ export default function Home() {
   const [sessionCost, setSessionCost] = useState(0);
   // Sidebar always starts open - it's the main interface for starting conversations
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [modalOpen, setModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [spendLimitExceeded, setSpendLimitExceeded] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Load sidebar width from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+      if (savedWidth) {
+        const width = parseInt(savedWidth, 10);
+        if (width >= MIN_SIDEBAR_WIDTH && width <= MAX_SIDEBAR_WIDTH) {
+          setSidebarWidth(width);
+        }
+      }
+    }
+  }, []);
+
+  // Handle sidebar resize
+  const handleSidebarResize = useCallback((width: number) => {
+    setSidebarWidth(width);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+    }
+  }, []);
 
   // Calculate current total spend (user's base spend + this session's cost)
   const userTotalSpend = (user?.total_spend || 0) + sessionCost;
@@ -261,6 +289,13 @@ export default function Home() {
         displayName={user?.display_name}
         isAdmin={user?.is_admin}
         onLogout={handleLogout}
+        width={sidebarWidth}
+      />
+
+      <ResizeDivider
+        onResize={handleSidebarResize}
+        minWidth={MIN_SIDEBAR_WIDTH}
+        maxWidth={MAX_SIDEBAR_WIDTH}
       />
 
       <ChatArea
