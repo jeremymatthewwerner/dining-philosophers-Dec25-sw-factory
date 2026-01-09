@@ -75,8 +75,9 @@ describe('Sidebar', () => {
     ];
     render(<Sidebar {...defaultProps} conversations={conversations} />);
 
-    expect(screen.getByText('Philosophy')).toBeInTheDocument();
-    expect(screen.getByText('Science')).toBeInTheDocument();
+    // ScrollingText renders text twice (hidden measurement span + visible text), use getAllByText
+    expect(screen.getAllByText('Philosophy').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Science').length).toBeGreaterThan(0);
   });
 
   it('passes onSelect to conversation list', () => {
@@ -92,7 +93,8 @@ describe('Sidebar', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Philosophy'));
+    // Click on the conversation item (use testId for reliability)
+    fireEvent.click(screen.getByTestId('conversation-item'));
     expect(onSelectConversation).toHaveBeenCalledWith('1');
   });
 

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { ScrollingText } from '../ScrollingText';
 
 // Mock requestAnimationFrame and cancelAnimationFrame
@@ -26,25 +26,54 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
+// Helper to get the container div
+const getContainer = () => {
+  const containers = document.querySelectorAll('.overflow-hidden');
+  return containers[0] as HTMLElement;
+};
+
+// Helper to get the measurement span (the one with position: absolute)
+const getMeasurementSpan = () => {
+  const spans = document.querySelectorAll('span.inline-block');
+  for (const span of spans) {
+    if ((span as HTMLElement).style.position === 'absolute') {
+      return span as HTMLElement;
+    }
+  }
+  // If no absolute span, return the first span (during animation)
+  return spans[0] as HTMLElement;
+};
+
+// Helper to get the visible text content (when not animating, it's direct text; when animating, it's in a span)
+const getVisibleContent = () => {
+  const container = getContainer();
+  // Get all text content except from the hidden measurement span
+  const measSpan = getMeasurementSpan();
+  if (measSpan?.style.visibility === 'hidden') {
+    // Not animating - text is direct child
+    return container.textContent?.replace(measSpan.textContent || '', '') || '';
+  }
+  // Animating - text is in visible span
+  return container.textContent || '';
+};
+
 describe('ScrollingText', () => {
   it('renders text content', () => {
     render(<ScrollingText text="Hello World" />);
-    expect(screen.getByText('Hello World')).toBeInTheDocument();
+    expect(getVisibleContent()).toContain('Hello World');
   });
 
   it('applies custom className', () => {
     render(<ScrollingText text="Test" className="custom-class" />);
-    const container = screen.getByText('Test').parentElement;
+    const container = getContainer();
     expect(container).toHaveClass('custom-class');
   });
 
   it('shows title attribute when truncated', () => {
     render(<ScrollingText text="Long text that should be truncated" />);
 
-    const container = screen.getByText(
-      'Long text that should be truncated'
-    ).parentElement;
-    const textSpan = screen.getByText('Long text that should be truncated');
+    const container = getContainer();
+    const textSpan = getMeasurementSpan();
 
     // Mock the refs to simulate truncation
     Object.defineProperty(container, 'clientWidth', { value: 50 });
@@ -64,36 +93,36 @@ describe('ScrollingText', () => {
 
   it('does not show title when not truncated', () => {
     render(<ScrollingText text="Short" />);
-    const container = screen.getByText('Short').parentElement;
+    const container = getContainer();
     // Title should not be set when not truncated
     expect(container).not.toHaveAttribute('title');
   });
 
   it('responds to mouse enter and leave', () => {
     render(<ScrollingText text="Test content" />);
-    const container = screen.getByText('Test content').parentElement!;
+    const container = getContainer();
 
     fireEvent.mouseEnter(container);
     fireEvent.mouseLeave(container);
 
     // Component should not throw and should render correctly
-    expect(screen.getByText('Test content')).toBeInTheDocument();
+    expect(getVisibleContent()).toContain('Test content');
   });
 
   it('uses custom delay when provided', () => {
     render(<ScrollingText text="Test" delayMs={3000} />);
-    expect(screen.getByText('Test')).toBeInTheDocument();
+    expect(getVisibleContent()).toContain('Test');
   });
 
   it('uses custom speed when provided', () => {
     render(<ScrollingText text="Test" speedPxPerSecond={50} />);
-    expect(screen.getByText('Test')).toBeInTheDocument();
+    expect(getVisibleContent()).toContain('Test');
   });
 
   it('uses custom title when provided', () => {
     render(<ScrollingText text="Short" title="Custom title" />);
-    const container = screen.getByText('Short').parentElement;
-    const textSpan = screen.getByText('Short');
+    const container = getContainer();
+    const textSpan = getMeasurementSpan();
 
     // Mock truncation
     Object.defineProperty(container, 'clientWidth', { value: 50 });
@@ -109,14 +138,14 @@ describe('ScrollingText', () => {
 
   it('has correct overflow styling', () => {
     render(<ScrollingText text="Test" className="test-class" />);
-    const container = screen.getByText('Test').parentElement;
+    const container = getContainer();
     expect(container).toHaveClass('overflow-hidden');
     expect(container).toHaveClass('whitespace-nowrap');
   });
 
-  it('text span has inline-block class', () => {
+  it('measurement span has inline-block class', () => {
     render(<ScrollingText text="Test" />);
-    const textSpan = screen.getByText('Test');
+    const textSpan = getMeasurementSpan();
     expect(textSpan).toHaveClass('inline-block');
   });
 
@@ -129,14 +158,37 @@ describe('ScrollingText', () => {
   it('handles empty text', () => {
     render(<ScrollingText text="" />);
     // Should render without errors
-    const container = document.querySelector('.overflow-hidden');
+    const container = getContainer();
     expect(container).toBeInTheDocument();
   });
 
   it('handles very long text', () => {
     const longText = 'A'.repeat(1000);
     render(<ScrollingText text={longText} />);
-    expect(screen.getByText(longText)).toBeInTheDocument();
+    expect(getVisibleContent()).toContain(longText);
+  });
+
+  it('shows ellipsis when truncated and not hovering', () => {
+    render(<ScrollingText text="Long text here" />);
+    const container = getContainer();
+    const textSpan = getMeasurementSpan();
+
+    // Mock truncation
+    Object.defineProperty(container, 'clientWidth', {
+      value: 50,
+      configurable: true,
+    });
+    Object.defineProperty(textSpan, 'scrollWidth', {
+      value: 200,
+      configurable: true,
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    // Should have ellipsis style when truncated
+    expect(container.style.textOverflow).toBe('ellipsis');
   });
 });
 
@@ -146,12 +198,8 @@ describe('ScrollingText animation behavior', () => {
       <ScrollingText text="This is a long text that should be truncated" />
     );
 
-    const container = screen.getByText(
-      'This is a long text that should be truncated'
-    ).parentElement!;
-    const textSpan = screen.getByText(
-      'This is a long text that should be truncated'
-    );
+    const container = getContainer();
+    const textSpan = getMeasurementSpan();
 
     // Mock truncation
     Object.defineProperty(container, 'clientWidth', {
@@ -180,8 +228,8 @@ describe('ScrollingText animation behavior', () => {
   it('stops animation on mouse leave', () => {
     render(<ScrollingText text="Long text content here" />);
 
-    const container = screen.getByText('Long text content here').parentElement!;
-    const textSpan = screen.getByText('Long text content here');
+    const container = getContainer();
+    const textSpan = getMeasurementSpan();
 
     // Mock truncation
     Object.defineProperty(container, 'clientWidth', {
@@ -205,32 +253,38 @@ describe('ScrollingText animation behavior', () => {
       fireEvent.mouseLeave(container);
     });
 
-    // Transform should reset to 0
-    expect(textSpan).toHaveStyle('transform: translateX(-0px)');
+    // After mouse leave, animation should be cancelled
+    // Get the visible span after leave
+    const visibleSpan = getMeasurementSpan();
+    // Transform should reset to 0 (or no transform in non-animating state)
+    expect(visibleSpan.style.transform).toBeFalsy();
   });
 
   it('does not start animation when text is not truncated', () => {
     render(<ScrollingText text="Short" />);
 
-    const container = screen.getByText('Short').parentElement!;
+    const container = getContainer();
 
     // Don't mock truncation - text fits in container
+    (global.requestAnimationFrame as jest.Mock).mockClear();
 
     act(() => {
       fireEvent.mouseEnter(container);
     });
 
-    // requestAnimationFrame may be called but won't animate
-    expect(screen.getByText('Short')).toHaveStyle(
-      'transform: translateX(-0px)'
-    );
+    // requestAnimationFrame should not be called for animation
+    // (may be called for other reasons, but not for scrolling)
+    const rafCalls = (global.requestAnimationFrame as jest.Mock).mock.calls
+      .length;
+    // With no truncation, hovering shouldn't start animation
+    expect(rafCalls).toBe(0);
   });
 
   it('cancels animation frame on unmount during animation', () => {
-    render(<ScrollingText text="Text that is truncated" />);
+    const { unmount } = render(<ScrollingText text="Text that is truncated" />);
 
-    const container = screen.getByText('Text that is truncated').parentElement!;
-    const textSpan = screen.getByText('Text that is truncated');
+    const container = getContainer();
+    const textSpan = getMeasurementSpan();
 
     // Mock truncation
     Object.defineProperty(container, 'clientWidth', {
@@ -250,11 +304,45 @@ describe('ScrollingText animation behavior', () => {
       fireEvent.mouseEnter(container);
     });
 
-    // Unmount while animating - should call cancelAnimationFrame
-    act(() => {
-      // Advance RAF callbacks
-      rafCallbacks.forEach((cb) => cb(1000));
-      rafCallbacks = [];
+    // Unmount while animating
+    unmount();
+
+    // Should call cancelAnimationFrame
+    expect(global.cancelAnimationFrame).toHaveBeenCalled();
+  });
+
+  it('switches to scrolling span when hovering on truncated text', () => {
+    render(<ScrollingText text="Long text that needs scrolling" />);
+
+    const container = getContainer();
+    const initialSpan = getMeasurementSpan();
+
+    // Mock truncation
+    Object.defineProperty(container, 'clientWidth', {
+      value: 50,
+      configurable: true,
     });
+    Object.defineProperty(initialSpan, 'scrollWidth', {
+      value: 200,
+      configurable: true,
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    // Before hover - should have hidden measurement span
+    expect(initialSpan.style.visibility).toBe('hidden');
+
+    // Hover
+    act(() => {
+      fireEvent.mouseEnter(container);
+    });
+
+    // During hover on truncated text - should switch to visible span for animation
+    const animatingSpan = document.querySelector(
+      'span.inline-block:not([style*="visibility"])'
+    );
+    expect(animatingSpan).toBeInTheDocument();
   });
 });

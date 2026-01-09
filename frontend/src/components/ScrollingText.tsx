@@ -46,12 +46,29 @@ export function ScrollingText({
     }
   }, []);
 
-  // Check truncation on mount and when text changes
+  // Check truncation on mount and when text/container size changes
   useEffect(() => {
     checkTruncation();
-    // Also check on window resize
+
+    // Use ResizeObserver to detect container size changes (crucial for flex layouts)
+    const container = containerRef.current;
+    let resizeObserver: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        checkTruncation();
+      });
+      resizeObserver.observe(container);
+    }
+
+    // Also check on window resize as fallback
     window.addEventListener('resize', checkTruncation);
-    return () => window.removeEventListener('resize', checkTruncation);
+
+    return () => {
+      window.removeEventListener('resize', checkTruncation);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
   }, [text, checkTruncation]);
 
   // Reset scroll position when hover ends
@@ -155,24 +172,53 @@ export function ScrollingText({
     };
   }, [isHovered, isTruncated, delayMs, speedPxPerSecond]);
 
+  // When not hovering, show text directly with ellipsis (text-overflow only works on direct text)
+  // When hovering (and truncated), use span with transform for scrolling animation
+  const isAnimating = isHovered && isTruncated;
+
   return (
     <div
       ref={containerRef}
-      className={`overflow-hidden whitespace-nowrap ${className}`}
+      className={`overflow-hidden whitespace-nowrap relative ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={handleMouseLeave}
       title={isTruncated ? (title ?? text) : undefined}
+      style={{
+        // Show ellipsis when truncated and not animating
+        // text-overflow only works on direct text content, so we conditionally render
+        textOverflow: !isAnimating ? 'ellipsis' : 'clip',
+      }}
     >
-      <span
-        ref={textRef}
-        className="inline-block"
-        style={{
-          transform: `translateX(-${scrollOffset}px)`,
-          transition: scrollOffset === 0 ? 'none' : undefined,
-        }}
-      >
-        {text}
-      </span>
+      {isAnimating ? (
+        // During animation: use span with transform for smooth scrolling
+        <span
+          ref={textRef}
+          className="inline-block"
+          style={{
+            transform: `translateX(-${scrollOffset}px)`,
+          }}
+        >
+          {text}
+        </span>
+      ) : (
+        // When not animating: use hidden span for measurement + direct text for ellipsis
+        <>
+          {/* Hidden span for measuring text width */}
+          <span
+            ref={textRef}
+            className="inline-block"
+            style={{
+              position: 'absolute',
+              visibility: 'hidden',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {text}
+          </span>
+          {/* Direct text content so text-overflow: ellipsis works */}
+          {text}
+        </>
+      )}
     </div>
   );
 }
