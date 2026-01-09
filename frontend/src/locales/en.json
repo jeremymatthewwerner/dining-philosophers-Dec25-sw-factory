@@ -230,7 +230,16 @@
     "passwordChanged": "Password changed successfully",
     "passwordChangeFailed": "Failed to change password",
     "changePassword": "Change Password",
-    "changingPassword": "Changing..."
+    "changingPassword": "Changing...",
+    "feedbackInfoSection": "Feedback Contact Info",
+    "feedbackInfoDescription": "This information is saved locally and auto-filled in the feedback form.",
+    "savedFeedbackName": "Saved Name",
+    "savedFeedbackEmail": "Saved Email",
+    "noSavedInfo": "No saved feedback contact info",
+    "updateFeedbackInfo": "Update",
+    "clearFeedbackInfo": "Clear Saved Info",
+    "feedbackInfoUpdated": "Feedback contact info updated",
+    "feedbackInfoCleared": "Feedback contact info cleared"
   },
   "feedbackModal": {
     "title": "Send Feedback",

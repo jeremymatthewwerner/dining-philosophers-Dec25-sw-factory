@@ -230,7 +230,16 @@
     "passwordChanged": "Contraseña cambiada exitosamente",
     "passwordChangeFailed": "No se pudo cambiar la contraseña",
     "changePassword": "Cambiar Contraseña",
-    "changingPassword": "Cambiando..."
+    "changingPassword": "Cambiando...",
+    "feedbackInfoSection": "Info de Contacto para Comentarios",
+    "feedbackInfoDescription": "Esta información se guarda localmente y se completa automáticamente en el formulario de comentarios.",
+    "savedFeedbackName": "Nombre Guardado",
+    "savedFeedbackEmail": "Correo Guardado",
+    "noSavedInfo": "No hay información de contacto guardada",
+    "updateFeedbackInfo": "Actualizar",
+    "clearFeedbackInfo": "Borrar Info Guardada",
+    "feedbackInfoUpdated": "Información de contacto actualizada",
+    "feedbackInfoCleared": "Información de contacto borrada"
   },
   "feedbackModal": {
     "title": "Enviar Comentarios",

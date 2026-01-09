@@ -6,6 +6,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme, ThemeMode } from '@/contexts';
 import * as api from '@/lib/api';
+import {
+  getSavedFeedbackInfo,
+  saveFeedbackInfo,
+  clearFeedbackInfo,
+} from '@/components/FeedbackModal';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -29,12 +34,26 @@ export default function SettingsPage() {
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
+  // Feedback info state
+  const [feedbackName, setFeedbackName] = useState('');
+  const [feedbackEmail, setFeedbackEmail] = useState('');
+  const [feedbackInfoSuccess, setFeedbackInfoSuccess] = useState<string | null>(
+    null
+  );
+
   // Initialize display name from user when user data becomes available
   useEffect(() => {
     if (user) {
       setDisplayName(user.display_name || '');
     }
   }, [user]);
+
+  // Load saved feedback info on mount
+  useEffect(() => {
+    const saved = getSavedFeedbackInfo();
+    setFeedbackName(saved.name);
+    setFeedbackEmail(saved.email);
+  }, []);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -112,6 +131,20 @@ export default function SettingsPage() {
     } finally {
       setIsChangingPassword(false);
     }
+  }
+
+  function handleUpdateFeedbackInfo(e: React.FormEvent) {
+    e.preventDefault();
+    setFeedbackInfoSuccess(null);
+    saveFeedbackInfo(feedbackName, feedbackEmail);
+    setFeedbackInfoSuccess(t.settingsPage.feedbackInfoUpdated);
+  }
+
+  function handleClearFeedbackInfo() {
+    clearFeedbackInfo();
+    setFeedbackName('');
+    setFeedbackEmail('');
+    setFeedbackInfoSuccess(t.settingsPage.feedbackInfoCleared);
   }
 
   if (authLoading) {
@@ -253,6 +286,81 @@ export default function SettingsPage() {
               {t.settingsPage.themeHelp}
             </p>
           </div>
+        </div>
+
+        {/* Feedback Contact Info Section */}
+        <div className="mb-6 rounded-lg bg-white p-6 shadow dark:bg-zinc-800">
+          <h2 className="mb-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            {t.settingsPage.feedbackInfoSection}
+          </h2>
+          <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+            {t.settingsPage.feedbackInfoDescription}
+          </p>
+
+          <form onSubmit={handleUpdateFeedbackInfo} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="feedbackName"
+                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  {t.settingsPage.savedFeedbackName}
+                </label>
+                <input
+                  type="text"
+                  id="feedbackName"
+                  value={feedbackName}
+                  onChange={(e) => setFeedbackName(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+                  placeholder={t.feedbackModal?.namePlaceholder || 'Your name'}
+                  data-testid="settings-feedback-name"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="feedbackEmail"
+                  className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  {t.settingsPage.savedFeedbackEmail}
+                </label>
+                <input
+                  type="email"
+                  id="feedbackEmail"
+                  value={feedbackEmail}
+                  onChange={(e) => setFeedbackEmail(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+                  placeholder={
+                    t.feedbackModal?.emailPlaceholder || 'your@email.com'
+                  }
+                  data-testid="settings-feedback-email"
+                />
+              </div>
+            </div>
+
+            {feedbackInfoSuccess && (
+              <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                {feedbackInfoSuccess}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                data-testid="update-feedback-info"
+              >
+                {t.settingsPage.updateFeedbackInfo}
+              </button>
+              <button
+                type="button"
+                onClick={handleClearFeedbackInfo}
+                className="rounded-lg bg-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
+                data-testid="clear-feedback-info"
+              >
+                {t.settingsPage.clearFeedbackInfo}
+              </button>
+            </div>
+          </form>
         </div>
 
         {/* Password Section */}
