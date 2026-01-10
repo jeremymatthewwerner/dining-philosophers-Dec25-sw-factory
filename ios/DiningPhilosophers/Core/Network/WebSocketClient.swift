@@ -134,6 +134,7 @@ actor WebSocketClient {
             await handleMessage(message)
         } catch {
             // Log decoding error but don't crash
+            // swiftlint:disable:next no_print_in_production
             print("Failed to decode WebSocket message: \(error)")
         }
     }
