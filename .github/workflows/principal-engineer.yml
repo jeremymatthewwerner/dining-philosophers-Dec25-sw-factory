@@ -44,7 +44,30 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      - name: Validate trigger is legitimate
+        id: validate
+        if: github.event_name == 'issue_comment'
+        run: |
+          # Strip code blocks from comment body to avoid false triggers
+          COMMENT_BODY='${{ github.event.comment.body }}'
+
+          # Remove fenced code blocks (```...```)
+          STRIPPED=$(echo "$COMMENT_BODY" | sed '/^```/,/^```/d')
+
+          # Remove inline code (`...`)
+          STRIPPED=$(echo "$STRIPPED" | sed 's/`[^`]*`//g')
+
+          # Check if @pe mention exists in the stripped content
+          if echo "$STRIPPED" | grep -qi '@pe\|@PE\|@principal-engineer'; then
+            echo "trigger_valid=true" >> $GITHUB_OUTPUT
+            echo "✅ Valid @pe mention found outside code blocks"
+          else
+            echo "trigger_valid=false" >> $GITHUB_OUTPUT
+            echo "❌ @pe mention only found inside code blocks - skipping trigger"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.validate.outputs.trigger_valid != 'false'
         with:
           fetch-depth: 0
           token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
@@ -52,6 +75,7 @@ jobs:
       # Configure git to use PAT for push operations (enables pushing workflow files)
       # The checkout action embeds the token in the remote URL, so we must replace it
       - name: Configure git with PAT
+        if: steps.validate.outputs.trigger_valid != 'false'
         run: |
           # Remove the embedded token from the remote URL (checkout embeds ghs_* token)
           git remote set-url origin https://github.com/${{ github.repository }}.git
@@ -59,26 +83,32 @@ jobs:
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $(echo -n 'x-access-token:${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}' | base64)"
 
       - uses: actions/setup-node@v4
+        if: steps.validate.outputs.trigger_valid != 'false'
         with:
           node-version: '20'
           cache: 'npm'
         continue-on-error: true
 
       - name: Install uv
+        if: steps.validate.outputs.trigger_valid != 'false'
         uses: astral-sh/setup-uv@v6
 
       - name: Set up Python
+        if: steps.validate.outputs.trigger_valid != 'false'
         run: uv python install 3.11
 
       - name: Install frontend dependencies
+        if: steps.validate.outputs.trigger_valid != 'false'
         working-directory: frontend
         run: npm ci || true
 
       - name: Install backend dependencies
+        if: steps.validate.outputs.trigger_valid != 'false'
         working-directory: backend
         run: uv sync || true
 
       - name: Get issue context
+        if: steps.validate.outputs.trigger_valid != 'false'
         id: context
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,6 +125,7 @@ jobs:
           echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
 
       - name: Update status
+        if: steps.validate.outputs.trigger_valid != 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -104,6 +135,7 @@ jobs:
             --add-label "status:bot-working" 2>/dev/null || true
 
       - name: Create investigation comment
+        if: steps.validate.outputs.trigger_valid != 'false'
         id: progress
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -134,6 +166,7 @@ jobs:
           echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
 
       - name: Run Principal Engineer
+        if: steps.validate.outputs.trigger_valid != 'false'
         uses: anthropics/claude-code-action@v1
         with:
           prompt: |
@@ -487,7 +520,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 
       - name: Update status on success
-        if: success()
+        if: success() && steps.validate.outputs.trigger_valid != 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -495,7 +528,7 @@ jobs:
             --remove-label "status:bot-working" 2>/dev/null || true
 
       - name: Handle failure - Factory Diagnosis
-        if: failure()
+        if: failure() && steps.validate.outputs.trigger_valid != 'false'
         id: diagnosis
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -535,7 +568,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Handle failure - Update and Escalate
-        if: failure()
+        if: failure() && steps.validate.outputs.trigger_valid != 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
