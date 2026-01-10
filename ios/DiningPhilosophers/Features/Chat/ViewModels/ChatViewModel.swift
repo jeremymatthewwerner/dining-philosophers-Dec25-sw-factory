@@ -18,6 +18,7 @@ final class ChatViewModel: WebSocketDelegate {
     private(set) var isPaused = false
     private(set) var typingThinker: String?
     private(set) var errorMessage: String?
+    var speedMultiplier: Double = 1.0
 
     private let webSocket = WebSocketClient()
 
@@ -96,6 +97,20 @@ final class ChatViewModel: WebSocketDelegate {
         }
     }
 
+    /// Set conversation speed
+    func setSpeed(_ speed: Double) async {
+        do {
+            try await webSocket.setSpeed(speed)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Clear error message
+    func clearError() {
+        errorMessage = nil
+    }
+
     // MARK: - WebSocketDelegate
 
     nonisolated func webSocketDidReceiveMessage(_ message: WSMessage) async {
@@ -145,7 +160,9 @@ final class ChatViewModel: WebSocketDelegate {
     }
 
     nonisolated func webSocketSpeedChanged(_ speed: Double) async {
-        // Handle speed change if needed
+        await MainActor.run {
+            speedMultiplier = speed
+        }
     }
 
     nonisolated func webSocketDidReceiveError(_ error: String) async {

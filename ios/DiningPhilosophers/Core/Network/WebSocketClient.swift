@@ -98,6 +98,15 @@ actor WebSocketClient {
         try await send(.resume(conversationId: conversationId))
     }
 
+    /// Set conversation speed
+    func setSpeed(_ speed: Double) async throws {
+        guard let conversationId else {
+            throw WebSocketError.notConnected
+        }
+
+        try await send(.setSpeed(conversationId: conversationId, speed: speed))
+    }
+
     // MARK: - Receiving Messages
 
     private func receiveMessages() async {
