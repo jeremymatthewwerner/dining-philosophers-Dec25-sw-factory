@@ -11,6 +11,7 @@ Focus areas:
 import uuid
 
 import pytest
+from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers, register_and_get_token
 
@@ -19,7 +20,7 @@ class TestConversationCreation:
     """Test edge cases in conversation creation."""
 
     @pytest.mark.asyncio
-    async def test_create_conversation_with_very_long_topic(self, client):
+    async def test_create_conversation_with_very_long_topic(self, client: AsyncClient) -> None:
         """Test creating conversation with 1000+ character topic."""
         headers = await get_auth_headers(client, username="user_long_topic", password="testpass123")
 
@@ -48,7 +49,7 @@ class TestConversationCreation:
         assert len(data["thinkers"]) == 1
 
     @pytest.mark.asyncio
-    async def test_create_conversation_with_unicode_topic(self, client):
+    async def test_create_conversation_with_unicode_topic(self, client: AsyncClient) -> None:
         """Test creating conversation with unicode characters and emojis."""
         data = await register_and_get_token(client, username="user_unicode", password="testpass123")
         headers = {"Authorization": f"Bearer {data['access_token']}"}
@@ -77,7 +78,7 @@ class TestConversationCreation:
         assert data["topic"] == unicode_topic
 
     @pytest.mark.asyncio
-    async def test_create_conversation_with_single_thinker(self, client):
+    async def test_create_conversation_with_single_thinker(self, client: AsyncClient) -> None:
         """Test boundary: conversation with exactly 1 thinker."""
         data = await register_and_get_token(client, username="user_single", password="testpass123")
         headers = {"Authorization": f"Bearer {data['access_token']}"}
@@ -103,7 +104,9 @@ class TestConversationCreation:
         assert len(data["thinkers"]) == 1
 
     @pytest.mark.asyncio
-    async def test_create_conversation_with_duplicate_thinker_names(self, client):
+    async def test_create_conversation_with_duplicate_thinker_names(
+        self, client: AsyncClient
+    ) -> None:
         """Test edge case: multiple thinkers with same name but different attributes."""
         data = await register_and_get_token(
             client, username="user_duplicates", password="testpass123"
@@ -144,7 +147,7 @@ class TestConversationRetrieval:
     """Test edge cases in conversation retrieval."""
 
     @pytest.mark.asyncio
-    async def test_get_conversation_with_invalid_uuid_format(self, client):
+    async def test_get_conversation_with_invalid_uuid_format(self, client: AsyncClient) -> None:
         """Test GET with malformed UUID."""
         data = await register_and_get_token(
             client, username="user_invalid_uuid", password="testpass123"
@@ -157,7 +160,7 @@ class TestConversationRetrieval:
         assert response.status_code in [404, 422]
 
     @pytest.mark.asyncio
-    async def test_get_conversation_with_nonexistent_uuid(self, client):
+    async def test_get_conversation_with_nonexistent_uuid(self, client: AsyncClient) -> None:
         """Test GET with valid UUID format but nonexistent conversation."""
         data = await register_and_get_token(
             client, username="user_nonexistent", password="testpass123"
@@ -172,7 +175,7 @@ class TestConversationRetrieval:
         assert "not found" in data["detail"].lower()
 
     @pytest.mark.asyncio
-    async def test_list_conversations_when_empty(self, client):
+    async def test_list_conversations_when_empty(self, client: AsyncClient) -> None:
         """Test listing conversations when user has none."""
         data = await register_and_get_token(
             client, username="user_empty_list", password="testpass123"
@@ -186,7 +189,7 @@ class TestConversationRetrieval:
         assert len(data) == 0
 
     @pytest.mark.asyncio
-    async def test_list_conversations_with_many_conversations(self, client):
+    async def test_list_conversations_with_many_conversations(self, client: AsyncClient) -> None:
         """Test listing conversations when user has many (10+)."""
         data = await register_and_get_token(
             client, username="user_many_convs", password="testpass123"
@@ -228,7 +231,7 @@ class TestConversationDeletion:
     """Test edge cases in conversation deletion."""
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_conversation(self, client):
+    async def test_delete_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test deleting conversation that doesn't exist."""
         data = await register_and_get_token(
             client, username="user_delete_fake", password="testpass123"
@@ -240,7 +243,7 @@ class TestConversationDeletion:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_delete_conversation_with_malformed_uuid(self, client):
+    async def test_delete_conversation_with_malformed_uuid(self, client: AsyncClient) -> None:
         """Test delete with malformed UUID."""
         data = await register_and_get_token(
             client, username="user_delete_invalid", password="testpass123"
@@ -252,7 +255,7 @@ class TestConversationDeletion:
         assert response.status_code in [404, 422]
 
     @pytest.mark.asyncio
-    async def test_delete_conversation_from_different_user(self, client):
+    async def test_delete_conversation_from_different_user(self, client: AsyncClient) -> None:
         """Test user A cannot delete user B's conversation."""
         # User A creates conversation
         data_a = await register_and_get_token(
@@ -294,7 +297,7 @@ class TestMessageSending:
     """Test edge cases in message sending."""
 
     @pytest.mark.asyncio
-    async def test_send_message_to_nonexistent_conversation(self, client):
+    async def test_send_message_to_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test sending message to conversation that doesn't exist."""
         data = await register_and_get_token(
             client, username="user_msg_fake", password="testpass123"
@@ -310,7 +313,7 @@ class TestMessageSending:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_send_very_long_message(self, client):
+    async def test_send_very_long_message(self, client: AsyncClient) -> None:
         """Test sending message with 10,000+ characters."""
         data = await register_and_get_token(
             client, username="user_long_msg", password="testpass123"
@@ -350,7 +353,7 @@ class TestMessageSending:
         assert len(data["content"]) == 10000
 
     @pytest.mark.asyncio
-    async def test_send_message_with_special_characters(self, client):
+    async def test_send_message_with_special_characters(self, client: AsyncClient) -> None:
         """Test sending message with special characters, emojis, and unicode."""
         data = await register_and_get_token(
             client, username="user_special_msg", password="testpass123"
@@ -388,7 +391,7 @@ class TestMessageSending:
         assert data["content"] == special_content
 
     @pytest.mark.asyncio
-    async def test_send_message_to_other_users_conversation(self, client):
+    async def test_send_message_to_other_users_conversation(self, client: AsyncClient) -> None:
         """Test user B cannot send message to user A's conversation."""
         # User A creates conversation
         data_a = await register_and_get_token(client, username="user_a_msg", password="testpass123")
