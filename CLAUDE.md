@@ -696,6 +696,39 @@ The bug-fix.yml workflow is already configured this way. If you need to modify w
 
 **Do NOT assume you can't push workflow files** - this was a past limitation that has been fixed.
 
+### Workflow Concurrency Pattern
+
+Agent workflows use **issue-specific concurrency groups** to prevent duplicate runs while allowing parallel work on different issues.
+
+**Pattern:**
+```yaml
+concurrency:
+  group: agent-name-${{ github.event.issue.number || 'global' }}
+  cancel-in-progress: true  # For monitoring agents (Factory Manager, DevOps)
+  # OR
+  cancel-in-progress: false  # For work agents (Code Agent, PE)
+```
+
+**Why issue-specific groups:**
+- **Prevents duplicate comments** - If a scheduled run and issue_comment trigger overlap, only one runs
+- **Allows parallel work** - Different issues can be worked on simultaneously
+- **Reduces cancelled notifications** - Previously, a single global group caused many cancellations
+
+**Current agent concurrency:**
+| Agent | Concurrency Group | Cancel In Progress |
+|-------|-------------------|-------------------|
+| Code Agent | `code-agent-issue-${{ issue_number }}` | `false` (let work finish) |
+| Principal Engineer | `principal-engineer-${{ issue_number }}` | `false` |
+| Factory Manager | `factory-manager-${{ issue_number \|\| 'global' }}` | `true` (use latest) |
+
+**When to use `cancel-in-progress: true`:**
+- Monitoring/health check agents that should always use the latest trigger
+- Agents where duplicate work is wasteful and the latest trigger has more context
+
+**When to use `cancel-in-progress: false`:**
+- Work agents (Code Agent, PE) that should complete their current task
+- Agents where interrupting mid-work could leave issues in bad state
+
 ## Default Policies (for autonomous decisions)
 
 When agents encounter these situations, apply these defaults instead of asking:
