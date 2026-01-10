@@ -28,6 +28,7 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 | `@pe` | Principal Engineer - holistic debugging |
 | `@devops` | DevOps - production logs, diagnostics |
 | `@factory-manager` | Factory Manager - stuck issues, health |
+| `@ios` | iOS Native Agent - Swift/SwiftUI iOS development |
 
 > **Future: GitHub Apps** - We're migrating to GitHub Apps for each agent, which will give
 > each agent a distinct identity (e.g., `@dp-code-agent[bot]`). This enables issue assignment,
@@ -57,6 +58,7 @@ Create these labels (or run: `gh label create <name> --color <color>`):
 - `status:awaiting-human` (#D93F0B) - Blocked waiting for human input
 - `status:awaiting-bot` (#0E8A16) - Human commented, bot will respond
 - `bug`, `enhancement`, `priority-high`, `priority-medium`, `priority-low`
+- `ios` (#147EFB) - iOS development issues (Apple blue)
 - `factory-improvement` (#1D76DB) - Documents factory/workflow fixes for audit trail
 - `factory-meta` (#5319E7) - Factory Manager issues (excluded from all other agents)
 - `factory-health` (#1D76DB) - Factory health reports and metrics
@@ -399,13 +401,14 @@ Use labels to categorize issues:
 
 ## Autonomous Agents
 
-This repo uses 9 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
+This repo uses 10 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels, routes to appropriate agent |
 | **Code Agent** | `@code` mention in comment | Diagnoses and fixes issues, creates PRs |
 | **Principal Engineer** | `@pe` mention in comment | Holistic debugging, fixes factory not just symptoms |
+| **iOS Native** | `@ios` mention in comment | Native iOS development with Swift/SwiftUI |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
 | **DevOps** | `@devops` mention + Every 5 min + push to main | Health checks, auto-rebase PRs, auto-merge ready PRs, Railway logs, service restarts |
@@ -612,6 +615,7 @@ Why @mentions over labels:
 | `@code` | Code Agent | Fix bugs, implement features |
 | `@devops` | DevOps Agent | Production logs, diagnostics, service restarts |
 | `@pe` | Principal Engineer | Holistic debugging, factory fixes |
+| `@ios` | iOS Native Agent | Native iOS development with Swift/SwiftUI |
 | `@triage` | Triage Agent | Re-classify or re-prioritize an issue |
 | `@qa` | QA Agent | Request test improvements |
 | `@factory-manager` | Factory Manager | Diagnose stuck issues, check factory health |
@@ -622,6 +626,7 @@ Why @mentions over labels:
 @code please fix this bug
 @devops please check backend logs for errors
 @pe this issue needs holistic investigation
+@ios please implement the chat view for iOS
 @triage please re-evaluate the priority of this issue
 @factory-manager why is this issue stuck?
 ```
