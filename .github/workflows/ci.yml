@@ -582,6 +582,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Function to check sub-issues completion status
+          check_sub_issues() {
+            local ISSUE_NUM=$1
+            local REPO="${{ github.repository }}"
+            local OWNER=$(echo "$REPO" | cut -d'/' -f1)
+            local NAME=$(echo "$REPO" | cut -d'/' -f2)
+
+            # Get issue node ID first
+            ISSUE_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+              -f query="query { repository(owner:\"$OWNER\", name:\"$NAME\") { issue(number: $ISSUE_NUM) { id } } }" \
+              --jq '.data.repository.issue.id' 2>/dev/null || echo "")
+
+            if [ -z "$ISSUE_ID" ] || [ "$ISSUE_ID" = "null" ]; then
+              echo "0 0 0"  # No ID found, return zeros
+              return
+            fi
+
+            # Query sub-issues summary
+            SUMMARY=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+              -f query="query { node(id:\"$ISSUE_ID\") { ... on Issue { subIssuesSummary { total completed percentCompleted } } } }" \
+              --jq '.data.node.subIssuesSummary | "\(.total) \(.completed) \(.percentCompleted)"' 2>/dev/null || echo "0 0 0")
+
+            echo "$SUMMARY"
+          }
+
           echo "Finding issues referenced in recent PRs (documentation-only change)..."
 
           # Get PR numbers from recent commit messages (squash merges include PR #)
@@ -623,7 +648,7 @@ jobs:
             LABELS=$(echo "$ISSUE_DATA" | jq -r '.labels[].name' | tr '\n' ' ')
             BODY=$(echo "$ISSUE_DATA" | jq -r '.body')
 
-            # Check if this is a multi-phase roadmap issue
+            # Check if this is a multi-phase roadmap issue (legacy markdown detection)
             if echo "$BODY" | grep -qi "phase [0-9]" && echo "$BODY" | grep -q "### Phase [0-9]"; then
               echo "Skipping issue #$ISSUE_NUM - appears to be a multi-phase roadmap issue"
               echo "  Body contains multiple phases - manual closure required after all phases complete"
@@ -645,6 +670,21 @@ jobs:
             fi
             if echo "$LABELS" | grep -q "status:bot-working"; then
               echo "Skipping issue #$ISSUE_NUM - has 'status:bot-working' label (bot still working)"
+              continue
+            fi
+
+            # Check sub-issues completion status (GitHub Sub-Issues feature)
+            SUB_ISSUES_INFO=$(check_sub_issues "$ISSUE_NUM")
+            SUB_TOTAL=$(echo "$SUB_ISSUES_INFO" | cut -d' ' -f1)
+            SUB_COMPLETED=$(echo "$SUB_ISSUES_INFO" | cut -d' ' -f2)
+
+            if [ "$SUB_TOTAL" != "0" ] && [ "$SUB_TOTAL" != "null" ] && [ "$SUB_COMPLETED" != "$SUB_TOTAL" ]; then
+              echo "Skipping issue #$ISSUE_NUM - has incomplete sub-issues ($SUB_COMPLETED/$SUB_TOTAL complete)"
+              gh issue comment $ISSUE_NUM --body "Auto-close skipped - This issue has incomplete sub-issues ($SUB_COMPLETED/$SUB_TOTAL complete).
+
+            The issue will auto-close when all sub-issues are complete.
+
+            Workflow: [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
               continue
             fi
 
@@ -688,6 +728,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Function to check sub-issues completion status
+          check_sub_issues() {
+            local ISSUE_NUM=$1
+            local REPO="${{ github.repository }}"
+            local OWNER=$(echo "$REPO" | cut -d'/' -f1)
+            local NAME=$(echo "$REPO" | cut -d'/' -f2)
+
+            # Get issue node ID first
+            ISSUE_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+              -f query="query { repository(owner:\"$OWNER\", name:\"$NAME\") { issue(number: $ISSUE_NUM) { id } } }" \
+              --jq '.data.repository.issue.id' 2>/dev/null || echo "")
+
+            if [ -z "$ISSUE_ID" ] || [ "$ISSUE_ID" = "null" ]; then
+              echo "0 0 0"  # No ID found, return zeros
+              return
+            fi
+
+            # Query sub-issues summary
+            SUMMARY=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+              -f query="query { node(id:\"$ISSUE_ID\") { ... on Issue { subIssuesSummary { total completed percentCompleted } } } }" \
+              --jq '.data.node.subIssuesSummary | "\(.total) \(.completed) \(.percentCompleted)"' 2>/dev/null || echo "0 0 0")
+
+            echo "$SUMMARY"
+          }
+
           echo "Finding issues referenced in recent PRs..."
 
           # Get PR numbers from recent commit messages (squash merges include PR #)
@@ -729,7 +794,7 @@ jobs:
             LABELS=$(echo "$ISSUE_DATA" | jq -r '.labels[].name' | tr '\n' ' ')
             BODY=$(echo "$ISSUE_DATA" | jq -r '.body')
 
-            # Check if this is a multi-phase roadmap issue
+            # Check if this is a multi-phase roadmap issue (legacy markdown detection)
             if echo "$BODY" | grep -qi "phase [0-9]" && echo "$BODY" | grep -q "### Phase [0-9]"; then
               echo "Skipping issue #$ISSUE_NUM - appears to be a multi-phase roadmap issue"
               echo "  Body contains multiple phases - manual closure required after all phases complete"
@@ -751,6 +816,21 @@ jobs:
             fi
             if echo "$LABELS" | grep -q "status:bot-working"; then
               echo "Skipping issue #$ISSUE_NUM - has 'status:bot-working' label (bot still working)"
+              continue
+            fi
+
+            # Check sub-issues completion status (GitHub Sub-Issues feature)
+            SUB_ISSUES_INFO=$(check_sub_issues "$ISSUE_NUM")
+            SUB_TOTAL=$(echo "$SUB_ISSUES_INFO" | cut -d' ' -f1)
+            SUB_COMPLETED=$(echo "$SUB_ISSUES_INFO" | cut -d' ' -f2)
+
+            if [ "$SUB_TOTAL" != "0" ] && [ "$SUB_TOTAL" != "null" ] && [ "$SUB_COMPLETED" != "$SUB_TOTAL" ]; then
+              echo "Skipping issue #$ISSUE_NUM - has incomplete sub-issues ($SUB_COMPLETED/$SUB_TOTAL complete)"
+              gh issue comment $ISSUE_NUM --body "Auto-close skipped - This issue has incomplete sub-issues ($SUB_COMPLETED/$SUB_TOTAL complete).
+
+            The issue will auto-close when all sub-issues are complete.
+
+            Workflow: [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
               continue
             fi
 
