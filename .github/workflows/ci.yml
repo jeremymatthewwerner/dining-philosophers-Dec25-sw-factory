@@ -617,10 +617,18 @@ jobs:
             [ -z "$ISSUE_NUM" ] && continue
             echo "Checking issue #$ISSUE_NUM..."
 
-            # Get issue state and labels
-            ISSUE_DATA=$(gh issue view $ISSUE_NUM --json state,labels 2>/dev/null || echo '{"state":"NOT_FOUND","labels":[]}')
+            # Get issue state, labels, and body
+            ISSUE_DATA=$(gh issue view $ISSUE_NUM --json state,labels,body 2>/dev/null || echo '{"state":"NOT_FOUND","labels":[],"body":""}')
             STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
             LABELS=$(echo "$ISSUE_DATA" | jq -r '.labels[].name' | tr '\n' ' ')
+            BODY=$(echo "$ISSUE_DATA" | jq -r '.body')
+
+            # Check if this is a multi-phase roadmap issue
+            if echo "$BODY" | grep -qi "phase [0-9]" && echo "$BODY" | grep -q "### Phase [0-9]"; then
+              echo "Skipping issue #$ISSUE_NUM - appears to be a multi-phase roadmap issue"
+              echo "  Body contains multiple phases - manual closure required after all phases complete"
+              continue
+            fi
 
             # Don't close issues that need human or PE intervention
             if echo "$LABELS" | grep -q "needs-human"; then
@@ -715,10 +723,18 @@ jobs:
             [ -z "$ISSUE_NUM" ] && continue
             echo "Checking issue #$ISSUE_NUM..."
 
-            # Get issue state and labels
-            ISSUE_DATA=$(gh issue view $ISSUE_NUM --json state,labels 2>/dev/null || echo '{"state":"NOT_FOUND","labels":[]}')
+            # Get issue state, labels, and body
+            ISSUE_DATA=$(gh issue view $ISSUE_NUM --json state,labels,body 2>/dev/null || echo '{"state":"NOT_FOUND","labels":[],"body":""}')
             STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
             LABELS=$(echo "$ISSUE_DATA" | jq -r '.labels[].name' | tr '\n' ' ')
+            BODY=$(echo "$ISSUE_DATA" | jq -r '.body')
+
+            # Check if this is a multi-phase roadmap issue
+            if echo "$BODY" | grep -qi "phase [0-9]" && echo "$BODY" | grep -q "### Phase [0-9]"; then
+              echo "Skipping issue #$ISSUE_NUM - appears to be a multi-phase roadmap issue"
+              echo "  Body contains multiple phases - manual closure required after all phases complete"
+              continue
+            fi
 
             # Don't close issues that need human or PE intervention
             if echo "$LABELS" | grep -q "needs-human"; then
