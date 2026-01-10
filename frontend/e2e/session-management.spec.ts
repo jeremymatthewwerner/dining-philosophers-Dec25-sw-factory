@@ -116,7 +116,10 @@ test.describe('Session Management', () => {
     expect(tokenAfterReload).toBe(tokenBeforeReload);
 
     // Should still see the conversation topic in the sidebar
-    const conversationItem = page.locator('text=Session persistence test');
+    // Use .first() because ScrollingText renders both a hidden measurement span and visible span
+    const conversationItem = page
+      .locator('text=Session persistence test')
+      .first();
     await expect(conversationItem).toBeVisible({ timeout: 15000 });
 
     // Click on the conversation to select it (conversations aren't auto-selected after reload)
@@ -137,10 +140,9 @@ test.describe('Session Management', () => {
     await sendButton.click();
 
     // Message should appear (validates session is still active)
-    await expect(page.locator('text=Testing session after reload')).toBeVisible(
-      {
-        timeout: 10000,
-      }
-    );
+    // Note: Messages are not inside ScrollingText, so no .first() needed
+    await expect(page.getByText('Testing session after reload')).toBeVisible({
+      timeout: 10000,
+    });
   });
 });
