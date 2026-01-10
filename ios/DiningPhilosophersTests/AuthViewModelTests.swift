@@ -38,7 +38,8 @@ final class AuthViewModelTests: XCTestCase {
     func testWebSocketErrorDescriptions() {
         let errors: [(WebSocketError, String)] = [
             (.invalidURL, "Invalid WebSocket URL"),
-            (.notConnected, "Not connected to conversation")
+            (.notConnected, "Not connected to conversation"),
+            (.reconnectFailed, "Failed to reconnect after multiple attempts")
         ]
 
         for (error, expectedDescription) in errors {

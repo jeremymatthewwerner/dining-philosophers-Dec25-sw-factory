@@ -18,6 +18,12 @@ final class ChatViewModel: WebSocketDelegate {
     private(set) var isPaused = false
     private(set) var typingThinker: String?
     private(set) var errorMessage: String?
+    private(set) var connectionState: WebSocketConnectionState = .disconnected
+    private(set) var currentSpeed: ConversationSpeed = .normal
+    private(set) var newMessagesCount = 0
+
+    /// Whether the user has scrolled away from the bottom
+    var isScrolledUp = false
 
     private let webSocket = WebSocketClient()
 
@@ -50,6 +56,17 @@ final class ChatViewModel: WebSocketDelegate {
         }
     }
 
+    /// Reconnect after disconnection
+    func reconnect() async {
+        guard connectionState == .disconnected else { return }
+
+        do {
+            try await webSocket.connect(conversationId: conversationId)
+        } catch {
+            errorMessage = "Failed to reconnect: \(error.localizedDescription)"
+        }
+    }
+
     /// Disconnect from WebSocket
     func disconnect() async {
         await webSocket.disconnect()
@@ -60,27 +77,48 @@ final class ChatViewModel: WebSocketDelegate {
     /// Send a message
     func sendMessage(_ content: String) async {
         isSending = true
-        defer { isSending = false }
+        let optimisticId = UUID().uuidString
 
-        // Add optimistic message
+        // Add optimistic message with sending status
         let optimisticMessage = Message(
-            id: UUID().uuidString,
+            id: optimisticId,
             conversationId: conversationId,
             senderType: .user,
             senderName: nil,
             content: content,
             cost: nil,
-            createdAt: Date()
+            createdAt: Date(),
+            status: .sending
         )
         messages.append(optimisticMessage)
 
         do {
             try await webSocket.sendUserMessage(content)
+            // Update status to sent
+            updateMessageStatus(id: optimisticId, status: .sent)
         } catch {
-            // Remove optimistic message on failure
-            messages.removeAll { $0.id == optimisticMessage.id }
+            // Update status to failed
+            updateMessageStatus(id: optimisticId, status: .failed)
             errorMessage = error.localizedDescription
         }
+
+        isSending = false
+    }
+
+    /// Retry sending a failed message
+    func retryMessage(id: String) async {
+        guard let index = messages.firstIndex(where: { $0.id == id }),
+              messages[index].status == .failed else {
+            return
+        }
+
+        let content = messages[index].content
+
+        // Remove the failed message
+        messages.remove(at: index)
+
+        // Send as new message
+        await sendMessage(content)
     }
 
     /// Toggle conversation pause state
@@ -93,6 +131,40 @@ final class ChatViewModel: WebSocketDelegate {
             }
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Set conversation speed
+    func setSpeed(_ speed: ConversationSpeed) async {
+        do {
+            try await webSocket.setSpeed(speed.rawValue)
+            currentSpeed = speed
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Clear new messages indicator and reset count
+    func clearNewMessagesIndicator() {
+        newMessagesCount = 0
+    }
+
+    /// Called when user scrolls to bottom
+    func userScrolledToBottom() {
+        isScrolledUp = false
+        clearNewMessagesIndicator()
+    }
+
+    /// Called when user scrolls up
+    func userScrolledUp() {
+        isScrolledUp = true
+    }
+
+    // MARK: - Private Helpers
+
+    private func updateMessageStatus(id: String, status: MessageStatus) {
+        if let index = messages.firstIndex(where: { $0.id == id }) {
+            messages[index].status = status
         }
     }
 
@@ -110,10 +182,16 @@ final class ChatViewModel: WebSocketDelegate {
                     senderName: message.senderName,
                     content: content,
                     cost: message.cost,
-                    createdAt: ISO8601DateFormatter().date(from: timestamp) ?? Date()
+                    createdAt: ISO8601DateFormatter().date(from: timestamp) ?? Date(),
+                    status: .sent
                 )
                 messages.append(newMessage)
                 typingThinker = nil
+
+                // Update new messages count if scrolled up
+                if isScrolledUp {
+                    newMessagesCount += 1
+                }
             }
         }
     }
@@ -145,7 +223,11 @@ final class ChatViewModel: WebSocketDelegate {
     }
 
     nonisolated func webSocketSpeedChanged(_ speed: Double) async {
-        // Handle speed change if needed
+        await MainActor.run {
+            if let newSpeed = ConversationSpeed(rawValue: speed) {
+                currentSpeed = newSpeed
+            }
+        }
     }
 
     nonisolated func webSocketDidReceiveError(_ error: String) async {
@@ -159,6 +241,32 @@ final class ChatViewModel: WebSocketDelegate {
             if let error {
                 errorMessage = "Disconnected: \(error.localizedDescription)"
             }
+        }
+    }
+
+    nonisolated func webSocketConnectionStateChanged(_ state: WebSocketConnectionState) async {
+        await MainActor.run {
+            connectionState = state
+        }
+    }
+}
+
+// MARK: - Message Helpers
+
+extension ChatViewModel {
+    /// Check if a timestamp separator should be shown before a message
+    func shouldShowTimestamp(for message: Message, at index: Int) -> Bool {
+        // Always show for first message
+        guard index > 0 else { return true }
+
+        let previousMessage = messages[index - 1]
+        return message.hasTimeGap(from: previousMessage)
+    }
+
+    /// Get messages with their timestamp visibility computed
+    var messagesWithTimestamps: [(message: Message, showTimestamp: Bool)] {
+        messages.enumerated().map { index, message in
+            (message, shouldShowTimestamp(for: message, at: index))
         }
     }
 }

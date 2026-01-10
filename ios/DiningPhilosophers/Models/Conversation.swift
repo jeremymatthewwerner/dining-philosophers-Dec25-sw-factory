@@ -51,6 +51,13 @@ struct ConversationSummary: Codable, Identifiable, Sendable {
     }
 }
 
+/// Message status for optimistic updates
+enum MessageStatus: String, Codable, Sendable {
+    case sending
+    case sent
+    case failed
+}
+
 /// Message within a conversation
 struct Message: Codable, Identifiable, Sendable {
     let id: String
@@ -60,6 +67,7 @@ struct Message: Codable, Identifiable, Sendable {
     let content: String
     let cost: Decimal?
     let createdAt: Date
+    var status: MessageStatus
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -69,6 +77,40 @@ struct Message: Codable, Identifiable, Sendable {
         case content
         case cost
         case createdAt = "created_at"
+        case status
+    }
+
+    init(
+        id: String,
+        conversationId: String,
+        senderType: SenderType,
+        senderName: String?,
+        content: String,
+        cost: Decimal?,
+        createdAt: Date,
+        status: MessageStatus = .sent
+    ) {
+        self.id = id
+        self.conversationId = conversationId
+        self.senderType = senderType
+        self.senderName = senderName
+        self.content = content
+        self.cost = cost
+        self.createdAt = createdAt
+        self.status = status
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        conversationId = try container.decode(String.self, forKey: .conversationId)
+        senderType = try container.decode(SenderType.self, forKey: .senderType)
+        senderName = try container.decodeIfPresent(String.self, forKey: .senderName)
+        content = try container.decode(String.self, forKey: .content)
+        cost = try container.decodeIfPresent(Decimal.self, forKey: .cost)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        // Status defaults to sent for messages from server
+        status = try container.decodeIfPresent(MessageStatus.self, forKey: .status) ?? .sent
     }
 }
 

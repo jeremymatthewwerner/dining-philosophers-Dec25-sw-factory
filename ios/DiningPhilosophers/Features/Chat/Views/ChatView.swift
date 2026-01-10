@@ -11,6 +11,7 @@ struct ChatView: View {
 
     @State private var viewModel: ChatViewModel
     @State private var messageText = ""
+    @State private var scrollProxy: ScrollViewProxy?
     @FocusState private var isInputFocused: Bool
 
     init(conversationId: String) {
@@ -20,25 +21,89 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Connection status banner
+            ConnectionStatusBanner(connectionState: viewModel.connectionState)
+                .onTapGesture {
+                    if viewModel.connectionState == .disconnected {
+                        Task {
+                            await viewModel.reconnect()
+                        }
+                    }
+                }
+
+            // Chat toolbar with speed control
+            ChatToolbarView(
+                speed: Binding(
+                    get: { viewModel.currentSpeed },
+                    set: { _ in }
+                ),
+                isPaused: Binding(
+                    get: { viewModel.isPaused },
+                    set: { _ in }
+                ),
+                onSpeedChange: { speed in
+                    Task {
+                        await viewModel.setSpeed(speed)
+                    }
+                },
+                onTogglePause: {
+                    Task {
+                        await viewModel.togglePause()
+                    }
+                }
+            )
+            .background(.regularMaterial)
+
             // Messages list
             messagesSection
 
             // Typing indicator
             if let typingThinker = viewModel.typingThinker {
-                typingIndicator(for: typingThinker)
+                TypingIndicatorView(thinkerName: typingThinker)
             }
 
             // Input area
-            inputSection
+            MessageInputView(
+                text: $messageText,
+                isSending: viewModel.isSending,
+                onSend: sendMessage
+            )
         }
         .navigationTitle(viewModel.conversation?.topic ?? "Chat")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 8) {
+                    ConnectionIndicator(connectionState: viewModel.connectionState)
+                    Text(viewModel.conversation?.topic ?? "Chat")
+                        .font(.headline)
+                }
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button(viewModel.isPaused ? "Resume" : "Pause") {
-                        Task {
-                            await viewModel.togglePause()
+                    Section("Speed") {
+                        ForEach(ConversationSpeed.allCases) { speed in
+                            Button {
+                                Task {
+                                    await viewModel.setSpeed(speed)
+                                }
+                            } label: {
+                                HStack {
+                                    Text(speed.label)
+                                    if speed == viewModel.currentSpeed {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Section {
+                        Button(viewModel.isPaused ? "Resume" : "Pause") {
+                            Task {
+                                await viewModel.togglePause()
+                            }
                         }
                     }
                 } label: {
@@ -54,61 +119,69 @@ struct ChatView: View {
                 await viewModel.disconnect()
             }
         }
+        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button("OK") {
+                // Clear error handled by ViewModel
+            }
+        } message: {
+            if let error = viewModel.errorMessage {
+                Text(error)
+            }
+        }
     }
 
     // MARK: - View Components
 
     private var messagesSection: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(viewModel.messages) { message in
-                        MessageBubble(message: message)
+        ZStack(alignment: .bottom) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                            MessageBubbleView(
+                                message: message,
+                                showTimestamp: viewModel.shouldShowTimestamp(for: message, at: index),
+                                onTap: {
+                                    if message.status == .failed {
+                                        Task {
+                                            await viewModel.retryMessage(id: message.id)
+                                        }
+                                    }
+                                }
+                            )
                             .id(message.id)
+                        }
+                    }
+                    .padding()
+                }
+                .onChange(of: viewModel.messages.count) { _, _ in
+                    if !viewModel.isScrolledUp, let lastMessage = viewModel.messages.last {
+                        withAnimation {
+                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                        }
                     }
                 }
-                .padding()
-            }
-            .onChange(of: viewModel.messages.count) { _, _ in
-                if let lastMessage = viewModel.messages.last {
-                    withAnimation {
-                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                    }
+                .onAppear {
+                    scrollProxy = proxy
                 }
+                // Detect scroll position
+                .simultaneousGesture(
+                    DragGesture().onChanged { value in
+                        if value.translation.height > 50 {
+                            viewModel.userScrolledUp()
+                        }
+                    }
+                )
+            }
+
+            // New messages indicator
+            if viewModel.newMessagesCount > 0 {
+                NewMessagesIndicator(messageCount: viewModel.newMessagesCount) {
+                    scrollToBottom()
+                }
+                .padding(.bottom, 8)
             }
         }
-    }
-
-    private func typingIndicator(for name: String) -> some View {
-        HStack {
-            Text("\(name) is thinking...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .italic()
-            Spacer()
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 4)
-        .background(.regularMaterial)
-    }
-
-    private var inputSection: some View {
-        HStack(spacing: 12) {
-            TextField("Message", text: $messageText, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(1...5)
-                .focused($isInputFocused)
-
-            Button {
-                sendMessage()
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
-            }
-            .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSending)
-        }
-        .padding()
-        .background(.regularMaterial)
     }
 
     // MARK: - Actions
@@ -123,58 +196,26 @@ struct ChatView: View {
             await viewModel.sendMessage(content)
         }
     }
+
+    private func scrollToBottom() {
+        viewModel.userScrolledToBottom()
+        if let lastMessage = viewModel.messages.last {
+            withAnimation {
+                scrollProxy?.scrollTo(lastMessage.id, anchor: .bottom)
+            }
+        }
+    }
 }
 
-/// Individual message bubble
+// MARK: - Legacy MessageBubble (kept for backwards compatibility)
+
+/// Individual message bubble (deprecated - use MessageBubbleView instead)
+@available(*, deprecated, renamed: "MessageBubbleView")
 struct MessageBubble: View {
     let message: Message
 
     var body: some View {
-        HStack {
-            if message.senderType == .user {
-                Spacer()
-            }
-
-            VStack(alignment: message.senderType == .user ? .trailing : .leading, spacing: 4) {
-                if message.senderType == .thinker {
-                    Text(message.senderName ?? "Thinker")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text(message.content)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(bubbleBackground)
-                    .foregroundStyle(bubbleForeground)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-            }
-
-            if message.senderType != .user {
-                Spacer()
-            }
-        }
-    }
-
-    private var bubbleBackground: Color {
-        switch message.senderType {
-        case .user:
-            return .accentColor
-        case .thinker:
-            return Color(.systemGray5)
-        case .system:
-            return Color(.systemGray6)
-        }
-    }
-
-    private var bubbleForeground: Color {
-        switch message.senderType {
-        case .user:
-            return .white
-        case .thinker, .system:
-            return .primary
-        }
+        MessageBubbleView(message: message)
     }
 }
 
