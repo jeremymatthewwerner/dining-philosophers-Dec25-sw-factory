@@ -1,0 +1,386 @@
+name: iOS Native Agent
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to work on'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+  actions: read
+  checks: read
+
+# Prevent concurrent runs on the same issue
+concurrency:
+  group: ios-agent-issue-${{ github.event.issue.number || github.event.inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  ios-work:
+    # Triggers on:
+    # 1. Comment containing @ios on an issue
+    # 2. Manual workflow dispatch
+    # SKIP if: needs-human label is present (escalated, requires human intervention)
+    # SKIP if: factory-meta label is present (handled by Factory Manager only)
+    if: |
+      !contains(github.event.issue.labels.*.name, 'needs-human') &&
+      !contains(github.event.issue.labels.*.name, 'factory-meta') &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'issue_comment' &&
+        !github.event.issue.pull_request &&
+        (contains(github.event.comment.body, '@ios') ||
+         contains(github.event.comment.body, '@iOS'))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      # Configure git to use PAT for push operations
+      - name: Configure git with PAT
+        run: |
+          git remote set-url origin https://github.com/${{ github.repository }}.git
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $(echo -n 'x-access-token:${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}' | base64)"
+
+      - name: Get issue number and context
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ISSUE_NUM="${{ github.event.inputs.issue_number }}"
+            echo "number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+            ISSUE_AUTHOR=$(gh issue view "$ISSUE_NUM" --json author --jq '.author.login' 2>/dev/null || echo "")
+            echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "comment_author=${{ github.event.comment.user.login }}" >> $GITHUB_OUTPUT
+            echo "issue_author=${{ github.event.issue.user.login }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update status labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:awaiting-human" \
+            --remove-label "status:awaiting-bot" 2>/dev/null || true
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --add-label "status:bot-working" \
+            --add-label "ios" 2>/dev/null || true
+
+      - name: Create progress comment
+        id: progress
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          COMMENT_BODY="## 🍎 iOS Native Agent Progress
+
+          - [ ] 📖 Reading issue and understanding iOS requirements
+          - [ ] 🔍 Analyzing iOS codebase and Swift files
+          - [ ] 🛠️ Implementing: *pending*
+          - [ ] ✅ Building and testing iOS code
+          - [ ] 📝 Creating PR
+          - [ ] 🚀 CI Status: *pending*
+
+          **Status:** 🚀 Starting iOS development...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+          ## 📋 Activity Log
+
+          | Time | Event |
+          |------|-------|
+          | $TIMESTAMP | 🚀 iOS Agent started |
+
+          ---
+          *Analysis will appear below as I investigate...*"
+
+          COMMENT_ID=$(gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
+            -X POST -f body="$COMMENT_BODY" --jq '.id')
+
+          echo "comment_id=$COMMENT_ID" >> $GITHUB_OUTPUT
+          echo "Created progress comment #$COMMENT_ID"
+
+      # Pre-install Claude Code to avoid race condition lock issues
+      - name: Pre-install Claude Code
+        run: |
+          rm -f "$HOME/.claude/.installing" "$HOME/.claude/install.lock" 2>/dev/null || true
+          echo "Installing Claude Code v2.0.74..."
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.74
+          export PATH="$HOME/.local/bin:$HOME/.claude/bin:$PATH"
+          if command -v claude &> /dev/null; then
+            echo "Claude Code installed: $(claude --version 2>/dev/null || echo 'unknown version')"
+          else
+            echo "Warning: Claude not found in PATH after install"
+          fi
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+
+      - name: Run Claude (iOS Native Agent)
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Read CLAUDE.md and .claude/agents/ios-native.md first - these are your primary instructions.
+
+            **CRITICAL: Update progress by EDITING comment #${{ steps.progress.outputs.comment_id }} with checkboxes!**
+
+            You are the iOS Native Specialist Agent. You build native Swift/SwiftUI iOS applications.
+
+            ## Your Expertise
+            - Swift 5.9+, SwiftUI, async/await, actors
+            - MVVM architecture with @Observable
+            - URLSession networking, WebSocket support
+            - Keychain for secure storage
+            - Xcode project configuration
+
+            ## Decision-Making: BE AUTONOMOUS!
+
+            **Make technical decisions yourself. Don't ask "Should I do A or B?" - DECIDE.**
+
+            Decide autonomously:
+            - Architecture patterns (MVVM, Clean Architecture - choose what fits)
+            - UI implementation (prefer SwiftUI for new code)
+            - Networking approach (URLSession with async/await)
+            - Storage solutions (Keychain for secrets, UserDefaults for preferences)
+
+            Only escalate to human for:
+            - Security decisions (certificate pinning, auth strategy)
+            - App Store policy compliance questions
+            - Breaking changes to shared API contracts
+
+            If stuck on a DECISION for 10 minutes, MAKE A CHOICE and document your reasoning.
+
+            ## Project Structure
+            The iOS project is in `ios/` directory with:
+            - `ios/DiningPhilosophers/` - Main app code
+            - `ios/DiningPhilosophers/Models/` - Swift models (User, Conversation, etc.)
+            - `ios/DiningPhilosophers/Core/Network/` - APIClient, WebSocketClient
+            - `ios/DiningPhilosophers/Features/` - Auth, Chat, Conversations, Settings
+            - `ios/Package.swift` - Swift Package Manager file
+
+            ## Backend API Integration
+            The iOS app talks to the existing FastAPI backend:
+            - Base URL: `https://api.diningphilosophers.ai`
+            - Auth: JWT tokens (Bearer header)
+            - WebSocket: `/ws/{conversation_id}`
+
+            ## Progress Comment Format
+            Update by editing comment #${{ steps.progress.outputs.comment_id }}:
+            ```bash
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+            gh api repos/${{ github.repository }}/issues/comments/${{ steps.progress.outputs.comment_id }} \
+              -X PATCH -f body="## 🍎 iOS Native Agent Progress
+
+            - [x] 📖 Reading issue and understanding iOS requirements
+            - [x] 🔍 Analyzing iOS codebase and Swift files
+            - [ ] 🛠️ Implementing: [what you're building]
+            - [ ] ✅ Building and testing iOS code
+            - [ ] 📝 Creating PR
+            - [ ] 🚀 CI Status: *pending*
+
+            **Status:** [current status]
+            **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ---
+            ## 📋 Activity Log
+
+            | Time | Event |
+            |------|-------|
+            | [start time] | 🚀 iOS Agent started |
+            | $TIMESTAMP | [what you're doing now] |
+
+            ---
+            ## 🔍 Summary
+
+            ### What I'm Building
+            [description]
+
+            ### Files Changed
+            - \`ios/path/to/file.swift\` - [brief description]"
+            ```
+
+            ## Step 1: Analyze
+            1. Read the issue AND all comments: gh issue view ${{ steps.context.outputs.number }} --comments
+            2. Check first box [x] and update status
+            3. Understand what iOS work is needed
+            4. Check second box [x] and add Analysis section
+
+            ## Step 2: Implement
+            1. Check third box [x] with description of what you're building
+            2. Create branch: git checkout -b feat/${{ steps.context.outputs.number }}-ios-description
+            3. Write Swift/SwiftUI code following the patterns in .claude/agents/ios-native.md
+            4. Ensure code compiles (note: we can't run xcodebuild in CI without macOS runner)
+
+            ## Step 3: Create PR
+            1. Check fourth box [x]
+            2. Commit: "feat(ios): description\n\nRelates to #${{ steps.context.outputs.number }}"
+            3. Push and create PR:
+               gh pr create --title "feat(ios): ..." --body "Relates to #${{ steps.context.outputs.number }}"
+            4. Check fifth box [x] with PR link
+
+            ## Collaboration with Other Agents
+            - Need backend API changes? Post `@code please add endpoint for...` on the issue
+            - Need production logs? Post `@devops please check...` on the issue
+            - Architecture decision? Post `@pe please advise on...` on the issue
+
+            ## Status Label Management
+            - If you need human input:
+              1. Post a comment with your question (MUST @mention @${{ steps.context.outputs.issue_author }})
+              2. Set labels: gh issue edit ${{ steps.context.outputs.number }} --remove-label "status:bot-working" --add-label "status:awaiting-human"
+            - When done (PR created): remove status:bot-working label
+
+            If stuck for 30min, escalate to @jeremymatthewwerner.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model claude-opus-4-5-20251101
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh:*),Bash(git:*),Bash(swift:*),Bash(swiftlint:*),Bash(swiftformat:*),Bash(cd:*),Read,Write,Edit,Glob,Grep"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+
+      - name: Monitor CI and report results
+        if: success()
+        id: ci-monitor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.context.outputs.number }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+        run: |
+          # Find PR by branch pattern feat/{issue_number}-ios-*
+          PR_NUMBER=$(gh pr list --state open --json number,headRefName \
+            --jq ".[] | select(.headRefName | test(\"^feat/${ISSUE_NUMBER}-ios\")) | .number" 2>/dev/null | head -1 || echo "")
+
+          if [ -z "$PR_NUMBER" ]; then
+            # Also check for fix/ branches
+            PR_NUMBER=$(gh pr list --state open --json number,headRefName \
+              --jq ".[] | select(.headRefName | test(\"^fix/${ISSUE_NUMBER}-ios\")) | .number" 2>/dev/null | head -1 || echo "")
+          fi
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR found for issue #${ISSUE_NUMBER}, skipping CI monitoring"
+            exit 0
+          fi
+
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "Monitoring CI for PR #$PR_NUMBER"
+
+          # Update progress comment
+          if [ -n "$PROGRESS_COMMENT_ID" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+              -X PATCH -f body="## 🍎 iOS Native Agent Progress
+
+          - [x] 📖 Reading issue and understanding iOS requirements
+          - [x] 🔍 Analyzing iOS codebase and Swift files
+          - [x] 🛠️ Implementing iOS feature
+          - [x] ✅ Code complete
+          - [x] 📝 PR created: #${PR_NUMBER}
+          - [ ] 🚀 Waiting for CI
+
+          **Status:** ⏳ Monitoring CI for PR #${PR_NUMBER}...
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+          fi
+
+          # Wait for CI to start
+          sleep 30
+
+          # Poll for up to 10 minutes (20 iterations * 30 seconds)
+          for i in $(seq 1 20); do
+            echo "Check $i/20..."
+
+            IN_PROGRESS=$(gh pr checks $PR_NUMBER --json state --jq '[.[] | select(.state=="PENDING" or .state=="IN_PROGRESS")] | length' 2>/dev/null || echo "0")
+
+            if [ "$IN_PROGRESS" = "0" ]; then
+              FAILED=$(gh pr checks $PR_NUMBER --json state --jq '[.[] | select(.state=="FAILURE")] | length' 2>/dev/null || echo "0")
+
+              if [ "$FAILED" -gt 0 ]; then
+                echo "ci_failed=true" >> $GITHUB_OUTPUT
+                FAILED_CHECKS=$(gh pr checks $PR_NUMBER --json name,state --jq '[.[] | select(.state=="FAILURE") | .name] | join(", ")' 2>/dev/null || echo "unknown")
+
+                gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ CI Failed for iOS PR
+
+          **PR:** #${PR_NUMBER}
+          **Failed checks:** ${FAILED_CHECKS}
+
+          [View CI logs](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}/checks)
+
+          cc @${ISSUE_AUTHOR}"
+              else
+                # CI passed - auto-merge
+                echo "CI passed, auto-merging PR #${PR_NUMBER}..."
+
+                if gh pr merge $PR_NUMBER --squash --delete-branch 2>/dev/null; then
+                  gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ iOS PR Merged
+
+          All checks passed! PR #${PR_NUMBER} has been automatically merged.
+
+          🚀 **Deploying to production...**
+
+          cc @${ISSUE_AUTHOR}"
+                else
+                  gh issue comment ${{ steps.context.outputs.number }} --body "## ✅ CI Passed
+
+          All checks passed! [PR #${PR_NUMBER}](https://github.com/${{ github.repository }}/pull/${PR_NUMBER}) is ready for review.
+
+          cc @${ISSUE_AUTHOR}"
+                fi
+              fi
+              exit 0
+            fi
+
+            sleep 30
+          done
+
+          gh issue comment ${{ steps.context.outputs.number }} --body "## ⏳ CI Still Running
+
+          CI checks for PR #${PR_NUMBER} are still running. [Check status](https://github.com/${{ github.repository }}/pull/${PR_NUMBER})
+
+          cc @${ISSUE_AUTHOR}"
+
+      - name: Update status on success
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:bot-working" 2>/dev/null || true
+
+      - name: Update issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROGRESS_COMMENT_ID: ${{ steps.progress.outputs.comment_id }}
+          ISSUE_AUTHOR: ${{ steps.context.outputs.issue_author }}
+        run: |
+          if [ -n "$PROGRESS_COMMENT_ID" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/$PROGRESS_COMMENT_ID \
+              -X PATCH -f body="## 🍎 iOS Native Agent Progress
+
+          - [x] 📖 Reading issue and understanding iOS requirements
+          - [?] Work in progress... (workflow failed)
+
+          **Status:** ❌ Workflow failed - see logs
+          **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" 2>/dev/null || true
+          fi
+
+          gh issue comment ${{ steps.context.outputs.number }} --body "## ❌ iOS Agent Failed
+
+          The workflow encountered an error. Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          cc @${ISSUE_AUTHOR}"
+          gh issue edit ${{ steps.context.outputs.number }} \
+            --remove-label "status:bot-working" \
+            --add-label "needs-human" \
+            --add-label "status:awaiting-human"
