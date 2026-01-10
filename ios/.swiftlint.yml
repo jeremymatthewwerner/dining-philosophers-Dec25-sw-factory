@@ -1,0 +1,184 @@
+# SwiftLint Configuration for Dining Philosophers iOS App
+# See: https://github.com/realm/SwiftLint
+
+# Paths to include during linting
+included:
+  - DiningPhilosophers
+  - DiningPhilosophersTests
+  - DiningPhilosophersUITests
+
+# Paths to exclude from linting
+excluded:
+  - DiningPhilosophers.xcodeproj
+  - .build
+  - Package.swift
+
+# Rules to disable
+disabled_rules:
+  - trailing_whitespace # Too strict for rapid development
+  - todo # Allow TODO comments during development
+
+# Rules to opt-in
+opt_in_rules:
+  - array_init
+  - attributes
+  - closure_end_indentation
+  - closure_spacing
+  - collection_alignment
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - contains_over_range_nil_comparison
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - enum_case_associated_values_count
+  - explicit_init
+  - extension_access_modifier
+  - fallthrough
+  - fatal_error_message
+  - file_header
+  - file_name_no_space
+  - first_where
+  - flatmap_over_map_reduce
+  - force_unwrapping
+  - identical_operands
+  - implicitly_unwrapped_optional
+  - joined_default_parameter
+  - last_where
+  - legacy_multiple
+  - literal_expression_end_indentation
+  - lower_acl_than_parent
+  - modifier_order
+  - multiline_arguments
+  - multiline_function_chains
+  - multiline_literal_brackets
+  - multiline_parameters
+  - nimble_operator
+  - operator_usage_whitespace
+  - optional_enum_case_matching
+  - overridden_super_call
+  - override_in_extension
+  - pattern_matching_keywords
+  - prefer_self_type_over_type_of_self
+  - prefer_zero_over_explicit_init
+  - private_action
+  - private_outlet
+  - prohibited_super_call
+  - reduce_into
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - single_test_class
+  - sorted_first_last
+  - static_operator
+  - strict_fileprivate
+  - toggle_bool
+  - unavailable_function
+  - unneeded_parentheses_in_closure_argument
+  - unowned_variable_capture
+  - untyped_error_in_catch
+  - vertical_parameter_alignment_on_call
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+  - xct_specific_matcher
+  - yoda_condition
+
+# Configuration for specific rules
+
+# Allow longer lines for URLs and long strings
+line_length:
+  warning: 150
+  error: 200
+  ignores_function_declarations: true
+  ignores_comments: true
+  ignores_urls: true
+  ignores_interpolated_strings: true
+
+# Allow more complex functions
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+
+# Allow larger files
+file_length:
+  warning: 500
+  error: 800
+
+# Allow longer function bodies
+function_body_length:
+  warning: 60
+  error: 100
+
+# Allow more function parameters
+function_parameter_count:
+  warning: 8
+  error: 10
+
+# Allow longer type bodies
+type_body_length:
+  warning: 350
+  error: 500
+
+# Identifier naming rules
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - id
+    - i
+    - j
+    - x
+    - y
+    - z
+    - ok
+    - to
+    - ws
+    - db
+
+# Large tuples (for async operations)
+large_tuple:
+  warning: 4
+  error: 5
+
+# Nesting depth
+nesting:
+  type_level:
+    warning: 3
+  function_level:
+    warning: 5
+
+# Force cast allowed in tests
+force_cast:
+  severity: warning
+
+# Type name length
+type_name:
+  min_length:
+    warning: 3
+    error: 2
+  max_length:
+    warning: 50
+    error: 60
+
+# File header
+file_header:
+  required_pattern: |
+    \/\/
+    \/\/ .*\.swift
+    \/\/ .*
+    \/\/
+    \/\/ Created by .*
+
+# Custom rules
+custom_rules:
+  no_print_in_production:
+    included: "DiningPhilosophers/.*\\.swift"
+    excluded: ".*Tests\\.swift"
+    name: "No print statements in production code"
+    regex: "\\bprint\\("
+    message: "Use proper logging instead of print()"
+    severity: warning
