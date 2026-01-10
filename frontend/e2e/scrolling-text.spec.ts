@@ -42,8 +42,9 @@ test.describe('ScrollingText - Conversation List', () => {
     const scrollingTextContainer = conversationItem.locator('div.overflow-hidden').first();
     await expect(scrollingTextContainer).toBeVisible();
 
-    // The inner span should have the 'truncate' class when not animating
-    const textSpan = scrollingTextContainer.locator('span');
+    // The inner visible span (not the hidden measurement span) should have the 'truncate' class when not animating
+    // Use :not([aria-hidden="true"]) to skip the hidden measurement span
+    const textSpan = scrollingTextContainer.locator('span:not([aria-hidden="true"])');
     await expect(textSpan).toHaveClass(/truncate/);
 
     // The container should have a title attribute (native tooltip) when truncated
@@ -94,9 +95,9 @@ test.describe('ScrollingText - Conversation List', () => {
     const conversationItem = page.getByTestId('conversation-item');
     await expect(conversationItem).toBeVisible({ timeout: 10000 });
 
-    // Get the scrolling text container and span
+    // Get the scrolling text container and visible span (not the hidden measurement span)
     const scrollingTextContainer = conversationItem.locator('div.overflow-hidden').first();
-    const textSpan = scrollingTextContainer.locator('span');
+    const textSpan = scrollingTextContainer.locator('span:not([aria-hidden="true"])');
 
     // Before hover: should have truncate class
     await expect(textSpan).toHaveClass(/truncate/);
@@ -146,7 +147,7 @@ test.describe('ScrollingText - Conversation List', () => {
     await expect(conversationItem).toBeVisible({ timeout: 10000 });
 
     const scrollingTextContainer = conversationItem.locator('div.overflow-hidden').first();
-    const textSpan = scrollingTextContainer.locator('span');
+    const textSpan = scrollingTextContainer.locator('span:not([aria-hidden="true"])');
 
     // Hover to start animation
     await scrollingTextContainer.hover();
