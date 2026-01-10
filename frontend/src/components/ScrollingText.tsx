@@ -31,6 +31,7 @@ export function ScrollingText({
 }: ScrollingTextProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -38,10 +39,14 @@ export function ScrollingText({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if text is truncated (overflows container)
+  // We use a hidden measurement span to accurately measure the full text width
+  // because the visible text span may have overflow:hidden which limits scrollWidth
   const checkTruncation = useCallback(() => {
-    if (containerRef.current && textRef.current) {
+    if (containerRef.current && measureRef.current) {
       const containerWidth = containerRef.current.clientWidth;
-      const textWidth = textRef.current.scrollWidth;
+      // measureRef is positioned absolutely with no overflow restrictions,
+      // so its scrollWidth reflects the true text width
+      const textWidth = measureRef.current.scrollWidth;
       setIsTruncated(textWidth > containerWidth);
     }
   }, []);
@@ -104,7 +109,8 @@ export function ScrollingText({
     }
 
     const containerWidth = containerRef.current?.clientWidth || 0;
-    const textWidth = textRef.current?.scrollWidth || 0;
+    // Use measureRef for accurate text width measurement
+    const textWidth = measureRef.current?.scrollWidth || 0;
     const maxScroll = textWidth - containerWidth;
 
     if (maxScroll <= 0) return;
@@ -179,11 +185,22 @@ export function ScrollingText({
   return (
     <div
       ref={containerRef}
-      className={`overflow-hidden whitespace-nowrap ${className}`}
+      className={`relative overflow-hidden whitespace-nowrap ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={handleMouseLeave}
       title={isTruncated ? (title ?? text) : undefined}
     >
+      {/* Hidden measurement span - positioned absolutely with no overflow restrictions
+          to accurately measure the full text width */}
+      <span
+        ref={measureRef}
+        aria-hidden="true"
+        className="absolute invisible whitespace-nowrap"
+        style={{ left: 0, top: 0 }}
+      >
+        {text}
+      </span>
+      {/* Visible text span */}
       <span
         ref={textRef}
         className={isAnimating ? 'inline-block' : 'block truncate'}

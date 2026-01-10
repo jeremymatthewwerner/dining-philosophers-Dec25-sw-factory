@@ -48,6 +48,9 @@ test.describe('Persistence', () => {
     await expect(page.getByTestId('conversation-item')).toBeVisible({
       timeout: 10000,
     });
-    await expect(page.locator('text=Test persistence topic')).toBeVisible();
+    // Use .last() because ScrollingText renders hidden measurement span first, visible span second
+    await expect(
+      page.locator('text=Test persistence topic').last()
+    ).toBeVisible();
   });
 });
