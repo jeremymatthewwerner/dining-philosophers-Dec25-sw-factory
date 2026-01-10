@@ -14,19 +14,21 @@ on:
     paths:
       - '.github/workflows/bug-fix.yml'
       - '.github/workflows/ci.yml'
-      - '.github/workflows/ci-monitor.yml'
+      - '.github/workflows/ci-failure-monitor.yml'
       - '.github/workflows/ci-watcher.yml'
       - '.github/workflows/devops.yml'
       - '.github/workflows/factory-manager.yml'
+      - '.github/workflows/factory-tests.yml'
       - '.github/workflows/principal-engineer.yml'
       - '.github/workflows/qa.yml'
-      - '.github/workflows/release-engineer.yml'
+      - '.github/workflows/release-eng.yml'
       - '.github/workflows/marketing.yml'
       - '.github/workflows/triage.yml'
       - '.github/apps/**'
-      - 'scripts/setup-github-apps.sh'
-      - 'docs/GITHUB_APPS.md'
       - '.github/examples/**'
+      - 'scripts/setup-github-apps.sh'
+      - 'scripts/flaky-test-hunter.sh'
+      - 'docs/**'
       - 'CLAUDE.md'
       - 'REQUIREMENTS.md'
 
@@ -55,17 +57,21 @@ jobs:
           FILES=(
             ".github/workflows/bug-fix.yml"
             ".github/workflows/ci.yml"
-            ".github/workflows/ci-monitor.yml"
+            ".github/workflows/ci-failure-monitor.yml"
             ".github/workflows/ci-watcher.yml"
             ".github/workflows/devops.yml"
             ".github/workflows/factory-manager.yml"
+            ".github/workflows/factory-tests.yml"
             ".github/workflows/principal-engineer.yml"
             ".github/workflows/qa.yml"
-            ".github/workflows/release-engineer.yml"
+            ".github/workflows/release-eng.yml"
             ".github/workflows/marketing.yml"
             ".github/workflows/triage.yml"
             "CLAUDE.md"
             "REQUIREMENTS.md"
+            "docs/OBSERVABILITY.md"
+            "docs/FACTORY_MANAGER.md"
+            "scripts/flaky-test-hunter.sh"
           )
 
           # GitHub Apps files
@@ -126,8 +132,24 @@ jobs:
           # Apply to workflow files
           find .github/workflows -name "*.yml" -exec sh -c "sed -i $SED_ARGS \"\$1\"" _ {} \;
 
-          # Apply to markdown docs
-          for file in CLAUDE.md REQUIREMENTS.md docs/GITHUB_APPS.md; do
+          # Apply to markdown docs (root and docs/)
+          for file in CLAUDE.md REQUIREMENTS.md; do
+            if [ -f "$file" ]; then
+              echo "Generalizing $file"
+              eval "sed -i $SED_ARGS \"$file\""
+            fi
+          done
+
+          # Apply to all docs/*.md files
+          for file in docs/*.md; do
+            if [ -f "$file" ]; then
+              echo "Generalizing $file"
+              eval "sed -i $SED_ARGS \"$file\""
+            fi
+          done
+
+          # Apply to scripts (flaky-test-hunter.sh has project-specific paths)
+          for file in scripts/flaky-test-hunter.sh; do
             if [ -f "$file" ]; then
               echo "Generalizing $file"
               eval "sed -i $SED_ARGS \"$file\""
