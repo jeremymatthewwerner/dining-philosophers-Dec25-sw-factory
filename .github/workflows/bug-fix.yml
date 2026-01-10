@@ -331,14 +331,40 @@ jobs:
             **You have PAT_WITH_WORKFLOW_ACCESS which grants FULL repository permissions:**
             - ✅ Can trigger workflows via `gh workflow run` or `repository_dispatch`
             - ✅ Can merge PRs via `gh pr merge`
-            - ✅ Can modify ANY file including `.github/workflows/`
             - ✅ Can create/close issues and PRs
             - ✅ Can push to any branch
+            - ✅ Can modify most files, BUT see delegation rules below
 
             **DO NOT claim you "don't have permission" without actually trying!**
             - If you think you can't do something, TRY IT FIRST
             - Only escalate if the command actually fails with a permission error
             - Being overly conservative wastes human time on things you CAN do
+
+            ## 🏭 FACTORY DELEGATION RULES
+
+            **For factory-level changes, delegate to Factory Manager instead of doing them yourself:**
+
+            **DELEGATE these changes to @factory-manager:**
+            - ✋ Modifications to `.github/workflows/` files
+            - ✋ Changes to agent behavior/prompts in workflow files
+            - ✋ Updates to CLAUDE.md that affect multiple agents
+            - ✋ Changes to concurrency patterns or workflow triggers
+
+            **How to delegate:**
+            ```bash
+            gh issue comment ${{ steps.context.outputs.number }} --body "@factory-manager this requires a workflow change: [explain what needs changing and why]"
+            ```
+
+            **Still do yourself (even if they touch workflow files):**
+            - ✅ Bug fixes to application code
+            - ✅ New feature implementations
+            - ✅ Test updates
+            - ✅ Documentation that doesn't affect agent behavior
+
+            **Why delegate factory changes?**
+            - Factory Manager has broader context across all agents
+            - Prevents conflicts between concurrent agent workflow modifications
+            - Maintains proper separation between product changes (you) and factory changes (FM)
 
             ## 📝 DOCUMENT FACTORY FIXES!
 

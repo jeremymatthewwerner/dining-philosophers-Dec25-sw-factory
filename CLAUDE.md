@@ -681,20 +681,33 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 
 ### Workflow File Changes
 
-**Code Agent CAN modify `.github/workflows/` files** when the checkout uses `PAT_WITH_WORKFLOW_ACCESS`:
+**Factory Manager handles workflow modifications** to maintain proper separation between product changes and factory changes.
 
-```yaml
-- uses: actions/checkout@v4
-  with:
-    token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+**Code Agent Delegation Rule:**
+When a Code Agent needs workflow changes, it should delegate to Factory Manager:
+```bash
+gh issue comment ISSUE_NUMBER --body "@factory-manager this requires a workflow change: [explain what and why]"
 ```
 
-The bug-fix.yml workflow is already configured this way. If you need to modify workflow files:
-1. Make your changes to `.github/workflows/*.yml`
-2. Commit and push normally - the PAT token enables this
-3. Create PR as usual
+**What Code Agent should delegate:**
+- ✋ Modifications to `.github/workflows/` files
+- ✋ Changes to agent prompts/behavior in workflows
+- ✋ Updates to CLAUDE.md affecting multiple agents
+- ✋ Concurrency or trigger pattern changes
 
-**Do NOT assume you can't push workflow files** - this was a past limitation that has been fixed.
+**What Code Agent can still do:**
+- ✅ Application code changes (even if they happen to touch workflow config files as data)
+- ✅ Test updates
+- ✅ Bug fixes
+- ✅ New feature implementations
+
+**Why this separation?**
+- Factory Manager has broader context across all agents
+- Prevents conflicts from concurrent workflow modifications
+- Maintains factory vs. product change distinction
+- Avoids confusion from mixed "can modify" vs. "should delegate" signals
+
+**Technical note:** Code Agent workflows are configured with `PAT_WITH_WORKFLOW_ACCESS` for technical capabilities, but the **delegation pattern ensures proper factory management**.
 
 ### Workflow Concurrency Pattern
 
