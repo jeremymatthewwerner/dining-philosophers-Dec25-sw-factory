@@ -33,10 +33,10 @@ permissions:
   # NOTE: workflows permission is only valid for PATs, not workflow files
   # The PAT_WITH_WORKFLOW_ACCESS secret has this scope
 
-# Only one Factory Manager run at a time
+# Only one Factory Manager run at a time to prevent duplicate comments
 concurrency:
-  group: factory-manager
-  cancel-in-progress: false
+  group: factory-manager-${{ github.event.issue.number || 'global' }}
+  cancel-in-progress: true
 
 jobs:
   # ===========================================
