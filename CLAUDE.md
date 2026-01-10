@@ -427,6 +427,8 @@ Code Agent stuck → posts "@pe please investigate" → Principal Engineer inves
                                                            ↓
                                        Downloads E2E artifacts, reads backend logs
                                                            ↓
+                                       Documents approach and solution strategy
+                                                           ↓
                                        Fixes issue AND updates factory to prevent recurrence
                                                            ↓
                                        If truly stuck → adds needs-human → Human reviews
@@ -437,6 +439,16 @@ Code Agent stuck → posts "@pe please investigate" → Principal Engineer inves
 - Download and analyze E2E artifacts (`gh run download`)
 - Can modify workflows, CLAUDE.md, agent prompts
 - Document learnings to prevent similar issues
+
+**PE Approach Documentation (NEW):**
+
+Before implementing, PE must post detailed approach documentation:
+- Root cause analysis with category
+- E2E/CI log excerpts
+- Solution strategy (immediate + factory improvement)
+- Impact assessment and rationale
+
+This provides visibility without blocking autonomous operation.
 
 ### DevOps Agent - Railway Infrastructure Management
 

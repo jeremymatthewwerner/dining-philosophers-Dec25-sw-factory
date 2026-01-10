@@ -115,6 +115,7 @@ jobs:
           - [ ] 📖 Reading full issue history and understanding context
           - [ ] 📊 Analyzing CI failures and downloading artifacts
           - [ ] 🔍 Identifying root cause (code bug vs infrastructure vs workflow)
+          - [ ] 🎯 Documenting approach and solution strategy
           - [ ] 🛠️ Implementing fix
           - [ ] 🏭 Updating factory to prevent recurrence
           - [ ] ✅ Verifying fix works
@@ -274,14 +275,77 @@ jobs:
             3. The original issue will auto-retry once factory is fixed
             4. Update CLAUDE.md with the learning
 
-            ### Step 4: Implement Fix
+            ### Step 4: Document Approach (REQUIRED!)
+
+            **Before implementing ANY changes**, update your progress comment with a detailed approach:
+
+            ```bash
+            gh api repos/${{ github.repository }}/issues/comments/${{ steps.progress.outputs.comment_id }} \
+              -X PATCH -f body="## 🔧 Principal Engineer Investigation
+
+            - [x] 📖 Reading full issue history and understanding context
+            - [x] 📊 Analyzing CI failures and downloading artifacts
+            - [x] 🔍 Identifying root cause (code bug vs infrastructure vs workflow)
+            - [x] 🎯 Documenting approach and solution strategy
+            - [ ] 🛠️ Implementing fix
+            - [ ] 🏭 Updating factory to prevent recurrence
+            - [ ] ✅ Verifying fix works
+
+            **Status:** Ready to implement
+            **Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ---
+            ## 🎯 Approach & Solution Strategy
+
+            ### Root Cause Analysis
+            **Category:** [Code Bug | Test Infrastructure | Workflow/Agent Issue | Architecture | Factory Bug]
+
+            **What Happened:**
+            [Detailed explanation of what went wrong]
+
+            **Why Code Agent Got Stuck:**
+            [Explain the specific blocker]
+
+            ### E2E/CI Log Analysis (if applicable)
+            \\\`\\\`\\\`
+            [Key excerpts from logs showing the actual error]
+            \\\`\\\`\\\`
+
+            ### Solution Strategy
+            **Immediate Fix:**
+            1. [First change]
+            2. [Second change]
+
+            **Factory Improvement (prevent recurrence):**
+            - [How to prevent similar issues]
+
+            ### Impact Assessment
+            - **Risk Level:** [Low | Medium | High]
+            - **Files Affected:** [list files]
+            - **Breaking Changes:** [None | describe]
+
+            ### Rationale
+            [Explain WHY this approach was chosen over alternatives]
+
+            cc @${{ steps.context.outputs.issue_author }}"
+            ```
+
+            **Why this matters:**
+            - Provides visibility into PE's reasoning before changes are made
+            - Creates audit trail for factory-level decisions
+            - Allows stakeholders to intervene early if the approach seems wrong
+            - Documents learnings for future similar issues
+
+            **Do NOT skip this step!** The approach documentation is mandatory before implementation.
+
+            ### Step 5: Implement Fix
             Based on root cause:
             - Create branch: `git checkout -b fix/${{ steps.context.outputs.number }}-pe-fix`
             - Make necessary changes
             - Run quality gates
             - Create PR with "Fixes #${{ steps.context.outputs.number }}" in body
 
-            ### Step 5: Prevent Recurrence (CRITICAL!)
+            ### Step 6: Prevent Recurrence (CRITICAL!)
             This is what makes you different from Code Agent:
 
             **Always ask:** "How do I prevent this class of problem from happening again?"
@@ -323,6 +387,7 @@ jobs:
             - [x] 📖 Reading full issue history and understanding context
             - [x] 📊 Analyzing CI failures and downloading artifacts
             - [x] 🔍 Identifying root cause (code bug vs infrastructure vs workflow)
+            - [x] 🎯 Documenting approach and solution strategy
             - [ ] 🛠️ Implementing fix
             - [ ] 🏭 Updating factory to prevent recurrence
             - [ ] 📝 Creating factory-improvement issue for audit trail
@@ -346,6 +411,32 @@ jobs:
 
             ### E2E Logs Analysis (if applicable)
             [Key findings from backend.log or Playwright reports]
+
+            ---
+            ## 🎯 Approach & Solution Strategy
+
+            ### Root Cause Analysis
+            **Category:** [Code Bug | Test Infrastructure | Workflow/Agent Issue | Architecture | Factory Bug]
+
+            **What Happened:** [Detailed explanation of what went wrong]
+
+            **Why Code Agent Got Stuck:** [Explain the specific blocker]
+
+            ### Solution Strategy
+            **Immediate Fix:**
+            1. [First change]
+            2. [Second change]
+
+            **Factory Improvement (prevent recurrence):**
+            - [How to prevent similar issues]
+
+            ### Impact Assessment
+            - **Risk Level:** [Low | Medium | High]
+            - **Files Affected:** [list files]
+            - **Breaking Changes:** [None | describe]
+
+            ### Rationale
+            [Explain WHY this approach was chosen over alternatives]
 
             cc @${{ steps.context.outputs.issue_author }}"
             ```
