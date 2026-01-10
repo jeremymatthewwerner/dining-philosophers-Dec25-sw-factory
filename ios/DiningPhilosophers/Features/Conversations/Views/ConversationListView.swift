@@ -54,7 +54,7 @@ struct ConversationListView: View {
                 Text(viewModel.errorMessage ?? "")
             }
             .sheet(isPresented: $showingNewConversation) {
-                NewConversationView(onConversationCreated: { _ in
+                NewConversationWizardView(onConversationCreated: { _ in
                     showingNewConversation = false
                     Task {
                         await viewModel.loadConversations()
@@ -199,48 +199,6 @@ struct EmptyConversationsView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("No conversations yet")
         .accessibilityHint("Tap to start a new conversation with thinkers")
-    }
-}
-
-/// Placeholder view for creating new conversations
-/// TODO: Full implementation in Phase 5
-struct NewConversationView: View {
-    @Environment(\.dismiss) private var dismiss
-    let onConversationCreated: (String) -> Void
-
-    @State private var topic = ""
-    @State private var isCreating = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("What would you like to discuss?") {
-                    TextField("Enter a topic...", text: $topic, axis: .vertical)
-                        .lineLimit(3...6)
-                }
-
-                Section {
-                    Text("Choose thinkers to join your conversation")
-                        .foregroundStyle(.secondary)
-                    // TODO: Add thinker selection in Phase 5
-                }
-            }
-            .navigationTitle("New Conversation")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        // TODO: Implement conversation creation
-                    }
-                    .disabled(topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
-                }
-            }
-        }
     }
 }
 

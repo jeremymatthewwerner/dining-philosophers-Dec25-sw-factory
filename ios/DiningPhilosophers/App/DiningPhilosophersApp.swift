@@ -42,6 +42,16 @@ struct MainTabView: View {
                     Label("Conversations", systemImage: "bubble.left.and.bubble.right")
                 }
 
+            NavigationStack {
+                ThinkerBrowserView(mode: .browse)
+                    .navigationDestination(for: Thinker.self) { thinker in
+                        ThinkerDetailView(thinker: thinker)
+                    }
+            }
+            .tabItem {
+                Label("Thinkers", systemImage: "person.3")
+            }
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")

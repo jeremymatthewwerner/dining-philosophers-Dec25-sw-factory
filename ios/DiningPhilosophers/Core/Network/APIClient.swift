@@ -329,7 +329,7 @@ enum APIError: Error, LocalizedError {
 struct EmptyResponse: Decodable {}
 
 /// Thinker model for list endpoints
-struct Thinker: Codable, Identifiable, Sendable {
+struct Thinker: Codable, Identifiable, Sendable, Hashable {
     let id: String
     let name: String
     let bio: String
@@ -341,5 +341,15 @@ struct Thinker: Codable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, name, bio, positions, style, color
         case imageUrl = "image_url"
+    }
+
+    // MARK: - Hashable
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: Thinker, rhs: Thinker) -> Bool {
+        lhs.id == rhs.id
     }
 }
