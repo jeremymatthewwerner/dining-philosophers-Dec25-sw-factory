@@ -2,6 +2,7 @@
 // Tests for API client functionality
 //
 // Created by iOS Native Agent
+// Updated by iOS Native Agent - Phase 2
 
 import XCTest
 @testable import DiningPhilosophers
@@ -9,7 +10,7 @@ import XCTest
 /// Tests for APIClient
 final class APIClientTests: XCTestCase {
 
-    // MARK: - API Error Tests
+    // MARK: - Legacy API Error Tests (Backwards Compatibility)
 
     func testAPIErrorDescriptions() {
         let errors: [(APIError, String)] = [
@@ -26,6 +27,18 @@ final class APIClientTests: XCTestCase {
         for (error, expectedDescription) in errors {
             XCTAssertEqual(error.errorDescription, expectedDescription)
         }
+    }
+
+    func testAPIErrorToNetworkErrorConversion() {
+        // Test conversion from legacy APIError to NetworkError
+        XCTAssertEqual(APIError.invalidResponse.asNetworkError, .invalidResponse)
+        XCTAssertEqual(APIError.unauthorized.asNetworkError, .unauthorized)
+        XCTAssertEqual(APIError.forbidden.asNetworkError, .forbidden)
+        XCTAssertEqual(APIError.notFound.asNetworkError, .notFound)
+        XCTAssertEqual(APIError.validationError.asNetworkError, .unprocessableEntity(message: nil))
+        XCTAssertEqual(APIError.rateLimited.asNetworkError, .tooManyRequests(retryAfter: nil))
+        XCTAssertEqual(APIError.serverError(500).asNetworkError, .serverError(statusCode: 500, message: nil))
+        XCTAssertEqual(APIError.httpError(418).asNetworkError, .serverError(statusCode: 418, message: nil))
     }
 
     // MARK: - Request Body Encoding Tests
@@ -88,6 +101,24 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(decoded["content"], "What is the meaning of life?")
     }
 
+    func testSuggestThinkersRequestEncoding() throws {
+        let request = APIRequest.SuggestThinkers(topic: "Artificial Intelligence", count: 3)
+        let data = try JSONEncoder().encode(request)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(json["topic"] as? String, "Artificial Intelligence")
+        XCTAssertEqual(json["count"] as? Int, 3)
+    }
+
+    func testSuggestThinkersRequestWithoutCount() throws {
+        let request = APIRequest.SuggestThinkers(topic: "Philosophy", count: nil)
+        let data = try JSONEncoder().encode(request)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        XCTAssertEqual(json["topic"] as? String, "Philosophy")
+        XCTAssertNil(json["count"])
+    }
+
     // MARK: - Auth Response Decoding Tests
 
     func testAuthResponseDecoding() throws {
@@ -117,5 +148,110 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(response.user.id, "user-123")
         XCTAssertEqual(response.user.username, "testuser")
         XCTAssertNil(response.user.displayName)
+    }
+
+    // MARK: - Thinker Model Tests
+
+    func testThinkerDecoding() throws {
+        let json = """
+        {
+            "id": "thinker-123",
+            "name": "Aristotle",
+            "bio": "Ancient Greek philosopher",
+            "positions": "Virtue ethics, empiricism",
+            "style": "Systematic, logical",
+            "color": "#4A90D9",
+            "image_url": "https://example.com/aristotle.jpg"
+        }
+        """
+
+        let data = json.data(using: .utf8)!
+        let thinker = try JSONDecoder().decode(Thinker.self, from: data)
+
+        XCTAssertEqual(thinker.id, "thinker-123")
+        XCTAssertEqual(thinker.name, "Aristotle")
+        XCTAssertEqual(thinker.bio, "Ancient Greek philosopher")
+        XCTAssertEqual(thinker.positions, "Virtue ethics, empiricism")
+        XCTAssertEqual(thinker.style, "Systematic, logical")
+        XCTAssertEqual(thinker.color, "#4A90D9")
+        XCTAssertEqual(thinker.imageUrl, "https://example.com/aristotle.jpg")
+    }
+
+    func testThinkerDecodingWithNullImageUrl() throws {
+        let json = """
+        {
+            "id": "thinker-456",
+            "name": "Socrates",
+            "bio": "Classical Greek philosopher",
+            "positions": "Socratic method",
+            "style": "Questioning",
+            "color": "#FF5733",
+            "image_url": null
+        }
+        """
+
+        let data = json.data(using: .utf8)!
+        let thinker = try JSONDecoder().decode(Thinker.self, from: data)
+
+        XCTAssertEqual(thinker.id, "thinker-456")
+        XCTAssertEqual(thinker.name, "Socrates")
+        XCTAssertNil(thinker.imageUrl)
+    }
+
+    // MARK: - EmptyResponse Tests
+
+    func testEmptyResponseDecoding() throws {
+        let json = "{}"
+        let data = json.data(using: .utf8)!
+        let response = try JSONDecoder().decode(EmptyResponse.self, from: data)
+
+        // EmptyResponse should decode successfully
+        _ = response
+    }
+
+    // MARK: - Endpoint Tests
+
+    func testAllEndpointPaths() {
+        // Auth endpoints
+        XCTAssertEqual(Endpoint.login.path, "/api/auth/login")
+        XCTAssertEqual(Endpoint.register.path, "/api/auth/register")
+        XCTAssertEqual(Endpoint.logout.path, "/api/auth/logout")
+        XCTAssertEqual(Endpoint.me.path, "/api/auth/me")
+
+        // Session endpoints
+        XCTAssertEqual(Endpoint.sessions.path, "/api/sessions")
+        XCTAssertEqual(Endpoint.session(id: "sess-123").path, "/api/sessions/sess-123")
+
+        // Conversation endpoints
+        XCTAssertEqual(Endpoint.conversations.path, "/api/conversations")
+        XCTAssertEqual(Endpoint.conversation(id: "conv-123").path, "/api/conversations/conv-123")
+        XCTAssertEqual(Endpoint.createConversation.path, "/api/conversations")
+
+        // Thinker endpoints
+        XCTAssertEqual(Endpoint.thinkers.path, "/api/thinkers")
+        XCTAssertEqual(Endpoint.suggestThinkers(topic: "ethics").path, "/api/thinkers/suggest")
+
+        // Message endpoints
+        XCTAssertEqual(Endpoint.messages(conversationId: "conv-123").path, "/api/conversations/conv-123/messages")
+        XCTAssertEqual(Endpoint.sendMessage(conversationId: "conv-456").path, "/api/conversations/conv-456/messages")
+    }
+
+    func testEndpointAuthRequirements() {
+        // Public endpoints (no auth required)
+        XCTAssertFalse(Endpoint.login.requiresAuth)
+        XCTAssertFalse(Endpoint.register.requiresAuth)
+
+        // Protected endpoints (auth required)
+        XCTAssertTrue(Endpoint.logout.requiresAuth)
+        XCTAssertTrue(Endpoint.me.requiresAuth)
+        XCTAssertTrue(Endpoint.sessions.requiresAuth)
+        XCTAssertTrue(Endpoint.session(id: "123").requiresAuth)
+        XCTAssertTrue(Endpoint.conversations.requiresAuth)
+        XCTAssertTrue(Endpoint.conversation(id: "123").requiresAuth)
+        XCTAssertTrue(Endpoint.createConversation.requiresAuth)
+        XCTAssertTrue(Endpoint.thinkers.requiresAuth)
+        XCTAssertTrue(Endpoint.suggestThinkers(topic: "test").requiresAuth)
+        XCTAssertTrue(Endpoint.messages(conversationId: "123").requiresAuth)
+        XCTAssertTrue(Endpoint.sendMessage(conversationId: "123").requiresAuth)
     }
 }
