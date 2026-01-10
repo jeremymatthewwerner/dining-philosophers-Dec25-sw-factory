@@ -5,15 +5,24 @@
 
 import Foundation
 
-/// WebSocket client for real-time conversation updates
+/// WebSocket client for real-time conversation updates with automatic reconnection
 actor WebSocketClient {
     private var webSocket: URLSessionWebSocketTask?
     private var isConnected = false
     private var conversationId: String?
+    private var shouldReconnect = false
+    private var reconnectAttempts = 0
+    private var reconnectTask: Task<Void, Never>?
 
     private let baseURL = "wss://api.diningphilosophers.ai"
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+
+    /// Maximum reconnection attempts before giving up
+    private let maxReconnectAttempts = 5
+
+    /// Base delay for exponential backoff (in seconds)
+    private let baseReconnectDelay: TimeInterval = 1.0
 
     /// Delegate for receiving messages
     weak var delegate: WebSocketDelegate?
@@ -42,6 +51,8 @@ actor WebSocketClient {
 
         self.conversationId = conversationId
         self.isConnected = true
+        self.shouldReconnect = true
+        self.reconnectAttempts = 0
 
         // Send join message
         try await send(.join(conversationId: conversationId))
@@ -50,12 +61,56 @@ actor WebSocketClient {
         await receiveMessages()
     }
 
-    /// Disconnect from WebSocket
+    /// Disconnect from WebSocket (user-initiated, no reconnection)
     func disconnect() async {
+        shouldReconnect = false
+        reconnectTask?.cancel()
+        reconnectTask = nil
         webSocket?.cancel(with: .normalClosure, reason: nil)
         webSocket = nil
         isConnected = false
         conversationId = nil
+        reconnectAttempts = 0
+    }
+
+    /// Check if the WebSocket is currently connected
+    var connected: Bool {
+        isConnected
+    }
+
+    // MARK: - Reconnection Logic
+
+    /// Attempt to reconnect with exponential backoff
+    private func attemptReconnect() async {
+        guard shouldReconnect,
+              reconnectAttempts < maxReconnectAttempts,
+              let conversationId else {
+            if reconnectAttempts >= maxReconnectAttempts {
+                await delegate?.webSocketDidFailToReconnect()
+            }
+            return
+        }
+
+        reconnectAttempts += 1
+
+        // Calculate delay with exponential backoff: 1s, 2s, 4s, 8s, 16s
+        let delay = baseReconnectDelay * pow(2.0, Double(reconnectAttempts - 1))
+
+        await delegate?.webSocketWillReconnect(attempt: reconnectAttempts, maxAttempts: maxReconnectAttempts, delay: delay)
+
+        // Wait before reconnecting
+        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+        // Check if we should still reconnect
+        guard shouldReconnect else { return }
+
+        do {
+            try await connect(conversationId: conversationId)
+            await delegate?.webSocketDidReconnect()
+        } catch {
+            // Reconnection failed, try again
+            await attemptReconnect()
+        }
     }
 
     // MARK: - Sending Messages
@@ -134,6 +189,13 @@ actor WebSocketClient {
             // Connection closed or error
             isConnected = false
             await delegate?.webSocketDidDisconnect(error: error)
+
+            // Attempt reconnection if it wasn't a user-initiated disconnect
+            if shouldReconnect {
+                reconnectTask = Task {
+                    await attemptReconnect()
+                }
+            }
         }
     }
 
@@ -189,6 +251,7 @@ actor WebSocketClient {
 /// WebSocket delegate protocol
 @MainActor
 protocol WebSocketDelegate: AnyObject {
+    // Message handling
     func webSocketDidReceiveMessage(_ message: WSMessage)
     func webSocketThinkerTyping(name: String)
     func webSocketThinkerStoppedTyping(name: String)
@@ -196,7 +259,21 @@ protocol WebSocketDelegate: AnyObject {
     func webSocketConversationResumed()
     func webSocketSpeedChanged(_ speed: Double)
     func webSocketDidReceiveError(_ error: String)
+
+    // Connection lifecycle
     func webSocketDidDisconnect(error: Error?)
+    func webSocketWillReconnect(attempt: Int, maxAttempts: Int, delay: TimeInterval)
+    func webSocketDidReconnect()
+    func webSocketDidFailToReconnect()
+}
+
+// MARK: - Default Implementations
+
+extension WebSocketDelegate {
+    // Provide default empty implementations for optional methods
+    func webSocketWillReconnect(attempt: Int, maxAttempts: Int, delay: TimeInterval) {}
+    func webSocketDidReconnect() {}
+    func webSocketDidFailToReconnect() {}
 }
 
 /// WebSocket errors
