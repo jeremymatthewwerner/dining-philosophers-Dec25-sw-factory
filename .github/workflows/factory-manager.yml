@@ -240,7 +240,8 @@ jobs:
           # Get current time minus 30 minutes
           THRESHOLD=$(date -u -d '30 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
 
-          # Find open PRs with failing CI or no activity
+          # Find open PRs with failing OR cancelled CI (both indicate stuck PRs)
+          # CANCELLED can happen when CI gets stuck and is manually/auto-cancelled
           STUCK_PRS=$(gh pr list \
             --repo ${{ github.repository }} \
             --state open \
@@ -250,13 +251,13 @@ jobs:
                 (.updatedAt < $threshold) and
                 (
                   (.statusCheckRollup | length > 0) and
-                  (.statusCheckRollup | any(.conclusion == "FAILURE"))
+                  (.statusCheckRollup | any(.conclusion == "FAILURE" or .conclusion == "CANCELLED"))
                 )
               ) | {number, title, branch: .headRefName, author: .author.login, updatedAt}]
             ' 2>/dev/null || echo "[]")
 
           COUNT=$(echo "$STUCK_PRS" | jq 'length')
-          echo "Found $COUNT stuck PRs with failing CI"
+          echo "Found $COUNT stuck PRs with failing or cancelled CI"
 
           if [ "$COUNT" -gt 0 ]; then
             echo "has_stuck_prs=true" >> $GITHUB_OUTPUT
@@ -552,7 +553,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           STUCK_PRS: ${{ steps.stuck_prs.outputs.stuck_prs }}
         run: |
-          echo "Handling stuck PRs with failing CI..."
+          echo "Handling stuck PRs with failing or cancelled CI..."
 
           HANDLED_COUNT=0
           MAX_HANDLE=3
@@ -577,9 +578,9 @@ jobs:
               continue
             fi
 
-            # Get the failed checks
+            # Get the failed or cancelled checks
             FAILED_CHECKS=$(gh pr view "$PR_NUM" --repo ${{ github.repository }} \
-              --json statusCheckRollup | jq -r '[.statusCheckRollup[] | select(.conclusion == "FAILURE") | .name] | join(", ")' 2>/dev/null || echo "unknown")
+              --json statusCheckRollup | jq -r '[.statusCheckRollup[] | select(.conclusion == "FAILURE" or .conclusion == "CANCELLED") | "\(.name) (\(.conclusion))"] | join(", ")' 2>/dev/null || echo "unknown")
 
             # Find related issue from branch name (claude/fix-XXX-*)
             RELATED_ISSUE=""
@@ -590,18 +591,18 @@ jobs:
             # Post comment on PR
             COMMENT_FILE=$(mktemp)
             {
-              echo "## [Factory Manager] PR Stuck with Failing CI"
+              echo "## [Factory Manager] PR Stuck with CI Issues"
               echo ""
-              echo "This PR has had failing CI for over 30 minutes."
+              echo "This PR has had failing or cancelled CI for over 30 minutes."
               echo ""
-              echo "**Failed checks:** $FAILED_CHECKS"
+              echo "**Problem checks:** $FAILED_CHECKS"
               echo ""
               echo "**Recommended actions:**"
               echo "1. Review the CI logs: [View workflow runs](https://github.com/${{ github.repository }}/actions?query=branch%3A$PR_BRANCH)"
-              echo "2. Fix the failing tests/checks"
-              echo "3. Push updated code"
+              echo "2. If cancelled: Re-run the CI workflow"
+              echo "3. If failing: Fix the failing tests/checks and push updated code"
               echo ""
-              echo "_If this PR was created by an agent, consider re-triggering with \\\`@code please fix the CI failures\\\`_"
+              echo "_If this PR was created by an agent, consider re-triggering with \\\`@code please fix the CI issues\\\`_"
             } > "$COMMENT_FILE"
 
             gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body-file "$COMMENT_FILE"
@@ -611,11 +612,11 @@ jobs:
             if [ -n "$RELATED_ISSUE" ]; then
               ISSUE_FILE=$(mktemp)
               {
-                echo "[Factory Manager] PR #$PR_NUM has been stuck with failing CI for over 30 minutes."
+                echo "[Factory Manager] PR #$PR_NUM has been stuck with CI issues for over 30 minutes."
                 echo ""
-                echo "Failed checks: $FAILED_CHECKS"
+                echo "Problem checks: $FAILED_CHECKS"
                 echo ""
-                echo "@code please investigate and fix the CI failures in PR #$PR_NUM."
+                echo "@code please investigate and fix the CI issues in PR #$PR_NUM. If CI was cancelled, re-run it first to see if it passes."
               } > "$ISSUE_FILE"
               gh issue comment "$RELATED_ISSUE" --repo ${{ github.repository }} --body-file "$ISSUE_FILE" 2>/dev/null || true
               rm -f "$ISSUE_FILE"
@@ -933,7 +934,7 @@ jobs:
           echo "Stuck issues found: $STUCK_COUNT"
           echo "Long-running issues found: $LONGRUNNING_COUNT"
           echo "Failed workflows found: $FAILED_COUNT"
-          echo "Stuck PRs with failing CI: $STUCK_PRS_COUNT"
+          echo "Stuck PRs with failing/cancelled CI: $STUCK_PRS_COUNT"
           echo "Long-running E2E tests (>10 min): $LONGRUNNING_CI_COUNT"
           echo "Untriggered triaged issues: $UNTRIGGERED_COUNT"
           echo "Unlabeled issues (failed triage): $UNLABELED_COUNT"
