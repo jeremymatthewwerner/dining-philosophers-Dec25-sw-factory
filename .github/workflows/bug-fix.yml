@@ -218,6 +218,7 @@ jobs:
           Thanks @${{ steps.context.outputs.comment_author }}! Resuming implementation...
 
           - [ ] 📖 Reading your response and previous context
+          - [ ] 📋 Updating implementation plan
           - [ ] 🛠️ Implementing: *pending*
           - [ ] ✅ Running tests and quality checks
           - [ ] 📝 Creating/updating PR
@@ -254,6 +255,7 @@ jobs:
 
           - [ ] 📖 Reading issue and understanding requirements
           - [ ] 🔍 Analyzing codebase and finding affected files
+          - [ ] 📋 Posting implementation plan
           - [ ] 🛠️ Implementing fix: *pending*
           - [ ] ✅ Running tests and quality checks
           - [ ] 📝 Creating PR
@@ -486,6 +488,7 @@ jobs:
 
             - [x] 📖 Reading issue and understanding requirements
             - [x] 🔍 Analyzing codebase and finding affected files
+            - [x] 📋 Posting implementation plan
             - [ ] 🛠️ Implementing fix: Adding null check to thinker query
             - [ ] ✅ Running tests and quality checks
             - [ ] 📝 Creating PR
@@ -521,6 +524,7 @@ jobs:
             **Activity Log examples for different events:**
             - `| $TIMESTAMP | 📖 Read issue: [brief description of what issue asks] |`
             - `| $TIMESTAMP | 🔍 Found root cause: [what's causing the bug] |`
+            - `| $TIMESTAMP | 📋 Posted implementation plan: [brief strategy] |`
             - `| $TIMESTAMP | 🛠️ Implementing: [what fix you're applying] |`
             - `| $TIMESTAMP | ✅ Tests passed locally |`
             - `| $TIMESTAMP | ❌ Tests failed: [which test and why] |`
@@ -537,18 +541,50 @@ jobs:
             5. Diagnose the root cause - search codebase, read relevant files
             6. Check second box [x] and add Analysis section to progress comment
 
+            ## Step 1.5: Post Implementation Plan
+            1. Check third box [x] and update status to "Posting implementation plan..."
+            2. Post a detailed implementation plan comment:
+            ```bash
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+            gh api repos/${{ github.repository }}/issues/${{ steps.context.outputs.number }}/comments \
+              -X POST -f body="## 📋 Implementation Plan
+
+            ### Root Cause
+            [Brief description of what's causing the issue]
+
+            ### Affected Files
+            - \`path/to/file1.py\` - [what needs to change]
+            - \`path/to/file2.ts\` - [what needs to change]
+
+            ### Implementation Strategy
+            [Step-by-step approach to fix the issue]
+
+            ### Testing Plan
+            - [ ] Unit tests for [specific functionality]
+            - [ ] Integration tests for [API endpoints]
+            - [ ] E2E tests for [user workflows]
+
+            ### Risk Assessment
+            **Risk Level:** Low/Medium/High
+            **Mitigation:** [How to minimize risk]
+
+            **Proceeding with implementation...**
+
+            cc @${{ steps.context.outputs.issue_author }}"
+            ```
+
             ## Step 2: Implement Fix
-            1. Check third box [x] and update status to "Implementing fix..."
+            1. Check fourth box [x] and update status to "Implementing fix..."
             2. If existing branch: `git checkout <branch>` and fix the issue
                If new: Create a fix branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
             3. Implement the fix with tests
-            4. Check fourth box [x] and update status to "Running tests..."
+            4. Check fifth box [x] and update status to "Running tests..."
             5. Run quality gates:
                - cd frontend && npm run lint && npm run typecheck && npm test
                - cd backend && uv run ruff check . && uv run mypy . && uv run pytest
 
             ## Step 3: Create/Update PR
-            1. Check fifth box [x] and update status to "Creating PR..."
+            1. Check sixth box [x] and update status to "Creating PR..."
             2. **ALWAYS work on a branch, NEVER push directly to main!**
                - Create branch: git checkout -b fix/${{ steps.context.outputs.number }}-description
             3. Commit with message: "fix: description\n\nRelates to #${{ steps.context.outputs.number }}"
@@ -557,7 +593,7 @@ jobs:
                gh pr create --title "fix: ..." --body "Relates to #${{ steps.context.outputs.number }}"
                - ALWAYS use "Relates to #N" (NOT "Fixes #N") - issues are closed by CI after deploy+smoke tests pass
                - Using "Fixes #N" closes issues on PR merge, BEFORE code is deployed to production!
-            5. Check sixth box [x] and add PR link to progress comment
+            5. Check seventh box [x] and add PR link to progress comment
             6. Final status: "✅ PR created! Waiting for CI..."
 
             ## Status Label Management
@@ -630,6 +666,7 @@ jobs:
 
             - [ ] 📖 Understanding the request
             - [ ] 🔍 Analyzing affected code
+            - [ ] 📋 Posting implementation plan
             - [ ] 🛠️ Implementing changes
             - [ ] ✅ Running tests
             - [ ] 📝 Creating/updating PR
@@ -650,6 +687,7 @@ jobs:
 
             - [x] 📖 Understanding the request
             - [x] 🔍 Analyzing affected code
+            - [x] 📋 Posted implementation plan
             - [ ] 🛠️ Implementing changes
             - [ ] ✅ Running tests
             - [ ] 📝 Creating/updating PR
@@ -750,6 +788,7 @@ jobs:
             Thanks @${{ steps.context.outputs.comment_author }}! Resuming implementation...
 
             - [x] 📖 Reading your response and previous context
+            - [x] 📋 Updated implementation plan
             - [x] 🛠️ Implementing the requested changes
             - [ ] ✅ Running tests and quality checks
             - [ ] 📝 Creating/updating PR
@@ -845,6 +884,7 @@ jobs:
 
           - [x] 📖 Reading issue and understanding requirements
           - [x] 🔍 Analyzing codebase and finding affected files
+          - [x] 📋 Posted implementation plan
           - [x] 🛠️ Implementing fix
           - [x] ✅ Running tests and quality checks
           - [x] 📝 Creating PR
@@ -913,6 +953,7 @@ jobs:
 
           - [x] 📖 Reading issue and understanding requirements
           - [x] 🔍 Analyzing codebase and finding affected files
+          - [x] 📋 Posted implementation plan
           - [x] 🛠️ Implementing fix
           - [x] ✅ Running tests and quality checks
           - [x] 📝 Creating PR
@@ -987,6 +1028,7 @@ jobs:
 
           - [x] 📖 Reading issue and understanding requirements
           - [x] 🔍 Analyzing codebase and finding affected files
+          - [x] 📋 Posted implementation plan
           - [x] 🛠️ Implementing fix
           - [x] ✅ Running tests and quality checks
           - [x] 📝 Creating PR
@@ -1139,6 +1181,7 @@ jobs:
 
           - [x] 📖 Reading issue and understanding requirements
           - [?] 🔍 Analyzing codebase... (timed out)
+          - [ ] 📋 Posting implementation plan
           - [ ] 🛠️ Implementing fix
           - [ ] ✅ Running tests and quality checks
           - [ ] 📝 Creating PR
@@ -1182,6 +1225,7 @@ jobs:
 
           - [x] 📖 Reading issue and understanding requirements
           - [?] Work in progress... (workflow failed)
+          - [ ] 📋 Posting implementation plan
           - [ ] 🛠️ Implementing fix
           - [ ] ✅ Running tests and quality checks
           - [ ] 📝 Creating PR

@@ -49,14 +49,86 @@ Need to check production data? Ask the DevOps Agent:
 
 1. Read CLAUDE.md for quality gates
 2. Diagnose before coding (use @devops for production data if needed)
-3. Create branch: `fix/<issue>-<desc>`
-4. Implement minimal fix
-5. Add regression test
-6. **CRITICAL: Format and lint BEFORE committing:**
+3. **Planning Phase:** Post implementation plan before coding
+4. Create branch: `fix/<issue>-<desc>`
+5. Implement minimal fix
+6. Add regression test
+7. **CRITICAL: Format and lint BEFORE committing:**
    - Backend: `cd backend && uv run ruff format . && uv run ruff check . --fix`
    - Frontend: `cd frontend && npm run format && npm run lint -- --fix`
-7. Run full quality gates:
+8. Run full quality gates:
    - Backend: `cd backend && uv run pytest && uv run mypy .`
    - Frontend: `cd frontend && npm run lint && npm run typecheck && npm test`
-8. Create PR: `gh pr create`
-9. If CI fails 3x, escalate to @jeremy
+9. Create PR: `gh pr create`
+10. If CI fails 3x, escalate to @jeremy
+
+## Planning Phase
+
+**After analyzing the issue, ALWAYS post an implementation plan before coding.** This provides visibility into your decision-making process.
+
+### Required Planning Format
+
+```markdown
+## 📋 Implementation Plan
+
+### Root Cause
+[1-2 sentence explanation of what's causing the issue]
+
+### Affected Files
+- `path/to/file1.py` - [what needs to change and why]
+- `path/to/file2.ts` - [what needs to change and why]
+
+### Implementation Strategy
+[Step-by-step approach to fix the issue]
+
+### Testing Plan
+- [ ] Unit tests for [specific functionality]
+- [ ] Integration tests for [API endpoints]
+- [ ] E2E tests for [user workflows]
+
+### Risk Assessment
+**Risk Level:** Low/Medium/High
+**Mitigation:** [How to minimize risk of regression]
+
+**Proceeding with implementation...**
+```
+
+### Planning Example
+
+```markdown
+## 📋 Implementation Plan
+
+### Root Cause
+The `/api/chat/send` endpoint is missing rate limiting, allowing users to spam messages and overload the backend.
+
+### Affected Files
+- `backend/app/api/chat.py` - Add rate limiting decorator to send_message endpoint
+- `backend/app/middleware/rate_limit.py` - Create rate limiting middleware (if doesn't exist)
+- `frontend/tests/e2e/chat.spec.ts` - Add E2E test for rate limit behavior
+
+### Implementation Strategy
+1. Add Redis-based rate limiting (10 messages/minute per user)
+2. Return 429 status with helpful error message when rate limited
+3. Add frontend handling for 429 responses with user-friendly notification
+4. Ensure rate limits reset properly and don't affect other users
+
+### Testing Plan
+- [ ] Unit tests for rate limiting middleware
+- [ ] Integration tests for /api/chat/send endpoint with rate limiting
+- [ ] E2E tests for user receiving rate limit message in UI
+
+### Risk Assessment
+**Risk Level:** Low
+**Mitigation:** Rate limiting only affects excessive usage, normal users unaffected
+
+**Proceeding with implementation...**
+```
+
+### When to Skip Planning
+
+Only skip the planning phase for:
+- Trivial fixes (typos, obvious one-line changes)
+- Documentation updates
+- Test-only changes
+
+**For any bug that affects users or changes behavior, ALWAYS post a plan first.**
