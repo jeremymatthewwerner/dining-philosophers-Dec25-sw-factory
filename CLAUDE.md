@@ -679,40 +679,52 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 - Agents update `AGENT_STATE.md` with their progress
 - Escalation to @jeremymatthewwerner when stuck >30min or after 3 CI failures
 
-### Workflow File Changes
+### Workflow File Changes (CRITICAL - READ THIS!)
 
-**Pushing workflow files requires the `workflow` scope on the PAT token.**
+**GitHub restricts workflow file modifications.** Only PATs with the `workflows` scope can push to `.github/workflows/`. The `claude-code-action` used by most agents does NOT inherit PAT permissions for workflow pushes, even when PAT_WITH_WORKFLOW_ACCESS is configured in the workflow.
 
-There are TWO scenarios for workflow file changes:
+#### Who Can Push Workflow Files?
 
-#### Scenario 1: In GitHub Actions Workflows (CI/CD)
-Agents running in GitHub Actions CAN modify `.github/workflows/` files when:
-- The workflow uses `PAT_WITH_WORKFLOW_ACCESS` for checkout
-- That PAT has the `workflow` scope
+| Agent | Can Push Workflows? | Notes |
+|-------|---------------------|-------|
+| **Factory Manager** | ✅ YES | Has direct git config with PAT |
+| **Code Agent** | ❌ NO | claude-code-action overrides token |
+| **Principal Engineer** | ❌ NO | claude-code-action overrides token |
+| **iOS Agent** | ❌ NO | claude-code-action overrides token |
+| **DevOps Agent** | ❌ NO | Only infrastructure operations |
 
-```yaml
-- uses: actions/checkout@v4
-  with:
-    token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+#### Delegation Pattern for Workflow Changes
+
+**If you need to modify `.github/workflows/` files, delegate to Factory Manager:**
+
+```
+# Option 1: Post a comment to trigger Factory Manager
+@factory-manager Please create/modify the workflow file [filename].
+Include the full content or describe what's needed.
+
+# Option 2: Create a factory-meta issue for Factory Manager to pick up
+gh issue create --label "factory-meta" \
+  --title "Create [workflow-name].yml workflow" \
+  --body "## Workflow Needed
+[Describe the workflow needed]
+
+## Content
+[Include the YAML content]"
 ```
 
-The bug-fix.yml and factory-manager.yml workflows are configured this way.
+#### Why This Matters
 
-#### Scenario 2: In Claude Code CLI Sessions (Local/Interactive)
-When running Claude Code locally or in interactive sessions, the GitHub CLI (`gh`) may not have the `workflow` scope. Check with:
-```bash
-gh auth status
-```
+Previous agents got stuck in loops trying to push workflow files and claiming "permission denied" without understanding the delegation pattern. This wastes time and creates user frustration.
 
-If you see "missing workflow scope", workflow file pushes will fail. Options:
-1. **Re-authenticate with workflow scope**: `gh auth login --scopes workflow`
-2. **Request Factory Manager to push**: Create the workflow file, document it, and mention `@factory-manager` to push it in a follow-up
+**DO NOT:**
+- Spend time trying different git configurations to push workflow files
+- Ask the human to run `gh auth login --scopes workflow`
+- Claim you need human intervention for workflow file pushes
 
-#### Best Practice: Always Try First, Escalate If Needed
-1. **First**: Attempt to push workflow files normally
-2. **If push fails with permission error**: Check if it's a scope issue
-3. **If scope issue**: Either re-auth or escalate to Factory Manager
-4. **Document the blocker**: Always post a comment explaining what's blocked and why
+**DO:**
+- Immediately delegate to Factory Manager with full context
+- Continue working on other parts of the task
+- Document in your progress comment that you've delegated the workflow change
 
 ### Workflow Concurrency Pattern
 
