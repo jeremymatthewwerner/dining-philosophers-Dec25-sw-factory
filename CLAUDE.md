@@ -353,34 +353,60 @@ uv run mypy .           # Type check Python code
 - One logical change per commit
 - Always reference GitHub issues in commits (with `Relates to #N`)
 
-### Multi-Phase Work (Roadmap Issues)
+### Multi-Phase Work (Sub-Issues)
 
-When an issue represents a **multi-phase roadmap** (e.g., iOS Native App with 5 phases), special handling is required:
+For multi-phase work (e.g., iOS Native App with 5 phases), use **GitHub Sub-Issues** for hierarchical tracking.
 
-**Issue Structure:**
-- Use `### Phase N: Title` markdown headers for each phase
-- Include "phase" mentions in the body (e.g., "This is Phase 1 of 5")
-- The CI `close-issues` job will detect this pattern and skip auto-closure
+**Benefits of Sub-Issues:**
+- Built-in progress bar (e.g., "3/5 sub-issues complete")
+- Visual hierarchy in GitHub Projects
+- Parent auto-shows completion status
+- CI can query completion programmatically
+- No manual markdown parsing required
 
-**Workflow for Multi-Phase Issues:**
-1. Create the roadmap issue with all phases documented
-2. Work on Phase 1, create PR with `Relates to #N`
-3. **Issue will NOT auto-close** after Phase 1 PR merges (detected as multi-phase)
-4. Create separate tracking issues for remaining phases (e.g., "iOS Phase 2: Core Infrastructure")
-5. Reference the original roadmap issue in each phase issue
-6. **Manually close** the roadmap issue when ALL phases are complete
-
-**Why:**
-- Multi-phase work requires multiple PRs across different sessions
-- Auto-closing after first PR loses visibility into remaining work
-- Separate tracking issues provide better audit trail for each phase
-
-**Detection Pattern (in CI):**
+**Creating Sub-Issues (GraphQL API):**
 ```bash
-# Issue body must contain BOTH:
+# Step 1: Get issue node IDs (requires GraphQL-Features header)
+PARENT_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+  -f query='query { repository(owner:"OWNER", name:"REPO") { issue(number: PARENT_NUM) { id } } }' \
+  --jq '.data.repository.issue.id')
+
+CHILD_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+  -f query='query { repository(owner:"OWNER", name:"REPO") { issue(number: CHILD_NUM) { id } } }' \
+  --jq '.data.repository.issue.id')
+
+# Step 2: Add sub-issue to parent
+gh api graphql -H "GraphQL-Features: sub_issues" \
+  -f query='mutation { addSubIssue(input: { issueId: "'"$PARENT_ID"'", subIssueId: "'"$CHILD_ID"'" }) { issue { title } subIssue { title } } }'
+
+# Step 3: Query sub-issue completion status
+gh api graphql -H "GraphQL-Features: sub_issues" \
+  -f query='query { node(id: "'"$PARENT_ID"'") { ... on Issue { subIssuesSummary { total completed percentCompleted } } } }'
+```
+
+**Workflow for Multi-Phase Projects:**
+1. Create parent tracking issue (e.g., "iOS Native App Roadmap")
+2. Create sub-issues for each phase (e.g., "iOS Phase 1: Project Setup")
+3. Link sub-issues to parent using `addSubIssue` mutation
+4. Work on phases, creating PRs with `Relates to #N` (phase issue number)
+5. Close phase issues as work completes
+6. **Parent auto-shows progress** via sub-issues summary
+7. CI `close-issues` job checks sub-issues completion before closing parent
+
+**CI Protection (Auto-Close Logic):**
+The `close-issues` job queries sub-issues status:
+- If parent has sub-issues AND not all are complete → skip auto-close
+- If parent has incomplete sub-issues → post comment explaining why not closed
+- Only closes parent when 100% sub-issues complete OR no sub-issues exist
+
+**Legacy: Markdown Phase Headers**
+For backwards compatibility, the CI also detects markdown phase headers:
+```bash
+# Issue body containing BOTH:
 # 1. Case-insensitive "phase [0-9]" (e.g., "Phase 1", "phase 2")
 # 2. Markdown header "### Phase [0-9]" (e.g., "### Phase 1: Setup")
 ```
+These issues are also protected from premature closure. However, **sub-issues are preferred** for new multi-phase work.
 
 ## Commit Format
 
