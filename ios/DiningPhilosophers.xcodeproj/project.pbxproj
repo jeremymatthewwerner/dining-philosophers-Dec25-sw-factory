@@ -1,0 +1,821 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		/* App Sources */
+		A0000001234567890000001 /* DiningPhilosophersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000001 /* DiningPhilosophersApp.swift */; };
+		A0000001234567890000002 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000002 /* User.swift */; };
+		A0000001234567890000003 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000003 /* Conversation.swift */; };
+		A0000001234567890000004 /* Thinker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000004 /* Thinker.swift */; };
+		A0000001234567890000005 /* WebSocketMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000005 /* WebSocketMessage.swift */; };
+		A0000001234567890000006 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000006 /* APIClient.swift */; };
+		A0000001234567890000007 /* WebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000007 /* WebSocketClient.swift */; };
+		A0000001234567890000008 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000008 /* Endpoints.swift */; };
+		A0000001234567890000009 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000009 /* KeychainService.swift */; };
+		A0000001234567890000010 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000010 /* LoginView.swift */; };
+		A0000001234567890000011 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000011 /* AuthViewModel.swift */; };
+		A0000001234567890000012 /* ConversationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000012 /* ConversationListView.swift */; };
+		A0000001234567890000013 /* ConversationListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000013 /* ConversationListViewModel.swift */; };
+		A0000001234567890000014 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000014 /* ChatView.swift */; };
+		A0000001234567890000015 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000015 /* ChatViewModel.swift */; };
+		A0000001234567890000016 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000016 /* SettingsView.swift */; };
+		A0000001234567890000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000017 /* Assets.xcassets */; };
+		A0000001234567890000018 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000018 /* Preview Assets.xcassets */; };
+
+		/* Test Sources */
+		A0000001234567890000101 /* DiningPhilosophersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000101 /* DiningPhilosophersTests.swift */; };
+		A0000001234567890000102 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000102 /* APIClientTests.swift */; };
+		A0000001234567890000103 /* AuthViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000103 /* AuthViewModelTests.swift */; };
+
+		/* UI Test Sources */
+		A0000001234567890000201 /* DiningPhilosophersUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000201 /* DiningPhilosophersUITests.swift */; };
+		A0000001234567890000202 /* DiningPhilosophersUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000001234567890000202 /* DiningPhilosophersUITestsLaunchTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C0000001234567890000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = P0000001234567890000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = T0000001234567890000001;
+			remoteInfo = DiningPhilosophers;
+		};
+		C0000001234567890000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = P0000001234567890000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = T0000001234567890000001;
+			remoteInfo = DiningPhilosophers;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		/* App Sources */
+		B0000001234567890000001 /* DiningPhilosophersApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiningPhilosophersApp.swift; sourceTree = "<group>"; };
+		B0000001234567890000002 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		B0000001234567890000003 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
+		B0000001234567890000004 /* Thinker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Thinker.swift; sourceTree = "<group>"; };
+		B0000001234567890000005 /* WebSocketMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketMessage.swift; sourceTree = "<group>"; };
+		B0000001234567890000006 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		B0000001234567890000007 /* WebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketClient.swift; sourceTree = "<group>"; };
+		B0000001234567890000008 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
+		B0000001234567890000009 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		B0000001234567890000010 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		B0000001234567890000011 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		B0000001234567890000012 /* ConversationListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationListView.swift; sourceTree = "<group>"; };
+		B0000001234567890000013 /* ConversationListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationListViewModel.swift; sourceTree = "<group>"; };
+		B0000001234567890000014 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		B0000001234567890000015 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		B0000001234567890000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B0000001234567890000017 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B0000001234567890000018 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+
+		/* Test Sources */
+		B0000001234567890000101 /* DiningPhilosophersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiningPhilosophersTests.swift; sourceTree = "<group>"; };
+		B0000001234567890000102 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		B0000001234567890000103 /* AuthViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModelTests.swift; sourceTree = "<group>"; };
+
+		/* UI Test Sources */
+		B0000001234567890000201 /* DiningPhilosophersUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiningPhilosophersUITests.swift; sourceTree = "<group>"; };
+		B0000001234567890000202 /* DiningPhilosophersUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiningPhilosophersUITestsLaunchTests.swift; sourceTree = "<group>"; };
+
+		/* Products */
+		P0000001234567890000002 /* DiningPhilosophers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DiningPhilosophers.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		P0000001234567890000003 /* DiningPhilosophersTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DiningPhilosophersTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		P0000001234567890000004 /* DiningPhilosophersUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DiningPhilosophersUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F0000001234567890000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F0000001234567890000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F0000001234567890000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G0000001234567890000001 = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000002 /* DiningPhilosophers */,
+				G0000001234567890000003 /* DiningPhilosophersTests */,
+				G0000001234567890000004 /* DiningPhilosophersUITests */,
+				G0000001234567890000005 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G0000001234567890000002 /* DiningPhilosophers */ = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000010 /* App */,
+				G0000001234567890000011 /* Models */,
+				G0000001234567890000012 /* Core */,
+				G0000001234567890000013 /* Features */,
+				G0000001234567890000014 /* Resources */,
+			);
+			path = DiningPhilosophers;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000003 /* DiningPhilosophersTests */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000101 /* DiningPhilosophersTests.swift */,
+				B0000001234567890000102 /* APIClientTests.swift */,
+				B0000001234567890000103 /* AuthViewModelTests.swift */,
+			);
+			path = DiningPhilosophersTests;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000004 /* DiningPhilosophersUITests */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000201 /* DiningPhilosophersUITests.swift */,
+				B0000001234567890000202 /* DiningPhilosophersUITestsLaunchTests.swift */,
+			);
+			path = DiningPhilosophersUITests;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000005 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				P0000001234567890000002 /* DiningPhilosophers.app */,
+				P0000001234567890000003 /* DiningPhilosophersTests.xctest */,
+				P0000001234567890000004 /* DiningPhilosophersUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000010 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000001 /* DiningPhilosophersApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000011 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000002 /* User.swift */,
+				B0000001234567890000003 /* Conversation.swift */,
+				B0000001234567890000004 /* Thinker.swift */,
+				B0000001234567890000005 /* WebSocketMessage.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000012 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000020 /* Network */,
+				G0000001234567890000021 /* Storage */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000013 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000030 /* Auth */,
+				G0000001234567890000031 /* Conversations */,
+				G0000001234567890000032 /* Chat */,
+				G0000001234567890000033 /* Settings */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000014 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000017 /* Assets.xcassets */,
+				G0000001234567890000015 /* Preview Content */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000015 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000018 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		G0000001234567890000020 /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000006 /* APIClient.swift */,
+				B0000001234567890000007 /* WebSocketClient.swift */,
+				B0000001234567890000008 /* Endpoints.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000021 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000009 /* KeychainService.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000030 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000040 /* Views */,
+				G0000001234567890000041 /* ViewModels */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000031 /* Conversations */ = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000042 /* Views */,
+				G0000001234567890000043 /* ViewModels */,
+			);
+			path = Conversations;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000032 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000044 /* Views */,
+				G0000001234567890000045 /* ViewModels */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000033 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				G0000001234567890000046 /* Views */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000040 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000010 /* LoginView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000041 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000011 /* AuthViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000042 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000012 /* ConversationListView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000043 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000013 /* ConversationListViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000044 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000014 /* ChatView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000045 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000015 /* ChatViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		G0000001234567890000046 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B0000001234567890000016 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		T0000001234567890000001 /* DiningPhilosophers */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = X0000001234567890000001 /* Build configuration list for PBXNativeTarget "DiningPhilosophers" */;
+			buildPhases = (
+				S0000001234567890000001 /* Sources */,
+				F0000001234567890000001 /* Frameworks */,
+				R0000001234567890000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DiningPhilosophers;
+			productName = DiningPhilosophers;
+			productReference = P0000001234567890000002 /* DiningPhilosophers.app */;
+			productType = "com.apple.product-type.application";
+		};
+		T0000001234567890000002 /* DiningPhilosophersTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = X0000001234567890000002 /* Build configuration list for PBXNativeTarget "DiningPhilosophersTests" */;
+			buildPhases = (
+				S0000001234567890000002 /* Sources */,
+				F0000001234567890000002 /* Frameworks */,
+				R0000001234567890000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D0000001234567890000001 /* PBXTargetDependency */,
+			);
+			name = DiningPhilosophersTests;
+			productName = DiningPhilosophersTests;
+			productReference = P0000001234567890000003 /* DiningPhilosophersTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		T0000001234567890000003 /* DiningPhilosophersUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = X0000001234567890000003 /* Build configuration list for PBXNativeTarget "DiningPhilosophersUITests" */;
+			buildPhases = (
+				S0000001234567890000003 /* Sources */,
+				F0000001234567890000003 /* Frameworks */,
+				R0000001234567890000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D0000001234567890000002 /* PBXTargetDependency */,
+			);
+			name = DiningPhilosophersUITests;
+			productName = DiningPhilosophersUITests;
+			productReference = P0000001234567890000004 /* DiningPhilosophersUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		P0000001234567890000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1520;
+				LastUpgradeCheck = 1520;
+				TargetAttributes = {
+					T0000001234567890000001 = {
+						CreatedOnToolsVersion = 15.2;
+					};
+					T0000001234567890000002 = {
+						CreatedOnToolsVersion = 15.2;
+						TestTargetID = T0000001234567890000001;
+					};
+					T0000001234567890000003 = {
+						CreatedOnToolsVersion = 15.2;
+						TestTargetID = T0000001234567890000001;
+					};
+				};
+			};
+			buildConfigurationList = X0000001234567890000004 /* Build configuration list for PBXProject "DiningPhilosophers" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = G0000001234567890000001;
+			productRefGroup = G0000001234567890000005 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				T0000001234567890000001 /* DiningPhilosophers */,
+				T0000001234567890000002 /* DiningPhilosophersTests */,
+				T0000001234567890000003 /* DiningPhilosophersUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		R0000001234567890000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000001234567890000018 /* Preview Assets.xcassets in Resources */,
+				A0000001234567890000017 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		R0000001234567890000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		R0000001234567890000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		S0000001234567890000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000001234567890000001 /* DiningPhilosophersApp.swift in Sources */,
+				A0000001234567890000002 /* User.swift in Sources */,
+				A0000001234567890000003 /* Conversation.swift in Sources */,
+				A0000001234567890000004 /* Thinker.swift in Sources */,
+				A0000001234567890000005 /* WebSocketMessage.swift in Sources */,
+				A0000001234567890000006 /* APIClient.swift in Sources */,
+				A0000001234567890000007 /* WebSocketClient.swift in Sources */,
+				A0000001234567890000008 /* Endpoints.swift in Sources */,
+				A0000001234567890000009 /* KeychainService.swift in Sources */,
+				A0000001234567890000010 /* LoginView.swift in Sources */,
+				A0000001234567890000011 /* AuthViewModel.swift in Sources */,
+				A0000001234567890000012 /* ConversationListView.swift in Sources */,
+				A0000001234567890000013 /* ConversationListViewModel.swift in Sources */,
+				A0000001234567890000014 /* ChatView.swift in Sources */,
+				A0000001234567890000015 /* ChatViewModel.swift in Sources */,
+				A0000001234567890000016 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		S0000001234567890000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000001234567890000101 /* DiningPhilosophersTests.swift in Sources */,
+				A0000001234567890000102 /* APIClientTests.swift in Sources */,
+				A0000001234567890000103 /* AuthViewModelTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		S0000001234567890000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000001234567890000201 /* DiningPhilosophersUITests.swift in Sources */,
+				A0000001234567890000202 /* DiningPhilosophersUITestsLaunchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D0000001234567890000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = T0000001234567890000001 /* DiningPhilosophers */;
+			targetProxy = C0000001234567890000001 /* PBXContainerItemProxy */;
+		};
+		D0000001234567890000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = T0000001234567890000001 /* DiningPhilosophers */;
+			targetProxy = C0000001234567890000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		/* Debug - Project */
+		XD000001234567890000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Debug;
+		};
+		/* Release - Project */
+		XR000001234567890000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		/* Debug - App Target */
+		XD000001234567890000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"DiningPhilosophers/Resources/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Dining Philosophers";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.diningphilosophers.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		/* Release - App Target */
+		XR000001234567890000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"DiningPhilosophers/Resources/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Dining Philosophers";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.diningphilosophers.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		/* Debug - Tests Target */
+		XD000001234567890000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.diningphilosophers.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DiningPhilosophers.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DiningPhilosophers";
+			};
+			name = Debug;
+		};
+		/* Release - Tests Target */
+		XR000001234567890000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.diningphilosophers.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DiningPhilosophers.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DiningPhilosophers";
+			};
+			name = Release;
+		};
+		/* Debug - UI Tests Target */
+		XD000001234567890000004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.diningphilosophers.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DiningPhilosophers;
+			};
+			name = Debug;
+		};
+		/* Release - UI Tests Target */
+		XR000001234567890000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.diningphilosophers.app.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DiningPhilosophers;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		X0000001234567890000001 /* Build configuration list for PBXNativeTarget "DiningPhilosophers" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				XD000001234567890000002 /* Debug */,
+				XR000001234567890000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		X0000001234567890000002 /* Build configuration list for PBXNativeTarget "DiningPhilosophersTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				XD000001234567890000003 /* Debug */,
+				XR000001234567890000003 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		X0000001234567890000003 /* Build configuration list for PBXNativeTarget "DiningPhilosophersUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				XD000001234567890000004 /* Debug */,
+				XR000001234567890000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		X0000001234567890000004 /* Build configuration list for PBXProject "DiningPhilosophers" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				XD000001234567890000001 /* Debug */,
+				XR000001234567890000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = P0000001234567890000001 /* Project object */;
+}
