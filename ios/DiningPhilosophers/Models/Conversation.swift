@@ -28,26 +28,73 @@ struct Conversation: Codable, Identifiable, Sendable {
     }
 }
 
-/// Summary of a conversation for list views
-struct ConversationSummary: Codable, Identifiable, Sendable {
+/// Summary of a conversation for list views - matches backend ConversationSummary schema
+struct ConversationSummary: Codable, Identifiable, Sendable, Hashable {
     let id: String
+    let sessionId: String
     let topic: String
-    let thinkerNames: [String]
-    let thinkers: [ThinkerSummary]
-    let messageCount: Int
-    let totalCost: Decimal
+    let title: String?
+    let isActive: Bool
     let createdAt: Date
-    let updatedAt: Date
+    let thinkers: [ThinkerListItem]
+    let messageCount: Int
+    let totalCost: Double
 
     enum CodingKeys: String, CodingKey {
         case id
+        case sessionId = "session_id"
         case topic
-        case thinkerNames = "thinker_names"
+        case title
+        case isActive = "is_active"
+        case createdAt = "created_at"
         case thinkers
         case messageCount = "message_count"
         case totalCost = "total_cost"
+    }
+
+    /// Computed property for display title
+    var displayTitle: String {
+        title ?? topic
+    }
+
+    /// Computed property for thinker names
+    var thinkerNames: [String] {
+        thinkers.map(\.name)
+    }
+
+    // MARK: - Hashable
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: ConversationSummary, rhs: ConversationSummary) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+/// Thinker item in list response - matches ThinkerResponse from backend
+struct ThinkerListItem: Codable, Identifiable, Sendable, Hashable {
+    let id: String
+    let conversationId: String
+    let name: String
+    let bio: String
+    let positions: String
+    let style: String
+    let color: String
+    let imageUrl: String?
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case conversationId = "conversation_id"
+        case name
+        case bio
+        case positions
+        case style
+        case color
+        case imageUrl = "image_url"
         case createdAt = "created_at"
-        case updatedAt = "updated_at"
     }
 }
 
@@ -100,13 +147,3 @@ struct ConversationThinker: Codable, Identifiable, Sendable {
     }
 }
 
-/// Thinker summary for list views
-struct ThinkerSummary: Codable, Sendable {
-    let name: String
-    let imageUrl: String?
-
-    enum CodingKeys: String, CodingKey {
-        case name
-        case imageUrl = "image_url"
-    }
-}
