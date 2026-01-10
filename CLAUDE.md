@@ -681,7 +681,14 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 
 ### Workflow File Changes
 
-**Code Agent CAN modify `.github/workflows/` files** when the checkout uses `PAT_WITH_WORKFLOW_ACCESS`:
+**Pushing workflow files requires the `workflow` scope on the PAT token.**
+
+There are TWO scenarios for workflow file changes:
+
+#### Scenario 1: In GitHub Actions Workflows (CI/CD)
+Agents running in GitHub Actions CAN modify `.github/workflows/` files when:
+- The workflow uses `PAT_WITH_WORKFLOW_ACCESS` for checkout
+- That PAT has the `workflow` scope
 
 ```yaml
 - uses: actions/checkout@v4
@@ -689,12 +696,23 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
     token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
 ```
 
-The bug-fix.yml workflow is already configured this way. If you need to modify workflow files:
-1. Make your changes to `.github/workflows/*.yml`
-2. Commit and push normally - the PAT token enables this
-3. Create PR as usual
+The bug-fix.yml and factory-manager.yml workflows are configured this way.
 
-**Do NOT assume you can't push workflow files** - this was a past limitation that has been fixed.
+#### Scenario 2: In Claude Code CLI Sessions (Local/Interactive)
+When running Claude Code locally or in interactive sessions, the GitHub CLI (`gh`) may not have the `workflow` scope. Check with:
+```bash
+gh auth status
+```
+
+If you see "missing workflow scope", workflow file pushes will fail. Options:
+1. **Re-authenticate with workflow scope**: `gh auth login --scopes workflow`
+2. **Request Factory Manager to push**: Create the workflow file, document it, and mention `@factory-manager` to push it in a follow-up
+
+#### Best Practice: Always Try First, Escalate If Needed
+1. **First**: Attempt to push workflow files normally
+2. **If push fails with permission error**: Check if it's a scope issue
+3. **If scope issue**: Either re-auth or escalate to Factory Manager
+4. **Document the blocker**: Always post a comment explaining what's blocked and why
 
 ### Workflow Concurrency Pattern
 
@@ -719,6 +737,7 @@ concurrency:
 |-------|-------------------|-------------------|
 | Code Agent | `code-agent-issue-${{ issue_number }}` | `false` (let work finish) |
 | Principal Engineer | `principal-engineer-${{ issue_number }}` | `false` |
+| iOS Native | `ios-agent-issue-${{ issue_number }}` | `false` (let work finish) |
 | Factory Manager | `factory-manager-${{ issue_number \|\| 'global' }}` | `true` (use latest) |
 
 **When to use `cancel-in-progress: true`:**
