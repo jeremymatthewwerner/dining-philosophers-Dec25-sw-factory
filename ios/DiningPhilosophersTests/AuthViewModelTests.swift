@@ -23,9 +23,10 @@ final class AuthViewModelTests: XCTestCase {
 
     func testKeychainErrorDescriptions() {
         let errors: [(KeychainError, String)] = [
-            (.encodingFailed, "Failed to encode token"),
-            (.saveFailed(0), "Failed to save token (status: 0)"),
-            (.deleteFailed(-25300), "Failed to delete token (status: -25300)")
+            (.encodingFailed, "Failed to encode data for keychain storage"),
+            (.saveFailed(0), "Failed to save to keychain (status: 0)"),
+            (.deleteFailed(-25300), "Failed to delete from keychain (status: -25300)"),
+            (.itemNotFound, "Item not found in keychain")
         ]
 
         for (error, expectedDescription) in errors {
@@ -38,7 +39,9 @@ final class AuthViewModelTests: XCTestCase {
     func testWebSocketErrorDescriptions() {
         let errors: [(WebSocketError, String)] = [
             (.invalidURL, "Invalid WebSocket URL"),
-            (.notConnected, "Not connected to conversation")
+            (.notConnected, "Not connected to conversation"),
+            (.connectionFailed, "Failed to connect to server"),
+            (.encodingFailed, "Failed to encode message")
         ]
 
         for (error, expectedDescription) in errors {
