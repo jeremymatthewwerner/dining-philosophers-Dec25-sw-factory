@@ -110,4 +110,19 @@ struct WSMessage: Codable, Sendable {
             speedMultiplier: nil
         )
     }
+
+    /// Create a set speed message
+    static func setSpeed(conversationId: String, speed: Double) -> WSMessage {
+        WSMessage(
+            type: .setSpeed,
+            conversationId: conversationId,
+            content: nil,
+            senderName: nil,
+            senderType: nil,
+            messageId: nil,
+            timestamp: nil,
+            cost: nil,
+            speedMultiplier: speed
+        )
+    }
 }
