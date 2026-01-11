@@ -6,19 +6,21 @@ Real-time multi-party chat with AI-simulated historical and contemporary thinker
 
 ## Autonomous Software Factory
 
-This repository uses 9 AI-powered GitHub Actions agents for autonomous development:
+This repository uses 11 AI-powered GitHub Actions agents for autonomous development:
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels |
-| **Code Agent** | `@code` mention in comment | Diagnoses and fixes issues, creates PRs |
-| **Principal Engineer** | `@pe` mention in comment | Holistic debugging, fixes factory not just symptoms |
-| **Factory Manager** | Every 5 min + `@factory-manager` mention | Monitors factory health, detects stuck issues, auto-fixes |
+| **Code Agent** | `@code` mention | Diagnoses and fixes issues, creates PRs |
+| **Principal Engineer** | `@pe` mention | Holistic debugging, fixes factory not just symptoms |
+| **Product Manager** | `@pm` mention | Processes roadmaps, creates tracking sub-issues |
+| **Factory Manager** | Every 30 min + `@factory-manager` | Monitors factory health, detects stuck issues |
 | **QA** | Nightly 2am UTC | Improves test coverage, hunts flaky tests |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates |
-| **DevOps** | `@devops` mention + Every 5 min + push to main | Health checks, incident response, auto-merge |
+| **DevOps** | `@devops` + Every 5 min + push to main | Health checks, incident response, auto-merge |
 | **Marketing** | On release | Updates changelog, docs |
 | **CI Monitor** | On CI failure (main) | Auto-creates issues and triggers Code Agent |
+| **iOS Native** | `@ios` mention | Native iOS development with Swift/SwiftUI |
 
 Add `ANTHROPIC_API_KEY` to repo secrets to enable automation.
 
@@ -39,7 +41,9 @@ Add `ANTHROPIC_API_KEY` to repo secrets to enable automation.
 |---------|-------|---------|
 | `@code` | Code Agent | `@code please fix this bug` |
 | `@pe` | Principal Engineer | `@pe this needs holistic investigation` |
+| `@pm` | Product Manager | `@pm please create tracking issues for this roadmap` |
 | `@devops` | DevOps Agent | `@devops check backend logs` |
+| `@ios` | iOS Native | `@ios please implement the settings view` |
 | `@factory-manager` | Factory Manager | `@factory-manager why is this stuck?` |
 
 **Examples:**
