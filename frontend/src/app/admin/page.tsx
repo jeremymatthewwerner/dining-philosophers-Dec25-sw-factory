@@ -1,10 +1,34 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAdminUsers, deleteUser, updateUserSpendLimit } from '@/lib/api';
 import type { UserWithStats } from '@/types';
+
+type SortColumn =
+  | 'username'
+  | 'role'
+  | 'conversations'
+  | 'total_spend'
+  | 'spend_limit'
+  | 'created_at';
+type SortDirection = 'asc' | 'desc';
+
+function SortIndicator({
+  column,
+  currentColumn,
+  direction,
+}: {
+  column: SortColumn;
+  currentColumn: SortColumn;
+  direction: SortDirection;
+}) {
+  if (column !== currentColumn) {
+    return <span className="ml-1 text-zinc-300 dark:text-zinc-600">⇅</span>;
+  }
+  return <span className="ml-1">{direction === 'asc' ? '▲' : '▼'}</span>;
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -15,6 +39,8 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingLimitId, setEditingLimitId] = useState<string | null>(null);
   const [editingLimitValue, setEditingLimitValue] = useState<string>('');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('username');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   useEffect(() => {
     if (authLoading) return;
@@ -112,6 +138,50 @@ export default function AdminPage() {
     }).format(amount);
   }
 
+  function handleSort(column: SortColumn) {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  }
+
+  const sortedUsers = useMemo(() => {
+    const sorted = [...users].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'username':
+          comparison = a.username
+            .toLowerCase()
+            .localeCompare(b.username.toLowerCase());
+          break;
+        case 'role':
+          // Admins come first when ascending
+          comparison = a.is_admin === b.is_admin ? 0 : a.is_admin ? -1 : 1;
+          break;
+        case 'conversations':
+          comparison = a.conversation_count - b.conversation_count;
+          break;
+        case 'total_spend':
+          comparison = a.total_spend - b.total_spend;
+          break;
+        case 'spend_limit':
+          comparison = a.spend_limit - b.spend_limit;
+          break;
+        case 'created_at':
+          comparison =
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
+  }, [users, sortColumn, sortDirection]);
+
   if (authLoading || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-900">
@@ -203,23 +273,83 @@ export default function AdminPage() {
             <table className="w-full">
               <thead className="bg-zinc-50 dark:bg-zinc-900/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Username
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    onClick={() => handleSort('username')}
+                  >
+                    <span className="flex items-center">
+                      Username
+                      <SortIndicator
+                        column="username"
+                        currentColumn={sortColumn}
+                        direction={sortDirection}
+                      />
+                    </span>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Role
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    onClick={() => handleSort('role')}
+                  >
+                    <span className="flex items-center">
+                      Role
+                      <SortIndicator
+                        column="role"
+                        currentColumn={sortColumn}
+                        direction={sortDirection}
+                      />
+                    </span>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Conversations
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    onClick={() => handleSort('conversations')}
+                  >
+                    <span className="flex items-center">
+                      Conversations
+                      <SortIndicator
+                        column="conversations"
+                        currentColumn={sortColumn}
+                        direction={sortDirection}
+                      />
+                    </span>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Total Spend
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    onClick={() => handleSort('total_spend')}
+                  >
+                    <span className="flex items-center">
+                      Total Spend
+                      <SortIndicator
+                        column="total_spend"
+                        currentColumn={sortColumn}
+                        direction={sortDirection}
+                      />
+                    </span>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Spend Limit
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    onClick={() => handleSort('spend_limit')}
+                  >
+                    <span className="flex items-center">
+                      Spend Limit
+                      <SortIndicator
+                        column="spend_limit"
+                        currentColumn={sortColumn}
+                        direction={sortDirection}
+                      />
+                    </span>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Joined
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    onClick={() => handleSort('created_at')}
+                  >
+                    <span className="flex items-center">
+                      Joined
+                      <SortIndicator
+                        column="created_at"
+                        currentColumn={sortColumn}
+                        direction={sortDirection}
+                      />
+                    </span>
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                     Actions
@@ -227,7 +357,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-                {users.map((u) => (
+                {sortedUsers.map((u) => (
                   <tr
                     key={u.id}
                     className="hover:bg-zinc-50 dark:hover:bg-zinc-900/30"
