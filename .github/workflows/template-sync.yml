@@ -71,8 +71,14 @@ jobs:
             ".github/workflows/product-manager.yml"
             "CLAUDE.md"
             "REQUIREMENTS.md"
-            "docs/OBSERVABILITY.md"
+            "docs/CODE_AGENT.md"
+            "docs/DEVOPS.md"
             "docs/FACTORY_MANAGER.md"
+            "docs/OBSERVABILITY.md"
+            "docs/PRINCIPAL_ENGINEER.md"
+            "docs/QA_AGENT.md"
+            "docs/RELEASE_ENG.md"
+            "docs/TRIAGE.md"
             "scripts/flaky-test-hunter.sh"
           )
 
