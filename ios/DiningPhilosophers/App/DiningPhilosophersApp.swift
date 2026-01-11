@@ -2,17 +2,21 @@
 // Main entry point for the Dining Philosophers iOS app
 //
 // Created by iOS Native Agent
+// Updated by iOS Native Agent - Phase 7
 
 import SwiftUI
 
 @main
 struct DiningPhilosophersApp: App {
     @State private var authManager = AuthManager()
+    @State private var settingsManager = SettingsManager.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(authManager)
+                .environment(settingsManager)
+                .preferredColorScheme(settingsManager.preferredColorScheme)
         }
     }
 }

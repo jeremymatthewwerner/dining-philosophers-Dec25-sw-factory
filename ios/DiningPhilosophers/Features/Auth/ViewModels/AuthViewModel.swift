@@ -85,6 +85,24 @@ final class AuthManager: Sendable {
         self.currentUser = nil
         self.isAuthenticated = false
     }
+
+    /// Update the current user after a profile change
+    @MainActor
+    func updateUser(_ user: User) {
+        self.currentUser = user
+    }
+
+    /// Refresh the current user from the server
+    @MainActor
+    func refreshUser() async {
+        guard isAuthenticated else { return }
+        do {
+            let user: User = try await APIClient.shared.get(.me)
+            self.currentUser = user
+        } catch {
+            // Ignore errors - user might have been logged out
+        }
+    }
 }
 
 /// Empty response for endpoints that return nothing

@@ -12,6 +12,9 @@ enum Endpoint {
     case register
     case logout
     case me
+    case updateProfile
+    case updateLanguage
+    case changePassword
 
     // Sessions
     case sessions
@@ -42,6 +45,12 @@ enum Endpoint {
             return "/api/auth/logout"
         case .me:
             return "/api/auth/me"
+        case .updateProfile:
+            return "/api/auth/profile"
+        case .updateLanguage:
+            return "/api/auth/language"
+        case .changePassword:
+            return "/api/auth/change-password"
 
         // Sessions
         case .sessions:
@@ -123,5 +132,34 @@ enum APIRequest {
     struct SuggestThinkers: Encodable {
         let topic: String
         let count: Int?
+    }
+
+    /// Update profile request
+    struct UpdateProfile: Encodable {
+        let displayName: String
+
+        enum CodingKeys: String, CodingKey {
+            case displayName = "display_name"
+        }
+    }
+
+    /// Update language preference request
+    struct UpdateLanguage: Encodable {
+        let languagePreference: String
+
+        enum CodingKeys: String, CodingKey {
+            case languagePreference = "language_preference"
+        }
+    }
+
+    /// Change password request
+    struct ChangePassword: Encodable {
+        let currentPassword: String
+        let newPassword: String
+
+        enum CodingKeys: String, CodingKey {
+            case currentPassword = "current_password"
+            case newPassword = "new_password"
+        }
     }
 }

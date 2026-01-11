@@ -211,6 +211,11 @@ enum NetworkError: Error, LocalizedError, Equatable {
         }
     }
 
+    /// User-friendly message for displaying to the user
+    var userMessage: String {
+        errorDescription ?? "An unexpected error occurred."
+    }
+
     // MARK: - Factory Methods
 
     /// Create a NetworkError from an HTTP status code
