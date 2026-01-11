@@ -85,7 +85,45 @@ final class AuthManager: Sendable {
         self.currentUser = nil
         self.isAuthenticated = false
     }
-}
 
-/// Empty response for endpoints that return nothing
-struct EmptyResponse: Decodable {}
+    // MARK: - Profile Management
+
+    /// Update user profile (display name)
+    @MainActor
+    func updateProfile(displayName: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+
+        let updatedUser = try await APIClient.shared.updateProfile(displayName: displayName)
+        self.currentUser = updatedUser
+    }
+
+    /// Change user password
+    @MainActor
+    func changePassword(currentPassword: String, newPassword: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+
+        try await APIClient.shared.changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword
+        )
+    }
+
+    /// Update language preference
+    @MainActor
+    func updateLanguagePreference(_ language: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+
+        let updatedUser = try await APIClient.shared.updateLanguagePreference(language)
+        self.currentUser = updatedUser
+    }
+
+    /// Refresh user data from server
+    @MainActor
+    func refreshUser() async throws {
+        let user: User = try await APIClient.shared.get(.me)
+        self.currentUser = user
+    }
+}
