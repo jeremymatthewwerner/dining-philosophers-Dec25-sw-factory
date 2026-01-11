@@ -125,6 +125,11 @@ actor APIClient {
         try await delete(.conversation(id: id))
     }
 
+    /// Add thinkers to an existing conversation
+    func addThinkersToConversation(conversationId: String, thinkers: [ThinkerCreate]) async throws -> [Thinker] {
+        try await put(.addThinkersToConversation(conversationId: conversationId), body: thinkers)
+    }
+
     // MARK: - Messages API
 
     /// Get messages for a conversation

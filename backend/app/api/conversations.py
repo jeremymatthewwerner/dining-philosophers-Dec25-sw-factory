@@ -18,6 +18,8 @@ from app.schemas import (
     ConversationWithMessages,
     MessageCreate,
     MessageResponse,
+    ThinkerCreate,
+    ThinkerResponse,
 )
 
 router = APIRouter()
@@ -147,6 +149,75 @@ async def delete_conversation(
     await db.delete(conversation)
     await db.flush()
     return {"status": "deleted"}
+
+
+@router.put("/{conversation_id}/thinkers", response_model=list[ThinkerResponse])
+async def add_thinkers_to_conversation(
+    conversation_id: str,
+    thinkers: list[ThinkerCreate],
+    session: Annotated[Session, Depends(get_session_from_token)],
+    db: AsyncSession = Depends(get_db),
+) -> list[ConversationThinker]:
+    """Add one or more thinkers to an existing conversation."""
+    from app.services.knowledge_research import knowledge_service
+
+    # Verify conversation exists and belongs to session
+    result = await db.execute(
+        select(Conversation)
+        .where(
+            Conversation.id == conversation_id,
+            Conversation.session_id == session.id,
+        )
+        .options(selectinload(Conversation.thinkers))
+    )
+    conversation = result.scalar_one_or_none()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Check max thinkers limit (5 total)
+    existing_count = len(conversation.thinkers)
+    if existing_count + len(thinkers) > 5:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot add {len(thinkers)} thinkers. "
+            f"Conversation has {existing_count}/5 thinkers. "
+            f"Maximum is 5 total.",
+        )
+
+    # Get existing colors to avoid duplicates
+    existing_colors = {t.color for t in conversation.thinkers}
+    all_colors = ["#6366f1", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6"]
+    available_colors = [c for c in all_colors if c not in existing_colors]
+
+    # Add new thinkers
+    new_thinkers = []
+    for thinker_data in thinkers:
+        # Use provided color or pick from available
+        color = thinker_data.color
+        if color == "#6366f1" and available_colors:
+            color = available_colors.pop(0)
+
+        thinker = ConversationThinker(
+            conversation_id=conversation_id,
+            name=thinker_data.name,
+            bio=thinker_data.bio,
+            positions=thinker_data.positions,
+            style=thinker_data.style,
+            color=color,
+            image_url=thinker_data.image_url,
+        )
+        db.add(thinker)
+        new_thinkers.append(thinker)
+        # Trigger background knowledge research
+        knowledge_service.trigger_research(thinker_data.name)
+
+    await db.flush()
+
+    # Refresh to get IDs and timestamps
+    for thinker in new_thinkers:
+        await db.refresh(thinker)
+
+    return new_thinkers
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)

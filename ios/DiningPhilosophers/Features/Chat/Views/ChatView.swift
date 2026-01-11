@@ -12,6 +12,7 @@ struct ChatView: View {
     @State private var viewModel: ChatViewModel
     @State private var messageText = ""
     @State private var showingControls = false
+    @State private var showingAddThinker = false
     @FocusState private var isInputFocused: Bool
 
     init(conversationId: String) {
@@ -74,11 +75,34 @@ struct ChatView: View {
 
                     Divider()
 
+                    // Add thinker button (only show if room for more)
+                    if viewModel.currentThinkerCount < 5 {
+                        Button {
+                            showingAddThinker = true
+                        } label: {
+                            Label("Add Thinker", systemImage: "person.badge.plus")
+                        }
+
+                        Divider()
+                    }
+
                     Text("Speed: \(String(format: "%.1f", viewModel.speedMultiplier))x")
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .sheet(isPresented: $showingAddThinker) {
+            ThinkerSelectorView(
+                conversationId: conversationId,
+                currentThinkerCount: viewModel.currentThinkerCount,
+                excludedThinkerIds: viewModel.currentThinkerIds,
+                onThinkersAdded: {
+                    Task {
+                        await viewModel.refreshConversation()
+                    }
+                }
+            )
         }
         .task {
             await viewModel.connect()

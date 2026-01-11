@@ -24,6 +24,7 @@ enum Endpoint {
     case conversations
     case conversation(id: String)
     case createConversation
+    case addThinkersToConversation(conversationId: String)
 
     // Thinkers
     case thinkers
@@ -65,6 +66,8 @@ enum Endpoint {
             return "/api/conversations/\(id)"
         case .createConversation:
             return "/api/conversations"
+        case .addThinkersToConversation(let conversationId):
+            return "/api/conversations/\(conversationId)/thinkers"
 
         // Thinkers
         case .thinkers:
@@ -161,5 +164,49 @@ enum APIRequest {
         enum CodingKeys: String, CodingKey {
             case languagePreference = "language_preference"
         }
+    }
+}
+
+/// Model for creating a thinker (request body)
+struct ThinkerCreate: Codable, Sendable {
+    let name: String
+    let bio: String
+    let positions: String
+    let style: String
+    let color: String
+    let imageUrl: String?
+
+    init(name: String, bio: String, positions: String, style: String, color: String = "#6366f1", imageUrl: String? = nil) {
+        self.name = name
+        self.bio = bio
+        self.positions = positions
+        self.style = style
+        self.color = color
+        self.imageUrl = imageUrl
+    }
+
+    /// Create from an existing Thinker
+    init(from thinker: Thinker) {
+        self.name = thinker.name
+        self.bio = thinker.bio
+        self.positions = thinker.positions
+        self.style = thinker.style
+        self.color = thinker.color
+        self.imageUrl = thinker.imageUrl
+    }
+
+    /// Create from a ThinkerSuggestion
+    init(from suggestion: ThinkerSuggestion) {
+        self.name = suggestion.profile.name
+        self.bio = suggestion.profile.bio
+        self.positions = suggestion.profile.positions
+        self.style = suggestion.profile.style
+        self.color = "#6366f1"
+        self.imageUrl = suggestion.profile.imageUrl
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name, bio, positions, style, color
+        case imageUrl = "image_url"
     }
 }
