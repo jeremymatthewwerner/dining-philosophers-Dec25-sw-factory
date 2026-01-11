@@ -111,6 +111,25 @@ final class ChatViewModel: WebSocketDelegate {
         errorMessage = nil
     }
 
+    /// Refresh conversation data (e.g., after adding thinkers)
+    func refreshConversation() async {
+        do {
+            conversation = try await APIClient.shared.get(.conversation(id: conversationId))
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Get IDs of thinkers currently in the conversation
+    var currentThinkerIds: Set<String> {
+        Set(conversation?.thinkers.map(\.id) ?? [])
+    }
+
+    /// Current number of thinkers in conversation
+    var currentThinkerCount: Int {
+        conversation?.thinkers.count ?? 0
+    }
+
     // MARK: - WebSocketDelegate
 
     nonisolated func webSocketDidReceiveMessage(_ message: WSMessage) async {

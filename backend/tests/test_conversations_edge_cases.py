@@ -426,3 +426,234 @@ class TestMessageSending:
         )
         # Should get 404 (conversation not found for this session)
         assert response.status_code == 404
+
+
+class TestAddThinkersToConversation:
+    """Test edge cases for adding thinkers to existing conversations."""
+
+    @pytest.mark.asyncio
+    async def test_add_single_thinker_to_conversation(self, client: AsyncClient) -> None:
+        """Test adding one thinker to an existing conversation."""
+        data = await register_and_get_token(
+            client, username="user_add_thinker", password="testpass123"
+        )
+        headers = {"Authorization": f"Bearer {data['access_token']}"}
+
+        # Create conversation with 1 thinker
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Philosophy discussion",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Greek philosopher",
+                        "positions": "Question everything",
+                        "style": "Socratic method",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
+        assert conv_response.status_code == 200
+        conversation_id = conv_response.json()["id"]
+
+        # Add another thinker
+        response = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Plato",
+                    "bio": "Student of Socrates",
+                    "positions": "Theory of Forms",
+                    "style": "Dialogues",
+                    "color": "#ec4899",
+                }
+            ],
+        )
+        assert response.status_code == 200
+        new_thinkers = response.json()
+        assert len(new_thinkers) == 1
+        assert new_thinkers[0]["name"] == "Plato"
+
+        # Verify conversation now has 2 thinkers
+        get_response = await client.get(f"/api/conversations/{conversation_id}", headers=headers)
+        assert get_response.status_code == 200
+        assert len(get_response.json()["thinkers"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_add_multiple_thinkers_to_conversation(self, client: AsyncClient) -> None:
+        """Test adding multiple thinkers at once."""
+        data = await register_and_get_token(
+            client, username="user_add_multi", password="testpass123"
+        )
+        headers = {"Authorization": f"Bearer {data['access_token']}"}
+
+        # Create conversation with 1 thinker
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Multi-thinker discussion",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Greek philosopher",
+                        "positions": "Question everything",
+                        "style": "Socratic method",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
+        conversation_id = conv_response.json()["id"]
+
+        # Add 2 more thinkers
+        response = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Plato",
+                    "bio": "Student of Socrates",
+                    "positions": "Theory of Forms",
+                    "style": "Dialogues",
+                    "color": "#ec4899",
+                },
+                {
+                    "name": "Aristotle",
+                    "bio": "Student of Plato",
+                    "positions": "Golden mean",
+                    "style": "Systematic",
+                    "color": "#10b981",
+                },
+            ],
+        )
+        assert response.status_code == 200
+        new_thinkers = response.json()
+        assert len(new_thinkers) == 2
+
+    @pytest.mark.asyncio
+    async def test_cannot_exceed_max_thinkers(self, client: AsyncClient) -> None:
+        """Test that adding thinkers beyond the limit (5) fails."""
+        data = await register_and_get_token(
+            client, username="user_max_thinkers", password="testpass123"
+        )
+        headers = {"Authorization": f"Bearer {data['access_token']}"}
+
+        # Create conversation with 4 thinkers
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Full discussion",
+                "thinkers": [
+                    {
+                        "name": f"Thinker{i}",
+                        "bio": f"Bio {i}",
+                        "positions": f"Position {i}",
+                        "style": f"Style {i}",
+                        "color": "#6366f1",
+                    }
+                    for i in range(4)
+                ],
+            },
+        )
+        conversation_id = conv_response.json()["id"]
+
+        # Try to add 2 more (would make 6 total)
+        response = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Extra1",
+                    "bio": "Extra bio",
+                    "positions": "Extra position",
+                    "style": "Extra style",
+                    "color": "#f59e0b",
+                },
+                {
+                    "name": "Extra2",
+                    "bio": "Extra bio 2",
+                    "positions": "Extra position 2",
+                    "style": "Extra style 2",
+                    "color": "#8b5cf6",
+                },
+            ],
+        )
+        assert response.status_code == 400
+        assert "Maximum is 5" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_add_thinker_to_nonexistent_conversation(self, client: AsyncClient) -> None:
+        """Test adding thinkers to a conversation that doesn't exist."""
+        data = await register_and_get_token(
+            client, username="user_add_nonexist", password="testpass123"
+        )
+        headers = {"Authorization": f"Bearer {data['access_token']}"}
+
+        fake_uuid = str(uuid.uuid4())
+        response = await client.put(
+            f"/api/conversations/{fake_uuid}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Orphan Thinker",
+                    "bio": "No home",
+                    "positions": "Lost",
+                    "style": "Wandering",
+                    "color": "#6366f1",
+                }
+            ],
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_cannot_add_thinker_to_other_users_conversation(
+        self, client: AsyncClient
+    ) -> None:
+        """Test that user B cannot add thinkers to user A's conversation."""
+        # User A creates conversation
+        data_a = await register_and_get_token(client, username="user_a_add", password="testpass123")
+        headers_a = {"Authorization": f"Bearer {data_a['access_token']}"}
+
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers_a,
+            json={
+                "topic": "User A's private chat",
+                "thinkers": [
+                    {
+                        "name": "Private Thinker",
+                        "bio": "Only for A",
+                        "positions": "Private",
+                        "style": "Exclusive",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
+        conversation_id = conv_response.json()["id"]
+
+        # User B tries to add thinker
+        data_b = await register_and_get_token(client, username="user_b_add", password="testpass123")
+        headers_b = {"Authorization": f"Bearer {data_b['access_token']}"}
+
+        response = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers_b,
+            json=[
+                {
+                    "name": "Intruder",
+                    "bio": "Uninvited",
+                    "positions": "None",
+                    "style": "Sneaky",
+                    "color": "#ff0000",
+                }
+            ],
+        )
+        # Should get 404 (conversation not found for this session)
+        assert response.status_code == 404
