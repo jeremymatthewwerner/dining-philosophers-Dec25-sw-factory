@@ -93,6 +93,12 @@ jobs:
 
             ## Agent Routing Rules
 
+            **Route to @roadmap if the issue contains:**
+            - Multiple phases (Phase 1, Phase 2, etc.)
+            - Progress tracking tables with phases
+            - Roadmap patterns that need sub-issue creation
+            - Multi-phase project planning
+
             **Route to @factory-manager if the issue mentions:**
             - Workflow problems (workflow, agent, triage, factory, CI/CD pipeline)
             - Agent coordination issues (bot stuck, agent not triggering, escalation problems)
@@ -127,6 +133,7 @@ jobs:
 
             IMPORTANT:
             - Use EXACTLY ONE @mention in "Next Steps" - the appropriate agent for the issue type
+            - @roadmap for multi-phase roadmaps that need sub-issue creation
             - @factory-manager for workflow/agent/factory issues
             - @devops for infrastructure/deployment/production issues
             - @code for bugs, features, and code changes (DEFAULT)

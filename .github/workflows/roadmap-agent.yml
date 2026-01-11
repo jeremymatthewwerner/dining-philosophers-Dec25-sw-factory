@@ -1,0 +1,162 @@
+name: Roadmap Agent
+on:
+  issue_comment:
+    types: [created]  # Trigger on @roadmap mentions for processing roadmaps
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process as roadmap'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  process_roadmap:
+    # Triggers on:
+    # 1. @roadmap mention in comment (for processing roadmaps)
+    # 2. Manual workflow dispatch
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       !github.event.issue.pull_request &&
+       (contains(github.event.comment.body, '@roadmap') ||
+        contains(github.event.comment.body, '@Roadmap')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    concurrency:
+      group: roadmap-agent-${{ github.event.issue.number || 'global' }}
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get issue number
+        id: issue
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Pre-install Claude Code to avoid race condition lock issues
+      - name: Pre-install Claude Code
+        run: |
+          # Clean up any stale lock files that might block installation
+          rm -f "$HOME/.claude/.installing" "$HOME/.claude/install.lock" 2>/dev/null || true
+
+          # Install Claude Code - match version used by claude-code-action
+          echo "Installing Claude Code..."
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.0.74
+
+          # Add to PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          prompt: |
+            You are the Roadmap Processing Agent. Your job is to analyze multi-phase issues and create missing tracking sub-issues.
+
+            Read CLAUDE.md for the sub-issue creation patterns (search for "Creating Sub-Issues (GraphQL API)").
+
+            ## Your Task
+
+            1. **Analyze issue #${{ steps.issue.outputs.number }}**:
+               ```bash
+               gh issue view ${{ steps.issue.outputs.number }}
+               ```
+
+            2. **Detect if this is a roadmap issue** by looking for:
+               - Multiple phases listed (Phase 1, Phase 2, etc.)
+               - Section headers like "### Phase N:" or "## Phase N:"
+               - Progress tracking table with phases
+               - Missing tracking issues for some phases
+
+            3. **If it's a roadmap issue, identify missing tracking issues**:
+               - Parse the issue body for phases that list "-" or "Pending" in tracking column
+               - Look for phases without issue numbers in the format "**Tracking:** #NNN"
+
+            4. **Create missing tracking issues**:
+               ```bash
+               # For each missing phase, create an issue
+               gh issue create \
+                 --title "iOS Phase N: [Phase Title]" \
+                 --body "## Phase N: [Phase Title]
+
+               **Parent Roadmap:** #${{ steps.issue.outputs.number }}
+
+               ### Objectives
+               [Extract phase objectives from roadmap]
+
+               ### Tasks
+               [Extract phase tasks from roadmap]
+
+               ### Success Criteria
+               [Extract verification criteria from roadmap]
+
+               ---
+               *Auto-created by Roadmap Agent for tracking roadmap phase*" \
+                 --label "enhancement,ios,priority-medium"
+               ```
+
+            5. **Link created issues as sub-issues** using GraphQL API:
+               ```bash
+               # Get parent and child IDs
+               PARENT_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+                 -f query='query { repository(owner:"jeremymatthewwerner", name:"dining-philosophers-Dec25-sw-factory") { issue(number: ${{ steps.issue.outputs.number }}) { id } } }' \
+                 --jq '.data.repository.issue.id')
+
+               CHILD_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
+                 -f query='query { repository(owner:"jeremymatthewwerner", name:"dining-philosophers-Dec25-sw-factory") { issue(number: NEW_ISSUE_NUMBER) { id } } }' \
+                 --jq '.data.repository.issue.id')
+
+               # Link as sub-issue
+               gh api graphql -H "GraphQL-Features: sub_issues" \
+                 -f query='mutation { addSubIssue(input: { issueId: "'"$PARENT_ID"'", subIssueId: "'"$CHILD_ID"'" }) { issue { title } subIssue { title } } }'
+               ```
+
+            6. **Update roadmap issue** with new tracking issue numbers:
+               - Replace "-" with "#NEW_ISSUE_NUMBER" in the tracking table
+               - Update progress tracking section
+
+            7. **Post completion comment**:
+               ```bash
+               gh issue comment ${{ steps.issue.outputs.number }} --body "## 🤖 Roadmap Agent Completed
+
+               **Created tracking issues:**
+               - Phase N: #NEW_ISSUE_1
+               - Phase N+1: #NEW_ISSUE_2
+
+               **Sub-issues linked:** ✅
+               **Roadmap updated:** ✅
+
+               All phases now have proper tracking issues for autonomous development.
+
+               ---
+               *Roadmap processing completed by Roadmap Agent*"
+               ```
+
+            ## Important Notes
+
+            - **Only process if it's actually a roadmap** - Don't create issues for regular bug reports
+            - **Extract meaningful content** - Don't just copy-paste, extract the actual phase objectives and tasks
+            - **Follow existing patterns** - Look at existing sub-issues #408-411 to match the format
+            - **Use proper labels** - Match labels from the parent issue (e.g., "ios" for iOS roadmap)
+            - **Link everything** - Both GraphQL sub-issues AND update the tracking table
+
+            If this is NOT a roadmap issue, simply comment that this issue doesn't appear to be a multi-phase roadmap.
+
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --dangerously-skip-permissions
+            --allowedTools "Bash(gh issue:*),Bash(gh api:*),Read,Edit"
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
