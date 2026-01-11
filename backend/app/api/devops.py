@@ -215,6 +215,62 @@ async def cleanup_orphans(
     return CleanupResponse(deleted_count=total, details=details)
 
 
+class TestUserCleanupResponse(BaseModel):
+    """Test user cleanup operation response."""
+
+    deleted_count: int
+    usernames: list[str]
+    dry_run: bool = False
+
+
+@router.delete("/cleanup/test-users", response_model=TestUserCleanupResponse)
+async def cleanup_test_users(
+    _: Annotated[None, Depends(require_devops_secret)],
+    db: AsyncSession = Depends(get_db),
+    dry_run: bool = Query(default=False, description="Preview without deleting"),
+) -> TestUserCleanupResponse:
+    """Delete test user accounts matching smoke test and canary patterns.
+
+    This is a one-time cleanup endpoint for removing accumulated test accounts
+    from CI runs. Targets users with usernames matching:
+    - smoketest* (smoke test accounts)
+    - canary* (canary test accounts)
+
+    The cascade delete will automatically remove associated:
+    - Sessions (user_id FK)
+    - Conversations (via session)
+    - Messages (via conversation)
+
+    Args:
+        dry_run: If true, only list users without deleting
+    """
+    # Find test users matching patterns
+    result = await db.execute(
+        select(User).where((User.username.like("smoketest%")) | (User.username.like("canary%")))
+    )
+    test_users = result.scalars().all()
+
+    usernames = [user.username for user in test_users]
+    count = len(usernames)
+
+    if dry_run:
+        logger.info(
+            f"[DRY RUN] Would delete {count} test users: {usernames[:10]}{'...' if count > 10 else ''}"
+        )
+        return TestUserCleanupResponse(deleted_count=count, usernames=usernames, dry_run=True)
+
+    if count > 0:
+        # Delete users through ORM to properly trigger relationship cascades
+        # This ensures sessions/conversations/messages are deleted even if
+        # the database doesn't enforce FK cascades (e.g., SQLite in tests)
+        for user in test_users:
+            await db.delete(user)
+        await db.commit()
+        logger.info(f"Deleted {count} test users: {usernames[:10]}{'...' if count > 10 else ''}")
+
+    return TestUserCleanupResponse(deleted_count=count, usernames=usernames)
+
+
 @router.get("/health")
 async def devops_health(
     _: Annotated[None, Depends(require_devops_secret)],
