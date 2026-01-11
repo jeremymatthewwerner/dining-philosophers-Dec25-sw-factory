@@ -1,5 +1,5 @@
 'use client';
-// CI display test - verifying job status in E2E progress
+
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type {
