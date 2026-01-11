@@ -189,6 +189,23 @@ jobs:
 
           echo "Generalization complete"
 
+      - name: Update template README with agent info
+        working-directory: template
+        run: |
+          echo "Updating template README with agent info from AGENT_REFERENCE.md..."
+
+          # Count agents from AGENT_REFERENCE.md (lines in Agent Summary table, excluding header)
+          if [ -f "docs/AGENT_REFERENCE.md" ]; then
+            AGENT_COUNT=$(grep -c "^\| \*\*" docs/AGENT_REFERENCE.md || echo "10")
+            echo "Found $AGENT_COUNT agents"
+
+            # Update agent count in README
+            if [ -f "README.md" ]; then
+              sed -i "s/\*\*[0-9]* Specialized Agents\*\*/**$AGENT_COUNT Specialized Agents**/" README.md
+              echo "Updated agent count in README"
+            fi
+          fi
+
       - name: Check for changes
         id: changes
         working-directory: template
