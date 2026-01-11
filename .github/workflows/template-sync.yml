@@ -24,6 +24,7 @@ on:
       - '.github/workflows/release-eng.yml'
       - '.github/workflows/marketing.yml'
       - '.github/workflows/triage.yml'
+      - '.github/workflows/product-manager.yml'
       - '.github/apps/**'
       - '.github/examples/**'
       - 'scripts/setup-github-apps.sh'
@@ -67,6 +68,7 @@ jobs:
             ".github/workflows/release-eng.yml"
             ".github/workflows/marketing.yml"
             ".github/workflows/triage.yml"
+            ".github/workflows/product-manager.yml"
             "CLAUDE.md"
             "REQUIREMENTS.md"
             "docs/OBSERVABILITY.md"

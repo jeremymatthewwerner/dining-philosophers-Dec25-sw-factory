@@ -26,6 +26,7 @@ Real-time multi-party chat with AI-simulated historical/contemporary thinkers.
 **@mentions for agents:**
 | `@code` | Code Agent - fix bugs, implement features |
 | `@pe` | Principal Engineer - holistic debugging |
+| `@pm` | Product Manager - roadmaps, tracking sub-issues |
 | `@devops` | DevOps - production logs, diagnostics |
 | `@factory-manager` | Factory Manager - stuck issues, health |
 | `@ios` | iOS Native Agent - Swift/SwiftUI iOS development |
@@ -456,13 +457,14 @@ Use labels to categorize issues:
 
 ## Autonomous Agents
 
-This repo uses 10 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
+This repo uses 11 AI-powered GitHub Actions agents. See `.github/workflows/` and `.claude/agents/` for details.
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
 | **Triage** | Issue opened | Classifies issues, detects duplicates, adds labels, routes to appropriate agent |
 | **Code Agent** | `@code` mention in comment | Diagnoses and fixes issues, creates PRs |
 | **Principal Engineer** | `@pe` mention in comment | Holistic debugging, fixes factory not just symptoms |
+| **Product Manager** | `@pm` mention in comment | Processes multi-phase roadmaps, creates tracking sub-issues |
 | **iOS Native** | `@ios` mention in comment | Native iOS development with Swift/SwiftUI |
 | **QA** | Nightly 2am UTC | Test quality improvement with daily focus rotation |
 | **Release Eng** | Daily 3am UTC | Security audits, dependency updates, CI optimization |
@@ -682,6 +684,7 @@ Why @mentions over labels:
 | `@code` | Code Agent | Fix bugs, implement features |
 | `@devops` | DevOps Agent | Production logs, diagnostics, service restarts |
 | `@pe` | Principal Engineer | Holistic debugging, factory fixes |
+| `@pm` | Product Manager | Process multi-phase roadmaps, create tracking sub-issues |
 | `@ios` | iOS Native Agent | Native iOS development with Swift/SwiftUI |
 | `@triage` | Triage Agent | Re-classify or re-prioritize an issue |
 | `@qa` | QA Agent | Request test improvements |
@@ -693,6 +696,7 @@ Why @mentions over labels:
 @code please fix this bug
 @devops please check backend logs for errors
 @pe this issue needs holistic investigation
+@pm please create tracking issues for this roadmap
 @ios please implement the chat view for iOS
 @triage please re-evaluate the priority of this issue
 @factory-manager why is this issue stuck?
