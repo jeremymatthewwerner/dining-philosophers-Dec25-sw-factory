@@ -184,6 +184,53 @@ actor APIClient {
         try validateResponse(response, data: data)
     }
 
+    /// Perform an authenticated PATCH request with body
+    func patch<T: Decodable, B: Encodable>(_ endpoint: Endpoint, body: B) async throws -> T {
+        var request = try await buildRequest(endpoint: endpoint, method: "PATCH")
+        do {
+            request.httpBody = try encoder.encode(body)
+        } catch {
+            throw NetworkError.encodingFailed(error)
+        }
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await performWithRetry(request)
+    }
+
+    /// Perform an authenticated PUT request with body
+    func put<T: Decodable, B: Encodable>(_ endpoint: Endpoint, body: B) async throws -> T {
+        var request = try await buildRequest(endpoint: endpoint, method: "PUT")
+        do {
+            request.httpBody = try encoder.encode(body)
+        } catch {
+            throw NetworkError.encodingFailed(error)
+        }
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await performWithRetry(request)
+    }
+
+    // MARK: - Profile API
+
+    /// Update user profile (display name)
+    func updateProfile(displayName: String) async throws -> User {
+        let request = APIRequest.UpdateProfile(displayName: displayName)
+        return try await patch(.updateProfile, body: request)
+    }
+
+    /// Change user password
+    func changePassword(currentPassword: String, newPassword: String) async throws {
+        let request = APIRequest.ChangePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword
+        )
+        _ = try await post(.changePassword, body: request) as EmptyResponse
+    }
+
+    /// Update language preference
+    func updateLanguagePreference(_ language: String) async throws -> User {
+        let request = APIRequest.UpdateLanguage(languagePreference: language)
+        return try await patch(.updateLanguage, body: request)
+    }
+
     // MARK: - Private Helpers
 
     private func buildRequest(endpoint: Endpoint, method: String) async throws -> URLRequest {

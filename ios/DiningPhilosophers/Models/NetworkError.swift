@@ -211,6 +211,12 @@ enum NetworkError: Error, LocalizedError, Equatable {
         }
     }
 
+    /// User-friendly message suitable for display in UI
+    /// Uses the error description, falling back to a generic message
+    var userMessage: String {
+        errorDescription ?? "An unexpected error occurred. Please try again."
+    }
+
     // MARK: - Factory Methods
 
     /// Create a NetworkError from an HTTP status code

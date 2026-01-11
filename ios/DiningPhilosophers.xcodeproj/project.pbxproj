@@ -29,8 +29,13 @@
 		1A000021 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100021 /* APIClientTests.swift */; };
 		1A000022 /* AuthViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100022 /* AuthViewModelTests.swift */; };
 		1A000023 /* ThemeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100023 /* ThemeManagerTests.swift */; };
+		1A000024 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100024 /* SettingsManagerTests.swift */; };
 		1A000030 /* DiningPhilosophersUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100030 /* DiningPhilosophersUITests.swift */; };
 		1A000031 /* DiningPhilosophersUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100031 /* DiningPhilosophersUITestsLaunchTests.swift */; };
+		1A000040 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100040 /* SettingsManager.swift */; };
+		1A000041 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100041 /* EditProfileView.swift */; };
+		1A000042 /* LanguageSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100042 /* LanguageSelectionView.swift */; };
+		1A000043 /* ChangePasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100043 /* ChangePasswordView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,8 +79,13 @@
 		1A100021 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
 		1A100022 /* AuthViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModelTests.swift; sourceTree = "<group>"; };
 		1A100023 /* ThemeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManagerTests.swift; sourceTree = "<group>"; };
+		1A100024 /* SettingsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerTests.swift; sourceTree = "<group>"; };
 		1A100030 /* DiningPhilosophersUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiningPhilosophersUITests.swift; sourceTree = "<group>"; };
 		1A100031 /* DiningPhilosophersUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiningPhilosophersUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		1A100040 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
+		1A100041 /* EditProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditProfileView.swift; sourceTree = "<group>"; };
+		1A100042 /* LanguageSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSelectionView.swift; sourceTree = "<group>"; };
+		1A100043 /* ChangePasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangePasswordView.swift; sourceTree = "<group>"; };
 		1A400001 /* DiningPhilosophers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DiningPhilosophers.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A400002 /* DiningPhilosophersTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DiningPhilosophersTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A400003 /* DiningPhilosophersUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DiningPhilosophersUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -135,6 +145,7 @@
 				1A100021 /* APIClientTests.swift */,
 				1A100022 /* AuthViewModelTests.swift */,
 				1A100023 /* ThemeManagerTests.swift */,
+				1A100024 /* SettingsManagerTests.swift */,
 			);
 			path = DiningPhilosophersTests;
 			sourceTree = "<group>";
@@ -221,6 +232,7 @@
 			children = (
 				1A10000C /* KeychainService.swift */,
 				1A100013 /* ThemeManager.swift */,
+				1A100040 /* SettingsManager.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -312,6 +324,9 @@
 			isa = PBXGroup;
 			children = (
 				1A100008 /* SettingsView.swift */,
+				1A100041 /* EditProfileView.swift */,
+				1A100042 /* LanguageSelectionView.swift */,
+				1A100043 /* ChangePasswordView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -446,6 +461,10 @@
 				1A00000F /* Thinker.swift in Sources */,
 				1A000010 /* WebSocketMessage.swift in Sources */,
 				1A000012 /* ThemeManager.swift in Sources */,
+				1A000040 /* SettingsManager.swift in Sources */,
+				1A000041 /* EditProfileView.swift in Sources */,
+				1A000042 /* LanguageSelectionView.swift in Sources */,
+				1A000043 /* ChangePasswordView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -457,6 +476,7 @@
 				1A000021 /* APIClientTests.swift in Sources */,
 				1A000022 /* AuthViewModelTests.swift in Sources */,
 				1A000023 /* ThemeManagerTests.swift in Sources */,
+				1A000024 /* SettingsManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

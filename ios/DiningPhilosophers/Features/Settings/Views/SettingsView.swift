@@ -13,6 +13,9 @@ struct SettingsView: View {
     @Environment(ThemeManager.self) private var themeManager
     @State private var isShowingLogoutConfirmation = false
     @State private var isShowingResetConfirmation = false
+    @State private var isShowingEditProfile = false
+    @State private var isShowingChangePassword = false
+    @State private var isShowingLanguageSelection = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +23,7 @@ struct SettingsView: View {
                 // User info section
                 if let user = authManager.currentUser {
                     accountSection(user: user)
+                    securitySection
                     usageSection(user: user)
                 }
 
@@ -65,6 +69,21 @@ struct SettingsView: View {
             } message: {
                 Text("This will reset all preferences to their default values.")
             }
+            .sheet(isPresented: $isShowingEditProfile) {
+                NavigationStack {
+                    EditProfileView()
+                }
+            }
+            .sheet(isPresented: $isShowingChangePassword) {
+                NavigationStack {
+                    ChangePasswordView()
+                }
+            }
+            .sheet(isPresented: $isShowingLanguageSelection) {
+                NavigationStack {
+                    LanguageSelectionView()
+                }
+            }
         }
     }
 
@@ -73,27 +92,50 @@ struct SettingsView: View {
     @ViewBuilder
     private func accountSection(user: User) -> some View {
         Section("Account") {
-            HStack(spacing: 12) {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(user.displayName ?? user.username)
-                        .font(.headline)
-                    Text("@\(user.username)")
-                        .font(.caption)
+            Button {
+                isShowingEditProfile = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 44))
                         .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(user.displayName ?? user.username)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text("@\(user.username)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
             .padding(.vertical, 8)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Account: \(user.displayName ?? user.username)")
+            .accessibilityHint("Double tap to edit profile")
 
             LabeledContent("Member Since") {
                 Text(user.createdAt, style: .date)
             }
             .accessibilityLabel("Member since \(user.createdAt.formatted(date: .long, time: .omitted))")
+        }
+    }
+
+    private var securitySection: some View {
+        Section("Security") {
+            Button {
+                isShowingChangePassword = true
+            } label: {
+                Label("Change Password", systemImage: "lock")
+            }
+            .accessibilityHint("Double tap to change your password")
         }
     }
 
@@ -131,15 +173,18 @@ struct SettingsView: View {
 
     private var preferencesSection: some View {
         Section("Preferences") {
-            @Bindable var theme = themeManager
-
-            Picker(selection: $theme.language) {
-                ForEach(AppLanguage.allCases) { language in
-                    Text(language.displayName)
-                        .tag(language)
-                }
+            Button {
+                isShowingLanguageSelection = true
             } label: {
-                Label("Language", systemImage: "globe")
+                HStack {
+                    Label("Language", systemImage: "globe")
+                    Spacer()
+                    Text(themeManager.language.displayName)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
             .accessibilityLabel("Language: \(themeManager.language.displayName)")
             .accessibilityHint("Double tap to change language")
