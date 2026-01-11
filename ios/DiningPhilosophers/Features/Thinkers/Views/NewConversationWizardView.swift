@@ -131,7 +131,13 @@ struct NewConversationWizardView: View {
     @State private var currentStep: WizardStep = .topic
     @State private var showingThinkerBrowser = false
 
+    let preselectedThinker: Thinker?
     let onConversationCreated: (String) -> Void
+
+    init(preselectedThinker: Thinker? = nil, onConversationCreated: @escaping (String) -> Void) {
+        self.preselectedThinker = preselectedThinker
+        self.onConversationCreated = onConversationCreated
+    }
 
     var body: some View {
         NavigationStack {
@@ -177,6 +183,12 @@ struct NewConversationWizardView: View {
                             }
                         }
                     }
+                }
+            }
+            .onAppear {
+                // Add preselected thinker if provided
+                if let thinker = preselectedThinker {
+                    viewModel.addThinker(thinker)
                 }
             }
         }
