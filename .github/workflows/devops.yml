@@ -99,6 +99,7 @@ jobs:
           RAILWAY_WORKSPACE_ID: ${{ secrets.RAILWAY_WORKSPACE_ID }}
           BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
           TEST_CLEANUP_SECRET: ${{ secrets.TEST_CLEANUP_SECRET }}
+          DEVOPS_API_SECRET: ${{ secrets.DEVOPS_API_SECRET }}
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           echo "Processing diagnostic request..."
@@ -172,25 +173,50 @@ jobs:
           if echo "$COMMENT_BODY" | grep -qi "cleanup\|clean up\|delete.*test.*user\|smoketest\|canary"; then
             echo "" >> /tmp/diagnostic_output.txt
             echo "=== Test User Cleanup ===" >> /tmp/diagnostic_output.txt
-            if [ -n "$BACKEND_URL" ] && [ -n "$TEST_CLEANUP_SECRET" ]; then
-              # First do a dry run to show what would be deleted
-              echo "Checking for test users to delete..." >> /tmp/diagnostic_output.txt
 
-              # Call the cleanup endpoint
+            CLEANUP_SUCCESS=false
+
+            # Try TEST_CLEANUP_SECRET endpoint first (/api/test/cleanup-test-users)
+            if [ -n "$BACKEND_URL" ] && [ -n "$TEST_CLEANUP_SECRET" ]; then
+              echo "Using TEST_CLEANUP_SECRET endpoint..." >> /tmp/diagnostic_output.txt
               CLEANUP_RESPONSE=$(curl -s -X DELETE \
                 "$BACKEND_URL/api/test/cleanup-test-users?secret=$TEST_CLEANUP_SECRET" \
                 -H "Content-Type: application/json" 2>&1)
 
+              if echo "$CLEANUP_RESPONSE" | jq -e '.deleted_count' >/dev/null 2>&1; then
+                CLEANUP_SUCCESS=true
+              fi
+            fi
+
+            # Fallback to DEVOPS_API_SECRET endpoint (/api/devops/cleanup/test-users)
+            if [ "$CLEANUP_SUCCESS" = "false" ] && [ -n "$BACKEND_URL" ] && [ -n "$DEVOPS_API_SECRET" ]; then
+              echo "Using DEVOPS_API_SECRET endpoint..." >> /tmp/diagnostic_output.txt
+              CLEANUP_RESPONSE=$(curl -s -X DELETE \
+                "$BACKEND_URL/api/devops/cleanup/test-users" \
+                -H "X-DevOps-Secret: $DEVOPS_API_SECRET" \
+                -H "Content-Type: application/json" 2>&1)
+
+              if echo "$CLEANUP_RESPONSE" | jq -e '.deleted_count' >/dev/null 2>&1; then
+                CLEANUP_SUCCESS=true
+              fi
+            fi
+
+            if [ "$CLEANUP_SUCCESS" = "true" ]; then
               echo "" >> /tmp/diagnostic_output.txt
               echo "Cleanup result:" >> /tmp/diagnostic_output.txt
               echo "$CLEANUP_RESPONSE" | jq '.' 2>/dev/null >> /tmp/diagnostic_output.txt || echo "$CLEANUP_RESPONSE" >> /tmp/diagnostic_output.txt
 
-              # Parse the response to get a summary
               DELETED_COUNT=$(echo "$CLEANUP_RESPONSE" | jq -r '.deleted_count // 0' 2>/dev/null || echo "0")
               echo "" >> /tmp/diagnostic_output.txt
               echo "✅ Deleted $DELETED_COUNT test users" >> /tmp/diagnostic_output.txt
             else
-              echo "Cannot perform cleanup: Missing PRODUCTION_BACKEND_URL or TEST_CLEANUP_SECRET" >> /tmp/diagnostic_output.txt
+              echo "Cannot perform cleanup. Configure one of these secrets:" >> /tmp/diagnostic_output.txt
+              echo "  - TEST_CLEANUP_SECRET (for /api/test/cleanup-test-users)" >> /tmp/diagnostic_output.txt
+              echo "  - DEVOPS_API_SECRET (for /api/devops/cleanup/test-users)" >> /tmp/diagnostic_output.txt
+              if [ -n "$CLEANUP_RESPONSE" ]; then
+                echo "" >> /tmp/diagnostic_output.txt
+                echo "Last response: $CLEANUP_RESPONSE" >> /tmp/diagnostic_output.txt
+              fi
             fi
           fi
 
