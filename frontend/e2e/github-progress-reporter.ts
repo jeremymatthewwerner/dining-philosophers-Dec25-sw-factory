@@ -5,6 +5,7 @@
  * - GH_TOKEN: GitHub token for API access
  * - GH_REPO: Repository in owner/repo format
  * - CI_COMMENT_ID: ID of the comment to update
+ * - GITHUB_RUN_ID: GitHub Actions run ID (auto-provided by GitHub)
  *
  * Usage in playwright.config.ts:
  *   reporter: process.env.CI_COMMENT_ID
@@ -30,10 +31,19 @@ interface FileProgress {
   status: "pending" | "running" | "passed" | "failed";
 }
 
+interface JobStatus {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 class GitHubProgressReporter implements Reporter {
   private token: string;
   private repo: string;
   private commentId: string;
+  private runId: string;
   private enabled: boolean;
   private fileProgress: Map<string, FileProgress> = new Map();
   private totalTests = 0;
@@ -41,16 +51,20 @@ class GitHubProgressReporter implements Reporter {
   private lastUpdateTime = 0;
   private updateInterval = 5000; // Minimum 5 seconds between updates (rate limit protection)
   private pendingUpdate = false;
+  private cachedJobs: JobStatus[] = [];
+  private lastJobFetchTime = 0;
+  private jobFetchInterval = 30000; // Fetch jobs every 30 seconds (they change less frequently)
 
   constructor() {
     this.token = process.env.GH_TOKEN || "";
     this.repo = process.env.GH_REPO || "";
     this.commentId = process.env.CI_COMMENT_ID || "";
+    this.runId = process.env.GITHUB_RUN_ID || "";
     this.enabled = Boolean(this.token && this.repo && this.commentId);
 
     if (this.enabled) {
       console.log(
-        `[GitHubProgressReporter] Enabled - updating comment ${this.commentId}`
+        `[GitHubProgressReporter] Enabled - updating comment ${this.commentId}, run ${this.runId}`
       );
     } else {
       console.log(
@@ -163,7 +177,7 @@ class GitHubProgressReporter implements Reporter {
     this.lastUpdateTime = now;
 
     try {
-      const body = this.generateCommentBody();
+      const body = await this.generateCommentBody();
       const response = await fetch(
         `https://api.github.com/repos/${this.repo}/issues/comments/${this.commentId}`,
         {
@@ -187,29 +201,49 @@ class GitHubProgressReporter implements Reporter {
     }
   }
 
-  private generateCommentBody(): string {
+  private async generateCommentBody(): Promise<string> {
+    const jobs = await this.fetchJobStatuses();
+
+    // Calculate overall stats
+    const completedJobs = jobs.filter(j => j.status === "completed").length;
+    const failedJobs = jobs.filter(j => j.conclusion === "failure").length;
+    const totalJobs = jobs.length;
+
     const lines: string[] = [
       "<!-- ci-watcher -->",
       "## 🔄 CI Status",
       "",
-      `**Status:** 🔄 **Running E2E Tests:** ${this.completedTests}/${this.totalTests} tests complete`,
+      `**Status:** 🔄 **Running:** ${completedJobs}/${totalJobs} jobs complete${failedJobs > 0 ? `, ${failedJobs} failed` : ""}`,
       "",
-      "| Test File | Status | Duration |",
-      "|-----------|--------|----------|",
+      "| Job | Status | Duration |",
+      "|-----|--------|----------|",
     ];
 
-    // Sort files: running first, then by name
-    const sortedFiles = [...this.fileProgress.entries()].sort((a, b) => {
-      if (a[1].status === "running" && b[1].status !== "running") return -1;
-      if (b[1].status === "running" && a[1].status !== "running") return 1;
-      return a[0].localeCompare(b[0]);
-    });
+    // Add job status rows
+    for (const job of jobs) {
+      const icon = this.getJobStatusIcon(job);
+      const status = job.conclusion || job.status;
+      const duration = this.formatJobDuration(job);
+      lines.push(`| ${job.name} | ${icon} ${status} | ${duration} |`);
 
-    for (const [fileName, progress] of sortedFiles) {
-      const icon = this.getStatusIcon(progress);
-      const statusText = this.getStatusText(progress);
-      const duration = this.formatDuration(progress.duration);
-      lines.push(`| ↳ ${fileName} | ${icon} ${statusText} | ${duration} |`);
+      // If this is the E2E Tests job and it's in progress, add E2E file details
+      if (job.name === "E2E Tests" && job.status === "in_progress") {
+        lines.push(`| | 📊 **${this.completedTests}/${this.totalTests} tests complete** | |`);
+
+        // Sort files: running first, then by name
+        const sortedFiles = [...this.fileProgress.entries()].sort((a, b) => {
+          if (a[1].status === "running" && b[1].status !== "running") return -1;
+          if (b[1].status === "running" && a[1].status !== "running") return 1;
+          return a[0].localeCompare(b[0]);
+        });
+
+        for (const [fileName, progress] of sortedFiles) {
+          const fileIcon = this.getStatusIcon(progress);
+          const statusText = this.getStatusText(progress);
+          const fileDuration = this.formatDuration(progress.duration);
+          lines.push(`| ↳ ${fileName} | ${fileIcon} ${statusText} | ${fileDuration} |`);
+        }
+      }
     }
 
     lines.push("");
@@ -249,6 +283,64 @@ class GitHubProgressReporter implements Reporter {
     if (ms === 0) return "-";
     const seconds = Math.round(ms / 100) / 10;
     return `${seconds}s`;
+  }
+
+  private async fetchJobStatuses(): Promise<JobStatus[]> {
+    if (!this.runId) return [];
+
+    const now = Date.now();
+    if (now - this.lastJobFetchTime < this.jobFetchInterval && this.cachedJobs.length > 0) {
+      return this.cachedJobs;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${this.repo}/actions/runs/${this.runId}/jobs`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            Accept: "application/vnd.github.v3+json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`[GitHubProgressReporter] Failed to fetch jobs: ${response.status}`);
+        return this.cachedJobs;
+      }
+
+      const data = await response.json();
+      this.cachedJobs = (data.jobs || []).map((job: Record<string, unknown>) => ({
+        name: job.name as string,
+        status: job.status as string,
+        conclusion: job.conclusion as string | null,
+        started_at: job.started_at as string | null,
+        completed_at: job.completed_at as string | null,
+      }));
+      this.lastJobFetchTime = now;
+      return this.cachedJobs;
+    } catch (error) {
+      console.error(`[GitHubProgressReporter] Error fetching jobs:`, error);
+      return this.cachedJobs;
+    }
+  }
+
+  private getJobStatusIcon(job: JobStatus): string {
+    if (job.conclusion === "success") return "✅";
+    if (job.conclusion === "failure") return "❌";
+    if (job.conclusion === "skipped") return "⏭️";
+    if (job.conclusion === "cancelled") return "🚫";
+    if (job.status === "in_progress") return "🔄";
+    if (job.status === "queued") return "⏳";
+    return "⏸️";
+  }
+
+  private formatJobDuration(job: JobStatus): string {
+    if (!job.started_at) return "-";
+    if (!job.completed_at) return "running";
+    const start = new Date(job.started_at).getTime();
+    const end = new Date(job.completed_at).getTime();
+    return `${Math.round((end - start) / 1000)}s`;
   }
 }
 
