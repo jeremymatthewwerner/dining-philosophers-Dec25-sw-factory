@@ -54,12 +54,15 @@ struct ConversationListView: View {
                 Text(viewModel.errorMessage ?? "")
             }
             .sheet(isPresented: $showingNewConversation) {
-                NewConversationWizardView(onConversationCreated: { _ in
-                    showingNewConversation = false
-                    Task {
-                        await viewModel.loadConversations()
+                NewConversationWizardView(
+                    preselectedThinker: nil,
+                    onConversationCreated: { _ in
+                        showingNewConversation = false
+                        Task {
+                            await viewModel.loadConversations()
+                        }
                     }
-                })
+                )
             }
         }
     }
