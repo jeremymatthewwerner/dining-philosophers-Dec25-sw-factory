@@ -31,6 +31,7 @@ LANGUAGE_NAMES = {
     "en": "English",
     "es": "Spanish",
     "fr": "French",
+    "de": "German",
 }
 
 
@@ -817,7 +818,20 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
         # Transform to sound like internal monologue rather than LLM reasoning
         # Use language-appropriate replacements
-        if language == "es":
+        if language == "de":
+            # German replacements
+            replacements = [
+                ("Ich sollte ", "Vielleicht sollte ich "),
+                ("Ich muss ", "Hmm, ich muss "),
+                ("Ich denke ", ""),
+                ("Ich glaube ", ""),
+                ("Ich werde ", "Ich könnte "),
+                ("Der Benutzer ", "Sie "),
+                ("der Benutzer ", "sie "),
+                ("Lass mich ", "Mal sehen... "),
+                ("Ich kann ", "Ich könnte "),
+            ]
+        elif language == "es":
             # Spanish replacements
             replacements = [
                 ("Debería ", "Quizás debería "),
@@ -862,7 +876,19 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
             text = text.replace(old, new)
 
         # Add contemplative starters for variety (language-appropriate)
-        if language == "es":
+        if language == "de":
+            starters = [
+                "Hmm... ",
+                "Mal sehen... ",
+                "Interessant... ",
+                "Lass mich nachdenken... ",
+                "*nachdenkend* ",
+                "",  # Sometimes no prefix
+                "",
+            ]
+            # German starter detection
+            starter_prefixes = ("hmm", "mal sehen", "lass mich", "interessant", "*")
+        elif language == "es":
             starters = [
                 "Hmm... ",
                 "Veamos... ",

@@ -329,7 +329,7 @@ class TestAuthEdgeCases:
         response = await client.patch(
             "/api/auth/language",
             headers=headers,
-            json={"language_preference": "de"},  # Invalid language
+            json={"language_preference": "xx"},  # Invalid language (not en, es, fr, or de)
         )
         assert response.status_code == 422  # Validation error
 
