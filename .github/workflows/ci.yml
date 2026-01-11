@@ -215,11 +215,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Extract issue number from branch name (patterns: fix/123-desc, feat/123-desc, or ending with -123)
+          # Extract issue number from branch name
+          # Patterns supported:
+          #   fix/123-desc, feat/123-desc (Code Agent standard)
+          #   claude/fix-123-*, claude/*-123-* (Claude with issue number)
+          #   ending with -123 (legacy)
           BRANCH="${{ github.head_ref }}"
           ISSUE_NUMBER=""
           if [[ "$BRANCH" =~ ^(fix|feat)/([0-9]+) ]]; then
             ISSUE_NUMBER="${BASH_REMATCH[2]}"
+          elif [[ "$BRANCH" =~ ^claude/(fix|feat)-([0-9]+) ]]; then
+            ISSUE_NUMBER="${BASH_REMATCH[2]}"
+          elif [[ "$BRANCH" =~ -([0-9]+)-[a-zA-Z] ]]; then
+            # Match issue number followed by session ID (e.g., -457-nJsFc)
+            ISSUE_NUMBER="${BASH_REMATCH[1]}"
           elif [[ "$BRANCH" =~ -([0-9]+)$ ]]; then
             ISSUE_NUMBER="${BASH_REMATCH[1]}"
           fi
