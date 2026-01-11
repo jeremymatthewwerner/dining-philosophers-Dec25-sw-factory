@@ -11,7 +11,7 @@ class UserRegister(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     display_name: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=6, max_length=100)
-    language_preference: str = Field(default="en", pattern="^(en|es|fr)$")
+    language_preference: str = Field(default="en", pattern="^(en|es|fr|de)$")
 
 
 class UserLogin(BaseModel):
@@ -59,7 +59,7 @@ class TokenResponse(BaseModel):
 class UserLanguageUpdate(BaseModel):
     """Request schema for updating user language preference."""
 
-    language_preference: str = Field(..., pattern="^(en|es|fr)$")
+    language_preference: str = Field(..., pattern="^(en|es|fr|de)$")
 
 
 class AuthError(BaseModel):

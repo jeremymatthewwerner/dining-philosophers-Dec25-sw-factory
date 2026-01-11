@@ -21,7 +21,8 @@
   "languages": {
     "en": "English",
     "es": "Español",
-    "fr": "Français"
+    "fr": "Français",
+    "de": "Deutsch"
   },
   "sidebar": {
     "appTitle": "Filósofos Comensales",
