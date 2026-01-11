@@ -1,7 +1,7 @@
-name: Roadmap Agent
+name: Product Manager
 on:
   issue_comment:
-    types: [created]  # Trigger on @roadmap mentions for processing roadmaps
+    types: [created]  # Trigger on @pm mentions for processing roadmaps
   workflow_dispatch:
     inputs:
       issue_number:
@@ -17,19 +17,20 @@ permissions:
 jobs:
   process_roadmap:
     # Triggers on:
-    # 1. @roadmap mention in comment (for processing roadmaps)
+    # 1. @pm mention in comment (for processing roadmaps)
     # 2. Manual workflow dispatch
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' &&
        !github.event.issue.pull_request &&
-       (contains(github.event.comment.body, '@roadmap') ||
-        contains(github.event.comment.body, '@Roadmap')))
+       (contains(github.event.comment.body, '@pm ') ||
+        contains(github.event.comment.body, '@pm') ||
+        contains(github.event.comment.body, '@PM ')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     concurrency:
-      group: roadmap-agent-${{ github.event.issue.number || 'global' }}
+      group: product-manager-${{ github.event.issue.number || 'global' }}
       cancel-in-progress: true
 
     steps:
@@ -62,7 +63,7 @@ jobs:
         with:
           github_token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           prompt: |
-            You are the Roadmap Processing Agent. Your job is to analyze multi-phase issues and create missing tracking sub-issues.
+            You are the Product Manager Agent. Your job is to analyze multi-phase product roadmaps and create tracking sub-issues for each phase.
 
             Read CLAUDE.md for the sub-issue creation patterns (search for "Creating Sub-Issues (GraphQL API)").
 
@@ -87,7 +88,7 @@ jobs:
                ```bash
                # For each missing phase, create an issue
                gh issue create \
-                 --title "iOS Phase N: [Phase Title]" \
+                 --title "[Project] Phase N: [Phase Title]" \
                  --body "## Phase N: [Phase Title]
 
                **Parent Roadmap:** #${{ steps.issue.outputs.number }}
@@ -102,19 +103,19 @@ jobs:
                [Extract verification criteria from roadmap]
 
                ---
-               *Auto-created by Roadmap Agent for tracking roadmap phase*" \
-                 --label "enhancement,ios,priority-medium"
+               *Auto-created by Product Manager for tracking roadmap phase*" \
+                 --label "enhancement,priority-medium"
                ```
 
             5. **Link created issues as sub-issues** using GraphQL API:
                ```bash
                # Get parent and child IDs
                PARENT_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
-                 -f query='query { repository(owner:"jeremymatthewwerner", name:"dining-philosophers-Dec25-sw-factory") { issue(number: ${{ steps.issue.outputs.number }}) { id } } }' \
+                 -f query='query { repository(owner:"$REPO_OWNER", name:"$REPO_NAME") { issue(number: ${{ steps.issue.outputs.number }}) { id } } }' \
                  --jq '.data.repository.issue.id')
 
                CHILD_ID=$(gh api graphql -H "GraphQL-Features: sub_issues" \
-                 -f query='query { repository(owner:"jeremymatthewwerner", name:"dining-philosophers-Dec25-sw-factory") { issue(number: NEW_ISSUE_NUMBER) { id } } }' \
+                 -f query='query { repository(owner:"$REPO_OWNER", name:"$REPO_NAME") { issue(number: NEW_ISSUE_NUMBER) { id } } }' \
                  --jq '.data.repository.issue.id')
 
                # Link as sub-issue
@@ -128,7 +129,7 @@ jobs:
 
             7. **Post completion comment**:
                ```bash
-               gh issue comment ${{ steps.issue.outputs.number }} --body "## 🤖 Roadmap Agent Completed
+               gh issue comment ${{ steps.issue.outputs.number }} --body "## 🤖 Product Manager Completed
 
                **Created tracking issues:**
                - Phase N: #NEW_ISSUE_1
@@ -140,15 +141,15 @@ jobs:
                All phases now have proper tracking issues for autonomous development.
 
                ---
-               *Roadmap processing completed by Roadmap Agent*"
+               *Roadmap processing completed by Product Manager*"
                ```
 
             ## Important Notes
 
             - **Only process if it's actually a roadmap** - Don't create issues for regular bug reports
             - **Extract meaningful content** - Don't just copy-paste, extract the actual phase objectives and tasks
-            - **Follow existing patterns** - Look at existing sub-issues #408-411 to match the format
-            - **Use proper labels** - Match labels from the parent issue (e.g., "ios" for iOS roadmap)
+            - **Follow existing patterns** - Look at existing sub-issues to match the format
+            - **Use proper labels** - Match labels from the parent issue
             - **Link everything** - Both GraphQL sub-issues AND update the tracking table
 
             If this is NOT a roadmap issue, simply comment that this issue doesn't appear to be a multi-phase roadmap.
