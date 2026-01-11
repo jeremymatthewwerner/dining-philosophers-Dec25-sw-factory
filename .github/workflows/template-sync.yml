@@ -79,6 +79,7 @@ jobs:
             "docs/QA_AGENT.md"
             "docs/RELEASE_ENG.md"
             "docs/TRIAGE.md"
+            "docs/AGENT_REFERENCE.md"
             "scripts/flaky-test-hunter.sh"
           )
 
