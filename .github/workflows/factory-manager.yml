@@ -1312,7 +1312,7 @@ jobs:
       (contains(github.event.comment.body, '@factory-manager') ||
        contains(github.event.comment.body, '@Factory-Manager'))
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
 
     steps:
       - uses: actions/checkout@v4
@@ -1333,14 +1333,36 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
-      - name: Acknowledge
+      - name: Detect issue size and acknowledge
+        id: detect_size
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Check comment count to detect large issues
+          COMMENT_COUNT=$(gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }} --jq '.comments' 2>/dev/null || echo "0")
+          echo "Issue has $COMMENT_COUNT comments"
+
+          LARGE_ISSUE=false
+          if [ "$COMMENT_COUNT" -gt 20 ]; then
+            echo "Large issue detected ($COMMENT_COUNT comments) - using summarized context"
+            LARGE_ISSUE=true
+            echo "large_issue=true" >> $GITHUB_OUTPUT
+            echo "comment_count=$COMMENT_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "Normal issue size ($COMMENT_COUNT comments) - using full context"
+            echo "large_issue=false" >> $GITHUB_OUTPUT
+            echo "comment_count=$COMMENT_COUNT" >> $GITHUB_OUTPUT
+          fi
+
+          # Post acknowledgment with context about issue size
           {
             echo "## Factory Manager Responding"
             echo ""
-            echo "**Status:** Analyzing this issue and the factory state..."
+            if [ "$LARGE_ISSUE" = "true" ]; then
+              echo "**Status:** Analyzing large issue ($COMMENT_COUNT comments) using summarized context..."
+            else
+              echo "**Status:** Analyzing this issue and the factory state..."
+            fi
             echo "**Workflow:** [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           } | gh issue comment ${{ github.event.issue.number }} \
             --repo ${{ github.repository }} \
@@ -1364,14 +1386,34 @@ jobs:
 
             A user has mentioned @factory-manager on issue #${{ github.event.issue.number }}.
 
+            ## Issue Context
+            ${{ steps.detect_size.outputs.large_issue == 'true' && format('**Large Issue Detected:** {0} comments - Using summarized context to avoid timeout', steps.detect_size.outputs.comment_count) || 'Normal issue size - Using full context' }}
+
             ## Your Role
             You diagnose and fix FACTORY issues (how agents work together), not PRODUCT issues (application bugs).
 
             ## Step 1: Understand the Request
-            Read the issue and comment:
+
+            ${{ steps.detect_size.outputs.large_issue == 'true' && '**For Large Issues (>20 comments):** Focus on recent context to avoid timeout:
             ```bash
-            gh issue view ${{ github.event.issue.number }} --comments
+            # Read issue body only
+            gh issue view ' || 'Read the issue and comment:
+            ```bash
+            gh issue view ' }}${{ github.event.issue.number }}${{ steps.detect_size.outputs.large_issue == 'true' && ' --json body,title
+            # Read only last 5 comments for context
+            gh api repos/' || ' --comments
+            ```' }}${{ steps.detect_size.outputs.large_issue == 'true' && format('{0}/issues/{1}/comments?per_page=5&page=', github.repository, github.event.issue.number) }}${{ steps.detect_size.outputs.large_issue == 'true' && 'last --jq \\".[].body\\"
+            # Find the most recent @factory-manager mention
+            gh api repos/' || '' }}${{ steps.detect_size.outputs.large_issue == 'true' && format('{0}/issues/{1}/comments --jq \\".[] | select(.body | test(\\"@factory-manager|@Factory-Manager\\"; \\"i\\")) | .body\\" | tail -1
             ```
+
+            **Instructions for Large Issues:**
+            - Skip full comment history analysis
+            - Focus on the most recent @factory-manager request
+            - Provide concise but helpful analysis
+            - If complex, create a follow-up tracking issue
+
+            **For Normal Issues:**', github.repository, github.event.issue.number) || '' }}
 
             Determine: Is this a factory issue or a product issue?
             - Factory: Agent triggers, workflow failures, stuck issues, escalation problems
@@ -1440,6 +1482,7 @@ jobs:
             --model claude-sonnet-4-20250514
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Read,Write,Edit,Glob,Grep"
+            ${{ steps.detect_size.outputs.large_issue == 'true' && '--timeout 45m' || '--timeout 25m' }}
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
@@ -1450,31 +1493,61 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          # Check if Factory Manager posted a substantive comment (not just "Analyzing...")
-          RECENT_RESPONSE=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+          echo "Checking for Claude bot response..."
+
+          # Check for any claude[bot] comment in the last 15 minutes (more generous than 5 min)
+          # This is more robust than searching for specific text which may be truncated
+          RECENT_CLAUDE_COMMENT=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
             --jq '[.[] | select(
-              (.body | contains("[Factory Manager]")) and
-              ((.created_at | fromdateiso8601) > (now - 300))
+              (.user.login == "claude[bot]") and
+              ((.created_at | fromdateiso8601) > (now - 900))
             )] | length' 2>/dev/null || echo "0")
 
-          if [ "$RECENT_RESPONSE" -eq 0 ]; then
-            echo "⚠️ Claude didn't post a response comment - posting fallback"
+          echo "Found $RECENT_CLAUDE_COMMENT claude[bot] comment(s) in last 15 minutes"
+
+          # Also check if there's any substantive Factory Manager response (fallback check)
+          SUBSTANTIVE_RESPONSE=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+            --jq '[.[] | select(
+              (.body | contains("[Factory Manager]")) and
+              (.body | contains("Analysis") or .body | contains("Actions Taken") or .body | contains("Recommendations")) and
+              ((.created_at | fromdateiso8601) > (now - 900))
+            )] | length' 2>/dev/null || echo "0")
+
+          echo "Found $SUBSTANTIVE_RESPONSE substantive Factory Manager response(s)"
+
+          if [ "$RECENT_CLAUDE_COMMENT" -eq 0 ] && [ "$SUBSTANTIVE_RESPONSE" -eq 0 ]; then
+            echo "⚠️ No Claude response detected - posting fallback"
+
+            # Check if this was a large issue to provide context
+            LARGE_ISSUE="${{ steps.detect_size.outputs.large_issue }}"
+            COMMENT_COUNT="${{ steps.detect_size.outputs.comment_count }}"
+
             {
               echo "## [Factory Manager] Response"
               echo ""
-              echo "I analyzed this issue but encountered an issue posting my full response."
+              if [ "$LARGE_ISSUE" = "true" ]; then
+                echo "I analyzed this large issue ($COMMENT_COUNT comments) but encountered a timeout or processing issue."
+              else
+                echo "I analyzed this issue but encountered an issue posting my full response."
+              fi
               echo ""
               echo "**What I checked:**"
               echo "- Issue content and comments"
               echo "- Related workflow runs"
               echo "- Agent trigger conditions"
+              if [ "$LARGE_ISSUE" = "true" ]; then
+                echo "- Used summarized context due to issue size"
+              fi
               echo ""
               echo "**Next steps:**"
               echo "- Please check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for my full analysis"
+              if [ "$LARGE_ISSUE" = "true" ]; then
+                echo "- For large issues, consider breaking into smaller, focused issues"
+              fi
               echo "- If urgent, try \`@factory-manager\` again or contact @jeremymatthewwerner"
             } | gh issue comment "$ISSUE_NUMBER" --repo ${{ github.repository }} --body-file -
           else
-            echo "✅ Factory Manager posted a response"
+            echo "✅ Claude response detected (bot: $RECENT_CLAUDE_COMMENT, substantive: $SUBSTANTIVE_RESPONSE)"
           fi
 
   # ===========================================
@@ -1573,7 +1646,7 @@ jobs:
   diagnose-issue:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'diagnose-issue'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
 
     steps:
       - uses: actions/checkout@v4
@@ -1594,6 +1667,25 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
+      - name: Detect issue size
+        id: detect_size_diagnose
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          # Check comment count for the issue being diagnosed
+          COMMENT_COUNT=$(gh api repos/${{ github.repository }}/issues/${{ github.event.inputs.issue_number }} --jq '.comments' 2>/dev/null || echo "0")
+          echo "Issue #${{ github.event.inputs.issue_number }} has $COMMENT_COUNT comments"
+
+          if [ "$COMMENT_COUNT" -gt 20 ]; then
+            echo "Large issue detected ($COMMENT_COUNT comments) - using summarized approach"
+            echo "large_issue=true" >> $GITHUB_OUTPUT
+            echo "comment_count=$COMMENT_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "Normal issue size ($COMMENT_COUNT comments) - using full analysis"
+            echo "large_issue=false" >> $GITHUB_OUTPUT
+            echo "comment_count=$COMMENT_COUNT" >> $GITHUB_OUTPUT
+          fi
+
       - name: Pre-install Claude Code
         run: |
           rm -f "$HOME/.claude/.installing" "$HOME/.claude/install.lock" 2>/dev/null || true
@@ -1610,11 +1702,19 @@ jobs:
 
             Read CLAUDE.md and docs/FACTORY_MANAGER.md first.
 
+            ## Issue Context
+            ${{ steps.detect_size_diagnose.outputs.large_issue == 'true' && format('**Large Issue Detected:** {0} comments - Using focused analysis to avoid timeout', steps.detect_size_diagnose.outputs.comment_count) || 'Normal issue size - Using comprehensive analysis' }}
+
             ## Step 1: Gather Context
 
+            ${{ steps.detect_size_diagnose.outputs.large_issue == 'true' && '**For Large Issues (>20 comments):** Focus on essential information:
             ```bash
+            # Read issue body and metadata only
+            gh issue view ' || '```bash
             # Read the issue
-            gh issue view ${{ github.event.inputs.issue_number }} --comments
+            gh issue view ' }}${{ github.event.inputs.issue_number }}${{ steps.detect_size_diagnose.outputs.large_issue == 'true' && ' --json body,title,labels,createdAt,updatedAt
+            # Read only recent comments (last 10)
+            gh api repos/' || ' --comments' }}${{ steps.detect_size_diagnose.outputs.large_issue == 'true' && format('{0}/issues/{1}/comments?per_page=10&page=last --jq ".[].body"', github.repository, github.event.inputs.issue_number) || '' }}
 
             # Check related PRs
             gh pr list --search "head:fix/${{ github.event.inputs.issue_number }}" --state all
@@ -1658,6 +1758,7 @@ jobs:
             --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Read,Write,Edit,Glob,Grep"
+            ${{ steps.detect_size_diagnose.outputs.large_issue == 'true' && '--timeout 45m' || '--timeout 25m' }}
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
