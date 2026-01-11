@@ -1651,3 +1651,60 @@ All 15 tests pass reliably:
 - **No test dependencies**: Each test is independent and isolated
 
 ---
+
+## Regression Prevention - January 2026 (Issue #449, QA Agent Sunday 2026-01-11)
+
+**Focus**: Add tests for recent bug fixes to prevent regression.
+
+### Frontend: Language Support Tests (Issue #340)
+
+**Background**: Bug in commit fc63a10 - French language support was complete in backend and translations, but frontend was missing French import in LanguageContext and French options in dropdowns (register/settings pages).
+
+**Fix**: Added French import to LanguageContext.tsx and French option to language dropdowns.
+
+#### Tests Added (language-support.test.tsx)
+
+**test_language_context_includes_french_translations** (frontend/src/__tests__/regression/language-support.test.tsx:39-58)
+- Renders LanguageProvider and accesses translations
+- Validates translations object includes key translation sections
+- Edge case: Verifies LanguageContext properly loads all translation files including French
+
+**test_language_context_defaults_to_english** (frontend/src/__tests__/regression/language-support.test.tsx:60-71)
+- Validates default locale is 'en' when no user preference set
+- Edge case: Initial app load without authentication
+
+**test_translation_files_exist_for_all_languages** (frontend/src/__tests__/regression/language-support.test.tsx:79-100)
+- Imports en.json, es.json, and fr.json
+- Validates all three have complete language dropdown translations (en, es, fr options)
+- Edge case: Ensures translations for all language options exist in every language file
+
+**test_french_translations_are_complete** (frontend/src/__tests__/regression/language-support.test.tsx:102-117)
+- Compares French translations keys to English (reference)
+- Validates French has same top-level structure as English
+- Verifies critical sections exist: register, loginPage, chatArea, languages
+- Edge case: Detects missing translations sections in French
+
+**test_language_context_has_all_three_languages** (frontend/src/__tests__/regression/language-support.test.tsx:121-139)
+- Verifies imports of en, es, fr translation files succeed
+- Validates they're proper objects (not undefined or incorrect types)
+- Edge case: Catches missing imports in LanguageContext.tsx
+
+### Coverage Impact
+
+**Before**: Frontend 74.29%
+**After**: Frontend 74.32% (+0.03%)
+**Test Count**: +5 frontend tests (211 → 216 total)
+
+**Files Enhanced**:
+- `frontend/src/__tests__/regression/language-support.test.tsx` (new file, 142 lines, 5 tests)
+- Coverage for LanguageContext improved
+
+### Benefits of Regression Testing
+
+1. **Prevents Bug Recurrence**: Tests document real bug that was fixed (Issue #340)
+2. **Translation Completeness**: Validates all languages have complete translations
+3. **Import Verification**: Ensures LanguageContext doesn't accidentally drop language imports
+4. **UI Dropdown Coverage**: Implicitly tests that dropdown options match available translations
+5. **Zero Flakiness**: All tests pass reliably across 3 consecutive runs
+
+---
