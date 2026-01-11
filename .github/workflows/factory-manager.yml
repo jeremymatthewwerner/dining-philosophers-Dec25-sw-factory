@@ -151,6 +151,7 @@ jobs:
                 (.labels | map(.name) | contains(["factory-meta"]) | not) and
                 (.labels | map(.name) | contains(["needs-human"]) | not) and
                 (.labels | map(.name) | contains(["status:bot-working"]) | not) and
+                (.labels | map(.name) | contains(["status:awaiting-human"]) | not) and
                 (.comments | map(.body) | join(" ") | test("@code|@Code|@claude|@Claude")) and
                 (.updatedAt < $threshold)
               ) | {number, title, updatedAt}]
@@ -361,6 +362,7 @@ jobs:
                 (.labels | map(.name) | contains(["factory-meta"]) | not) and
                 (.labels | map(.name) | contains(["needs-human"]) | not) and
                 (.labels | map(.name) | contains(["status:bot-working"]) | not) and
+                (.labels | map(.name) | contains(["status:awaiting-human"]) | not) and
                 ((.comments | length == 0) or (.comments | map(.body) | join(" ") | test("@code|@Code|@claude|@Claude") | not))
               ) | {number, title}]
             ' 2>&1) || { echo "::error::Untriggered jq filter failed: $UNTRIGGERED"; UNTRIGGERED="[]"; }
