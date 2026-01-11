@@ -1471,7 +1471,6 @@ jobs:
             --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Read,Write,Edit,Glob,Grep"
-            --timeout ${{ steps.size_check.outputs.timeout_mins }}m
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
@@ -1734,7 +1733,6 @@ jobs:
             --model claude-opus-4-5-20251101
             --dangerously-skip-permissions
             --allowedTools "Bash(gh:*),Bash(git:*),Read,Write,Edit,Glob,Grep"
-            --timeout ${{ steps.size_check.outputs.timeout_mins }}m
         env:
           GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
           GITHUB_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
