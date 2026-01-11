@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Conversation, Message, Session
+from app.models import Conversation, Message, Session, User
 from app.models.base import generate_uuid
 from tests.conftest import get_auth_headers
 
@@ -484,3 +484,218 @@ async def test_cleanup_orphans_without_secret(client: AsyncClient) -> None:
         response = await client.delete("/api/devops/cleanup/orphans")
 
         assert response.status_code == 403
+
+
+# ============================================================================
+# Test User Cleanup Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_cleanup_test_users_dry_run(client: AsyncClient, async_session: AsyncSession) -> None:
+    """Test test user cleanup with dry_run=True (preview mode)."""
+    with patch("app.api.devops.get_settings") as mock_settings:
+        mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
+
+        # Create test users matching the patterns
+        smoketest_user = User(
+            username="smoketest_abc123",
+            password_hash="fake_hash",
+        )
+        canary_user = User(
+            username="canary_xyz789",
+            password_hash="fake_hash",
+        )
+        regular_user = User(
+            username="regularuser",
+            password_hash="fake_hash",
+        )
+        async_session.add_all([smoketest_user, canary_user, regular_user])
+        await async_session.commit()
+
+        # Dry run should preview without deleting
+        response = await client.delete(
+            "/api/devops/cleanup/test-users?dry_run=true",
+            headers={"X-DevOps-Secret": TEST_DEVOPS_SECRET},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dry_run"] is True
+        assert data["deleted_count"] >= 2  # At least our test users
+        assert "smoketest_abc123" in data["usernames"]
+        assert "canary_xyz789" in data["usernames"]
+        assert "regularuser" not in data["usernames"]
+
+        # Verify nothing was actually deleted
+        result = await async_session.execute(
+            select(User).where(User.username == "smoketest_abc123")
+        )
+        user = result.scalar_one_or_none()
+        assert user is not None, "Dry run should not delete users"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_test_users_actually_deletes(
+    client: AsyncClient, async_session: AsyncSession
+) -> None:
+    """Test test user cleanup actually deletes matching users."""
+    with patch("app.api.devops.get_settings") as mock_settings:
+        mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
+
+        # Create test users
+        smoketest_user = User(
+            username="smoketest_delete_test1",
+            password_hash="fake_hash",
+        )
+        canary_user = User(
+            username="canary_delete_test2",
+            password_hash="fake_hash",
+        )
+        async_session.add_all([smoketest_user, canary_user])
+        await async_session.commit()
+
+        # Verify users exist
+        result = await async_session.execute(
+            select(User).where(User.username.like("smoketest_delete%"))
+        )
+        assert result.scalar_one_or_none() is not None
+
+        # Run cleanup without dry_run
+        response = await client.delete(
+            "/api/devops/cleanup/test-users",
+            headers={"X-DevOps-Secret": TEST_DEVOPS_SECRET},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dry_run"] is False
+        assert data["deleted_count"] >= 2
+
+        # Verify users were deleted
+        result = await async_session.execute(
+            select(User).where(User.username == "smoketest_delete_test1")
+        )
+        assert result.scalar_one_or_none() is None
+
+        result = await async_session.execute(
+            select(User).where(User.username == "canary_delete_test2")
+        )
+        assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_cleanup_test_users_spares_regular_users(
+    client: AsyncClient, async_session: AsyncSession
+) -> None:
+    """Test test user cleanup does not delete regular users."""
+    with patch("app.api.devops.get_settings") as mock_settings:
+        mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
+
+        # Create a regular user that should NOT be deleted
+        regular_user = User(
+            username="normaluser_keep_me",
+            password_hash="fake_hash",
+        )
+        # Also create a test user
+        test_user = User(
+            username="smoketest_spare_test",
+            password_hash="fake_hash",
+        )
+        async_session.add_all([regular_user, test_user])
+        await async_session.commit()
+
+        # Run cleanup
+        response = await client.delete(
+            "/api/devops/cleanup/test-users",
+            headers={"X-DevOps-Secret": TEST_DEVOPS_SECRET},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        # normaluser should NOT be in the deleted list
+        assert "normaluser_keep_me" not in data["usernames"]
+
+        # Verify regular user still exists
+        result = await async_session.execute(
+            select(User).where(User.username == "normaluser_keep_me")
+        )
+        regular = result.scalar_one_or_none()
+        assert regular is not None, "Regular user was incorrectly deleted"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_test_users_cascades_sessions(
+    client: AsyncClient, async_session: AsyncSession
+) -> None:
+    """Test test user cleanup cascades to delete associated sessions."""
+    with patch("app.api.devops.get_settings") as mock_settings:
+        mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
+
+        # Create a test user with a session
+        test_user = User(
+            username="smoketest_cascade_test",
+            password_hash="fake_hash",
+        )
+        async_session.add(test_user)
+        await async_session.commit()
+        await async_session.refresh(test_user)
+
+        # Create a session for this user
+        test_session = Session(user_id=test_user.id)
+        async_session.add(test_session)
+        await async_session.commit()
+
+        session_id = test_session.id
+
+        # Verify session exists
+        result = await async_session.execute(select(Session).where(Session.id == session_id))
+        assert result.scalar_one_or_none() is not None
+
+        # Run cleanup
+        response = await client.delete(
+            "/api/devops/cleanup/test-users",
+            headers={"X-DevOps-Secret": TEST_DEVOPS_SECRET},
+        )
+
+        assert response.status_code == 200
+
+        # Verify both user and session were deleted (cascade)
+        result = await async_session.execute(
+            select(User).where(User.username == "smoketest_cascade_test")
+        )
+        assert result.scalar_one_or_none() is None
+
+        result = await async_session.execute(select(Session).where(Session.id == session_id))
+        assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_cleanup_test_users_without_secret(client: AsyncClient) -> None:
+    """Test test user cleanup without secret (403)."""
+    with patch("app.api.devops.get_settings") as mock_settings:
+        mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
+
+        response = await client.delete("/api/devops/cleanup/test-users")
+
+        assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_cleanup_test_users_no_matches(client: AsyncClient) -> None:
+    """Test test user cleanup when no users match the patterns."""
+    with patch("app.api.devops.get_settings") as mock_settings:
+        mock_settings.return_value.devops_api_secret = TEST_DEVOPS_SECRET
+
+        # Run cleanup (no test users created)
+        response = await client.delete(
+            "/api/devops/cleanup/test-users",
+            headers={"X-DevOps-Secret": TEST_DEVOPS_SECRET},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        # May or may not find any depending on test isolation
+        assert "deleted_count" in data
+        assert "usernames" in data
+        assert isinstance(data["usernames"], list)
