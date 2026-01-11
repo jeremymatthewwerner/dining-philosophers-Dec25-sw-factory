@@ -1,5 +1,5 @@
 'use client';
-
+// CI display verification test
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type {
