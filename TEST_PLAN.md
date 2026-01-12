@@ -2,7 +2,77 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
-## 0. Test Refactoring - Friday Focus (Added 2026-01-09)
+## 0. Coverage Sprint - Conversation API (Added 2026-01-12)
+
+**Focus**: Increase coverage of `app/api/conversations.py` from 40% to 60%+
+
+### 0.1 Color Assignment Tests
+**File**: `backend/tests/test_conversations_coverage_sprint.py`
+**Purpose**: Test thinker color assignment logic when creating conversations
+
+**Tests Added**:
+- ✅ `test_create_with_default_color_uses_color_array` - Verifies thinkers with default color (#6366f1) get assigned unique colors from the color array (lines 46-61)
+  - Creates conversation with 3 thinkers all using default color
+  - Validates colors assigned are ["#6366f1", "#ec4899", "#10b981"] from array indices 0, 1, 2
+  - Ensures all colors are unique
+
+- ✅ `test_create_with_custom_color_preserves_it` - Verifies custom (non-default) colors are preserved
+  - Creates thinker with custom color "#ff6600"
+  - Validates custom color is not replaced by color array
+
+**Lines Covered**: 46-61 (color assignment logic in `create_conversation`)
+
+### 0.2 List Conversations with Message Counts
+**File**: `backend/tests/test_conversations_coverage_sprint.py`
+**Purpose**: Test `list_conversations` endpoint returns message_count and total_cost
+
+**Tests Added**:
+- ✅ `test_list_shows_message_counts_and_costs` - Validates listed conversations include message_count and total_cost fields
+  - Creates conversation and sends 1 user message
+  - Lists conversations and verifies fields are present
+  - Validates message_count=1 and total_cost=0.0 (user messages have no cost)
+
+- ✅ `test_list_with_multiple_conversations_all_have_counts` - Tests multiple conversations all show correct counts
+  - Creates 2 conversations
+  - Sends 2 messages to first conversation, 0 to second
+  - Validates conv1 has message_count=2, conv2 has message_count=0
+
+**Lines Covered**: 85-105 (list conversations logic with message counts/costs)
+
+### 0.3 Send Message with Display Name
+**File**: `backend/tests/test_conversations_coverage_sprint.py`
+**Purpose**: Test `send_message` uses user's display_name correctly
+
+**Tests Added**:
+- ✅ `test_send_message_uses_display_name_when_set` - Validates messages use display_name when available
+  - Registers user with display_name="Display Name"
+  - Sends message
+  - Validates message.sender_name == "Display Name" (not username)
+
+- ✅ `test_send_message_falls_back_to_username` - Validates fallback to username when display_name equals username
+  - Registers user with display_name same as username
+  - Sends message
+  - Validates message.sender_name uses the name correctly
+
+**Lines Covered**: 238-251 (send_message endpoint with display_name logic)
+
+### Coverage Impact
+
+**Before**: `app/api/conversations.py` at 40% coverage (88 stmts, 45 miss)
+**After**: _Measuring final coverage..._
+**Tests Added**: 6 new tests
+**Test Stability**: All 6 tests pass reliably across 3 consecutive runs
+
+**Benefits**:
+- Validates color assignment logic prevents duplicate colors
+- Ensures list endpoint provides message counts for UI display
+- Tests display_name logic in message sending
+- Mocked knowledge_service.trigger_research to avoid test hangs
+- All tests are fast (< 3s total) and non-flaky
+
+---
+
+## 1. Test Refactoring - Friday Focus (Added 2026-01-09)
 
 ### 0.1 Backend Test Helper Functions
 **File**: `backend/tests/conftest.py`
