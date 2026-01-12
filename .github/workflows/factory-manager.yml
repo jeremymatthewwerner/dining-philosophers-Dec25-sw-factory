@@ -1172,11 +1172,16 @@ jobs:
 
           echo "Current labels: $LABELS"
 
-          if [[ "$LABELS" == *"bug"* ]] || [[ "$LABELS" == *"enhancement"* ]]; then
+          # Triage is considered successful if:
+          # 1. Issue has bug/enhancement label (normal triage), OR
+          # 2. Issue has factory-meta label (Triage correctly identified it as a factory/canary issue)
+          # The Triage Agent may correctly classify canary tests as factory-meta issues,
+          # which is the RIGHT behavior and should be counted as successful triage.
+          if [[ "$LABELS" == *"bug"* ]] || [[ "$LABELS" == *"enhancement"* ]] || [[ "$LABELS" == *"factory-meta"* ]]; then
             echo "✓ Triage PASSED: Issue was triaged with appropriate labels"
             echo "triage_passed=true" >> $GITHUB_OUTPUT
           else
-            echo "::warning::Triage may have failed: No bug/enhancement label found"
+            echo "::warning::Triage may have failed: No bug/enhancement/factory-meta label found"
             echo "triage_passed=false" >> $GITHUB_OUTPUT
           fi
 
