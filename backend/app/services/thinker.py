@@ -5,6 +5,7 @@ import contextlib
 import logging
 import random
 import re
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING
 
@@ -122,6 +123,7 @@ class ThinkerService:
         self._client: AsyncAnthropic | None = None
         self._active_tasks: dict[str, dict[str, asyncio.Task[None]]] = {}
         self._paused_conversations: set[str] = set()
+        self._idle_paused_conversations: set[str] = set()  # Track conversations paused due to idle
 
     @property
     def client(self) -> AsyncAnthropic | None:
@@ -1090,6 +1092,25 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
         """Check if a conversation is paused."""
         return conversation_id in self._paused_conversations
 
+    def is_idle_paused(self, conversation_id: str) -> bool:
+        """Check if a conversation was paused due to idle timeout."""
+        return conversation_id in self._idle_paused_conversations
+
+    def pause_for_idle(self, conversation_id: str) -> None:
+        """Pause a conversation due to idle timeout."""
+        self._paused_conversations.add(conversation_id)
+        self._idle_paused_conversations.add(conversation_id)
+
+    def resume_from_idle(self, conversation_id: str) -> None:
+        """Resume a conversation that was paused due to idle timeout.
+
+        Only resumes if the conversation was actually idle-paused.
+        Does nothing if the conversation was manually paused.
+        """
+        if conversation_id in self._idle_paused_conversations:
+            self._paused_conversations.discard(conversation_id)
+            self._idle_paused_conversations.discard(conversation_id)
+
     async def _run_thinker_agent(
         self,
         conversation_id: str,
@@ -1142,6 +1163,43 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
                 # Get current messages
                 messages = await get_messages(conversation_id)
+
+                # Check for idle timeout (no user activity for configured duration)
+                idle_timeout = self.settings.idle_timeout_seconds
+                if idle_timeout > 0 and messages:
+                    last_user_msg_time = self._get_last_user_message_timestamp(messages)
+                    if last_user_msg_time > 0:
+                        idle_duration = time.time() - last_user_msg_time
+                        if idle_duration >= idle_timeout:
+                            # User has been idle - pause the conversation
+                            if not self.is_idle_paused(conversation_id):
+                                logging.info(
+                                    f"Conversation {conversation_id} idle for {idle_duration:.0f}s, "
+                                    f"pausing (timeout: {idle_timeout}s)"
+                                )
+                                self.pause_for_idle(conversation_id)
+                                await manager.send_thinker_stopped_typing(
+                                    conversation_id, thinker.name
+                                )
+                                # Notify frontend of idle timeout
+                                await manager.broadcast_to_conversation(
+                                    conversation_id,
+                                    WSMessage(
+                                        type=WSMessageType.IDLE_TIMEOUT,
+                                        conversation_id=conversation_id,
+                                        content=f"Paused due to inactivity ({idle_timeout // 60} minutes). "
+                                        "Send a message to resume.",
+                                    ),
+                                )
+                                await manager.broadcast_to_conversation(
+                                    conversation_id,
+                                    WSMessage(
+                                        type=WSMessageType.PAUSED,
+                                        conversation_id=conversation_id,
+                                    ),
+                                )
+                            await asyncio.sleep(1)
+                            continue
 
                 # Decide whether to respond
                 should_respond = self._should_respond(
@@ -1334,6 +1392,18 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
             if is_user and msg.sender_name:
                 return msg.sender_name
         return None
+
+    def _get_last_user_message_timestamp(self, messages: Sequence["Message"]) -> float:
+        """Get the timestamp of the last user message in seconds since epoch.
+
+        Returns 0.0 if no user messages exist.
+        """
+        for msg in reversed(messages):
+            sender = msg.sender_type
+            is_user = (hasattr(sender, "value") and sender.value == "user") or sender == "user"
+            if is_user and msg.created_at:
+                return msg.created_at.timestamp()
+        return 0.0
 
     def _count_messages_since_user(self, messages: Sequence["Message"]) -> int:
         """Count how many thinker messages have occurred since the user last spoke."""

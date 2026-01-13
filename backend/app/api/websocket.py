@@ -47,6 +47,7 @@ class WSMessageType(str, Enum):
     PAUSED = "paused"
     RESUMED = "resumed"
     SPEED_CHANGED = "speed_changed"  # Notify clients of speed change
+    IDLE_TIMEOUT = "idle_timeout"  # Conversation auto-paused due to user inactivity
     ERROR = "error"
 
     # Research status events (background activity visibility)
