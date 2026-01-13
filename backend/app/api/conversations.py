@@ -228,6 +228,9 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
 ) -> Message:
     """Send a user message to a conversation."""
+    from app.api.websocket import WSMessage, WSMessageType, manager
+    from app.services.thinker import thinker_service
+
     # Verify conversation exists and belongs to session
     result = await db.execute(
         select(Conversation).where(
@@ -238,6 +241,17 @@ async def send_message(
     conversation = result.scalar_one_or_none()
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Auto-resume if conversation was paused due to idle timeout
+    if thinker_service.is_idle_paused(conversation_id):
+        thinker_service.resume_from_idle(conversation_id)
+        await manager.broadcast_to_conversation(
+            conversation_id,
+            WSMessage(
+                type=WSMessageType.RESUMED,
+                conversation_id=conversation_id,
+            ),
+        )
 
     # Create message with user's display name
     user = session.user

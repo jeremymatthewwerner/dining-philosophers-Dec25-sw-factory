@@ -1446,3 +1446,112 @@ class TestShouldRespondWithMentions:
         response_rate = sum(responses) / len(responses)
         # Should be lower than the @mentioned thinker
         assert response_rate < 0.70
+
+
+class TestIdleTimeout:
+    """Tests for idle timeout functionality."""
+
+    def test_pause_for_idle(self) -> None:
+        """Test pausing a conversation due to idle timeout."""
+        service = ThinkerService()
+        conversation_id = "test-conv-123"
+
+        assert not service.is_paused(conversation_id)
+        assert not service.is_idle_paused(conversation_id)
+
+        service.pause_for_idle(conversation_id)
+
+        assert service.is_paused(conversation_id)
+        assert service.is_idle_paused(conversation_id)
+
+    def test_resume_from_idle(self) -> None:
+        """Test resuming a conversation that was idle-paused."""
+        service = ThinkerService()
+        conversation_id = "test-conv-123"
+
+        service.pause_for_idle(conversation_id)
+        assert service.is_paused(conversation_id)
+        assert service.is_idle_paused(conversation_id)
+
+        service.resume_from_idle(conversation_id)
+
+        assert not service.is_paused(conversation_id)
+        assert not service.is_idle_paused(conversation_id)
+
+    def test_resume_from_idle_not_paused(self) -> None:
+        """Test resuming a conversation that wasn't idle-paused."""
+        service = ThinkerService()
+        conversation_id = "test-conv-123"
+
+        # Should not error when resuming a conversation that wasn't idle-paused
+        service.resume_from_idle(conversation_id)
+        assert not service.is_paused(conversation_id)
+        assert not service.is_idle_paused(conversation_id)
+
+    def test_manual_pause_vs_idle_pause(self) -> None:
+        """Test that manual pause is distinct from idle pause."""
+        service = ThinkerService()
+        conversation_id = "test-conv-123"
+
+        # Manual pause should not be marked as idle paused
+        service.pause_conversation(conversation_id)
+        assert service.is_paused(conversation_id)
+        assert not service.is_idle_paused(conversation_id)
+
+        # Resume from idle should not resume manual pause
+        service.resume_from_idle(conversation_id)
+        assert service.is_paused(conversation_id)
+
+    def test_get_last_user_message_timestamp_with_user_messages(self) -> None:
+        """Test getting last user message timestamp when user messages exist."""
+        from datetime import UTC, datetime
+
+        service = ThinkerService()
+
+        # Create mock messages
+        user_msg = MagicMock()
+        user_msg.sender_type = SenderType.USER
+        user_msg.created_at = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+
+        thinker_msg = MagicMock()
+        thinker_msg.sender_type = SenderType.THINKER
+        thinker_msg.created_at = datetime(2024, 1, 15, 12, 5, 0, tzinfo=UTC)
+
+        messages: Any = [user_msg, thinker_msg]
+
+        timestamp = service._get_last_user_message_timestamp(messages)
+        assert timestamp == user_msg.created_at.timestamp()
+
+    def test_get_last_user_message_timestamp_no_user_messages(self) -> None:
+        """Test getting last user message timestamp when no user messages exist."""
+        service = ThinkerService()
+
+        # Create mock messages with only thinker messages
+        thinker_msg = MagicMock()
+        thinker_msg.sender_type = SenderType.THINKER
+        thinker_msg.created_at = MagicMock()
+
+        messages: Any = [thinker_msg]
+
+        timestamp = service._get_last_user_message_timestamp(messages)
+        assert timestamp == 0.0
+
+    def test_get_last_user_message_timestamp_empty_messages(self) -> None:
+        """Test getting last user message timestamp with empty message list."""
+        service = ThinkerService()
+
+        timestamp = service._get_last_user_message_timestamp([])
+        assert timestamp == 0.0
+
+    def test_idle_timeout_setting_default(self) -> None:
+        """Test that idle timeout setting has a reasonable default."""
+        from app.core.config import Settings
+
+        settings = Settings()
+        # Default should be 300 seconds (5 minutes)
+        assert settings.idle_timeout_seconds == 300
+
+    def test_is_idle_paused_returns_false_for_unknown(self) -> None:
+        """Test that is_idle_paused returns False for unknown conversations."""
+        service = ThinkerService()
+        assert not service.is_idle_paused("unknown-conversation")

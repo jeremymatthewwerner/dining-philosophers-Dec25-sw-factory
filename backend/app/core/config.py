@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # Secret for feedback processor (used by DevOps workflow to convert feedback to issues)
     feedback_processor_secret: str = ""
 
+    # Idle timeout for conversations (auto-pause when user is inactive)
+    # Default: 300 seconds (5 minutes) of no user messages
+    idle_timeout_seconds: int = 300
+
 
 @lru_cache
 def get_settings() -> Settings:
