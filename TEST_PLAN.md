@@ -2,7 +2,72 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
-## 0. Coverage Sprint - Conversation API (Added 2026-01-12)
+## 0. Integration Gaps - Add Thinkers Endpoint (Added 2026-01-14)
+
+**Focus**: Test previously untested PUT `/api/conversations/{id}/thinkers` endpoint
+
+### 0.1 Add Thinkers Integration Tests
+**File**: `backend/tests/test_add_thinkers_integration.py`
+**Purpose**: Test add_thinkers_to_conversation endpoint (lines 154-220 in conversations.py)
+
+**Tests Added**:
+- ✅ `test_add_single_thinker_to_conversation` - Add 1 thinker to conversation with 2 existing
+  - Creates conversation with 2 thinkers (Socrates, Aristotle)
+  - Adds 1 more thinker (Plato) via PUT request
+  - Validates response contains new thinker with correct name/bio
+  - Verifies knowledge research was triggered
+  - Confirms conversation now has 3 total thinkers
+
+- ✅ `test_add_multiple_thinkers_to_conversation` - Add 2 thinkers at once
+  - Creates conversation with 1 thinker
+  - Adds 2 thinkers simultaneously (Aristotle, Confucius)
+  - Validates both thinkers returned in response
+  - Verifies knowledge research triggered for both
+
+- ✅ `test_add_thinker_assigns_unique_colors` - Verifies unique color assignment
+  - Creates conversation with 2 thinkers (uses first 2 colors)
+  - Adds 1 thinker with default color
+  - Validates new thinker gets unique color not used by existing thinkers
+
+- ✅ `test_add_thinker_preserves_custom_color` - Custom colors are preserved
+  - Creates conversation with 1 thinker
+  - Adds thinker with custom color (#ff0000)
+  - Validates custom color is preserved in response
+
+- ✅ `test_add_thinker_at_max_limit` - Add thinker at exactly 4 existing (reaches max 5)
+  - Creates conversation with 4 thinkers
+  - Adds 1 more thinker (Marcus Aurelius)
+  - Validates successful addition (200 response)
+  - Confirms conversation has exactly 5 thinkers
+
+- ✅ `test_add_thinker_exceeds_max_limit` - Reject adding when at 5 limit
+  - Creates conversation with 5 thinkers (maximum)
+  - Attempts to add 6th thinker
+  - Validates 400 error with message mentioning "Cannot add" and "5"
+
+- ✅ `test_add_thinker_to_nonexistent_conversation` - 404 for invalid conversation ID
+  - Attempts to add thinker to fake UUID
+  - Validates 404 response with "not found" message
+
+- ✅ `test_add_thinker_to_other_users_conversation` - Cross-user isolation
+  - User A creates conversation
+  - User B attempts to add thinker to User A's conversation
+  - Validates 404 response (conversation not found for User B)
+
+**Lines Covered**: 154-220 (add_thinkers_to_conversation endpoint)
+**Coverage Impact**: Added 8 integration tests covering critical untested endpoint
+**Test Stability**: All 8 tests pass reliably (0% flakiness)
+
+**Benefits**:
+- Validates dynamic thinker addition feature
+- Tests max thinker limit enforcement (5 total)
+- Verifies unique color assignment logic
+- Ensures cross-user conversation isolation
+- Confirms knowledge research triggers for new thinkers
+
+---
+
+## 1. Coverage Sprint - Conversation API (Added 2026-01-12)
 
 **Focus**: Increase coverage of `app/api/conversations.py` from 40% to 60%+
 
