@@ -1,0 +1,104 @@
+name: 'Slack Agent Status'
+description: 'Post agent status updates to Slack (optional - skips if not configured)'
+inputs:
+  agent:
+    description: 'Agent name (triage, code, qa, devops, release, principal-engineer)'
+    required: true
+  status:
+    description: 'Status (started, progress, completed, failed)'
+    required: true
+  message:
+    description: 'Status message'
+    required: false
+    default: ''
+  issue_number:
+    description: 'Related issue number'
+    required: false
+  pr_number:
+    description: 'Related PR number'
+    required: false
+  slack_webhook_url:
+    description: 'Slack bot webhook URL (from secrets.SLACK_WEBHOOK_URL)'
+    required: false
+  slack_channel_id:
+    description: 'Slack channel ID to post to'
+    required: false
+  slack_thread_ts:
+    description: 'Slack thread timestamp (for threading replies)'
+    required: false
+  webhook_secret:
+    description: 'Webhook authentication secret'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Post to Slack
+      if: inputs.slack_webhook_url != ''
+      shell: bash
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.slack_webhook_url }}
+        WEBHOOK_SECRET: ${{ inputs.webhook_secret }}
+        AGENT: ${{ inputs.agent }}
+        STATUS: ${{ inputs.status }}
+        MESSAGE: ${{ inputs.message }}
+        ISSUE_NUMBER: ${{ inputs.issue_number }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        CHANNEL_ID: ${{ inputs.slack_channel_id }}
+        THREAD_TS: ${{ inputs.slack_thread_ts }}
+        REPO: ${{ github.repository }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        # Skip if no webhook URL configured
+        if [ -z "$SLACK_WEBHOOK_URL" ]; then
+          echo "Slack webhook not configured, skipping notification"
+          exit 0
+        fi
+
+        # Build the payload
+        PAYLOAD=$(cat <<EOF
+        {
+          "agent": "${AGENT}",
+          "status": "${STATUS}",
+          "message": "${MESSAGE}",
+          "issueNumber": ${ISSUE_NUMBER:-null},
+          "prNumber": ${PR_NUMBER:-null},
+          "slackChannelId": "${CHANNEL_ID}",
+          "slackThreadTs": "${THREAD_TS}",
+          "links": {
+            "run": "${RUN_URL}"
+        EOF
+        )
+
+        # Add issue link if we have an issue number
+        if [ -n "$ISSUE_NUMBER" ]; then
+          PAYLOAD="${PAYLOAD},
+            \"issue\": \"https://github.com/${REPO}/issues/${ISSUE_NUMBER}\""
+        fi
+
+        # Add PR link if we have a PR number
+        if [ -n "$PR_NUMBER" ]; then
+          PAYLOAD="${PAYLOAD},
+            \"pr\": \"https://github.com/${REPO}/pull/${PR_NUMBER}\""
+        fi
+
+        PAYLOAD="${PAYLOAD}
+          }
+        }"
+
+        # Post to webhook
+        HTTP_STATUS=$(curl -s -o /tmp/slack_response.txt -w "%{http_code}" \
+          -X POST "${SLACK_WEBHOOK_URL}/agent-status" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${WEBHOOK_SECRET}" \
+          -d "$PAYLOAD")
+
+        if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+          echo "✓ Slack notification sent successfully"
+        else
+          echo "⚠ Slack notification failed (HTTP $HTTP_STATUS) - continuing anyway"
+          cat /tmp/slack_response.txt 2>/dev/null || true
+        fi
+
+        # Always exit 0 - Slack notifications shouldn't fail the workflow
+        exit 0

@@ -25,6 +25,8 @@ on:
       - '.github/workflows/marketing.yml'
       - '.github/workflows/triage.yml'
       - '.github/workflows/product-manager.yml'
+      - '.github/workflows/ios-agent.yml'
+      - '.claude/agents/**'
       - '.github/apps/**'
       - '.github/examples/**'
       - 'scripts/setup-github-apps.sh'
@@ -69,6 +71,9 @@ jobs:
             ".github/workflows/marketing.yml"
             ".github/workflows/triage.yml"
             ".github/workflows/product-manager.yml"
+            ".github/workflows/ios-agent.yml"
+            ".claude/agents/ios-native.md"
+            "docs/IOS_AGENT.md"
             "CLAUDE.md"
             "REQUIREMENTS.md"
             "docs/CODE_AGENT.md"
@@ -98,6 +103,7 @@ jobs:
           # Create directories if needed
           mkdir -p template/.github/apps
           mkdir -p template/.github/examples
+          mkdir -p template/.claude/agents
           mkdir -p template/scripts
           mkdir -p template/docs
 
@@ -159,6 +165,14 @@ jobs:
 
           # Apply to scripts (flaky-test-hunter.sh has project-specific paths)
           for file in scripts/flaky-test-hunter.sh; do
+            if [ -f "$file" ]; then
+              echo "Generalizing $file"
+              eval "sed -i $SED_ARGS \"$file\""
+            fi
+          done
+
+          # Apply to agent config files
+          for file in .claude/agents/*.md; do
             if [ -f "$file" ]; then
               echo "Generalizing $file"
               eval "sed -i $SED_ARGS \"$file\""
