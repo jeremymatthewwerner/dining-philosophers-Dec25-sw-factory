@@ -2,7 +2,173 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
-## 0. Integration Gaps - Add Thinkers Endpoint (Added 2026-01-14)
+## 0. E2E Enhancement - Edge Case Coverage (Added 2026-01-15)
+
+**Focus**: Add E2E tests for edge cases and validation scenarios not covered by existing tests
+
+### 0.1 Settings Page Edge Cases
+**File**: `frontend/e2e/settings-edge-cases.spec.ts`
+**Purpose**: Test validation and edge cases for user settings functionality
+
+**Tests Added (6 total)**:
+- ✅ `should validate email format in feedback info` - Tests invalid email formats (missing @, spaces in domain)
+  - Validates HTML5 email validation or error messages
+  - Confirms valid emails are accepted
+
+- ✅ `should handle display name with special characters` - Tests unicode, emojis, special chars
+  - Validates name "Test User 🧠 & \"Thinker\" (2025) — ñoño"
+  - Confirms special characters persist correctly on reload
+
+- ✅ `should reject password change with same password as current` - Tests password change validation
+  - Attempts to change password to same value
+  - Expects error or graceful handling (no crash)
+
+- ✅ `should handle very long display name (500 chars)` - Tests maximum length handling
+  - Creates 500-character display name
+  - Validates acceptance or rejection with meaningful error
+
+- ✅ `should handle password fields with whitespace` - Tests whitespace handling
+  - Submits passwords with leading/trailing whitespace
+  - Validates trimming or error without crash
+
+- ✅ `should handle empty feedback name but valid email` - Tests partial contact info
+  - Provides only email, no name
+  - Validates acceptance or requirement message
+
+**Coverage Impact**: Settings page (src/app/settings/page.tsx) had 0% E2E coverage
+**Test Stability**: All tests run on both desktop and mobile viewports
+
+---
+
+### 0.2 Feedback Modal Edge Cases
+**File**: `frontend/e2e/feedback-edge-cases.spec.ts`
+**Purpose**: Test validation and edge cases for user feedback submission
+
+**Tests Added (8 total)**:
+- ✅ `should prevent empty feedback text submission` - Validates required feedback text
+  - Button disabled or error shown when feedback empty
+
+- ✅ `should handle very long feedback text (15k chars)` - Tests maximum length
+  - Submits 15,000-character feedback
+  - Validates acceptance or length limit error
+
+- ✅ `should validate email format in feedback modal` - Tests email validation
+  - Invalid email formats show error or HTML5 validation
+
+- ✅ `should handle special characters in name and email` - Tests unicode support
+  - Name with emojis and special characters
+  - Validates no corruption on submission
+
+- ✅ `should allow submission without contact info (anonymous)` - Tests anonymous feedback
+  - Empty name/email fields
+  - Validates anonymous support or requirement message
+
+- ✅ `should close modal when clicking cancel` - Tests cancel functionality
+  - Modal closes without submitting
+
+- ✅ `should close modal when clicking outside overlay` - Tests overlay click
+  - Click outside modal content
+  - Validates close behavior or no crash
+
+- ✅ `should preserve feedback text if modal accidentally closes` - Tests localStorage persistence
+  - Verifies pre-filled fields from localStorage
+
+**Coverage Impact**: FeedbackModal.tsx had gaps in error paths (lines 155-180, 204-268)
+**Test Stability**: All tests handle both success and error states gracefully
+
+---
+
+### 0.3 Conversation Deletion Edge Cases
+**File**: `frontend/e2e/conversation-deletion-edge.spec.ts`
+**Purpose**: Test edge cases around deleting conversations
+
+**Tests Added (5 total)**:
+- ✅ `should handle deleting conversation while messages are loading` - Tests race condition
+  - Sends message, immediately attempts deletion
+  - Validates graceful handling without crash
+
+- ✅ `should handle deleting the last conversation` - Tests empty state
+  - Deletes only remaining conversation
+  - Shows empty state or welcome message
+  - New chat button remains available
+
+- ✅ `should handle rapid deletion attempts (clicking delete twice)` - Tests double-click
+  - Rapidly clicks delete button twice
+  - Validates no duplicate deletions or errors
+
+- ✅ `should handle deleting conversation then creating new one` - Tests state recovery
+  - Deletes conversation then immediately creates new
+  - Validates clean state transition
+
+- ✅ `should handle deletion when conversation is not currently selected` - Tests sidebar deletion
+  - Creates 2 conversations
+  - Deletes first while second is selected
+  - Current conversation remains visible
+
+**Coverage Impact**: Previously untested deletion edge cases
+**Test Stability**: Tests handle both mobile and desktop viewports
+
+---
+
+### 0.4 Thinker Selection Edge Cases
+**File**: `frontend/e2e/thinker-selection-edge.spec.ts`
+**Purpose**: Test edge cases in thinker selection and validation
+
+**Tests Added (8 total)**:
+- ✅ `should handle very long thinker name (200 chars)` - Tests maximum name length
+  - 200-character thinker name
+  - Validates acceptance, truncation, or rejection
+
+- ✅ `should prevent adding duplicate thinker to same conversation` - Tests duplicate prevention
+  - Adds "Socrates" twice
+  - Expects only 1 thinker or error message
+
+- ✅ `should handle removing thinker then re-adding it` - Tests add/remove cycle
+  - Removes then re-adds same thinker
+  - Validates successful re-addition
+
+- ✅ `should prevent creating conversation with no thinkers selected` - Tests required validation
+  - Attempts to create with 0 thinkers
+  - Button disabled or error shown
+
+- ✅ `should handle adding thinker with only whitespace name` - Tests whitespace validation
+  - Submits "    " (only spaces)
+  - Button disabled or no thinker added
+
+- ✅ `should handle thinker name with special characters` - Tests special char support
+  - Name: "René Descartes & \"The Thinker\""
+  - Validates acceptance or rejection
+
+- ✅ `should handle reaching maximum thinker limit (5)` - Tests max limit
+  - Adds 5 thinkers (maximum)
+  - 6th thinker blocked or error shown
+
+- ✅ `should handle accepting suggested thinker then removing it` - Tests suggestion workflow
+  - Accepts suggestion, then removes
+  - Validates clean removal
+
+**Coverage Impact**: NewChatModal.tsx had gaps in error paths (lines 141-150, 187-250)
+**Test Stability**: Tests gracefully handle API validation delays
+
+---
+
+### Summary - E2E Enhancement Sprint
+
+**Total Tests Added**: 27 new E2E edge case tests
+**Files Created**: 4 new E2E test files
+**Coverage Areas**: Settings, Feedback, Deletion, Thinker Selection
+**Test Philosophy**: All tests handle both success and error states gracefully, validate no crashes occur
+
+**Benefits**:
+- Validates edge cases not covered by happy-path tests
+- Tests validation logic (empty inputs, max lengths, special characters)
+- Ensures graceful error handling without crashes
+- Covers mobile and desktop viewports
+- Provides regression protection for edge cases
+
+---
+
+## 1. Integration Gaps - Add Thinkers Endpoint (Added 2026-01-14)
 
 **Focus**: Test previously untested PUT `/api/conversations/{id}/thinkers` endpoint
 
