@@ -287,8 +287,11 @@ jobs:
             --limit 20 \
             --json databaseId,name,headBranch,createdAt | jq '[.[] | select(.name == "CI/CD")]' 2>/dev/null || echo "[]")
 
-          # For each run, check if E2E Tests job has been running >10 min
-          THRESHOLD_SECS=600  # 10 minutes
+          # For each run, check if E2E Tests job has been running too long
+          # NOTE: This threshold MUST be less than CI's E2E timeout (currently 25 min in ci.yml)
+          # The test suite has grown to 149+ tests with Claude API calls, taking 15-20 min legitimately
+          # Set to 20 min to allow normal completion while catching truly stuck runs
+          THRESHOLD_SECS=1200  # 20 minutes (aligned with CI's 25-min E2E timeout)
           NOW_SECS=$(date +%s)
 
           STUCK_RUNS=$(echo "$IN_PROGRESS_RUNS" | jq -c '.[]' | while read -r run; do
