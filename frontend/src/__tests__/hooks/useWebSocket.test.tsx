@@ -1,4 +1,4 @@
-import { renderHook, act, waitFor } from '@/test-utils';
+import { renderHook, act, waitFor, createThinkerMessage } from '@/test-utils';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 // Mock the api module
@@ -176,28 +176,21 @@ describe('useWebSocket', () => {
       mockWsInstance.simulateOpen();
     });
 
+    // Use helper to create consistent test message
+    const testMessage = createThinkerMessage();
     act(() => {
-      mockWsInstance.simulateMessage({
-        type: 'message',
-        sender_type: 'thinker',
-        sender_name: 'Socrates',
-        content: 'I know that I know nothing.',
-        message_id: 'msg-1',
-        conversation_id: 'conv-123',
-        timestamp: '2024-01-15T10:00:00Z',
-        cost: 0.001,
-      });
+      mockWsInstance.simulateMessage(testMessage);
     });
 
     await waitFor(() => {
       expect(onMessage).toHaveBeenCalledWith({
-        id: 'msg-1',
-        conversation_id: 'conv-123',
-        sender_type: 'thinker',
-        sender_name: 'Socrates',
-        content: 'I know that I know nothing.',
-        cost: 0.001,
-        created_at: '2024-01-15T10:00:00Z',
+        id: testMessage.message_id,
+        conversation_id: testMessage.conversation_id,
+        sender_type: testMessage.sender_type,
+        sender_name: testMessage.sender_name,
+        content: testMessage.content,
+        cost: testMessage.cost,
+        created_at: testMessage.timestamp,
       });
     });
   });

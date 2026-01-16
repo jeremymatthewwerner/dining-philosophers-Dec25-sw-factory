@@ -335,3 +335,117 @@ export function createConversationSummary(
     ...overrides,
   };
 }
+
+/**
+ * WebSocket Testing Helpers
+ *
+ * Reduces duplication of WebSocket simulation patterns that appear 49 times
+ * in useWebSocket.test.tsx.
+ */
+
+/**
+ * Create a mock typing indicator message for WebSocket testing.
+ *
+ * @param overrides - Optional overrides for default values
+ * @returns Mock typing indicator message
+ */
+export function createTypingIndicatorMessage(
+  overrides: Record<string, unknown> = {}
+) {
+  return {
+    type: 'typing_indicator',
+    thinker_name: 'Socrates',
+    thinking_preview: 'Pondering existence...',
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock WebSocket error message for testing.
+ *
+ * @param overrides - Optional overrides for default values
+ * @returns Mock error message
+ */
+export function createErrorMessage(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'error',
+    message: 'An error occurred',
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock pause/resume message for WebSocket testing.
+ *
+ * @param isPaused - Whether the conversation is paused
+ * @returns Mock pause/resume message
+ */
+export function createPauseResumeMessage(isPaused: boolean) {
+  return {
+    type: isPaused ? 'paused' : 'resumed',
+  };
+}
+
+/**
+ * Helper to simulate a complete WebSocket message flow in tests.
+ *
+ * Reduces duplication of the "simulateOpen → simulateMessage → assert" pattern
+ * that appears many times in useWebSocket.test.tsx.
+ *
+ * @param mockWsInstance - Mock WebSocket instance
+ * @param message - Message to send
+ * @param assertions - Optional assertions callback to run after message
+ */
+export function simulateWebSocketMessage(
+  mockWsInstance: {
+    simulateOpen: () => void;
+    simulateMessage: (data: unknown) => void;
+  },
+  message: unknown,
+  assertions?: () => void
+) {
+  mockWsInstance.simulateOpen();
+  mockWsInstance.simulateMessage(message);
+  if (assertions) {
+    assertions();
+  }
+}
+
+/**
+ * Helper to simulate a WebSocket connection and send sequence in tests.
+ *
+ * Encapsulates the common pattern of:
+ * 1. Render hook with conversationId
+ * 2. Simulate WebSocket open
+ * 3. Wait for connection
+ * 4. Send messages
+ *
+ * @param mockWsInstance - Mock WebSocket instance
+ * @param conversationId - Conversation ID to connect to
+ * @returns Object with helper functions for the test scenario
+ */
+export function setupWebSocketScenario(
+  mockWsInstance: {
+    simulateOpen: () => void;
+    simulateMessage: (data: unknown) => void;
+    simulateClose: () => void;
+    simulateError: () => void;
+  },
+  conversationId: string = TEST_CONVERSATION_ID
+) {
+  return {
+    conversationId,
+    sendMessage: (message: unknown) => {
+      mockWsInstance.simulateMessage(message);
+    },
+    connect: () => {
+      mockWsInstance.simulateOpen();
+    },
+    disconnect: () => {
+      mockWsInstance.simulateClose();
+    },
+    triggerError: () => {
+      mockWsInstance.simulateError();
+    },
+  };
+}

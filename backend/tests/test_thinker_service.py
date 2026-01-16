@@ -85,26 +85,22 @@ class TestSuggestThinkers:
 
     async def test_suggest_with_mock_client(self) -> None:
         """Test suggest_thinkers with mocked API response."""
+        from tests.conftest import (
+            create_mock_anthropic_response,
+            create_mock_thinker_suggestion_json,
+        )
+
         service = ThinkerService()
 
-        mock_response = MagicMock()
-        mock_response.content = [
-            TextBlock(
-                type="text",
-                text="""[
-                {
-                    "name": "Socrates",
-                    "reason": "Master of questioning",
-                    "profile": {
-                        "name": "Socrates",
-                        "bio": "Ancient Greek philosopher",
-                        "positions": "Socratic method",
-                        "style": "Questions everything"
-                    }
-                }
-            ]""",
-            )
-        ]
+        # Use helper to create thinker suggestion JSON
+        json_text = create_mock_thinker_suggestion_json(
+            name="Socrates",
+            reason="Master of questioning",
+            bio="Ancient Greek philosopher",
+            positions="Socratic method",
+            style="Questions everything",
+        )
+        mock_response = create_mock_anthropic_response(json_text)
 
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
@@ -204,12 +200,14 @@ class TestGenerateResponse:
 
     async def test_generate_with_mock_response(self) -> None:
         """Test generate_response with mocked API response."""
+        from tests.conftest import create_mock_anthropic_response
+
         service = ThinkerService()
 
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="I think therefore I am.")]
-        mock_response.usage.input_tokens = 100
-        mock_response.usage.output_tokens = 10
+        # Use helper to create mock response
+        mock_response = create_mock_anthropic_response(
+            "I think therefore I am.", input_tokens=100, output_tokens=10
+        )
 
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
@@ -891,10 +889,12 @@ class TestSuggestThinkersErrorHandling:
 
     async def test_suggest_handles_json_decode_error(self) -> None:
         """Test that suggest_thinkers handles invalid JSON gracefully."""
+        from tests.conftest import create_mock_anthropic_response
+
         service = ThinkerService()
 
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="Invalid JSON {]")]
+        # Use helper to create mock response with invalid JSON
+        mock_response = create_mock_anthropic_response("Invalid JSON {]")
 
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
@@ -907,10 +907,12 @@ class TestSuggestThinkersErrorHandling:
 
     async def test_suggest_handles_empty_response(self) -> None:
         """Test that suggest_thinkers handles empty response."""
+        from tests.conftest import create_mock_anthropic_response
+
         service = ThinkerService()
 
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="")]
+        # Use helper to create mock response with empty text
+        mock_response = create_mock_anthropic_response("")
 
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)

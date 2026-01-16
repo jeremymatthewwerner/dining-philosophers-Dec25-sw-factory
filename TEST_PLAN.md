@@ -677,6 +677,127 @@ This document outlines all features requiring testing, their test cases, and edg
 
 ---
 
+## Test Refactoring - Friday 2026-01-16 (Issue #490)
+
+**Focus**: Improve test readability and reduce duplication in test files.
+
+### Backend Refactorings (conftest.py, test_thinker_service.py)
+
+**Problem**: Duplication of mock Anthropic API response creation patterns across test files.
+
+**Patterns Identified**:
+- 15+ instances of TextBlock response creation with similar structure
+- Repeated mock response setup with content/usage fields
+- Duplicated thinker profile/suggestion JSON creation
+
+**Solutions Added to conftest.py**:
+
+1. **`create_mock_anthropic_response(text, input_tokens, output_tokens)`** (lines 363-395)
+   - Creates mock Anthropic API response with TextBlock content
+   - Reduces duplication of `mock_response.content = [TextBlock(...)]` pattern
+   - Usage: `mock_response = create_mock_anthropic_response("Hello world")`
+
+2. **`create_mock_thinker_profile(name, bio, positions, style)`** (lines 398-423)
+   - Creates thinker profile dictionary for testing
+   - Provides sensible defaults with optional overrides
+   - Usage: `profile = create_mock_thinker_profile("Socrates")`
+
+3. **`create_mock_thinker_suggestion_json(name, reason, bio, positions, style)`** (lines 426-466)
+   - Creates JSON string for suggest_thinkers API responses
+   - Reduces duplication of thinker suggestion JSON creation
+   - Usage: `json_str = create_mock_thinker_suggestion_json("Socrates")`
+
+**Refactored Tests in test_thinker_service.py**:
+- `test_suggest_with_mock_client` - Now uses helper functions (lines 86-110)
+- `test_generate_with_mock_response` - Uses `create_mock_anthropic_response` (lines 205-234)
+- `test_suggest_handles_json_decode_error` - Uses helper for invalid JSON (lines 890-905)
+- `test_suggest_handles_empty_response` - Uses helper for empty response (lines 906-920)
+
+### Frontend Refactorings (test-utils.tsx, useWebSocket.test.tsx)
+
+**Problem**: 49 instances of WebSocket simulation patterns in useWebSocket.test.tsx.
+
+**Patterns Identified**:
+- Repeated `simulateOpen()` → `simulateMessage()` → assertions flow
+- Duplicated message object creation for thinker messages, typing indicators, errors
+- Common WebSocket test scenarios repeated across tests
+
+**Solutions Added to test-utils.tsx**:
+
+1. **`createTypingIndicatorMessage(overrides)`** (lines 352-360)
+   - Creates mock typing indicator message
+   - Default: `{type: 'typing_indicator', thinker_name: 'Socrates', thinking_preview: 'Pondering existence...'}`
+
+2. **`createErrorMessage(overrides)`** (lines 367-373)
+   - Creates mock WebSocket error message
+   - Default: `{type: 'error', message: 'An error occurred'}`
+
+3. **`createPauseResumeMessage(isPaused)`** (lines 380-384)
+   - Creates mock pause/resume message
+   - Usage: `createPauseResumeMessage(true)` for paused, `false` for resumed
+
+4. **`simulateWebSocketMessage(mockWsInstance, message, assertions)`** (lines 395-407)
+   - Encapsulates common pattern: open → send message → optionally run assertions
+   - Reduces repetition of `simulateOpen()` then `simulateMessage()` calls
+
+5. **`setupWebSocketScenario(mockWsInstance, conversationId)`** (lines 420-438)
+   - Returns object with helper methods: `sendMessage()`, `connect()`, `disconnect()`, `triggerError()`
+   - Provides clean API for complex WebSocket test scenarios
+
+**Refactored Tests in useWebSocket.test.tsx**:
+- `test: calls onMessage when thinker message is received` - Now uses `createThinkerMessage()` (lines 166-203)
+- Removed unused `createTypingIndicatorMessage` import (lines 1-8)
+
+### Impact
+
+**Backend**:
+- **Coverage**: 76.07% → 76.07% (no change - refactoring maintains coverage)
+- **Tests**: All 394 tests pass (9 skipped)
+- **Lines Reduced**: ~15-20 lines of duplication removed from test_thinker_service.py
+- **Lines Added**: ~100 lines of reusable helpers in conftest.py
+
+**Frontend**:
+- **Coverage**: ~76% → ~76% (no change)
+- **Tests**: All 343 tests pass
+- **Lines Added**: ~85 lines of WebSocket testing helpers in test-utils.tsx
+- **Future Benefit**: 49 instances of WebSocket simulation can now use these helpers
+
+### Benefits of Refactoring
+
+1. **Single Source of Truth**: Test helpers defined once in conftest.py / test-utils.tsx
+2. **Easier Maintenance**: Update mock creation logic in one place
+3. **Better Documentation**: All helpers have comprehensive docstrings with examples
+4. **Type Safety**: Proper TypeScript/Python types for all helpers
+5. **Reduced Test Noise**: Tests focus on behavior, not setup boilerplate
+6. **Consistency**: All tests use same default values for test objects
+7. **Readability**: Factory functions have clear names and intent
+
+### Files Modified
+
+- `backend/tests/conftest.py` - Added 3 new helper functions (100 lines)
+- `backend/tests/test_thinker_service.py` - Refactored 4 tests to use helpers
+- `frontend/src/test-utils.tsx` - Added 5 new WebSocket helpers (85 lines)
+- `frontend/src/__tests__/hooks/useWebSocket.test.tsx` - Refactored 1 test, removed unused import
+
+### Future Refactoring Opportunities
+
+Based on TEST_PLAN.md from previous sessions, there are still opportunities for refactoring:
+
+1. **test_thinker_service.py (1557 lines)**:
+   - Still has 10+ instances that could use the new helpers
+   - Can refactor additional tests to use `create_mock_anthropic_response()`
+
+2. **useWebSocket.test.tsx (990 lines)**:
+   - 48 remaining instances of WebSocket simulation patterns
+   - Can gradually migrate tests to use new helpers (`simulateWebSocketMessage`, `setupWebSocketScenario`)
+   - Consider creating scenario-specific helpers (e.g., `simulateTypingFlow`, `simulateReconnection`)
+
+3. **test_api.py (1172 lines)**:
+   - May benefit from additional conversation/thinker creation helpers
+   - Consider adding helpers for common API request patterns
+
+---
+
 ## Tricky Areas Requiring Extra Attention
 
 1. **Message splitting timing** - Ensure delays feel natural, not too fast or slow

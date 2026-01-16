@@ -357,6 +357,115 @@ def create_thinker_input(
     }
 
 
+# ThinkerService test helpers
+def create_mock_anthropic_response(
+    text: str,
+    input_tokens: int = 100,
+    output_tokens: int = 10,
+) -> MagicMock:
+    """Create a mock Anthropic API response with TextBlock content.
+
+    Reduces duplication of mock response creation pattern that appears 15+ times
+    in test_thinker_service.py.
+
+    Args:
+        text: The response text content
+        input_tokens: Input token count for usage tracking (default: 100)
+        output_tokens: Output token count for usage tracking (default: 10)
+
+    Returns:
+        MagicMock configured as Anthropic API response
+
+    Example:
+        >>> mock_response = create_mock_anthropic_response("Hello world")
+        >>> mock_response.content[0].text
+        'Hello world'
+    """
+    from anthropic.types import TextBlock
+
+    mock_response = MagicMock()
+    mock_response.content = [TextBlock(type="text", text=text)]
+    mock_response.usage.input_tokens = input_tokens
+    mock_response.usage.output_tokens = output_tokens
+    return mock_response
+
+
+def create_mock_thinker_profile(
+    name: str,
+    bio: str | None = None,
+    positions: str | None = None,
+    style: str | None = None,
+) -> dict[str, Any]:
+    """Create a mock thinker profile dictionary for testing.
+
+    Reduces duplication of thinker profile creation in test_thinker_service.py.
+
+    Args:
+        name: Thinker name
+        bio: Biography (defaults to "Bio of {name}")
+        positions: Philosophical positions (defaults to "Positions of {name}")
+        style: Communication style (defaults to "Style of {name}")
+
+    Returns:
+        Dictionary with thinker profile fields
+
+    Example:
+        >>> profile = create_mock_thinker_profile("Socrates")
+        >>> profile["bio"]
+        'Bio of Socrates'
+    """
+    return {
+        "name": name,
+        "bio": bio or f"Bio of {name}",
+        "positions": positions or f"Positions of {name}",
+        "style": style or f"Style of {name}",
+    }
+
+
+def create_mock_thinker_suggestion_json(
+    name: str,
+    reason: str | None = None,
+    bio: str | None = None,
+    positions: str | None = None,
+    style: str | None = None,
+) -> str:
+    """Create JSON string for thinker suggestion API response.
+
+    Reduces duplication of thinker suggestion JSON creation in test_thinker_service.py.
+
+    Args:
+        name: Thinker name
+        reason: Reason for suggestion (defaults to "Expert in {name}")
+        bio: Biography (defaults to "Bio of {name}")
+        positions: Philosophical positions (defaults to "Positions of {name}")
+        style: Communication style (defaults to "Style of {name}")
+
+    Returns:
+        JSON string formatted for suggest_thinkers API response
+
+    Example:
+        >>> json_str = create_mock_thinker_suggestion_json("Socrates")
+        >>> assert "Socrates" in json_str
+        >>> assert "profile" in json_str
+    """
+    import json
+
+    return json.dumps(
+        [
+            {
+                "name": name,
+                "reason": reason or f"Expert in {name}",
+                "profile": {
+                    "name": name,
+                    "bio": bio or f"Bio of {name}",
+                    "positions": positions or f"Positions of {name}",
+                    "style": style or f"Style of {name}",
+                },
+            }
+        ]
+    )
+
+
 # WebSocket test helpers
 async def create_test_user_session_conversation(
     db_session: AsyncSession,
