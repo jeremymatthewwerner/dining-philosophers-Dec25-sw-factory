@@ -60,7 +60,10 @@ export function MessageInput({
   const [isTyping, setIsTyping] = useState(false);
   const [mentionState, setMentionState] =
     useState<MentionState>(initialMentionState);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 16 });
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 16,
+  });
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
