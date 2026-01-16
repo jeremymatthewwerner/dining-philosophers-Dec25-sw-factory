@@ -32,8 +32,7 @@ test.describe('Feedback Modal Edge Cases', () => {
   }
 
   test('should prevent empty feedback text submission', async ({ page }) => {
-    // Modal interactions may need extra time in CI
-    test.slow();
+    // Simple form validation - no API calls needed
     await openFeedbackModal(page);
 
     // Fill contact info but leave feedback empty
@@ -105,8 +104,7 @@ test.describe('Feedback Modal Edge Cases', () => {
   });
 
   test('should validate email format in feedback modal', async ({ page }) => {
-    // Validation tests may need extra time for form interactions
-    test.slow();
+    // Client-side validation only - no API calls
     await openFeedbackModal(page);
 
     // Fill with invalid email
@@ -197,8 +195,7 @@ test.describe('Feedback Modal Edge Cases', () => {
   });
 
   test('should close modal when clicking cancel', async ({ page }) => {
-    // Modal interactions may need extra time
-    test.slow();
+    // Simple UI interaction - no API calls
     await openFeedbackModal(page);
 
     // Fill some data
@@ -216,8 +213,7 @@ test.describe('Feedback Modal Edge Cases', () => {
   });
 
   test('should close modal when clicking outside overlay', async ({ page }) => {
-    // Modal interactions may need extra time
-    test.slow();
+    // Simple UI interaction - no API calls
     await openFeedbackModal(page);
 
     // Fill some data
