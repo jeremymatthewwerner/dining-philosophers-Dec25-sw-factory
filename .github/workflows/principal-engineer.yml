@@ -47,9 +47,11 @@ jobs:
       - name: Validate trigger is legitimate
         id: validate
         if: github.event_name == 'issue_comment'
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           # Strip code blocks from comment body to avoid false triggers
-          COMMENT_BODY='${{ github.event.comment.body }}'
+          # Note: Using env var to safely handle special characters (quotes, apostrophes, etc.)
 
           # Remove fenced code blocks (```...```)
           STRIPPED=$(echo "$COMMENT_BODY" | sed '/^```/,/^```/d')
