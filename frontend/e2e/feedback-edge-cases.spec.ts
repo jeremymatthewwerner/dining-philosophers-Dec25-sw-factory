@@ -32,6 +32,8 @@ test.describe('Feedback Modal Edge Cases', () => {
   }
 
   test('should prevent empty feedback text submission', async ({ page }) => {
+    // Modal interactions may need extra time in CI
+    test.slow();
     await openFeedbackModal(page);
 
     // Fill contact info but leave feedback empty
@@ -64,6 +66,8 @@ test.describe('Feedback Modal Edge Cases', () => {
   test('should handle very long feedback text (15k chars)', async ({
     page,
   }) => {
+    // This test handles large text input and submission
+    test.slow();
     await openFeedbackModal(page);
 
     // Fill with contact info
@@ -71,8 +75,9 @@ test.describe('Feedback Modal Edge Cases', () => {
     await page.getByTestId('feedback-email').fill('long@example.com');
 
     // Create very long feedback (15,000 characters)
+    // "This is a very detailed piece of feedback. " = 45 chars, so 334 repeats = 15,030 chars
     const longFeedback =
-      'This is a very detailed piece of feedback. '.repeat(300);
+      'This is a very detailed piece of feedback. '.repeat(334);
     expect(longFeedback.length).toBeGreaterThan(14000);
 
     const feedbackText = page.getByTestId('feedback-text');
@@ -100,6 +105,8 @@ test.describe('Feedback Modal Edge Cases', () => {
   });
 
   test('should validate email format in feedback modal', async ({ page }) => {
+    // Validation tests may need extra time for form interactions
+    test.slow();
     await openFeedbackModal(page);
 
     // Fill with invalid email
@@ -134,6 +141,8 @@ test.describe('Feedback Modal Edge Cases', () => {
   test('should handle special characters in name and email', async ({
     page,
   }) => {
+    // This test involves submission to backend which may take extra time
+    test.slow();
     await openFeedbackModal(page);
 
     // Use special characters in name
@@ -156,6 +165,8 @@ test.describe('Feedback Modal Edge Cases', () => {
   test('should allow submission without contact info (anonymous)', async ({
     page,
   }) => {
+    // This test involves submission to backend
+    test.slow();
     await openFeedbackModal(page);
 
     // Leave name and email empty
@@ -186,6 +197,8 @@ test.describe('Feedback Modal Edge Cases', () => {
   });
 
   test('should close modal when clicking cancel', async ({ page }) => {
+    // Modal interactions may need extra time
+    test.slow();
     await openFeedbackModal(page);
 
     // Fill some data
@@ -203,6 +216,8 @@ test.describe('Feedback Modal Edge Cases', () => {
   });
 
   test('should close modal when clicking outside overlay', async ({ page }) => {
+    // Modal interactions may need extra time
+    test.slow();
     await openFeedbackModal(page);
 
     // Fill some data

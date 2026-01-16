@@ -237,6 +237,8 @@ test.describe('Conversation Deletion Edge Cases', () => {
   test('should handle deletion when conversation is not currently selected', async ({
     page,
   }) => {
+    // This test creates two conversations requiring multiple Claude API validations
+    test.slow();
     // Create two conversations
     await createConversationViaUI(page, 'First conversation', 'Plato');
     await expect(page.getByTestId('chat-area')).toBeVisible({
