@@ -113,8 +113,14 @@ test.describe('Feedback Modal Edge Cases', () => {
 
     // Fill with invalid email
     await page.getByTestId('feedback-name').fill('Email Test');
-    await page.getByTestId('feedback-email').fill('invalidemail'); // No @ sign
+    const emailInput = page.getByTestId('feedback-email');
+    await emailInput.fill('invalidemail'); // No @ sign
     await page.getByTestId('feedback-message').fill('Testing email validation');
+
+    // Check HTML5 validation BEFORE clicking submit (more reliable)
+    const isInvalidBeforeSubmit = await emailInput.evaluate((el: HTMLInputElement) => {
+      return !el.validity.valid;
+    });
 
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
@@ -130,13 +136,8 @@ test.describe('Feedback Modal Edge Cases', () => {
 
     const errorVisible = await errorSelector.isVisible().catch(() => false);
 
-    // Or HTML5 validation catches it
-    const emailInput = page.getByTestId('feedback-email');
-    const isInvalid = await emailInput.evaluate((el: HTMLInputElement) => {
-      return !el.validity.valid;
-    });
-
-    expect(errorVisible || isInvalid).toBe(true);
+    // Either HTML5 validation caught it (before submit) or error shown after
+    expect(errorVisible || isInvalidBeforeSubmit).toBe(true);
   });
 
   // SKIP: This test requires backend API call which is too slow for CI
