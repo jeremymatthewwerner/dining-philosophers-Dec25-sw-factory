@@ -412,6 +412,7 @@ export function ChatArea({
               ? `${t.chatArea.message} ${conversation.thinkers.map((t) => t.name).join(', ')}...`
               : t.chatArea.connecting
         }
+        thinkers={conversation.thinkers}
       />
     </div>
   );
