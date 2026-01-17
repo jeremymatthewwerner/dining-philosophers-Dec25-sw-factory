@@ -8,9 +8,7 @@ import { setupAuthenticatedUser } from './test-utils';
 
 const API_BASE = 'http://localhost:8000';
 
-// TEMPORARILY SKIPPED: These tests are slow due to API calls, causing CI timeout
-// TODO: Re-enable after optimizing test performance (issue #526)
-test.describe.skip('Settings Edge Cases', () => {
+test.describe('Settings Edge Cases', () => {
   test('should validate email format in feedback info', async ({ page }) => {
     await setupAuthenticatedUser(page);
 
@@ -134,20 +132,21 @@ test.describe.skip('Settings Edge Cases', () => {
     });
     await changeButton.click();
 
-    // Wait for response
-    await page.waitForTimeout(5000);
+    // Wait for response - use Promise.race instead of waitForTimeout
+    const errorSelector = page.locator('text=/same password|different password|new password|incorrect/i');
+    const successSelector = page.locator('text=Password changed successfully');
+
+    await Promise.race([
+      errorSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      successSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {}),
+    ]);
 
     // Should show error that new password must be different
-    const errorVisible = await page
-      .locator('text=/same password|different password|new password|incorrect/i')
-      .isVisible()
-      .catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // Or it might succeed (some systems allow same password)
-    const successVisible = await page
-      .locator('text=Password changed successfully')
-      .isVisible()
-      .catch(() => false);
+    const successVisible = await successSelector.isVisible().catch(() => false);
 
     // Or form still visible (no response yet, but didn't crash)
     const formStillVisible = await page.locator('#currentPassword').isVisible().catch(() => false);
@@ -173,18 +172,18 @@ test.describe.skip('Settings Edge Cases', () => {
     await displayNameInput.fill(longName);
     await updateButton.click();
 
-    // Should either accept it or show validation error
-    await page.waitForTimeout(3000);
+    // Should either accept it or show validation error - use Promise.race
+    const successSelector = page.locator('text=Display name updated successfully');
+    const errorSelector = page.locator('text=/too long|maximum length|limit/i');
 
-    const successVisible = await page
-      .locator('text=Display name updated successfully')
-      .isVisible()
-      .catch(() => false);
+    await Promise.race([
+      successSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      errorSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {}),
+    ]);
 
-    const errorVisible = await page
-      .locator('text=/too long|maximum length|limit/i')
-      .isVisible()
-      .catch(() => false);
+    const successVisible = await successSelector.isVisible().catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // One of these should be true (either accepts or rejects with message)
     expect(successVisible || errorVisible).toBe(true);
@@ -212,8 +211,8 @@ test.describe.skip('Settings Edge Cases', () => {
     });
     await changeButton.click();
 
-    // Should either trim whitespace automatically or show error
-    await page.waitForTimeout(3000);
+    // Should either trim whitespace automatically or show error - wait for network idle
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // The form should handle this gracefully (either success or meaningful error)
     const formStillVisible = await page.locator('#currentPassword').isVisible();

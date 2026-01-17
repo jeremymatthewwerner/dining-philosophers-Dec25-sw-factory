@@ -6,9 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
 
-// TEMPORARILY SKIPPED: These tests are slow due to API calls, causing CI timeout
-// TODO: Re-enable after optimizing test performance (issue #526)
-test.describe.skip('Export Edge Cases', () => {
+test.describe('Export Edge Cases', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -146,8 +144,8 @@ test.describe.skip('Export Edge Cases', () => {
     const htmlDownload = await htmlDownloadPromise;
     expect(htmlDownload.suggestedFilename()).toMatch(/\.html$/);
 
-    // Wait a moment before opening menu again
-    await page.waitForTimeout(1000);
+    // Wait for menu to close and be ready to open again
+    await expect(page.getByTestId('export-menu')).not.toBeVisible({ timeout: 5000 });
 
     // Export as Markdown
     await page.getByTestId('export-button').click();

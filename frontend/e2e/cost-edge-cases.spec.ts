@@ -6,9 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
 
-// TEMPORARILY SKIPPED: These tests are slow due to API calls, causing CI timeout
-// TODO: Re-enable after optimizing test performance (issue #526)
-test.describe.skip('Cost Edge Cases', () => {
+test.describe('Cost Edge Cases', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -92,7 +90,10 @@ test.describe.skip('Cost Edge Cases', () => {
         }
       });
 
-      await page.waitForTimeout(500);
+      // Wait for DOM update after evaluate - use expect.poll for element text
+      await expect.poll(async () => {
+        return await costMeter.textContent();
+      }, { timeout: 2000 }).toBeTruthy();
 
       // Cost meter should still be visible and properly formatted
       const costText = await costMeter.textContent();
@@ -124,7 +125,8 @@ test.describe.skip('Cost Edge Cases', () => {
       timeout: 5000,
     });
 
-    await page.waitForTimeout(1000);
+    // Wait for network to settle after sending message
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
     // Get cost after first message (if visible)
     const costMeter = page.getByTestId('cost-meter');
@@ -140,7 +142,8 @@ test.describe.skip('Cost Edge Cases', () => {
         timeout: 5000,
       });
 
-      await page.waitForTimeout(1000);
+      // Wait for network to settle after sending message
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
       const costAfterSecond = await costMeter.textContent();
 
