@@ -1,5 +1,6 @@
 /**
  * Message input component for user to type and send messages.
+ * Supports @mention autocomplete for thinkers in the conversation.
  */
 
 'use client';
@@ -9,10 +10,13 @@ import {
   type FormEvent,
   type KeyboardEvent,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import type { ConversationThinker } from '@/types';
+import { MentionAutocomplete, filterThinkers } from './MentionAutocomplete';
 
 export interface MessageInputProps {
   /** Callback when message is submitted */
@@ -25,7 +29,23 @@ export interface MessageInputProps {
   disabled?: boolean;
   /** Placeholder text */
   placeholder?: string;
+  /** Thinkers in the conversation for @mention autocomplete */
+  thinkers?: ConversationThinker[];
 }
+
+interface MentionState {
+  isActive: boolean;
+  query: string;
+  startIndex: number; // Position of @ in the text
+  selectedIndex: number;
+}
+
+const initialMentionState: MentionState = {
+  isActive: false,
+  query: '',
+  startIndex: -1,
+  selectedIndex: 0,
+};
 
 export function MessageInput({
   onSend,
@@ -33,16 +53,99 @@ export function MessageInput({
   onTypingStop,
   disabled = false,
   placeholder,
+  thinkers = [],
 }: MessageInputProps) {
   const { t } = useLanguage();
   const [value, setValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [mentionState, setMentionState] =
+    useState<MentionState>(initialMentionState);
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 16,
+  });
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Update dropdown position when autocomplete becomes active
+  useEffect(() => {
+    if (mentionState.isActive && textareaRef.current && formRef.current) {
+      const form = formRef.current;
+      const formRect = form.getBoundingClientRect();
+      const textareaRect = textareaRef.current.getBoundingClientRect();
+
+      // Position above the textarea
+      const top = formRect.height - textareaRect.top + formRect.top + 8;
+      const left = 16;
+
+      setDropdownPosition({ top, left });
+    }
+  }, [mentionState.isActive]);
+
+  // Update mention state based on cursor position
+  const updateMentionState = useCallback(
+    (text: string, cursorPos: number) => {
+      if (thinkers.length === 0) {
+        setMentionState(initialMentionState);
+        return;
+      }
+
+      // Find the last @ before cursor
+      const beforeCursor = text.slice(0, cursorPos);
+      const lastAtIndex = beforeCursor.lastIndexOf('@');
+
+      if (lastAtIndex === -1) {
+        setMentionState(initialMentionState);
+        return;
+      }
+
+      // Check if @ is at start of word (preceded by space, newline, or start of text)
+      if (lastAtIndex > 0 && !/\s/.test(beforeCursor[lastAtIndex - 1])) {
+        setMentionState(initialMentionState);
+        return;
+      }
+
+      // Get the query (text between @ and cursor)
+      const query = beforeCursor.slice(lastAtIndex + 1);
+
+      // If query contains spaces (more than one word), close autocomplete
+      // This allows typing "@ " to dismiss autocomplete
+      if (query.includes(' ') && !query.trim()) {
+        setMentionState(initialMentionState);
+        return;
+      }
+
+      // Check if query matches any thinker (case-insensitive)
+      const queryWord = query.split(' ')[0]; // First word of query for filtering
+      const filtered = filterThinkers(thinkers, queryWord);
+
+      if (filtered.length === 0 && queryWord.length > 0) {
+        // No matches found for the query
+        setMentionState(initialMentionState);
+        return;
+      }
+
+      setMentionState((prev) => ({
+        isActive: true,
+        query: queryWord,
+        startIndex: lastAtIndex,
+        selectedIndex:
+          prev.isActive && prev.startIndex === lastAtIndex
+            ? Math.min(prev.selectedIndex, filtered.length - 1)
+            : 0,
+      }));
+    },
+    [thinkers]
+  );
 
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
-      setValue(e.target.value);
+      const newValue = e.target.value;
+      const cursorPos = e.target.selectionStart ?? newValue.length;
+
+      setValue(newValue);
+      updateMentionState(newValue, cursorPos);
 
       // Handle typing indicators
       if (!isTyping) {
@@ -60,7 +163,33 @@ export function MessageInput({
         onTypingStop?.();
       }, 2000);
     },
-    [isTyping, onTypingStart, onTypingStop]
+    [isTyping, onTypingStart, onTypingStop, updateMentionState]
+  );
+
+  const selectMention = useCallback(
+    (thinker: ConversationThinker) => {
+      if (!textareaRef.current) return;
+
+      // Replace @query with the thinker's name
+      const beforeAt = value.slice(0, mentionState.startIndex);
+      const afterQuery = value.slice(
+        mentionState.startIndex + 1 + mentionState.query.length
+      );
+      const newValue = `${beforeAt}${thinker.name}${afterQuery}`;
+
+      setValue(newValue);
+      setMentionState(initialMentionState);
+
+      // Focus textarea and set cursor after the inserted name
+      const cursorPos = mentionState.startIndex + thinker.name.length;
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(cursorPos, cursorPos);
+        }
+      });
+    },
+    [value, mentionState.startIndex, mentionState.query.length]
   );
 
   const handleSubmit = useCallback(
@@ -82,6 +211,7 @@ export function MessageInput({
 
       onSend(trimmed);
       setValue('');
+      setMentionState(initialMentionState);
 
       // Reset textarea height
       if (textareaRef.current) {
@@ -93,14 +223,57 @@ export function MessageInput({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      // Submit on Enter (without Shift)
+      const filteredThinkers = filterThinkers(thinkers, mentionState.query);
+
+      if (mentionState.isActive && filteredThinkers.length > 0) {
+        switch (e.key) {
+          case 'ArrowUp':
+            e.preventDefault();
+            setMentionState((prev) => ({
+              ...prev,
+              selectedIndex:
+                prev.selectedIndex > 0
+                  ? prev.selectedIndex - 1
+                  : filteredThinkers.length - 1,
+            }));
+            return;
+          case 'ArrowDown':
+            e.preventDefault();
+            setMentionState((prev) => ({
+              ...prev,
+              selectedIndex:
+                prev.selectedIndex < filteredThinkers.length - 1
+                  ? prev.selectedIndex + 1
+                  : 0,
+            }));
+            return;
+          case 'Tab':
+          case 'Enter':
+            e.preventDefault();
+            selectMention(filteredThinkers[mentionState.selectedIndex]);
+            return;
+          case 'Escape':
+            e.preventDefault();
+            setMentionState(initialMentionState);
+            return;
+        }
+      }
+
+      // Submit on Enter (without Shift) when autocomplete is not active
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
     },
-    [handleSubmit]
+    [mentionState, thinkers, selectMention, handleSubmit]
   );
+
+  // Handle cursor movement (click or arrow keys without autocomplete)
+  const handleSelect = useCallback(() => {
+    if (!textareaRef.current) return;
+    const cursorPos = textareaRef.current.selectionStart ?? 0;
+    updateMentionState(value, cursorPos);
+  }, [value, updateMentionState]);
 
   // Auto-resize textarea
   const handleTextareaResize = useCallback(() => {
@@ -110,12 +283,31 @@ export function MessageInput({
     }
   }, []);
 
+  const filteredThinkers = filterThinkers(thinkers, mentionState.query);
+  const showAutocomplete =
+    mentionState.isActive && filteredThinkers.length > 0 && thinkers.length > 0;
+
   return (
     <form
+      ref={formRef}
       onSubmit={handleSubmit}
-      className="flex items-end gap-2 p-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
+      className="relative flex items-end gap-2 p-4 border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
       data-testid="message-input"
     >
+      {/* Mention autocomplete dropdown */}
+      {showAutocomplete && (
+        <MentionAutocomplete
+          thinkers={thinkers}
+          query={mentionState.query}
+          selectedIndex={mentionState.selectedIndex}
+          onSelect={selectMention}
+          onIndexChange={(index) =>
+            setMentionState((prev) => ({ ...prev, selectedIndex: index }))
+          }
+          position={dropdownPosition}
+        />
+      )}
+
       <textarea
         ref={textareaRef}
         value={value}
@@ -124,6 +316,8 @@ export function MessageInput({
           handleTextareaResize();
         }}
         onKeyDown={handleKeyDown}
+        onSelect={handleSelect}
+        onClick={handleSelect}
         disabled={disabled}
         placeholder={placeholder || t.messageInput.placeholder}
         rows={1}

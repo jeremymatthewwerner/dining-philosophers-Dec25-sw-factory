@@ -33,19 +33,18 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
     const addButton = page.getByTestId('add-custom-thinker');
     await addButton.click();
 
-    // Wait for validation
-    await page.waitForTimeout(8000);
+    // Wait for either thinker added OR error - use Promise.race for efficiency
+    const thinkerSelector = page.getByTestId('selected-thinker');
+    const errorSelector = page.locator('text=/invalid|not found|too long|error/i');
+
+    await Promise.race([
+      thinkerSelector.waitFor({ timeout: 15000 }).catch(() => {}),
+      errorSelector.waitFor({ timeout: 15000 }).catch(() => {}),
+    ]);
 
     // Either validation rejects it, or it's accepted (possibly truncated)
-    const thinkerAdded = await page
-      .getByTestId('selected-thinker')
-      .isVisible()
-      .catch(() => false);
-
-    const errorVisible = await page
-      .locator('text=/invalid|not found|too long|error/i')
-      .isVisible()
-      .catch(() => false);
+    const thinkerAdded = await thinkerSelector.isVisible().catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // Should handle gracefully (either accepts or rejects with message)
     expect(thinkerAdded || errorVisible).toBe(true);
@@ -74,16 +73,18 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
     await customInput.fill('Socrates');
     await page.getByTestId('add-custom-thinker').click();
 
-    // Wait for response
-    await page.waitForTimeout(5000);
+    // Wait for either error OR loading to finish (network idle)
+    const errorSelector = page.locator(
+      'text=/already added|duplicate|already selected/i'
+    );
+    await Promise.race([
+      errorSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {}),
+    ]);
 
     // Should either prevent duplicate or show error
     const thinkerCount = await page.getByTestId('selected-thinker').count();
-
-    const errorVisible = await page
-      .locator('text=/already added|duplicate|already selected/i')
-      .isVisible()
-      .catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // Either only 1 thinker (duplicate prevented) or error shown
     expect(thinkerCount === 1 || errorVisible).toBe(true);
@@ -103,8 +104,10 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
     const removeButton = page.getByTestId('remove-thinker').first();
     await removeButton.click();
 
-    // Verify thinker was removed
-    await page.waitForTimeout(1000);
+    // Wait for thinker to be removed (wait for element to detach)
+    await expect(page.getByTestId('selected-thinker')).not.toBeVisible({
+      timeout: 5000,
+    });
     const thinkerCount = await page.getByTestId('selected-thinker').count();
     expect(thinkerCount).toBe(0);
 
@@ -133,13 +136,18 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
 
     if (!isDisabled) {
       await createButton.click();
-      await page.waitForTimeout(2000);
+
+      // Wait for error OR page to stay (use Promise.race)
+      const errorSelector = page.locator(
+        'text=/select.*thinker|add.*thinker|at least one/i'
+      );
+      await Promise.race([
+        errorSelector.waitFor({ timeout: 5000 }).catch(() => {}),
+        page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {}),
+      ]);
 
       // Should show error
-      const errorVisible = await page
-        .locator('text=/select.*thinker|add.*thinker|at least one/i')
-        .isVisible()
-        .catch(() => false);
+      const errorVisible = await errorSelector.isVisible().catch(() => false);
 
       // Should stay on thinker selection page
       const stillOnPage = await page
@@ -167,7 +175,8 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
 
     if (!isDisabled) {
       await addButton.click();
-      await page.waitForTimeout(3000);
+      // Wait for network idle (API validation if any)
+      await page.waitForLoadState('networkidle', { timeout: 5000 });
 
       // No thinker should be added
       const thinkerCount = await page.getByTestId('selected-thinker').count();
@@ -188,25 +197,26 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
 
     await page.getByTestId('add-custom-thinker').click();
 
-    // Wait for validation
-    await page.waitForTimeout(8000);
+    // Wait for either thinker added OR error - use Promise.race
+    const thinkerSelector = page.getByTestId('selected-thinker');
+    const errorSelector = page.locator('text=/invalid|not found|error/i');
+
+    await Promise.race([
+      thinkerSelector.waitFor({ timeout: 15000 }).catch(() => {}),
+      errorSelector.waitFor({ timeout: 15000 }).catch(() => {}),
+    ]);
 
     // Should either accept or reject
-    const thinkerAdded = await page
-      .getByTestId('selected-thinker')
-      .isVisible()
-      .catch(() => false);
-
-    const errorVisible = await page
-      .locator('text=/invalid|not found|error/i')
-      .isVisible()
-      .catch(() => false);
+    const thinkerAdded = await thinkerSelector.isVisible().catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // Either succeeds or shows error (both acceptable)
     expect(thinkerAdded || errorVisible).toBe(true);
   });
 
   test('should handle reaching maximum thinker limit (5)', async ({ page }) => {
+    // This test involves 5+ Claude API validations - needs more time
+    test.slow();
     // Add 5 thinkers (maximum)
     const thinkerNames = [
       'Socrates',
@@ -218,13 +228,20 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
 
     const customInput = page.getByTestId('custom-thinker-input');
 
-    for (const name of thinkerNames) {
+    for (let i = 0; i < thinkerNames.length; i++) {
+      const name = thinkerNames[i];
       await customInput.clear();
       await customInput.fill(name);
       await page.getByTestId('add-custom-thinker').click();
 
-      // Wait for each thinker to be added
-      await page.waitForTimeout(5000);
+      // Wait for thinker count to increase (event-driven)
+      const expectedCount = i + 1;
+      await expect
+        .poll(
+          async () => page.getByTestId('selected-thinker').count(),
+          { timeout: 20000 }
+        )
+        .toBeGreaterThanOrEqual(expectedCount);
     }
 
     // Check how many were actually added
@@ -244,13 +261,20 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
 
       if (!isDisabled) {
         await addButton.click();
-        await page.waitForTimeout(3000);
+
+        // Wait for error or network idle
+        const errorSelector = page.locator(
+          'text=/maximum|limit|too many|5 thinkers/i'
+        );
+        await Promise.race([
+          errorSelector.waitFor({ timeout: 5000 }).catch(() => {}),
+          page
+            .waitForLoadState('networkidle', { timeout: 5000 })
+            .catch(() => {}),
+        ]);
 
         // Should show max limit error
-        const errorVisible = await page
-          .locator('text=/maximum|limit|too many|5 thinkers/i')
-          .isVisible()
-          .catch(() => false);
+        const errorVisible = await errorSelector.isVisible().catch(() => false);
 
         // Count should still be 5 or error shown
         const finalCount = await page.getByTestId('selected-thinker').count();
@@ -285,8 +309,10 @@ test.describe.skip('Thinker Selection Edge Cases', () => {
       const removeButton = page.getByTestId('remove-thinker').first();
       await removeButton.click();
 
-      // Should be removed
-      await page.waitForTimeout(1000);
+      // Wait for removal (element should disappear)
+      await expect(page.getByTestId('selected-thinker')).not.toBeVisible({
+        timeout: 5000,
+      });
       const thinkerCount = await page.getByTestId('selected-thinker').count();
       expect(thinkerCount).toBe(0);
     }
