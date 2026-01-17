@@ -33,10 +33,14 @@ permissions:
   # NOTE: workflows permission is only valid for PATs, not workflow files
   # The PAT_WITH_WORKFLOW_ACCESS secret has this scope
 
-# Only one Factory Manager run at a time to prevent duplicate comments
-concurrency:
-  group: factory-manager-${{ github.event.issue.number || 'global' }}
-  cancel-in-progress: true
+# Concurrency is now handled per-job to allow different strategies:
+# - health-check jobs: cancel-in-progress: true (use latest data)
+# - respond/diagnose jobs: cancel-in-progress: false (let work complete)
+#
+# The old global concurrency group was cancelling Factory Manager responses
+# mid-execution when users mentioned @factory-manager multiple times,
+# preventing the agent from ever posting its full response.
+# See issue #534 for root cause analysis.
 
 jobs:
   # ===========================================
@@ -48,6 +52,12 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'full-health-check')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # Job-level concurrency: cancel older health checks in favor of newer ones
+    # Health checks should always use the latest data
+    concurrency:
+      group: factory-manager-health-check
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v4
@@ -1325,6 +1335,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50  # Extended for large issues (30 -> 50)
 
+    # Job-level concurrency: let responses complete before starting new ones
+    # cancel-in-progress: false prevents the issue where multiple @factory-manager
+    # mentions cause responses to be cancelled mid-execution (see issue #534)
+    concurrency:
+      group: factory-manager-respond-${{ github.event.issue.number }}
+      cancel-in-progress: false
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1628,6 +1645,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'diagnose-issue'
     runs-on: ubuntu-latest
     timeout-minutes: 50  # Extended for large issues
+
+    # Job-level concurrency: let diagnoses complete before starting new ones
+    # cancel-in-progress: false ensures full analysis is posted
+    concurrency:
+      group: factory-manager-diagnose-${{ github.event.inputs.issue_number || 'global' }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
