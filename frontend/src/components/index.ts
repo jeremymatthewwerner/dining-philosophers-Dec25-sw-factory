@@ -19,6 +19,9 @@ export type { ErrorBannerProps } from './ErrorBanner';
 export { FeedbackModal } from './FeedbackModal';
 export type { FeedbackModalProps } from './FeedbackModal';
 
+export { MentionAutocomplete, filterThinkers } from './MentionAutocomplete';
+export type { MentionAutocompleteProps } from './MentionAutocomplete';
+
 export { Message } from './Message';
 export type { MessageProps } from './Message';
 

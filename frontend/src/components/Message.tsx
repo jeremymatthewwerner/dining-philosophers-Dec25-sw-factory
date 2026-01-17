@@ -94,6 +94,7 @@ function renderContentWithMentions(
           style={{
             color,
             backgroundColor: `${color}15`,
+            verticalAlign: 'text-bottom',
           }}
         >
           <ThinkerAvatar
