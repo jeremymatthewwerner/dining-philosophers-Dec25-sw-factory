@@ -16,7 +16,7 @@ from tests.conftest import get_auth_headers
 class TestConversationMessageEdgeCases:
     """Test edge cases for conversation messaging."""
 
-    async def test_send_message_to_active_conversation_succeeds(self, client: AsyncClient):
+    async def test_send_message_to_active_conversation_succeeds(self, client: AsyncClient) -> None:
         """Test that sending message to active conversation works normally."""
         # Create user and login
         headers = await get_auth_headers(client, "activeuser", "password123")
@@ -52,7 +52,7 @@ class TestConversationMessageEdgeCases:
         data = msg_response.json()
         assert data["content"] == "Normal message"
 
-    async def test_send_empty_message_rejected(self, client: AsyncClient):
+    async def test_send_empty_message_rejected(self, client: AsyncClient) -> None:
         """Test that empty messages are rejected with appropriate error."""
         headers = await get_auth_headers(client, "emptyuser", "password123")
 
@@ -91,7 +91,7 @@ class TestConversationMessageEdgeCases:
 class TestPasswordChangeEdgeCases:
     """Test edge cases for password change validation."""
 
-    async def test_change_password_to_same_password(self, client: AsyncClient):
+    async def test_change_password_to_same_password(self, client: AsyncClient) -> None:
         """Test changing password to the same password (should be allowed but wasteful)."""
         headers = await get_auth_headers(client, "sameuser", "password123")
 
@@ -110,7 +110,9 @@ class TestPasswordChangeEdgeCases:
         assert response.status_code == 200
         assert response.json()["message"] == "Password changed successfully"
 
-    async def test_change_password_with_leading_trailing_whitespace(self, client: AsyncClient):
+    async def test_change_password_with_leading_trailing_whitespace(
+        self, client: AsyncClient
+    ) -> None:
         """Test that passwords with leading/trailing whitespace are handled correctly."""
         headers = await get_auth_headers(client, "wsuser", "password123")
 
@@ -138,7 +140,7 @@ class TestPasswordChangeEdgeCases:
         )
         assert login_response.status_code == 200
 
-    async def test_change_password_with_very_long_password(self, client: AsyncClient):
+    async def test_change_password_with_very_long_password(self, client: AsyncClient) -> None:
         """Test that very long passwords are handled correctly."""
         headers = await get_auth_headers(client, "longuser", "password123")
 
@@ -174,7 +176,7 @@ class TestPasswordChangeEdgeCases:
 class TestConversationEdgeCases:
     """Test edge cases for conversation creation and management."""
 
-    async def test_create_conversation_with_empty_topic(self, client: AsyncClient):
+    async def test_create_conversation_with_empty_topic(self, client: AsyncClient) -> None:
         """Test that creating conversation with empty topic is rejected."""
         headers = await get_auth_headers(client, "topicuser", "password123")
 
@@ -199,7 +201,7 @@ class TestConversationEdgeCases:
         # Should be rejected with validation error
         assert response.status_code == 422
 
-    async def test_create_conversation_with_very_long_topic(self, client: AsyncClient):
+    async def test_create_conversation_with_very_long_topic(self, client: AsyncClient) -> None:
         """Test that very long topics are handled gracefully."""
         headers = await get_auth_headers(client, "longtopicuser", "password123")
 
