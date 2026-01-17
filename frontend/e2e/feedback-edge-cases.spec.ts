@@ -39,8 +39,8 @@ test.describe('Feedback Modal Edge Cases', () => {
     await page.getByTestId('feedback-name').fill('Test User');
     await page.getByTestId('feedback-email').fill('test@example.com');
 
-    // Leave feedback-text empty
-    const feedbackText = page.getByTestId('feedback-text');
+    // Leave feedback-message empty (use correct testid from FeedbackModal)
+    const feedbackText = page.getByTestId('feedback-message');
     await feedbackText.clear();
 
     // Try to submit
@@ -77,7 +77,7 @@ test.describe('Feedback Modal Edge Cases', () => {
       'This is a very detailed piece of feedback. '.repeat(334);
     expect(longFeedback.length).toBeGreaterThan(14000);
 
-    const feedbackText = page.getByTestId('feedback-text');
+    const feedbackText = page.getByTestId('feedback-message');
     await feedbackText.fill(longFeedback);
 
     // Submit
@@ -112,7 +112,7 @@ test.describe('Feedback Modal Edge Cases', () => {
     // Fill with invalid email
     await page.getByTestId('feedback-name').fill('Email Test');
     await page.getByTestId('feedback-email').fill('invalidemail'); // No @ sign
-    await page.getByTestId('feedback-text').fill('Testing email validation');
+    await page.getByTestId('feedback-message').fill('Testing email validation');
 
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
@@ -147,7 +147,7 @@ test.describe('Feedback Modal Edge Cases', () => {
     await page.getByTestId('feedback-name').fill(specialName);
     await page.getByTestId('feedback-email').fill('test@example.com');
     await page
-      .getByTestId('feedback-text')
+      .getByTestId('feedback-message')
       .fill('Feedback with special characters');
 
     const submitButton = page.getByTestId('submit-feedback');
@@ -169,7 +169,7 @@ test.describe('Feedback Modal Edge Cases', () => {
     await page.getByTestId('feedback-email').clear();
 
     // Only provide feedback text
-    await page.getByTestId('feedback-text').fill('Anonymous feedback test');
+    await page.getByTestId('feedback-message').fill('Anonymous feedback test');
 
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
@@ -201,10 +201,10 @@ test.describe('Feedback Modal Edge Cases', () => {
 
     // Fill some data
     await page.getByTestId('feedback-name').fill('Cancel Test');
-    await page.getByTestId('feedback-text').fill('Testing cancel button');
+    await page.getByTestId('feedback-message').fill('Testing cancel button');
 
-    // Click cancel
-    const cancelButton = page.getByTestId('cancel-feedback');
+    // Click cancel - use button text since no specific testid exists
+    const cancelButton = page.getByRole('button', { name: /cancel/i });
     await cancelButton.click();
 
     // Modal should close
@@ -218,7 +218,7 @@ test.describe('Feedback Modal Edge Cases', () => {
     await openFeedbackModal(page);
 
     // Fill some data
-    await page.getByTestId('feedback-text').fill('Testing overlay click');
+    await page.getByTestId('feedback-message').fill('Testing overlay click');
 
     // Click on the modal overlay (outside the modal content)
     // This assumes the modal has a backdrop/overlay
