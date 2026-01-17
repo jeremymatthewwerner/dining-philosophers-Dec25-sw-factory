@@ -1,6 +1,7 @@
 /**
  * Message input component for user to type and send messages.
  * Supports @mention autocomplete for thinkers in the conversation.
+ * Displays styled @mentions (with icon + bold name) in the composition box.
  */
 
 'use client';
@@ -17,6 +18,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { ConversationThinker } from '@/types';
 import { MentionAutocomplete, filterThinkers } from './MentionAutocomplete';
+import { ThinkerAvatar } from './ThinkerAvatar';
 
 export interface MessageInputProps {
   /** Callback when message is submitted */
@@ -47,6 +49,117 @@ const initialMentionState: MentionState = {
   selectedIndex: 0,
 };
 
+// Default colors for thinkers if no color specified
+const DEFAULT_THINKER_COLORS = [
+  '#3B82F6', // blue
+  '#10B981', // emerald
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#8B5CF6', // violet
+  '#EC4899', // pink
+];
+
+function getColorFromName(name: string): string {
+  const hash = name
+    .split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return DEFAULT_THINKER_COLORS[hash % DEFAULT_THINKER_COLORS.length];
+}
+
+function escapeRegex(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Renders text content with styled mentions of thinkers.
+ * Mentions are styled with the thinker's color and include their avatar inline.
+ */
+function renderContentWithMentions(
+  content: string,
+  thinkers: ConversationThinker[]
+): React.ReactNode {
+  if (!thinkers || thinkers.length === 0 || !content) {
+    return content;
+  }
+
+  // Build a map of names to thinker data (case-insensitive)
+  const thinkerMap = new Map<string, ConversationThinker>();
+  thinkers.forEach((t) => {
+    thinkerMap.set(t.name.toLowerCase(), t);
+    // Also map individual name parts for partial matches (first name, last name, etc.)
+    const nameParts = t.name.split(' ');
+    nameParts.forEach((part) => {
+      if (part.length > 2) {
+        thinkerMap.set(part.toLowerCase(), t);
+      }
+    });
+  });
+
+  // Create regex pattern matching any thinker name (case-insensitive)
+  const names = Array.from(thinkerMap.keys()).sort(
+    (a, b) => b.length - a.length
+  ); // Longest first
+  if (names.length === 0) return content;
+
+  const pattern = new RegExp(
+    `\\b(${names.map(escapeRegex).join('|')})\\b`,
+    'gi'
+  );
+
+  // Split content by mentions
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = pattern.exec(content)) !== null) {
+    // Add text before this match
+    if (match.index > lastIndex) {
+      parts.push(
+        <span key={`text-${key++}`}>
+          {content.slice(lastIndex, match.index)}
+        </span>
+      );
+    }
+
+    // Add the highlighted mention
+    const matchedName = match[1];
+    const thinker = thinkerMap.get(matchedName.toLowerCase());
+    if (thinker) {
+      const color = thinker.color || getColorFromName(thinker.name);
+      parts.push(
+        <span
+          key={`mention-${key++}`}
+          className="inline-flex items-center gap-0.5 font-semibold rounded px-0.5"
+          style={{
+            color,
+            backgroundColor: `${color}15`,
+          }}
+        >
+          <ThinkerAvatar
+            name={thinker.name}
+            imageUrl={thinker.image_url}
+            size="xs"
+            color={color}
+          />
+          {matchedName}
+        </span>
+      );
+    } else {
+      parts.push(<span key={`text-${key++}`}>{matchedName}</span>);
+    }
+
+    lastIndex = match.index + matchedName.length;
+  }
+
+  // Add remaining text
+  if (lastIndex < content.length) {
+    parts.push(<span key={`text-${key++}`}>{content.slice(lastIndex)}</span>);
+  }
+
+  return parts.length > 0 ? parts : content;
+}
+
 export function MessageInput({
   onSend,
   onTypingStart,
@@ -66,6 +179,7 @@ export function MessageInput({
   });
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Update dropdown position when autocomplete becomes active
@@ -275,13 +389,39 @@ export function MessageInput({
     updateMentionState(value, cursorPos);
   }, [value, updateMentionState]);
 
-  // Auto-resize textarea
+  // Auto-resize textarea and sync overlay
   const handleTextareaResize = useCallback(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      // Sync overlay height
+      if (overlayRef.current) {
+        overlayRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      }
     }
   }, []);
+
+  // Sync scroll position between textarea and overlay
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && overlayRef.current) {
+      overlayRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, []);
+
+  // Check if there are any thinker mentions in the current value
+  const hasMentions =
+    thinkers.length > 0 &&
+    value &&
+    thinkers.some((t) => {
+      const lowerValue = value.toLowerCase();
+      const lowerName = t.name.toLowerCase();
+      // Check full name or any name part > 2 chars
+      if (lowerValue.includes(lowerName)) return true;
+      const nameParts = t.name.split(' ');
+      return nameParts.some(
+        (part) => part.length > 2 && lowerValue.includes(part.toLowerCase())
+      );
+    });
 
   const filteredThinkers = filterThinkers(thinkers, mentionState.query);
   const showAutocomplete =
@@ -308,22 +448,43 @@ export function MessageInput({
         />
       )}
 
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(e) => {
-          handleChange(e);
-          handleTextareaResize();
-        }}
-        onKeyDown={handleKeyDown}
-        onSelect={handleSelect}
-        onClick={handleSelect}
-        disabled={disabled}
-        placeholder={placeholder || t.messageInput.placeholder}
-        rows={1}
-        className="flex-1 px-4 py-2 min-h-[44px] max-h-[200px] rounded-2xl border border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
-        data-testid="message-textarea"
-      />
+      {/* Textarea container with styled overlay for mentions */}
+      <div className="flex-1 relative">
+        {/* Styled overlay - renders mentions with icons/colors */}
+        {hasMentions && (
+          <div
+            ref={overlayRef}
+            className="absolute inset-0 px-4 py-2 min-h-[44px] max-h-[200px] rounded-2xl border border-transparent bg-transparent text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+            style={{ lineHeight: '1.5' }}
+            aria-hidden="true"
+            data-testid="mention-overlay"
+          >
+            {renderContentWithMentions(value, thinkers)}
+          </div>
+        )}
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => {
+            handleChange(e);
+            handleTextareaResize();
+          }}
+          onKeyDown={handleKeyDown}
+          onSelect={handleSelect}
+          onClick={handleSelect}
+          onScroll={handleScroll}
+          disabled={disabled}
+          placeholder={placeholder || t.messageInput.placeholder}
+          rows={1}
+          className={`w-full px-4 py-2 min-h-[44px] max-h-[200px] rounded-2xl border border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed ${
+            hasMentions
+              ? 'text-transparent caret-zinc-900 dark:caret-zinc-100'
+              : 'text-zinc-900 dark:text-zinc-100'
+          }`}
+          style={hasMentions ? { caretColor: 'currentColor' } : undefined}
+          data-testid="message-textarea"
+        />
+      </div>
       <button
         type="submit"
         disabled={disabled || !value.trim()}
