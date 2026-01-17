@@ -1145,15 +1145,14 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                     continue
 
                 # Get speed multiplier (higher = slower)
-                # Use non-linear scaling: speed_mult^1.5 makes higher speeds much slower
-                # At 1x: 1.0, at 2x: 2.8, at 4x: 8.0, at 6x: 14.7
-                raw_speed = manager.get_speed_multiplier(conversation_id)
-                speed_mult = raw_speed**1.5
+                # Use linear scaling: 6x setting = 6x slower (as user expects)
+                # Previous exponential scaling (^1.5) made 6x feel like 14.7x - way too slow
+                speed_mult = manager.get_speed_multiplier(conversation_id)
 
                 # Enforce minimum time between messages from this thinker
-                # At 6x (Contemplative), minimum ~220s between messages from same thinker
-                # This ensures truly slow, contemplative pacing
-                min_interval = 15.0 * speed_mult  # 15s base, ~220s at 6x
+                # At 6x (Contemplative), minimum 90s between messages from same thinker
+                # This ensures slow, contemplative pacing while still feeling responsive
+                min_interval = 15.0 * speed_mult  # 15s base, 90s at 6x
                 current_time = asyncio.get_event_loop().time()
                 if last_message_time > 0:
                     elapsed = current_time - last_message_time
@@ -1219,7 +1218,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                     await manager.send_thinker_typing(conversation_id, thinker.name)
 
                     # Initial "reading" delay - longer at slower speeds
-                    # At 6x: 15-37 seconds of reading before starting to type
+                    # At 6x: 6-15 seconds of reading before starting to type
                     await asyncio.sleep(random.uniform(1.0, 2.5) * speed_mult)
 
                     # Check pause state before generating (prevents spend during pause)
@@ -1303,7 +1302,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
                 # Variable wait before checking again
                 # Base times are longer to ensure proper pacing
-                # At 6x (Contemplative): active = 74-147s, quiet = 147-294s between checks
+                # At 6x (Contemplative): active = 30-60s, quiet = 60-120s between checks
                 if consecutive_silence > 3:
                     wait_time = random.uniform(10.0, 20.0) * speed_mult  # Quiet conversation
                 else:
