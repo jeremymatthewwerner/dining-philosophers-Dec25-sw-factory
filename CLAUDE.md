@@ -725,7 +725,7 @@ The QA agent performs **periodic reflection and enhancement** of the test suite:
 - Monday: Coverage Sprint - bring lowest-coverage module up by 15%+
 - Tuesday: Flaky Test Hunt - run tests 5x, identify and fix flaky tests
 - Wednesday: Integration Test Gaps - add tests for untested API endpoints
-- Thursday: E2E Enhancement - add edge case E2E tests (errors, mobile, edge cases)
+- Thursday: E2E Performance - optimize E2E tests (reduce waits, improve parallelism)
 - Friday: Test Refactoring - improve readability, reduce duplication
 - Saturday: Edge Case Analysis - test error paths and boundary conditions
 - Sunday: Regression Prevention - add tests for recent bug fixes
