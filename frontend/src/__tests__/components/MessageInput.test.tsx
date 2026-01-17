@@ -385,3 +385,68 @@ describe('MessageInput - @mention autocomplete', () => {
     expect(screen.getByTestId('mention-option-plato')).toBeInTheDocument();
   });
 });
+
+describe('MessageInput - styled mention overlay', () => {
+  it('shows styled mention overlay when thinker name is in message', async () => {
+    const onSend = jest.fn();
+    render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
+
+    const textarea = screen.getByTestId('message-textarea');
+    await user.type(textarea, '@');
+    await user.click(screen.getByTestId('mention-option-socrates'));
+
+    // Overlay should appear with styled mention
+    expect(screen.getByTestId('mention-overlay')).toBeInTheDocument();
+  });
+
+  it('does not show overlay when no mentions in text', async () => {
+    const onSend = jest.fn();
+    render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
+
+    const textarea = screen.getByTestId('message-textarea');
+    await user.type(textarea, 'Hello world');
+
+    // No overlay since no thinker names match
+    expect(screen.queryByTestId('mention-overlay')).not.toBeInTheDocument();
+  });
+
+  it('overlay contains the thinker name text', async () => {
+    const onSend = jest.fn();
+    render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
+
+    const textarea = screen.getByTestId('message-textarea');
+    await user.type(textarea, 'Hello @');
+    await user.click(screen.getByTestId('mention-option-plato'));
+
+    const overlay = screen.getByTestId('mention-overlay');
+    expect(overlay.textContent).toContain('Plato');
+  });
+
+  it('clears overlay when message is sent', async () => {
+    const onSend = jest.fn();
+    render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
+
+    const textarea = screen.getByTestId('message-textarea');
+    await user.type(textarea, '@');
+    await user.click(screen.getByTestId('mention-option-socrates'));
+    expect(screen.getByTestId('mention-overlay')).toBeInTheDocument();
+
+    // Send the message
+    await user.click(screen.getByTestId('send-button'));
+
+    // Overlay should be gone
+    expect(screen.queryByTestId('mention-overlay')).not.toBeInTheDocument();
+  });
+
+  it('makes textarea text transparent when overlay is visible', async () => {
+    const onSend = jest.fn();
+    render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
+
+    const textarea = screen.getByTestId('message-textarea');
+    await user.type(textarea, '@');
+    await user.click(screen.getByTestId('mention-option-socrates'));
+
+    // Textarea should have transparent text class when overlay is visible
+    expect(textarea).toHaveClass('text-transparent');
+  });
+});
