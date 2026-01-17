@@ -616,17 +616,29 @@ jobs:
             echo "$SUMMARY"
           }
 
-          echo "Finding issues referenced in recent PRs (documentation-only change)..."
+          echo "Finding issues referenced in recently MERGED PRs (documentation-only change)..."
 
           # Get PR numbers from recent commit messages (squash merges include PR #)
           PR_NUMBERS=$(git log --oneline -10 | grep -oE '#[0-9]+' | tr -d '#' | sort -u)
 
           ISSUE_NUMBERS=""
 
-          # For each PR, check its body for "Relates to #N"
+          # For each PR, verify it was MERGED before extracting issue references
+          # This prevents closing issues when related (but unmerged) PRs are referenced
           for PR_NUM in $PR_NUMBERS; do
-            echo "Checking PR #$PR_NUM for issue references..."
-            PR_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
+            echo "Checking PR #$PR_NUM..."
+
+            # Get PR state - must be MERGED to close referenced issues
+            PR_DATA=$(gh pr view $PR_NUM --json state,body 2>/dev/null || echo '{"state":"UNKNOWN","body":""}')
+            PR_STATE=$(echo "$PR_DATA" | jq -r '.state')
+            PR_BODY=$(echo "$PR_DATA" | jq -r '.body')
+
+            if [ "$PR_STATE" != "MERGED" ]; then
+              echo "  Skipping PR #$PR_NUM - state is '$PR_STATE' (not MERGED)"
+              continue
+            fi
+
+            echo "  PR #$PR_NUM is MERGED, extracting issue references..."
 
             # Extract issue numbers from "Relates to #N" or "Fixes #N" patterns
             REFS=$(echo "$PR_BODY" | grep -oE '(Relates to|Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
@@ -762,17 +774,29 @@ jobs:
             echo "$SUMMARY"
           }
 
-          echo "Finding issues referenced in recent PRs..."
+          echo "Finding issues referenced in recently MERGED PRs..."
 
           # Get PR numbers from recent commit messages (squash merges include PR #)
           PR_NUMBERS=$(git log --oneline -10 | grep -oE '#[0-9]+' | tr -d '#' | sort -u)
 
           ISSUE_NUMBERS=""
 
-          # For each PR, check its body for "Relates to #N"
+          # For each PR, verify it was MERGED before extracting issue references
+          # This prevents closing issues when related (but unmerged) PRs are referenced
           for PR_NUM in $PR_NUMBERS; do
-            echo "Checking PR #$PR_NUM for issue references..."
-            PR_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
+            echo "Checking PR #$PR_NUM..."
+
+            # Get PR state - must be MERGED to close referenced issues
+            PR_DATA=$(gh pr view $PR_NUM --json state,body 2>/dev/null || echo '{"state":"UNKNOWN","body":""}')
+            PR_STATE=$(echo "$PR_DATA" | jq -r '.state')
+            PR_BODY=$(echo "$PR_DATA" | jq -r '.body')
+
+            if [ "$PR_STATE" != "MERGED" ]; then
+              echo "  Skipping PR #$PR_NUM - state is '$PR_STATE' (not MERGED)"
+              continue
+            fi
+
+            echo "  PR #$PR_NUM is MERGED, extracting issue references..."
 
             # Extract issue numbers from "Relates to #N" or "Fixes #N" patterns
             REFS=$(echo "$PR_BODY" | grep -oE '(Relates to|Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
