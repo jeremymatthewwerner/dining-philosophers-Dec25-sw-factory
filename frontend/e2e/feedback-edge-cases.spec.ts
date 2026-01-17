@@ -65,8 +65,6 @@ test.describe('Feedback Modal Edge Cases', () => {
   test('should handle very long feedback text (15k chars)', async ({
     page,
   }) => {
-    // This test handles large text input and submission
-    test.slow();
     await openFeedbackModal(page);
 
     // Fill with contact info
@@ -86,18 +84,22 @@ test.describe('Feedback Modal Edge Cases', () => {
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
 
-    // Should either succeed or show length error
-    await page.waitForTimeout(5000);
+    // Wait for success OR error - use Promise.race
+    const successSelector = page.locator(
+      'text=/thank you|feedback.*submitted|sent/i'
+    );
+    const errorSelector = page.locator(
+      'text=/too long|maximum.*characters|limit/i'
+    );
 
-    const successVisible = await page
-      .locator('text=/thank you|feedback.*submitted|sent/i')
-      .isVisible()
-      .catch(() => false);
+    await Promise.race([
+      successSelector.waitFor({ timeout: 15000 }).catch(() => {}),
+      errorSelector.waitFor({ timeout: 15000 }).catch(() => {}),
+      page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {}),
+    ]);
 
-    const errorVisible = await page
-      .locator('text=/too long|maximum.*characters|limit/i')
-      .isVisible()
-      .catch(() => false);
+    const successVisible = await successSelector.isVisible().catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // Should handle gracefully (either accept or reject with message)
     expect(successVisible || errorVisible).toBe(true);
@@ -109,23 +111,22 @@ test.describe('Feedback Modal Edge Cases', () => {
 
     // Fill with invalid email
     await page.getByTestId('feedback-name').fill('Email Test');
-    await page
-      .getByTestId('feedback-email')
-      .fill('invalidemail'); // No @ sign
-    await page
-      .getByTestId('feedback-text')
-      .fill('Testing email validation');
+    await page.getByTestId('feedback-email').fill('invalidemail'); // No @ sign
+    await page.getByTestId('feedback-text').fill('Testing email validation');
 
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
 
-    // Should show validation error
-    await page.waitForTimeout(2000);
+    // Wait for error OR network idle (since this is client-side, should be fast)
+    const errorSelector = page.locator(
+      'text=/invalid email|email format|valid email/i'
+    );
+    await Promise.race([
+      errorSelector.waitFor({ timeout: 3000 }).catch(() => {}),
+      page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {}),
+    ]);
 
-    const errorVisible = await page
-      .locator('text=/invalid email|email format|valid email/i')
-      .isVisible()
-      .catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // Or HTML5 validation catches it
     const emailInput = page.getByTestId('feedback-email');
@@ -139,8 +140,6 @@ test.describe('Feedback Modal Edge Cases', () => {
   test('should handle special characters in name and email', async ({
     page,
   }) => {
-    // This test involves submission to backend which may take extra time
-    test.slow();
     await openFeedbackModal(page);
 
     // Use special characters in name
@@ -157,14 +156,12 @@ test.describe('Feedback Modal Edge Cases', () => {
     // Should succeed without corrupting special characters
     await expect(
       page.locator('text=/thank you|feedback.*submitted|sent/i')
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test('should allow submission without contact info (anonymous)', async ({
     page,
   }) => {
-    // This test involves submission to backend
-    test.slow();
     await openFeedbackModal(page);
 
     // Leave name and email empty
@@ -177,18 +174,22 @@ test.describe('Feedback Modal Edge Cases', () => {
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
 
-    // Should either accept anonymous feedback or require contact info
-    await page.waitForTimeout(5000);
+    // Wait for success OR error - use Promise.race
+    const successSelector = page.locator(
+      'text=/thank you|feedback.*submitted|sent/i'
+    );
+    const errorSelector = page.locator(
+      'text=/contact.*required|name.*required|email.*required/i'
+    );
 
-    const successVisible = await page
-      .locator('text=/thank you|feedback.*submitted|sent/i')
-      .isVisible()
-      .catch(() => false);
+    await Promise.race([
+      successSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      errorSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {}),
+    ]);
 
-    const errorVisible = await page
-      .locator('text=/contact.*required|name.*required|email.*required/i')
-      .isVisible()
-      .catch(() => false);
+    const successVisible = await successSelector.isVisible().catch(() => false);
+    const errorVisible = await errorSelector.isVisible().catch(() => false);
 
     // One should be true (either accepts anonymous or requires contact)
     expect(successVisible || errorVisible).toBe(true);
@@ -224,8 +225,8 @@ test.describe('Feedback Modal Edge Cases', () => {
     const modalOverlay = page.locator('[data-testid="feedback-modal"]');
     await modalOverlay.click({ position: { x: 5, y: 5 } }); // Click top-left corner (overlay)
 
-    // Modal might close or stay open depending on implementation
-    await page.waitForTimeout(1000);
+    // Wait briefly for any animation
+    await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
 
     const modalStillVisible = await page
       .getByTestId('feedback-modal')
