@@ -1494,10 +1494,13 @@ jobs:
           SIZE_CONTEXT: ${{ steps.size_check.outputs.size_context }}
           COMMENT_COUNT: ${{ steps.size_check.outputs.comment_count }}
         run: |
-          # Improved fallback detection - check for any claude[bot] comment in last 15 minutes (author-based)
+          # Improved fallback detection - check for either:
+          # 1. claude[bot] comments (when posted via action's built-in mechanism)
+          # 2. Comments containing "[Factory Manager]" (when posted via gh using PAT)
+          # The PAT posts as the PAT owner, not as claude[bot]
           RECENT_RESPONSE=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
             --jq '[.[] | select(
-              (.user.login == "claude[bot]") and
+              ((.user.login == "claude[bot]") or (.body | contains("[Factory Manager]"))) and
               ((.created_at | fromdateiso8601) > (now - 900))
             )] | length' 2>/dev/null || echo "0")
 
