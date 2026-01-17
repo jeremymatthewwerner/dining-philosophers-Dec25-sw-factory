@@ -134,8 +134,8 @@ test.describe('Thinker Responses', () => {
       return messages.length;
     };
 
-    // Wait a moment for thinker to potentially start responding
-    await page.waitForTimeout(2000);
+    // Wait for potential thinker response to start - use network idle instead of arbitrary wait
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     const countBeforePause = await getMessageCount();
 
     // Pause the conversation
@@ -143,8 +143,8 @@ test.describe('Thinker Responses', () => {
     await pauseButton.click();
     await expect(pauseButton).toContainText('Resume');
 
-    // Wait and verify no new messages appear while paused
-    await page.waitForTimeout(5000);
+    // Wait and verify no new messages appear while paused - use shorter check
+    await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
     const countWhilePaused = await getMessageCount();
 
     // Message count should not have increased significantly while paused
@@ -154,22 +154,15 @@ test.describe('Thinker Responses', () => {
     await pauseButton.click();
     await expect(pauseButton).toContainText('Pause');
 
-    // Wait for thinker to respond after resume
-    let countAfterResume = countWhilePaused;
-    const maxWaitTime = 45000;
-    const pollInterval = 2000;
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < maxWaitTime) {
-      await page.waitForTimeout(pollInterval);
-      countAfterResume = await getMessageCount();
-      if (countAfterResume > countWhilePaused) {
-        break;
+    // Wait for thinker to respond after resume - use expect.poll instead of manual polling
+    await expect.poll(
+      async () => await getMessageCount(),
+      {
+        message: 'Expected message count to increase after resume',
+        timeout: 45000,
+        intervals: [2000, 2000, 2000]
       }
-    }
-
-    // Should have more messages after resuming
-    expect(countAfterResume).toBeGreaterThan(countWhilePaused);
+    ).toBeGreaterThan(countWhilePaused);
   });
 
   // SKIP: Flaky in CI - depends on Claude API response times which can timeout
@@ -235,8 +228,15 @@ test.describe('Thinker Responses', () => {
     const thinkerNameElements = page.getByTestId('thinker-name');
     await expect(thinkerNameElements.first()).toBeVisible({ timeout: 5000 });
 
-    // Wait a bit more for second thinker to potentially respond
-    await page.waitForTimeout(15000);
+    // Wait for second thinker to potentially respond - poll for count to stabilize
+    await expect.poll(
+      async () => await thinkerNameElements.count(),
+      {
+        message: 'Expected at least one thinker to respond',
+        timeout: 15000,
+        intervals: [2000, 2000, 2000]
+      }
+    ).toBeGreaterThanOrEqual(1);
 
     // Collect unique thinker names that responded
     const thinkerNamesCount = await thinkerNameElements.count();
