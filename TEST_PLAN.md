@@ -2,6 +2,56 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0. Edge Case Analysis - Saturday Sprint (Added 2026-01-17)
+
+**Focus**: Add edge case tests for error paths and boundary conditions
+
+### 0.1 Edge Case Tests
+**File**: `backend/tests/test_edge_cases_saturday.py`
+**Purpose**: Test boundary conditions, validation edge cases, and error paths
+
+**Tests Added (7 total)**:
+- ✅ `test_send_message_to_active_conversation_succeeds` - Validates normal message sending flow
+  - Creates conversation and sends message
+  - Verifies message is stored with correct content
+
+- ✅ `test_send_empty_message_rejected` - Tests empty message validation
+  - Attempts to send empty string as message
+  - Validates 422 validation error is returned
+
+- ✅ `test_change_password_to_same_password` - Tests password change to same value
+  - Changes password to identical value
+  - Validates system allows this (design decision - no prevention)
+
+- ✅ `test_change_password_with_leading_trailing_whitespace` - Tests whitespace handling in passwords
+  - Changes password to value with leading/trailing spaces
+  - Validates whitespace is NOT trimmed (part of password)
+  - Confirms login works with exact password including spaces
+
+- ✅ `test_change_password_with_very_long_password` - Tests extremely long password handling
+  - Attempts 500-character password
+  - Validates graceful handling (success or validation error, not crash)
+
+- ✅ `test_create_conversation_with_empty_topic` - Tests empty topic validation
+  - Attempts to create conversation with empty topic
+  - Validates 422 validation error
+
+- ✅ `test_create_conversation_with_very_long_topic` - Tests extremely long topic handling
+  - Attempts ~11,000 character topic
+  - Validates graceful handling (success or validation error, not crash)
+
+**Coverage Impact**: These tests validate edge cases and boundary conditions not covered by happy-path tests
+**Test Stability**: All 7 tests pass reliably (0% flakiness verified across 3 runs)
+
+**Benefits**:
+- Validates password handling doesn't silently trim whitespace
+- Tests boundary conditions (empty strings, very long inputs)
+- Ensures graceful degradation instead of crashes
+- Documents design decisions (e.g., allowing same password change)
+- Provides regression protection for edge cases
+
+---
+
 ## 0. E2E Enhancement - Edge Case Coverage (Added 2026-01-15)
 
 **Focus**: Add E2E tests for edge cases and validation scenarios not covered by existing tests
