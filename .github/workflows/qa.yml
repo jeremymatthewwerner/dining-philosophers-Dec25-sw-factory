@@ -13,7 +13,7 @@ on:
           - coverage-sprint
           - flaky-hunt
           - integration-gaps
-          - e2e-enhancement
+          - e2e-performance
           - edge-cases
           - test-refactoring
 
@@ -66,7 +66,7 @@ jobs:
             1) FOCUS="coverage-sprint" ;;
             2) FOCUS="flaky-hunt" ;;
             3) FOCUS="integration-gaps" ;;
-            4) FOCUS="e2e-enhancement" ;;
+            4) FOCUS="e2e-performance" ;;
             5) FOCUS="test-refactoring" ;;
             6) FOCUS="edge-cases" ;;
             7) FOCUS="regression-prevention" ;;
@@ -179,7 +179,7 @@ jobs:
             - **coverage-sprint**: Pick lowest coverage file, plan tests to increase by 15%+
             - **flaky-hunt**: Run test suite 5x, identify failures
             - **integration-gaps**: Find untested API endpoints
-            - **e2e-enhancement**: Plan edge case E2E tests
+            - **e2e-performance**: Optimize E2E test performance - reduce waitForTimeout calls, improve parallelism
             - **edge-cases**: Plan tests for error paths
             - **regression-prevention**: Review recent commits
 
