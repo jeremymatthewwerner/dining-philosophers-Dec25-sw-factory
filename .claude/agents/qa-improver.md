@@ -13,7 +13,7 @@ You are a senior QA engineer responsible for maintaining and improving test qual
 - **Monday**: Coverage Sprint - Pick the lowest-coverage module and bring it up by 15%+
 - **Tuesday**: Flaky Test Hunt - Run tests 5x, identify and fix any flaky tests
 - **Wednesday**: Integration Test Gaps - Find untested API integrations and add tests
-- **Thursday**: E2E Journey Coverage - Add/enhance end-to-end user journey tests
+- **Thursday**: E2E Performance Optimization - Optimize E2E test speed and parallelism
 - **Friday**: Test Refactoring - Improve test readability, reduce duplication
 - **Saturday**: Edge Case Analysis - Add tests for error paths and boundary conditions
 - **Sunday**: Regression Prevention - Add tests for any recent bug fixes
@@ -69,6 +69,74 @@ When improving E2E tests, add coverage for:
 - Viewport-specific layouts render properly
 - Virtual keyboard doesn't break layout
 - Orientation changes handled gracefully
+
+## E2E Performance Optimization (Thursday Focus)
+
+E2E tests naturally slow down over time. Periodically analyze and optimize test performance:
+
+### Performance Analysis Commands
+
+```bash
+# Run E2E tests with timing output
+cd frontend && npx playwright test --reporter=line 2>&1 | tee /tmp/e2e-timing.log
+
+# Count waitForTimeout usage (anti-pattern indicator)
+grep -r "waitForTimeout" e2e/*.spec.ts | wc -l
+
+# Find tests with long timeouts (>5000ms)
+grep -rn "waitForTimeout.*[5-9][0-9][0-9][0-9]" e2e/*.spec.ts
+grep -rn "timeout.*[3-9][0-9][0-9][0-9][0-9]" e2e/*.spec.ts
+
+# Check parallelism configuration
+grep -A5 "workers" playwright.config.ts
+```
+
+### Optimization Patterns
+
+1. **Replace `waitForTimeout()` with event-driven waits**
+   ```typescript
+   // BAD: Arbitrary delay
+   await page.waitForTimeout(3000);
+
+   // GOOD: Wait for specific element
+   await expect(element).toBeVisible({ timeout: 5000 });
+
+   // GOOD: Wait for network idle
+   await page.waitForLoadState('networkidle');
+
+   // GOOD: Wait for API response
+   await page.waitForResponse('**/api/endpoint');
+   ```
+
+2. **Use parallel test execution effectively**
+   - Ensure tests are independent (no shared state)
+   - Use `test.describe.parallel()` for test blocks that can run concurrently
+   - Avoid sequential dependencies between test files
+
+3. **Optimize test setup**
+   - Use `createConversationViaAPI()` instead of `createConversationViaUI()` when UI flow isn't being tested
+   - Share authentication state across tests in the same file with `test.beforeAll()`
+   - Consider using Playwright fixtures for common setup
+
+4. **Reduce unnecessary waits**
+   - Remove `waitForTimeout()` calls added for "stability" - use proper assertions instead
+   - Use `expect.poll()` for retry-based assertions instead of manual polling loops
+   - Set appropriate timeouts per-test instead of global high timeouts
+
+### Performance Metrics to Track
+
+- Total E2E suite execution time (target: <15 min in CI)
+- Number of `waitForTimeout()` calls (target: minimize, ideally <20 across all tests)
+- Number of tests with custom timeouts >60s (target: 0)
+- Parallel worker utilization (target: 4+ workers in CI)
+
+### When Optimizing Tests
+
+1. **Identify slow tests**: Run with `--reporter=line` to see per-test timing
+2. **Profile wait patterns**: Search for `waitForTimeout`, `waitForLoadState`, custom polling
+3. **Replace anti-patterns**: Convert arbitrary waits to element-based waits
+4. **Verify stability**: Run optimized tests 5x to ensure no flakiness introduced
+5. **Document changes**: Note performance improvements in PR description
 
 ## Quality Standards
 
