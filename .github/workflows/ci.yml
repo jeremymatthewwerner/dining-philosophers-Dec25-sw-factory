@@ -623,13 +623,15 @@ jobs:
 
           ISSUE_NUMBERS=""
 
-          # For each PR, check its body for "Relates to #N"
+          # For each PR, check its body for "Fixes/Closes/Resolves #N"
           for PR_NUM in $PR_NUMBERS; do
             echo "Checking PR #$PR_NUM for issue references..."
             PR_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
 
-            # Extract issue numbers from "Relates to #N" or "Fixes #N" patterns
-            REFS=$(echo "$PR_BODY" | grep -oE '(Relates to|Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
+            # Extract issue numbers ONLY from "Fixes #N", "Closes #N", "Resolves #N" patterns
+            # IMPORTANT: Do NOT match "Relates to #N" - that indicates context, not a fix
+            # See issue #518 for the bug this pattern caused
+            REFS=$(echo "$PR_BODY" | grep -oE '(Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
 
             if [ -n "$REFS" ]; then
               echo "  Found issue refs in PR #$PR_NUM: $REFS"
@@ -769,13 +771,15 @@ jobs:
 
           ISSUE_NUMBERS=""
 
-          # For each PR, check its body for "Relates to #N"
+          # For each PR, check its body for "Fixes/Closes/Resolves #N"
           for PR_NUM in $PR_NUMBERS; do
             echo "Checking PR #$PR_NUM for issue references..."
             PR_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
 
-            # Extract issue numbers from "Relates to #N" or "Fixes #N" patterns
-            REFS=$(echo "$PR_BODY" | grep -oE '(Relates to|Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
+            # Extract issue numbers ONLY from "Fixes #N", "Closes #N", "Resolves #N" patterns
+            # IMPORTANT: Do NOT match "Relates to #N" - that indicates context, not a fix
+            # See issue #518 for the bug this pattern caused
+            REFS=$(echo "$PR_BODY" | grep -oE '(Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
 
             if [ -n "$REFS" ]; then
               echo "  Found issue refs in PR #$PR_NUM: $REFS"
