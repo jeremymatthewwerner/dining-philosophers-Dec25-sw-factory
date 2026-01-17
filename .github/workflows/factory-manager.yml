@@ -1391,6 +1391,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          # Allow bot triggers - Factory Manager may respond to issues with bot comments
+          allowed_actor_types: "User,Bot"
           prompt: |
             You are the Factory Manager - a meta-agent responsible for monitoring and maintaining the autonomous software factory.
 
@@ -1683,6 +1685,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           github_token: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+          # Allow bot triggers - Factory Manager may respond to issues with bot comments
+          allowed_actor_types: "User,Bot"
           prompt: |
             You are the Factory Manager performing a deep diagnosis of issue #${{ github.event.inputs.issue_number }}.
 
