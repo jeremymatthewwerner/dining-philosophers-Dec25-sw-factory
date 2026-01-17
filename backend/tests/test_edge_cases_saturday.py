@@ -110,7 +110,9 @@ class TestPasswordChangeEdgeCases:
         assert response.status_code == 200
         assert response.json()["message"] == "Password changed successfully"
 
-    async def test_change_password_with_leading_trailing_whitespace(self, client: AsyncClient) -> None:
+    async def test_change_password_with_leading_trailing_whitespace(
+        self, client: AsyncClient
+    ) -> None:
         """Test that passwords with leading/trailing whitespace are handled correctly."""
         headers = await get_auth_headers(client, "wsuser", "password123")
 
