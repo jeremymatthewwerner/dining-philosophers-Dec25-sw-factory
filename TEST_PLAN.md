@@ -2,6 +2,86 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0. Regression Prevention - Sunday Sprint (Added 2026-01-18)
+
+**Focus**: Add regression tests for recently fixed bugs to prevent recurrence
+
+### 0.1 Thinker Speed Multiplier Regression Tests
+**File**: `backend/tests/test_regression_prevention_jan2026.py`
+**Purpose**: Prevent regression of thinker speed multiplier bug (Issue #531, PR #533)
+
+**Bug Fixed**:
+- Exponential scaling (speed^1.5) made 6x feel like 14.7x with 220s minimum wait between messages
+- Users reported contemplative mode was far too slow
+
+**Fix**:
+- Changed to linear scaling where 6x = 6x (not 14.7x)
+- Reduced minimum wait from 220s to 90s at 6x speed
+
+**Tests Added (3 total)**:
+- ✅ `test_speed_multiplier_uses_linear_scaling` - Verifies linear scaling vs exponential
+  - Validates 6x speed multiplier results in 90s min wait (15s * 6)
+  - Compares to old exponential: 15s * 6^1.5 = 220.5s
+  - Confirms improvement factor > 2.4x faster
+
+- ✅ `test_speed_multiplier_wait_times_at_different_speeds` - Tests scaling at multiple speeds
+  - Validates linear scaling at 1x, 2x, 4x, and 6x speeds
+  - Confirms expected wait times: 15s, 30s, 60s, 90s
+
+- ✅ `test_speed_multiplier_boundary_values` - Tests min/max speed values
+  - Minimum speed (0.5x): 7.5s wait
+  - Maximum speed (6.0x): 90s wait
+
+**Coverage Impact**: Ensures thinker service speed calculation remains linear
+**Test Stability**: All 3 tests pass reliably (100% pass rate across 3 runs)
+
+**Benefits**:
+- Prevents regression to exponential scaling
+- Documents expected behavior at different speeds
+- Tests boundary conditions (min: 0.5x, max: 6.0x)
+- Provides clear baseline for future speed tuning
+
+---
+
+### 0.2 UI @mention Badge Alignment Regression Tests
+**File**: `frontend/src/__tests__/regression/mention-alignment.test.tsx`
+**Purpose**: Prevent regression of @mention badge vertical alignment (Issue #493, PR #494)
+
+**Bug Fixed**:
+- @mention badges appeared a few pixels higher than surrounding text
+- `inline-flex items-center` centered children within span but didn't align span with text baseline
+
+**Fix**:
+- Added `verticalAlign: 'text-bottom'` to @mention span elements
+- Aligns span with text baseline of surrounding content
+
+**Tests Added (4 total)**:
+- ✅ `test mention badge has verticalAlign: text-bottom style` - Validates CSS property present
+  - Renders message with "Socrates" mention
+  - Verifies span has `verticalAlign: 'text-bottom'`
+
+- ✅ `test mention badge alignment with multiple mentions` - Tests multiple mentions in same message
+  - Renders "Both Socrates and Plato would agree"
+  - Validates all mention spans have correct alignment
+
+- ✅ `test mention badge alignment in long text` - Tests mention embedded in long text
+  - Validates alignment persists in lengthy messages
+
+- ✅ `test mention badge style includes color and background` - Validates complete style object
+  - Confirms color, backgroundColor, and verticalAlign all present
+  - Ensures fix doesn't override other properties
+
+**Coverage Impact**: Ensures @mention rendering in Message component maintains alignment
+**Test Stability**: All 4 tests pass reliably (100% pass rate across 3 runs)
+
+**Benefits**:
+- Prevents visual regression of mention badges
+- Tests edge cases (multiple mentions, long text)
+- Validates complete style object integrity
+- Documents expected CSS properties for mentions
+
+---
+
 ## 0. Edge Case Analysis - Saturday Sprint (Added 2026-01-17)
 
 **Focus**: Add edge case tests for error paths and boundary conditions
