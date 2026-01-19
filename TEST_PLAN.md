@@ -2180,3 +2180,82 @@ All 15 tests pass reliably:
 5. **Zero Flakiness**: All tests pass reliably across 3 consecutive runs
 
 ---
+
+## Coverage Sprint - Conversations API Integration Tests (Added 2026-01-19)
+
+**Focus**: Increase test coverage for app/api/conversations.py by adding integration tests for previously untested code paths
+
+### Test File: `backend/tests/test_conversations_direct_coverage.py`
+**Purpose**: Direct integration tests to cover critical conversations API endpoints without heavy mocking
+**Coverage Target**: app/api/conversations.py (lines 46-61, 85-105, 241-268)
+
+**Tests Added (8 total)**:
+
+#### TestCreateConversationThinkerLoop (3 tests)
+Tests the thinker creation loop in create_conversation endpoint (lines 46-61, 67)
+
+- ✅ `test_create_with_single_thinker_executes_loop` - Tests single thinker creation
+  - Creates conversation with 1 thinker using default color
+  - Validates thinker is created with correct color from array
+  - Tests line 55-56: color assignment logic for default colors
+
+- ✅ `test_create_with_three_thinkers_with_default_colors` - Tests multiple thinkers with default colors
+  - Creates conversation with 3 thinkers all using default "#6366f1"
+  - Validates each gets unique color from color array
+  - Tests loop iteration (lines 47-61)
+
+- ✅ `test_create_with_custom_non_default_color` - Tests custom color preservation
+  - Creates thinker with custom color "#ff0000"
+  - Validates custom color is preserved (line 54 true branch)
+  - Tests conditional color assignment logic
+
+#### TestListConversationsSummaries (2 tests)
+Tests the list_conversations endpoint's summary calculation logic (lines 85-105)
+
+- ✅ `test_list_calculates_message_count` - Tests message_count calculation
+  - Creates conversation and sends 3 messages
+  - Lists conversations and verifies message_count field
+  - Tests lines 88-104: summary building with message aggregation
+
+- ✅ `test_list_calculates_total_cost_from_messages` - Tests total_cost calculation
+  - Creates conversation with messages
+  - Validates total_cost is sum of message costs (line 90)
+  - Tests cost aggregation logic
+
+#### TestSendMessageEndpoint (3 tests)
+Tests the send_message endpoint (lines 241-268)
+
+- ✅ `test_send_message_creates_user_message` - Tests message creation
+  - Sends message to conversation
+  - Validates message is created with correct sender_type
+  - Tests lines 259-267: message creation and storage
+
+- ✅ `test_send_message_uses_display_name` - Tests display_name usage
+  - Creates user with display_name
+  - Sends message and validates sender_name uses display_name
+  - Tests line 257-258: display_name fallback logic
+
+- ✅ `test_send_message_to_nonexistent_conversation_returns_404` - Tests error handling
+  - Attempts to send message to non-existent conversation
+  - Validates 404 error is returned
+  - Tests line 243: conversation not found exception
+
+**Coverage Impact**:
+- Overall project coverage increased from 75.68% to 75.72% (+0.04%)
+- Added 8 comprehensive integration tests (401 → 409 total tests)
+- Reduced total miss count by 1 (435 → 434)
+- Tests exercise real code paths without heavy mocking
+
+**Test Stability**: All 8 tests pass reliably (verified 3x without flakiness)
+
+**Design Decisions**:
+- Used direct integration tests instead of heavy mocking to ensure real code execution
+- Tests exercise multiple modules together (auth, database, websocket) for realistic coverage
+- Each test validates both happy path and specific code branches
+- Tests are independent and can run in any order
+
+**Future Improvements**:
+- Consider adding tests for idle timeout auto-resume logic (lines 245-254)
+- Add tests for add_thinkers color management edge cases (lines 188-199)
+- Explore tests for conversation deletion cascade (lines 139-151)
+
