@@ -306,6 +306,8 @@ jobs:
         if: steps.context.outputs.mode == 'fix'
         uses: anthropics/claude-code-action@v1
         with:
+          # Allow bot triggers for bot-to-bot coordination (Triage → Code Agent, Factory Manager → Code Agent)
+          allowed_bots: '*'
           prompt: |
             Read CLAUDE.md and .claude/agents/bug-fixer.md first.
 
@@ -619,6 +621,8 @@ jobs:
         if: steps.context.outputs.mode == 'respond'
         uses: anthropics/claude-code-action@v1
         with:
+          # Allow bot triggers for bot-to-bot coordination (Triage → Code Agent, Factory Manager → Code Agent)
+          allowed_bots: '*'
           prompt: |
             Read CLAUDE.md first.
 
@@ -722,6 +726,8 @@ jobs:
         if: steps.context.outputs.mode == 'continue'
         uses: anthropics/claude-code-action@v1
         with:
+          # Allow bot triggers for bot-to-bot coordination (Triage → Code Agent, Factory Manager → Code Agent)
+          allowed_bots: '*'
           prompt: |
             Read CLAUDE.md and .claude/agents/bug-fixer.md first.
 
