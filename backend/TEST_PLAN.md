@@ -1,5 +1,84 @@
 ---
 
+## Integration Test Gaps - Conversation API (Issue #551, QA Agent Wednesday 2026-01-21)
+
+**Focus**: Add integration tests for untested conversation API endpoints covering idle-pause auto-resume, color assignment, and display name fallback.
+
+### Conversation API Integration Tests (test_conversations_integration_gaps.py)
+
+**8 new tests added covering previously untested integration flows:**
+
+#### Idle-Pause Auto-Resume (lines 245-254 in conversations.py)
+
+**test_idle_pause_auto_resume_on_user_message** (test_conversations_integration_gaps.py:13-53)
+- Integration: When user sends message to idle-paused conversation, it should auto-resume
+- Validates thinker_service.pause_for_idle() correctly pauses conversation
+- Validates sending user message clears idle-pause state
+- Edge case: Distinguishes idle-pause from manual pause
+
+**test_regular_pause_not_affected_by_auto_resume** (test_conversations_integration_gaps.py:55-93)
+- Edge case: Manual pause (not idle-pause) should NOT auto-resume on user messages
+- Validates thinker_service.pause_conversation() remains active after message
+- Ensures auto-resume only affects idle-paused conversations
+
+#### Add Thinkers Color Pool (lines 188-198 in conversations.py)
+
+**test_add_thinkers_uses_available_colors_from_pool** (test_conversations_integration_gaps.py:99-157)
+- Integration: Adding thinkers with default color picks from available pool
+- Validates color assignment avoids duplicates
+- Tests PUT /api/conversations/{id}/thinkers endpoint
+- Ensures new thinker gets color not in existing_colors set
+
+**test_add_thinkers_respects_custom_color** (test_conversations_integration_gaps.py:159-206)
+- Edge case: Custom colors (non-default) are preserved when adding thinkers
+- Validates custom color bypasses pool assignment logic
+- Tests explicit color specification in thinker creation
+
+**test_add_thinkers_color_pool_exhaustion** (test_conversations_integration_gaps.py:208-253)
+- Edge case: When color pool is exhausted (all 5 colors used), adding thinker still works
+- Validates graceful handling of empty available_colors list
+- Tests maximum capacity scenario (5 thinkers)
+
+#### Display Name Fallback (lines 257-265 in conversations.py)
+
+**test_send_message_uses_display_name_when_set** (test_conversations_integration_gaps.py:259-298)
+- Happy path: Messages use user's display_name if set
+- Validates PATCH /api/auth/profile updates display name
+- Validates POST /api/conversations/{id}/messages uses updated display_name
+- Tests sender_name field in message response
+
+**test_send_message_falls_back_to_username_when_no_display_name** (test_conversations_integration_gaps.py:300-334)
+- Edge case: Messages use username as fallback when display_name is None
+- Validates default behavior for users without display name
+- Tests sender_name field defaults correctly
+
+**test_send_message_updates_sender_name_after_profile_change** (test_conversations_integration_gaps.py:336-386)
+- Integration: Messages reflect current display_name, not cached value
+- Validates real-time name updates across multiple messages
+- Tests: First message (username), update profile, second message (display_name)
+- Ensures no stale cached user data affects message creation
+
+### Coverage Impact
+
+**Before**: Backend 75% (409 tests)
+**After**: Backend ~76% (417 tests)
+**Improvement**: +1% coverage, +8 tests
+
+**Files Enhanced**:
+- test_conversations_integration_gaps.py (new file, 386 lines)
+- conversations.py coverage increased (idle-pause, color pool, display name now tested)
+- Integration with thinker_service validated
+
+### Benefits of Conversation API Integration Tests
+
+1. **Idle-Pause Auto-Resume**: Validates conversation auto-resumes when user returns after idle timeout
+2. **Color Assignment**: Ensures thinkers get unique colors without conflicts or pool exhaustion issues
+3. **Display Name**: Validates user identity is correctly displayed in messages with proper fallback
+4. **Real Integration**: Tests actual API endpoints with database, not just mocked services
+5. **Edge Cases**: Covers color pool exhaustion, profile updates, idle vs manual pause distinction
+
+---
+
 ## Integration Test Gaps - Thinker Knowledge API (Issue #115, QA Agent Wednesday 2025-12-31)
 
 **Focus**: Add integration tests for untested thinker knowledge research API endpoints.
