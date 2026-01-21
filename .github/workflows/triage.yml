@@ -83,6 +83,9 @@ jobs:
           # Allow ALL users to trigger triage - safe because this workflow only has
           # issues:write permission and only adds labels/comments
           allowed_non_write_users: '*'
+          # Allow bot-created issues to be triaged (e.g., factory-improvement issues,
+          # CI failure issues created by Factory Manager or CI Monitor)
+          allowed_bots: '*'
           prompt: |
             Read CLAUDE.md and .claude/agents/triage-product.md first.
 
