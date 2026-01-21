@@ -336,7 +336,9 @@ class TestSendMessageDisplayName:
         assert message["sender_type"] == "user"
 
     @pytest.mark.asyncio
-    async def test_send_message_updates_sender_name_after_profile_change(self, client: AsyncClient) -> None:
+    async def test_send_message_updates_sender_name_after_profile_change(
+        self, client: AsyncClient
+    ) -> None:
         """Messages should reflect current display_name, not cached value."""
         auth_headers = await get_auth_headers(client)
 
