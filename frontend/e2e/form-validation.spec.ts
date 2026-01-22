@@ -262,11 +262,8 @@ test.describe('Rapid-Fire Actions', () => {
       });
     }
 
-    // Wait for final state to settle
-    await expect(page.getByTestId('selected-thinker')).toHaveCount(
-      expect.any(Number),
-      { timeout: 2000 }
-    );
+    // Wait briefly for final state to settle
+    await page.waitForTimeout(500);
 
     // Should still only have a few thinkers (allow for race conditions in rapid clicks)
     const selectedThinkers = await page.getByTestId('selected-thinker').count();
