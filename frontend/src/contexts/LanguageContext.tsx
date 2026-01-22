@@ -5,6 +5,7 @@ import en from '@/locales/en.json';
 import es from '@/locales/es.json';
 import fr from '@/locales/fr.json';
 import de from '@/locales/de.json';
+import hi from '@/locales/hi.json';
 import { useAuth } from './AuthContext';
 import * as api from '@/lib/api';
 
@@ -15,6 +16,7 @@ const translations: Record<string, Translations> = {
   es,
   fr,
   de,
+  hi,
 };
 
 /**
