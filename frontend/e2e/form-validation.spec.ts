@@ -219,10 +219,10 @@ test.describe('Rapid-Fire Actions', () => {
     // Click 5 times rapidly
     for (let i = 0; i < 5; i++) {
       await newChatButton.click({ force: true });
-      await page.waitForTimeout(100);
     }
 
-    // Should only show one modal (not multiple)
+    // Should only show one modal (not multiple) - wait for stability
+    await expect(page.getByTestId('new-chat-modal')).toBeVisible();
     const modals = await page.getByTestId('new-chat-modal').count();
     expect(modals).toBe(1);
 
@@ -260,8 +260,13 @@ test.describe('Rapid-Fire Actions', () => {
       await acceptButton.click({ force: true }).catch(() => {
         // Expected: button may not exist anymore
       });
-      await page.waitForTimeout(100);
     }
+
+    // Wait for final state to settle
+    await expect(page.getByTestId('selected-thinker')).toHaveCount(
+      expect.any(Number),
+      { timeout: 2000 }
+    );
 
     // Should still only have a few thinkers (allow for race conditions in rapid clicks)
     const selectedThinkers = await page.getByTestId('selected-thinker').count();
@@ -341,8 +346,17 @@ test.describe('Custom Thinker Validation', () => {
     const addButton = page.getByTestId('add-custom-thinker');
     await addButton.click();
 
-    // Should show error or refuse to add (wait for validation)
-    await page.waitForTimeout(5000);
+    // Wait for either thinker to be added OR error message to appear
+    await Promise.race([
+      expect(page.getByTestId('selected-thinker')).toHaveCount(1, {
+        timeout: 5000,
+      }),
+      expect(
+        page.locator('text=/invalid|not found|fictional|error/i')
+      ).toBeVisible({ timeout: 5000 }),
+    ]).catch(() => {
+      // Either validation prevented addition or we timed out
+    });
 
     // Either no thinker was added, or error message appears
     const selectedThinkers = await page.getByTestId('selected-thinker').count();
@@ -383,7 +397,15 @@ test.describe('Custom Thinker Validation', () => {
 
     if (!isDisabled) {
       await addButton.click();
-      await page.waitForTimeout(2000);
+      // Wait briefly for any potential state change
+      await Promise.race([
+        expect(page.getByTestId('selected-thinker')).toHaveCount(1, {
+          timeout: 2000,
+        }),
+        page.waitForLoadState('networkidle'),
+      ]).catch(() => {
+        // Expected - empty input should not add thinker
+      });
     }
 
     // No thinker should be added

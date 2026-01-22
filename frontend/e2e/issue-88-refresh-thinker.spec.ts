@@ -122,28 +122,36 @@ test.describe('Issue #88: Refresh thinker suggestion fails', () => {
 
     try {
       await Promise.race([
-        // Wait for suggestion to change
+        // Wait for suggestion to change using expect.poll for retry logic
         (async () => {
-          // Wait for spinner to disappear and check if name changed
-          await page.waitForTimeout(500); // Give some time for state to update
-          for (let i = 0; i < 40; i++) {
-            const currentSpinner = await page
+          // Wait for spinner to disappear
+          await expect(
+            page
               .locator('[data-testid="refresh-suggestion"] svg.animate-spin')
               .first()
-              .isVisible()
-              .catch(() => false);
-            if (!currentSpinner) {
-              const newName = await firstSuggestion
-                .locator('div.font-medium')
-                .textContent();
-              if (newName && newName !== initialName) {
-                console.log(`Suggestion changed: ${initialName} -> ${newName}`);
-                refreshSucceeded = true;
-                return;
+          ).not.toBeVisible({ timeout: 20000 });
+
+          // Poll for name change with built-in retry
+          await expect
+            .poll(
+              async () => {
+                const newName = await firstSuggestion
+                  .locator('div.font-medium')
+                  .textContent();
+                return newName;
+              },
+              {
+                timeout: 20000,
+                intervals: [500, 1000], // Exponential backoff
               }
-            }
-            await page.waitForTimeout(500);
-          }
+            )
+            .not.toBe(initialName);
+
+          const newName = await firstSuggestion
+            .locator('div.font-medium')
+            .textContent();
+          console.log(`Suggestion changed: ${initialName} -> ${newName}`);
+          refreshSucceeded = true;
         })(),
         // Check for error message
         (async () => {
@@ -218,13 +226,15 @@ test.describe('Issue #88: Refresh thinker suggestion fails', () => {
 
     // Click 3 times in rapid succession
     await refreshButton.click();
-    await page.waitForTimeout(200);
     await refreshButton.click();
-    await page.waitForTimeout(200);
     await refreshButton.click();
 
-    // Wait for all refreshes to complete (or fail)
-    await page.waitForTimeout(5000);
+    // Wait for spinner to disappear (indicates completion)
+    await expect(
+      page
+        .locator('[data-testid="refresh-suggestion"] svg.animate-spin')
+        .first()
+    ).not.toBeVisible({ timeout: 20000 });
 
     // Check no error message appeared
     const errorMessage = page.locator(
@@ -275,11 +285,16 @@ test.describe('Issue #88: Refresh thinker suggestion fails', () => {
     apiCallStart = null;
     apiCallEnd = null;
 
-    // Click refresh
+    // Click refresh and wait for API response
     await page.getByTestId('refresh-suggestion').first().click();
 
-    // Wait for response
-    await page.waitForTimeout(10000);
+    // Wait for the API response to complete
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/thinkers/suggest') &&
+        (response.status() === 200 || response.status() >= 400),
+      { timeout: 30000 }
+    );
 
     if (apiCallStart && apiCallEnd) {
       const duration = apiCallEnd - apiCallStart;

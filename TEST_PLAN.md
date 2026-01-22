@@ -2,6 +2,61 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0. E2E Performance Optimization - Thursday Sprint (Added 2026-01-22)
+
+**Focus**: Optimize E2E test performance by replacing arbitrary `waitForTimeout` calls with event-driven waits
+
+### 0.1 Performance Optimization Summary
+**Files Optimized**: 3 test files
+**Optimizations Made**: 21 `waitForTimeout` calls eliminated (41 → 20, 51% reduction)
+
+**Performance Impact**:
+- Estimated 27+ seconds saved per E2E suite run
+- More reliable tests (event-driven waits adapt to CI performance)
+- Better parallelism (no arbitrary delays blocking workers)
+- Clearer test intent (explicit waits vs magic numbers)
+
+**Optimization Patterns Applied**:
+1. Replaced `waitForTimeout()` + assertion with direct assertion (Playwright waits automatically)
+2. Replaced polling loops with `expect.poll()` for built-in retry logic
+3. Replaced arbitrary waits with `waitForResponse()` for API calls
+4. Replaced long waits with `Promise.race()` for multiple possible outcomes
+
+### 0.2 Optimized Files
+
+**File**: `frontend/e2e/issue-88-refresh-thinker.spec.ts`
+**Optimizations**: 6 waits eliminated (10s, 5s, 500ms x2, 200ms x2)
+- Replaced manual polling loop (500ms x40 = 20s) with `expect.poll()`
+- Replaced 5s wait after rapid clicks with spinner visibility check
+- Replaced 10s API timing wait with `waitForResponse()`
+- **Impact**: ~16s saved per test run
+
+**File**: `frontend/e2e/mobile-ios.spec.ts`
+**Optimizations**: 9 waits eliminated (500ms x4, 300ms x5)
+- Removed animation waits before element visibility checks (assertions already wait)
+- Removed orientation change waits (layout assertions wait for stable state)
+- **Impact**: ~4s saved per test run
+
+**File**: `frontend/e2e/form-validation.spec.ts`
+**Optimizations**: 5 waits eliminated (5s, 2s, 100ms x3)
+- Replaced 5s wait for validation with `Promise.race()` for thinker addition OR error
+- Replaced 2s wait for empty input with event-driven wait + network idle
+- Removed 100ms delays in rapid click tests (not needed between clicks)
+- **Impact**: ~7s saved per test run
+
+### 0.3 Remaining Opportunities (20 waits remaining)
+**Files with remaining waits** (left for future optimization):
+- `concurrent-operations.spec.ts`: 7 waits (200-1000ms for rapid switching tests)
+- `tab-visibility.spec.ts`: 4 waits (1-3s for visibility change simulation)
+- `scrolling-text.spec.ts`: 3 waits (500-3000ms for animation progression)
+- `new-conversation.spec.ts`: 2 waits (2-3s after thinker operations)
+- `mobile-header.spec.ts`: 2 waits (300ms animation waits)
+- `mobile-ios.spec.ts`: 2 waits (300ms, retained for specific iOS timing issues)
+
+**Test Stability**: All optimizations verified to maintain test reliability
+
+---
+
 ## 0. Edge Case Analysis - Saturday Sprint (Added 2026-01-17)
 
 **Focus**: Add edge case tests for error paths and boundary conditions

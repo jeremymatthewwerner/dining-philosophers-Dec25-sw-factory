@@ -103,10 +103,7 @@ test.describe('iOS Safari - Header Visibility', () => {
       el.scrollTo({ top: 500, behavior: 'instant' });
     });
 
-    // Wait for iOS Safari to settle (it can be laggy)
-    await page.waitForTimeout(500);
-
-    // Header should still be visible after scrolling
+    // Wait for scroll to settle and header to be in stable position
     await expect(header).toBeVisible();
 
     const headerBox = await header.boundingBox();
@@ -170,9 +167,8 @@ test.describe('iOS Safari - Sidebar Toggle', () => {
 
     // Open sidebar by clicking hamburger
     await sidebarToggle.click();
-    await page.waitForTimeout(300); // Wait for animation
 
-    // Sidebar and overlay should be visible
+    // Sidebar and overlay should be visible (waits for animation to complete)
     await expect(sidebar).toBeVisible();
     await expect(overlay).toBeVisible();
 
@@ -181,9 +177,8 @@ test.describe('iOS Safari - Sidebar Toggle', () => {
 
     // Close sidebar by clicking overlay
     await overlay.click();
-    await page.waitForTimeout(300); // Wait for animation
 
-    // Sidebar should be hidden, hamburger should reappear
+    // Sidebar should be hidden, hamburger should reappear (waits for animation)
     await expect(sidebar).not.toBeVisible();
     await expect(sidebarToggle).toBeVisible();
   });
@@ -203,26 +198,22 @@ test.describe('iOS Safari - Sidebar Toggle', () => {
 
     // Open, close, reopen cycle
     await sidebarToggle.click();
-    await page.waitForTimeout(300);
     await expect(sidebar).toBeVisible();
     await expect(overlay).toBeVisible();
 
     // Close via overlay
     await overlay.click();
-    await page.waitForTimeout(300);
     await expect(sidebar).not.toBeVisible();
     await expect(sidebarToggle).toBeVisible();
 
     // Reopen should work
     await sidebarToggle.click();
-    await page.waitForTimeout(300);
     await expect(sidebar).toBeVisible();
     await expect(overlay).toBeVisible();
 
     // Close via sidebar's internal close button
     const sidebarCloseButton = page.locator('[aria-label="Close sidebar"]');
     await sidebarCloseButton.click();
-    await page.waitForTimeout(300);
     await expect(sidebar).not.toBeVisible();
     await expect(sidebarToggle).toBeVisible();
   });
@@ -346,10 +337,7 @@ test.describe('iOS Safari - Orientation Changes', () => {
     // Change to landscape (swap dimensions)
     await page.setViewportSize({ width: 844, height: 390 });
 
-    // Wait for iOS Safari to adjust layout
-    await page.waitForTimeout(500);
-
-    // Header should still be visible and functional
+    // Header should still be visible and functional (waits for layout adjustment)
     await expect(header).toBeVisible();
     await expect(page.getByTestId('pause-resume-button')).toBeVisible();
     await expect(page.getByTestId('export-button')).toBeVisible();
@@ -372,20 +360,17 @@ test.describe('iOS Safari - Orientation Changes', () => {
 
     // Portrait → Landscape
     await page.setViewportSize({ width: 844, height: 390 });
-    await page.waitForTimeout(500);
     await expect(header).toBeVisible();
 
     // Landscape → Portrait
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.waitForTimeout(500);
     await expect(header).toBeVisible();
 
     // Portrait → Landscape again
     await page.setViewportSize({ width: 844, height: 390 });
-    await page.waitForTimeout(500);
     await expect(header).toBeVisible();
 
-    // Verify controls still work
+    // Verify controls still work (waits for button to be in correct state)
     const pauseButton = page.getByTestId('pause-resume-button');
     await pauseButton.click();
     await expect(pauseButton).toContainText('Resume');
