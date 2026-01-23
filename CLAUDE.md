@@ -348,6 +348,7 @@ uv run mypy .           # Type check Python code
 - **In PR descriptions:** ALWAYS use `Relates to #N` (NEVER use `Fixes #N`)
 - **NEVER push directly to main** - Always use a feature branch + PR
 - **Why:** GitHub auto-closes issues when `Fixes #N` appears in PR descriptions, but this happens on PR merge - BEFORE the code is deployed to production! We want issues to close only after deploy + smoke tests pass. The CI `close-issues` job handles this automatically.
+- **Auto-close behavior:** Issues referenced with `Relates to #N` in PR descriptions WILL be auto-closed by the CI `close-issues` job after successful deployment and smoke tests pass. This gives us the best of both worlds: no premature closure on PR merge, but automatic closure once the fix is verified in production.
 
 **Best practices:**
 - Commit frequently with clear messages
