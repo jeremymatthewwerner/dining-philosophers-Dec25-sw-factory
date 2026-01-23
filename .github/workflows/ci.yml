@@ -629,10 +629,13 @@ jobs:
             echo "Checking PR #$PR_NUM for issue references..."
             PR_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
 
-            # Extract issue numbers ONLY from "Fixes #N", "Closes #N", "Resolves #N" patterns
-            # IMPORTANT: Do NOT match "Relates to #N" - that indicates context, not a fix
-            # See issue #518 for the bug this pattern caused
-            REFS=$(echo "$PR_BODY" | grep -oE '(Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
+            # Extract issue numbers from issue reference patterns in PR body
+            # Matches: "Fixes #N", "Closes #N", "Resolves #N", "Relates to #N"
+            # Note: We now include "Relates to" because:
+            # 1. Code Agent uses "Relates to" to prevent GitHub's auto-close on PR merge (premature)
+            # 2. Our CI close-issues job runs AFTER deploy + smoke tests pass (correct timing)
+            # 3. See issue #566 - using "Relates to" should not prevent proper auto-close
+            REFS=$(echo "$PR_BODY" | grep -oiE '(Fixes|Closes|Resolves|Relates to) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
 
             if [ -n "$REFS" ]; then
               echo "  Found issue refs in PR #$PR_NUM: $REFS"
@@ -772,15 +775,18 @@ jobs:
 
           ISSUE_NUMBERS=""
 
-          # For each PR, check its body for "Fixes/Closes/Resolves #N"
+          # For each PR, check its body for issue references
           for PR_NUM in $PR_NUMBERS; do
             echo "Checking PR #$PR_NUM for issue references..."
             PR_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
 
-            # Extract issue numbers ONLY from "Fixes #N", "Closes #N", "Resolves #N" patterns
-            # IMPORTANT: Do NOT match "Relates to #N" - that indicates context, not a fix
-            # See issue #518 for the bug this pattern caused
-            REFS=$(echo "$PR_BODY" | grep -oE '(Fixes|Closes|Resolves) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
+            # Extract issue numbers from issue reference patterns in PR body
+            # Matches: "Fixes #N", "Closes #N", "Resolves #N", "Relates to #N"
+            # Note: We now include "Relates to" because:
+            # 1. Code Agent uses "Relates to" to prevent GitHub's auto-close on PR merge (premature)
+            # 2. Our CI close-issues job runs AFTER deploy + smoke tests pass (correct timing)
+            # 3. See issue #566 - using "Relates to" should not prevent proper auto-close
+            REFS=$(echo "$PR_BODY" | grep -oiE '(Fixes|Closes|Resolves|Relates to) #[0-9]+' | grep -oE '#[0-9]+' | tr -d '#' || true)
 
             if [ -n "$REFS" ]; then
               echo "  Found issue refs in PR #$PR_NUM: $REFS"
