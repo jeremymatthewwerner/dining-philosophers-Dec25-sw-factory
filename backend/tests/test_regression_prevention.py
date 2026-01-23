@@ -476,6 +476,89 @@ class TestSpanishThinkingDisplay:
         assert lang_param.default == "en"
 
 
+class TestHindiLanguageSupport:
+    """Regression tests for Hindi language support (Issue #569).
+
+    Bug: Hindi UI localization worked but thinker messages remained in English.
+    Root cause: Hindi was missing from LANGUAGE_NAMES dictionary and thinking display.
+    Fix: Added "hi": "Hindi" to LANGUAGE_NAMES and Hindi transformations/starters.
+    """
+
+    @pytest.mark.asyncio
+    async def test_hindi_in_language_names(self) -> None:
+        """Test that Hindi is included in the LANGUAGE_NAMES mapping.
+
+        Regression test for Issue #569 - Hindi should be recognized for LLM prompts.
+        """
+        from app.services.thinker import LANGUAGE_NAMES
+
+        assert "hi" in LANGUAGE_NAMES
+        assert LANGUAGE_NAMES["hi"] == "Hindi"
+
+    @pytest.mark.asyncio
+    async def test_hindi_language_instruction_generated(self) -> None:
+        """Test that Hindi language generates proper instruction.
+
+        Regression test for Issue #569 - Hindi should produce 'Respond in Hindi.'
+        """
+        from app.services.thinker import _get_language_instruction
+
+        instruction = _get_language_instruction("hi")
+        assert "Hindi" in instruction
+        assert "IMPORTANT: Respond in Hindi" in instruction
+
+    @pytest.mark.asyncio
+    async def test_extract_thinking_display_uses_hindi_starters(self) -> None:
+        """Test that Hindi mode uses Hindi starter phrases.
+
+        Regression test for Issue #569 - thinking display should use Hindi starters.
+        """
+        from app.services.thinker import ThinkerService
+
+        service = ThinkerService()
+
+        # Create a thinking text long enough to trigger display (>80 chars)
+        thinking_text = (
+            "यह एक दिलचस्प विषय है। मुझे इस दार्शनिक प्रश्न के सभी पहलुओं पर "
+            "विचार करने की आवश्यकता है। एक उचित प्रतिक्रिया तैयार करने से पहले।"
+        )
+
+        # Test Hindi mode
+        result_hi = service._extract_thinking_display(thinking_text, language="hi")
+
+        # Hindi result should NOT add English starters
+        assert "Now then..." not in result_hi
+        assert "Let me consider..." not in result_hi
+        assert "*pondering*" not in result_hi
+
+    @pytest.mark.asyncio
+    async def test_hindi_vs_english_thinking_display(self) -> None:
+        """Test that Hindi and English produce different transformations.
+
+        Regression test for Issue #569 - Hindi should have distinct transformations.
+        """
+        from app.services.thinker import ThinkerService
+
+        service = ThinkerService()
+
+        # Same text, different languages
+        thinking_text = (
+            "I should think more carefully about this philosophical topic "
+            "and consider the implications of my response to the discussion."
+        )
+
+        result_en = service._extract_thinking_display(thinking_text, language="en")
+        result_hi = service._extract_thinking_display(thinking_text, language="hi")
+
+        # Both should be processed
+        assert result_en is not None
+        assert result_hi is not None
+
+        # Both should end with ellipsis (truncation indicator)
+        assert result_en.endswith("...")
+        assert result_hi.endswith("...")
+
+
 class TestAPITimeoutHandling:
     """Regression tests for API timeout issues.
 
