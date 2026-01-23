@@ -33,6 +33,7 @@ LANGUAGE_NAMES = {
     "es": "Spanish",
     "fr": "French",
     "de": "German",
+    "hi": "Hindi",
 }
 
 
@@ -859,6 +860,19 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
                 ("Laissez-moi ", "Voyons... "),
                 ("Je peux ", "Je pourrais "),
             ]
+        elif language == "hi":
+            # Hindi replacements
+            replacements = [
+                ("मुझे चाहिए ", "शायद मुझे चाहिए "),
+                ("मुझे जरूरत है ", "हम्म, मुझे जरूरत है "),
+                ("मुझे लगता है ", ""),
+                ("मैं सोचता हूं ", ""),
+                ("मैं करूंगा ", "मैं कर सकता हूं "),
+                ("उपयोगकर्ता ", "वे "),
+                ("यूज़र ", "वे "),
+                ("मुझे देखने दो ", "देखते हैं... "),
+                ("मैं कर सकता हूं ", "शायद मैं "),
+            ]
         else:
             # English replacements (default)
             replacements = [
@@ -914,6 +928,18 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
             ]
             # French starter detection
             starter_prefixes = ("hmm", "voyons", "laissez", "intéressant", "*")
+        elif language == "hi":
+            starters = [
+                "हम्म... ",
+                "देखते हैं... ",
+                "दिलचस्प... ",
+                "मुझे सोचने दो... ",
+                "*विचार करते हुए* ",
+                "",  # Sometimes no prefix
+                "",
+            ]
+            # Hindi starter detection
+            starter_prefixes = ("हम्म", "देखते", "मुझे", "दिलचस्प", "*")
         else:
             starters = [
                 "Hmm... ",
