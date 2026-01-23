@@ -13,7 +13,7 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import get_auth_headers, register_and_get_token
+from tests.conftest import create_thinker_input, get_auth_headers, register_and_get_token
 
 
 class TestConversationCreation:
@@ -33,13 +33,9 @@ class TestConversationCreation:
             json={
                 "topic": very_long_topic,
                 "thinkers": [
-                    {
-                        "name": "Socrates",
-                        "bio": "Greek philosopher",
-                        "positions": "Question everything",
-                        "style": "Socratic method",
-                        "color": "#6366f1",
-                    }
+                    create_thinker_input(
+                        "Socrates", "Greek philosopher", "Question everything", "Socratic method"
+                    )
                 ],
             },
         )
@@ -51,8 +47,7 @@ class TestConversationCreation:
     @pytest.mark.asyncio
     async def test_create_conversation_with_unicode_topic(self, client: AsyncClient) -> None:
         """Test creating conversation with unicode characters and emojis."""
-        data = await register_and_get_token(client, username="user_unicode", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, username="user_unicode", password="testpass123")
 
         # Topic with Chinese, Japanese, emojis
         unicode_topic = "哲学 🤔 と 心理学 💭: What is 意識?"
@@ -63,13 +58,9 @@ class TestConversationCreation:
             json={
                 "topic": unicode_topic,
                 "thinkers": [
-                    {
-                        "name": "Confucius",
-                        "bio": "Chinese philosopher",
-                        "positions": "Virtue ethics",
-                        "style": "Analects",
-                        "color": "#10b981",
-                    }
+                    create_thinker_input(
+                        "Confucius", "Chinese philosopher", "Virtue ethics", "Analects"
+                    )
                 ],
             },
         )
@@ -80,8 +71,7 @@ class TestConversationCreation:
     @pytest.mark.asyncio
     async def test_create_conversation_with_single_thinker(self, client: AsyncClient) -> None:
         """Test boundary: conversation with exactly 1 thinker."""
-        data = await register_and_get_token(client, username="user_single", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, username="user_single", password="testpass123")
 
         response = await client.post(
             "/api/conversations",
@@ -89,13 +79,9 @@ class TestConversationCreation:
             json={
                 "topic": "Solo philosophy",
                 "thinkers": [
-                    {
-                        "name": "Diogenes",
-                        "bio": "Cynic philosopher",
-                        "positions": "Live simply",
-                        "style": "Provocative",
-                        "color": "#f59e0b",
-                    }
+                    create_thinker_input(
+                        "Diogenes", "Cynic philosopher", "Live simply", "Provocative"
+                    )
                 ],
             },
         )
@@ -108,10 +94,7 @@ class TestConversationCreation:
         self, client: AsyncClient
     ) -> None:
         """Test edge case: multiple thinkers with same name but different attributes."""
-        data = await register_and_get_token(
-            client, username="user_duplicates", password="testpass123"
-        )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, username="user_duplicates", password="testpass123")
 
         response = await client.post(
             "/api/conversations",
@@ -119,20 +102,12 @@ class TestConversationCreation:
             json={
                 "topic": "Multiple perspectives from similar thinkers",
                 "thinkers": [
-                    {
-                        "name": "Socrates",
-                        "bio": "Early Socrates",
-                        "positions": "Virtue is knowledge",
-                        "style": "Early dialogues",
-                        "color": "#6366f1",
-                    },
-                    {
-                        "name": "Socrates",
-                        "bio": "Late Socrates",
-                        "positions": "Know thyself",
-                        "style": "Later dialogues",
-                        "color": "#ec4899",
-                    },
+                    create_thinker_input(
+                        "Socrates", "Early Socrates", "Virtue is knowledge", "Early dialogues"
+                    ),
+                    create_thinker_input(
+                        "Socrates", "Late Socrates", "Know thyself", "Later dialogues"
+                    ),
                 ],
             },
         )
@@ -149,10 +124,9 @@ class TestConversationRetrieval:
     @pytest.mark.asyncio
     async def test_get_conversation_with_invalid_uuid_format(self, client: AsyncClient) -> None:
         """Test GET with malformed UUID."""
-        data = await register_and_get_token(
+        headers = await get_auth_headers(
             client, username="user_invalid_uuid", password="testpass123"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
 
         # Invalid UUID format
         response = await client.get("/api/conversations/not-a-valid-uuid", headers=headers)
@@ -162,10 +136,9 @@ class TestConversationRetrieval:
     @pytest.mark.asyncio
     async def test_get_conversation_with_nonexistent_uuid(self, client: AsyncClient) -> None:
         """Test GET with valid UUID format but nonexistent conversation."""
-        data = await register_and_get_token(
+        headers = await get_auth_headers(
             client, username="user_nonexistent", password="testpass123"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
 
         # Valid UUID format but doesn't exist
         fake_uuid = str(uuid.uuid4())
@@ -177,10 +150,7 @@ class TestConversationRetrieval:
     @pytest.mark.asyncio
     async def test_list_conversations_when_empty(self, client: AsyncClient) -> None:
         """Test listing conversations when user has none."""
-        data = await register_and_get_token(
-            client, username="user_empty_list", password="testpass123"
-        )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, username="user_empty_list", password="testpass123")
 
         response = await client.get("/api/conversations", headers=headers)
         assert response.status_code == 200
@@ -191,10 +161,7 @@ class TestConversationRetrieval:
     @pytest.mark.asyncio
     async def test_list_conversations_with_many_conversations(self, client: AsyncClient) -> None:
         """Test listing conversations when user has many (10+)."""
-        data = await register_and_get_token(
-            client, username="user_many_convs", password="testpass123"
-        )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, username="user_many_convs", password="testpass123")
 
         # Create 15 conversations
         for i in range(15):
@@ -233,10 +200,9 @@ class TestConversationDeletion:
     @pytest.mark.asyncio
     async def test_delete_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test deleting conversation that doesn't exist."""
-        data = await register_and_get_token(
+        headers = await get_auth_headers(
             client, username="user_delete_fake", password="testpass123"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
 
         fake_uuid = str(uuid.uuid4())
         response = await client.delete(f"/api/conversations/{fake_uuid}", headers=headers)
@@ -245,10 +211,9 @@ class TestConversationDeletion:
     @pytest.mark.asyncio
     async def test_delete_conversation_with_malformed_uuid(self, client: AsyncClient) -> None:
         """Test delete with malformed UUID."""
-        data = await register_and_get_token(
+        headers = await get_auth_headers(
             client, username="user_delete_invalid", password="testpass123"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
 
         response = await client.delete("/api/conversations/not-a-uuid", headers=headers)
         # FastAPI validates UUID format
@@ -258,10 +223,7 @@ class TestConversationDeletion:
     async def test_delete_conversation_from_different_user(self, client: AsyncClient) -> None:
         """Test user A cannot delete user B's conversation."""
         # User A creates conversation
-        data_a = await register_and_get_token(
-            client, username="user_a_delete", password="testpass123"
-        )
-        headers_a = {"Authorization": f"Bearer {data_a['access_token']}"}
+        headers_a = await get_auth_headers(client, username="user_a_delete", password="testpass123")
 
         response = await client.post(
             "/api/conversations",
@@ -269,13 +231,9 @@ class TestConversationDeletion:
             json={
                 "topic": "User A's conversation",
                 "thinkers": [
-                    {
-                        "name": "Plato",
-                        "bio": "Student of Socrates",
-                        "positions": "Theory of Forms",
-                        "style": "Dialogues",
-                        "color": "#6366f1",
-                    }
+                    create_thinker_input(
+                        "Plato", "Student of Socrates", "Theory of Forms", "Dialogues"
+                    )
                 ],
             },
         )
@@ -283,10 +241,7 @@ class TestConversationDeletion:
         conversation_id = response.json()["id"]
 
         # User B tries to delete User A's conversation
-        data_b = await register_and_get_token(
-            client, username="user_b_delete", password="testpass123"
-        )
-        headers_b = {"Authorization": f"Bearer {data_b['access_token']}"}
+        headers_b = await get_auth_headers(client, username="user_b_delete", password="testpass123")
 
         response = await client.delete(f"/api/conversations/{conversation_id}", headers=headers_b)
         # Should get 404 (conversation not found for this session)
@@ -299,10 +254,7 @@ class TestMessageSending:
     @pytest.mark.asyncio
     async def test_send_message_to_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test sending message to conversation that doesn't exist."""
-        data = await register_and_get_token(
-            client, username="user_msg_fake", password="testpass123"
-        )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, username="user_msg_fake", password="testpass123")
 
         fake_uuid = str(uuid.uuid4())
         response = await client.post(
@@ -315,10 +267,7 @@ class TestMessageSending:
     @pytest.mark.asyncio
     async def test_send_very_long_message(self, client: AsyncClient) -> None:
         """Test sending message with 10,000+ characters."""
-        data = await register_and_get_token(
-            client, username="user_long_msg", password="testpass123"
-        )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, username="user_long_msg", password="testpass123")
 
         # Create conversation
         conv_response = await client.post(
@@ -327,13 +276,9 @@ class TestMessageSending:
             json={
                 "topic": "Long messages",
                 "thinkers": [
-                    {
-                        "name": "Marcus Aurelius",
-                        "bio": "Roman Emperor",
-                        "positions": "Stoicism",
-                        "style": "Meditations",
-                        "color": "#8b5cf6",
-                    }
+                    create_thinker_input(
+                        "Marcus Aurelius", "Roman Emperor", "Stoicism", "Meditations"
+                    )
                 ],
             },
         )
@@ -355,10 +300,9 @@ class TestMessageSending:
     @pytest.mark.asyncio
     async def test_send_message_with_special_characters(self, client: AsyncClient) -> None:
         """Test sending message with special characters, emojis, and unicode."""
-        data = await register_and_get_token(
+        headers = await get_auth_headers(
             client, username="user_special_msg", password="testpass123"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
 
         # Create conversation
         conv_response = await client.post(
@@ -367,13 +311,7 @@ class TestMessageSending:
             json={
                 "topic": "Special characters",
                 "thinkers": [
-                    {
-                        "name": "Laozi",
-                        "bio": "Founder of Taoism",
-                        "positions": "The Way",
-                        "style": "Dao De Jing",
-                        "color": "#10b981",
-                    }
+                    create_thinker_input("Laozi", "Founder of Taoism", "The Way", "Dao De Jing")
                 ],
             },
         )
@@ -394,8 +332,7 @@ class TestMessageSending:
     async def test_send_message_to_other_users_conversation(self, client: AsyncClient) -> None:
         """Test user B cannot send message to user A's conversation."""
         # User A creates conversation
-        data_a = await register_and_get_token(client, username="user_a_msg", password="testpass123")
-        headers_a = {"Authorization": f"Bearer {data_a['access_token']}"}
+        headers_a = await get_auth_headers(client, username="user_a_msg", password="testpass123")
 
         response = await client.post(
             "/api/conversations",
@@ -416,8 +353,7 @@ class TestMessageSending:
         conversation_id = response.json()["id"]
 
         # User B tries to send message to User A's conversation
-        data_b = await register_and_get_token(client, username="user_b_msg", password="testpass123")
-        headers_b = {"Authorization": f"Bearer {data_b['access_token']}"}
+        headers_b = await get_auth_headers(client, username="user_b_msg", password="testpass123")
 
         response = await client.post(
             f"/api/conversations/{conversation_id}/messages",
@@ -617,8 +553,7 @@ class TestAddThinkersToConversation:
     ) -> None:
         """Test that user B cannot add thinkers to user A's conversation."""
         # User A creates conversation
-        data_a = await register_and_get_token(client, username="user_a_add", password="testpass123")
-        headers_a = {"Authorization": f"Bearer {data_a['access_token']}"}
+        headers_a = await get_auth_headers(client, username="user_a_add", password="testpass123")
 
         conv_response = await client.post(
             "/api/conversations",
@@ -639,8 +574,7 @@ class TestAddThinkersToConversation:
         conversation_id = conv_response.json()["id"]
 
         # User B tries to add thinker
-        data_b = await register_and_get_token(client, username="user_b_add", password="testpass123")
-        headers_b = {"Authorization": f"Bearer {data_b['access_token']}"}
+        headers_b = await get_auth_headers(client, username="user_b_add", password="testpass123")
 
         response = await client.put(
             f"/api/conversations/{conversation_id}/thinkers",
