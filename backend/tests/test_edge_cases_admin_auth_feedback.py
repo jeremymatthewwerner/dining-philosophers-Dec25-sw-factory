@@ -317,35 +317,21 @@ class TestFeedbackEdgeCases:
         """Test submitting feedback with 50,000+ characters.
 
         Edge case: Very large input
+        The feedback schema has a max_length of 5000 characters.
         """
-        headers = await get_auth_headers(
-            client, username="user_long_feedback", password="testpass123"
-        )
-
-        # Create 50,000 character feedback
+        # Create 50,000 character feedback (exceeds 5000 char limit)
         very_long_feedback = "A" * 50000
 
         response = await client.post(
             "/api/feedback",
-            headers=headers,
             json={
-                "text": very_long_feedback,
-                "rating": 4,
+                "message": very_long_feedback,
+                "feedback_type": "bug",
             },
         )
 
-        # Should either succeed or have a reasonable max length rejection
-        assert response.status_code in [
-            status.HTTP_200_OK,
-            status.HTTP_201_CREATED,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            status.HTTP_400_BAD_REQUEST,
-        ]
-
-        # If accepted, verify it was stored
-        if response.status_code in [200, 201]:
-            data = response.json()
-            assert len(data["text"]) == 50000
+        # Should be rejected due to exceeding max_length (5000 chars)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     @pytest.mark.asyncio
     async def test_submit_feedback_with_special_characters(self, client: AsyncClient) -> None:
@@ -353,10 +339,6 @@ class TestFeedbackEdgeCases:
 
         Edge case: Special character handling
         """
-        headers = await get_auth_headers(
-            client, username="user_special_feedback", password="testpass123"
-        )
-
         # Feedback with various special characters
         special_feedback = (
             "Great app! 🎉🎊 "
@@ -369,45 +351,39 @@ class TestFeedbackEdgeCases:
 
         response = await client.post(
             "/api/feedback",
-            headers=headers,
             json={
-                "text": special_feedback,
-                "rating": 5,
+                "message": special_feedback,
+                "feedback_type": "feature",
             },
         )
 
         # Should succeed and preserve special characters
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]
+        assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
-        # Special characters should be preserved (but sanitized for XSS if rendered)
-        assert data["text"] is not None
+        # Feedback API returns id and a thank you message
+        assert "id" in data
+        assert "message" in data
 
     @pytest.mark.asyncio
     async def test_submit_feedback_with_only_whitespace(self, client: AsyncClient) -> None:
         """Test submitting feedback that is only whitespace.
 
         Edge case: Empty/meaningless input
+        The message field has min_length=10, so whitespace-only is rejected.
         """
-        headers = await get_auth_headers(
-            client, username="user_whitespace_feedback", password="testpass123"
-        )
-
         response = await client.post(
             "/api/feedback",
-            headers=headers,
             json={
-                "text": "     \n\t\r     ",
-                "rating": 3,
+                "message": "     \n\t\r     ",
+                "feedback_type": "other",
             },
         )
 
-        # Implementation may accept or reject whitespace-only feedback
-        # Either is reasonable depending on business rules
+        # Whitespace-only message is effectively too short (min_length=10)
+        # or may be rejected for being effectively empty
         assert response.status_code in [
-            status.HTTP_200_OK,
-            status.HTTP_201_CREATED,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_201_CREATED,  # If whitespace counts toward length
+            status.HTTP_422_UNPROCESSABLE_ENTITY,  # If stripped/validated
         ]
 
 
