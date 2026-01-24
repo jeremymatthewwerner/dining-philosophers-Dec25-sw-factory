@@ -329,23 +329,13 @@ class TestFeedbackEdgeCases:
             "/api/feedback",
             headers=headers,
             json={
-                "text": very_long_feedback,
-                "rating": 4,
+                "message": very_long_feedback,
             },
         )
 
-        # Should either succeed or have a reasonable max length rejection
-        assert response.status_code in [
-            status.HTTP_200_OK,
-            status.HTTP_201_CREATED,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            status.HTTP_400_BAD_REQUEST,
-        ]
-
-        # If accepted, verify it was stored
-        if response.status_code in [200, 201]:
-            data = response.json()
-            assert len(data["text"]) == 50000
+        # Should reject due to max length (5000 chars per schema)
+        # The feedback schema has max_length=5000 for message field
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     @pytest.mark.asyncio
     async def test_submit_feedback_with_special_characters(self, client: AsyncClient) -> None:
@@ -371,16 +361,16 @@ class TestFeedbackEdgeCases:
             "/api/feedback",
             headers=headers,
             json={
-                "text": special_feedback,
-                "rating": 5,
+                "message": special_feedback,
             },
         )
 
         # Should succeed and preserve special characters
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]
         data = response.json()
-        # Special characters should be preserved (but sanitized for XSS if rendered)
-        assert data["text"] is not None
+        # Verify response has expected fields
+        assert "id" in data
+        assert "message" in data
 
     @pytest.mark.asyncio
     async def test_submit_feedback_with_only_whitespace(self, client: AsyncClient) -> None:
@@ -396,19 +386,13 @@ class TestFeedbackEdgeCases:
             "/api/feedback",
             headers=headers,
             json={
-                "text": "     \n\t\r     ",
-                "rating": 3,
+                "message": "     \n\t\r     ",
             },
         )
 
-        # Implementation may accept or reject whitespace-only feedback
-        # Either is reasonable depending on business rules
-        assert response.status_code in [
-            status.HTTP_200_OK,
-            status.HTTP_201_CREATED,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            status.HTTP_400_BAD_REQUEST,
-        ]
+        # Whitespace-only message is accepted since the string length exceeds min_length=10
+        # The schema only validates total character count, not meaningful content
+        assert response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]
 
 
 class TestConversationEdgeCases:
