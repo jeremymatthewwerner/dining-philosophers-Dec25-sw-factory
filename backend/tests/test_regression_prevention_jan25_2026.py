@@ -6,7 +6,7 @@ admin API, DevOps API, and thinker service that have low coverage.
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
