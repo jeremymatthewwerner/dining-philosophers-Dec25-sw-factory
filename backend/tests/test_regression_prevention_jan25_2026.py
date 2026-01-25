@@ -283,7 +283,6 @@ class TestThinkerServiceEdgeCases:
     """Test thinker service edge cases (71% coverage → improve)."""
 
     @pytest.mark.asyncio
-    @pytest.mark.asyncio
     async def test_extract_mentions_with_edge_case_patterns(self) -> None:
         """Test mention extraction with edge case text patterns."""
         from app.services.thinker import extract_mentions
