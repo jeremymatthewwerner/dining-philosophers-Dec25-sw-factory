@@ -17,7 +17,6 @@ from app.services.thinker import ThinkerService
 class TestConversationAPIErrorHandling:
     """Test conversation API error handling paths (39% coverage → improve)."""
 
-
     async def test_get_conversation_with_invalid_session_token(self, client: AsyncClient) -> None:
         """Test that getting a conversation with invalid session token fails properly."""
         fake_uuid = str(uuid.uuid4())
@@ -283,7 +282,6 @@ class TestDevOpsAPIErrorHandling:
 class TestThinkerServiceEdgeCases:
     """Test thinker service edge cases (71% coverage → improve)."""
 
-    @pytest.mark.asyncio
     @pytest.mark.asyncio
     async def test_extract_mentions_with_edge_case_patterns(self) -> None:
         """Test mention extraction with edge case text patterns."""
