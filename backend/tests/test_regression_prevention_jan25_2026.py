@@ -17,7 +17,6 @@ from app.services.thinker import ThinkerService
 class TestConversationAPIErrorHandling:
     """Test conversation API error handling paths (39% coverage → improve)."""
 
-
     async def test_get_conversation_with_invalid_session_token(self, client: AsyncClient) -> None:
         """Test that getting a conversation with invalid session token fails properly."""
         fake_uuid = str(uuid.uuid4())
