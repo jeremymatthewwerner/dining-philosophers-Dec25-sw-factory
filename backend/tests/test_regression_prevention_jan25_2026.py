@@ -326,25 +326,30 @@ class TestThinkerServiceEdgeCases:
 
     @pytest.mark.asyncio
     async def test_should_respond_with_malformed_message_content(self) -> None:
-        """Test that should_respond handles malformed message content gracefully."""
+        """Test that _should_respond handles malformed message content gracefully."""
         service = ThinkerService()
 
-        # Test with messages containing unusual content
+        # Create a mock thinker with required attributes
+        thinker = MagicMock()
+        thinker.name = "TestThinker"
+
+        # Test with messages containing unusual content (using MagicMock)
         malformed_messages = [
-            {"sender_type": "user", "content": None},  # None content
-            {"sender_type": "user", "content": 12345},  # Non-string content
-            {"sender_type": "user"},  # Missing content key
-            {"content": "test"},  # Missing sender_type
+            MagicMock(content=None, sender_name="User"),  # None content
+            MagicMock(content=12345, sender_name="User"),  # Non-string content
+            MagicMock(sender_name="User"),  # Missing content attr
+            MagicMock(content="test"),  # Missing sender_name
         ]
 
-        for _msg in malformed_messages:
+        for msg in malformed_messages:
             # Should not crash, should return a boolean
             try:
-                result = service.should_respond(
-                    "TestThinker",
-                    malformed_messages[:1],  # Use single malformed message
+                result = service._should_respond(
+                    thinker,
+                    [msg],  # Use single malformed message
+                    0,  # last_response_count
                 )
-                assert isinstance(result, (bool, float))
+                assert isinstance(result, bool)
             except (KeyError, AttributeError, TypeError):
                 # Acceptable to raise exception for malformed data
                 pass
