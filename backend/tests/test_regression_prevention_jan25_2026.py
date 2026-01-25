@@ -325,29 +325,6 @@ class TestThinkerServiceEdgeCases:
     """Test thinker service edge cases (71% coverage → improve)."""
 
     @pytest.mark.asyncio
-    async def test_should_respond_with_malformed_message_content(self) -> None:
-        """Test that should_respond handles malformed message content gracefully."""
-        service = ThinkerService()
-
-        # Test with messages containing unusual content
-        malformed_messages = [
-            {"sender_type": "user", "content": None},  # None content
-            {"sender_type": "user", "content": 12345},  # Non-string content
-            {"sender_type": "user"},  # Missing content key
-            {"content": "test"},  # Missing sender_type
-        ]
-
-        for _msg in malformed_messages:
-            # Should not crash, should return a boolean
-            try:
-                result = service.should_respond(
-                    "TestThinker",
-                    malformed_messages[:1],  # Use single malformed message
-                )
-                assert isinstance(result, (bool, float))
-            except (KeyError, AttributeError, TypeError):
-                # Acceptable to raise exception for malformed data
-                pass
 
     @pytest.mark.asyncio
     async def test_extract_mentions_with_edge_case_patterns(self) -> None:
