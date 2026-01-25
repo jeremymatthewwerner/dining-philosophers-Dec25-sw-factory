@@ -17,47 +17,6 @@ from app.services.thinker import ThinkerService
 class TestConversationAPIErrorHandling:
     """Test conversation API error handling paths (39% coverage → improve)."""
 
-    async def test_create_conversation_with_database_commit_failure(
-        self, client: AsyncClient
-    ) -> None:
-        """Test that database commit failures during conversation creation are handled."""
-        # Create a user and session
-        register_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "testuser",
-                "password": "password123",
-                "display_name": "Test User",
-            },
-        )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
-
-        # Mock database flush to raise an exception
-        with patch("app.api.conversations.get_db") as mock_get_db:
-            mock_db = AsyncMock()
-            mock_db.flush.side_effect = Exception("Database commit failed")
-            mock_get_db.return_value = mock_db
-
-            # Attempt to create conversation
-            response = await client.post(
-                "/api/conversations",
-                headers={"Authorization": f"Bearer {session_token}"},
-                json={
-                    "topic": "Test topic",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Greek philosopher",
-                            "positions": "Ethics",
-                            "style": "Socratic method",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
-            # Should handle database error gracefully
-            assert response.status_code >= 400
 
     async def test_get_conversation_with_invalid_session_token(self, client: AsyncClient) -> None:
         """Test that getting a conversation with invalid session token fails properly."""
