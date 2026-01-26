@@ -350,3 +350,73 @@
 - Graceful degradation (returns stale data while refreshing)
 - Retry mechanisms (refresh endpoint for failed research)
 - State machine transitions (PENDING → IN_PROGRESS → COMPLETE/FAILED)
+
+## Coverage Sprint - Conversation API Edge Cases (Issue #589, QA Agent Monday 2026-01-26)
+
+**Focus**: Target lowest coverage file (app/api/conversations.py at 39%) with edge case tests for error paths, validation, and state management.
+
+**Coverage Impact**: Added explicit edge case tests for error handling, validation, and state management in conversations API.
+
+**File**: `tests/test_conversations_coverage_sprint_jan26.py`
+
+### List Conversations Edge Cases (2 tests)
+
+**test_list_conversations_when_empty** (test_conversations_coverage_sprint_jan26.py:20-31)
+- **Lines Covered**: app/api/conversations.py lines 76-85 (list endpoint when no conversations exist)
+- Validates that GET /api/conversations returns empty array when user has no conversations
+- Edge case: New user with no conversation history
+- Expected behavior: Returns 200 with empty list `[]`
+
+**test_list_conversations_with_null_costs** (test_conversations_coverage_sprint_jan26.py:33-72)
+- **Lines Covered**: app/api/conversations.py lines 88-104 (cost calculation with null values)
+- Validates that list_conversations handles messages with null cost values gracefully
+- Edge case: Messages created before cost tracking was implemented or user messages with no cost
+- Tests `sum(msg.cost or 0.0 for msg in conv.messages)` logic
+- Expected behavior: Null costs treated as 0.0, no exceptions raised
+
+### Get Conversation Error Paths (1 test)
+
+**test_get_conversation_returns_404_for_nonexistent** (test_conversations_coverage_sprint_jan26.py:78-88)
+- **Lines Covered**: app/api/conversations.py lines 126-129 (404 error path)
+- Validates that GET /api/conversations/{invalid_uuid} returns 404
+- Edge case: User requests conversation that doesn't exist
+- Expected behavior: Returns 404 with "Conversation not found" detail
+
+### Delete Conversation Error Paths (2 tests)
+
+**test_delete_conversation_returns_404_for_nonexistent** (test_conversations_coverage_sprint_jan26.py:94-106)
+- **Lines Covered**: app/api/conversations.py lines 145-147 (404 error path)
+- Validates that DELETE /api/conversations/{invalid_uuid} returns 404
+- Edge case: User tries to delete nonexistent conversation
+- Expected behavior: Returns 404 with "Conversation not found" detail
+
+**test_delete_conversation_returns_success_response** (test_conversations_coverage_sprint_jan26.py:108-150)
+- **Lines Covered**: app/api/conversations.py line 151 (success response)
+- Validates that DELETE /api/conversations/{valid_id} returns success object
+- Tests successful delete operation returns `{"status": "deleted"}`
+- Expected behavior: Returns 200 with status object, conversation removed from database
+
+### Add Thinkers Validation (2 tests)
+
+**test_add_thinkers_when_at_max_limit** (test_conversations_coverage_sprint_jan26.py:156-213)
+- **Lines Covered**: app/api/conversations.py lines 173-185 (max thinker validation)
+- Validates that PUT /api/conversations/{id}/thinkers rejects additions when at 5 thinker limit
+- Edge case: Conversation already has 5 thinkers (max), user tries to add more
+- Tests validation error message includes useful context: "Cannot add X thinkers. Conversation has 5/5 thinkers. Maximum is 5 total."
+- Expected behavior: Returns 400 with descriptive error message
+
+**test_add_thinkers_when_color_pool_exhausted** (test_conversations_coverage_sprint_jan26.py:215-269)
+- **Lines Covered**: app/api/conversations.py lines 188-199, 217-220 (color pool management)
+- Validates that adding thinkers when all 5 default colors are in use still works
+- Edge case: 4 thinkers with explicit colors, adding 5th with default color
+- Tests color assignment from available pool: `available_colors = [c for c in all_colors if c not in existing_colors]`
+- Expected behavior: 5th thinker gets last available color from pool
+
+### Send Message Idle Pause (1 test)
+
+**test_send_message_auto_resumes_from_idle_pause** (test_conversations_coverage_sprint_jan26.py:275-328)
+- **Lines Covered**: app/api/conversations.py lines 245-254 (idle pause auto-resume)
+- Validates that sending message to idle-paused conversation auto-resumes it
+- Integration: Mocks thinker_service.is_idle_paused() and resume_from_idle()
+- Tests auto-resume flow: check if idle → resume → broadcast RESUMED message
+- Expected behavior: Conversation resumes, RESUMED WebSocket message sent to clients
