@@ -2314,3 +2314,56 @@ Tests the send_message endpoint (lines 241-268)
 - Add tests for add_thinkers color management edge cases (lines 188-199)
 - Explore tests for conversation deletion cascade (lines 139-151)
 
+
+## Flaky Test Hunt - Conversation API Error Paths (Issue #592, QA Agent Tuesday 2026-01-27)
+
+**Focus**: flaky-hunt (Tuesday) - Run tests 5x to identify flaky tests, then improve coverage
+
+**Flaky Test Results**:
+- ✅ Backend tests: Ran 5x, all 459 tests passed every time - NO FLAKINESS DETECTED
+- ✅ Frontend tests: Ran 5x, all 379 tests passed every time - NO FLAKINESS DETECTED
+
+Since no flaky tests were found, focused on improving coverage for the lowest-coverage module (app/api/conversations.py: 39% → ~50%).
+
+### Conversation API Error Path Tests (test_conversations_flaky_hunt.py)
+
+**File**: `backend/tests/test_conversations_flaky_hunt.py`
+**Tests Added**: 6 new tests
+**Coverage Target**: app/api/conversations.py (improved from 39% to ~50%)
+
+#### 1. test_get_nonexistent_conversation_returns_404
+- **What it tests**: GET /api/conversations/{fake_id} returns 404
+- **Edge case**: Requesting a conversation that does not exist
+- **Expected behavior**: Returns 404 with "Conversation not found" detail
+
+#### 2. test_delete_nonexistent_conversation_returns_404
+- **What it tests**: DELETE /api/conversations/{fake_id} returns 404
+- **Edge case**: Attempting to delete a conversation that does not exist
+- **Expected behavior**: Returns 404 with "Conversation not found" detail
+
+#### 3. test_add_thinkers_to_nonexistent_conversation_returns_404
+- **What it tests**: PUT /api/conversations/{fake_id}/thinkers returns 404
+- **Edge case**: Attempting to add thinkers to a non-existent conversation
+- **Expected behavior**: Returns 404 with "Conversation not found" detail
+
+#### 4. test_add_thinkers_exceeding_max_limit_returns_400
+- **What it tests**: Validation of maximum 5 thinkers per conversation
+- **Edge case**: Conversation has 3 thinkers, user tries to add 3 more (total 6, exceeds limit)
+- **Expected behavior**: Returns 400 with detailed error message: "Cannot add 3 thinkers. Conversation has 3/5 thinkers. Maximum is 5 total."
+
+#### 5. test_add_thinker_picks_available_colors
+- **What it tests**: Color assignment logic when adding thinkers
+- **Edge case**: Conversation uses colors #6366f1 and #ec4899, new thinker with default color should pick from remaining: #10b981, #f59e0b, #8b5cf6
+- **Expected behavior**: New thinker gets a color that is not already in use
+
+#### 6. test_list_conversations_empty_for_new_user
+- **What it tests**: GET /api/conversations for new user
+- **Edge case**: User with no conversations
+- **Expected behavior**: Returns empty array []
+
+### Benefits
+- Improved coverage of error paths in conversations API (previously uncovered 404 responses)
+- Validated that max thinker limit (5) is properly enforced with detailed error messages
+- Confirmed color assignment logic avoids duplicates when adding thinkers
+- Verified empty state handling for new users
+
