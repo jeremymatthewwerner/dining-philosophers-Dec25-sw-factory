@@ -2,6 +2,80 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0. Integration Gaps - Wednesday Sprint (Added 2026-01-28)
+
+**Focus**: Add integration tests for untested API endpoints
+
+### 0.1 Conversation API Integration Tests
+**File**: `backend/tests/test_conversations_integration_jan28.py`
+**Purpose**: Test untested integration paths in `app/api/conversations.py`
+
+**Tests Added (11 total)**:
+
+#### List Conversations Integration (3 tests)
+- ✅ `test_list_conversations_message_count_accuracy` - Verifies message_count field matches actual message count
+  - Creates conversation and sends 3 messages
+  - Validates list endpoint returns correct message_count
+  - Cross-checks with database query for accuracy
+
+- ✅ `test_list_conversations_cost_aggregation` - Verifies total_cost field sums message costs correctly
+  - Creates conversation with messages having known costs (0.0015, 0.0025, 0.0010)
+  - Validates list endpoint returns correct total_cost (0.0050)
+  - Tests cost calculation aggregation logic
+
+- ✅ `test_list_conversations_with_zero_cost_messages` - Handles None/zero cost messages gracefully
+  - Creates conversation with messages that have no cost
+  - Validates system doesn't crash on None cost values
+  - Ensures total_cost defaults to 0.0
+
+#### Get Conversation Integration (2 tests)
+- ✅ `test_get_conversation_not_found` - Tests 404 error for nonexistent conversation
+  - Attempts to fetch conversation with fake UUID
+  - Validates 404 status and error message
+
+- ✅ `test_get_conversation_belongs_to_different_session` - Tests session isolation
+  - Creates conversation as user1
+  - Attempts to access as user2
+  - Validates 404 (not 403) to prevent conversation ID leakage
+
+#### Delete Conversation Integration (2 tests)
+- ✅ `test_delete_conversation_cascades_messages` - Verifies cascade deletion
+  - Creates conversation with 3 messages
+  - Deletes conversation
+  - Validates all messages are also deleted (database-level cascade)
+
+- ✅ `test_delete_conversation_not_found` - Tests 404 error for nonexistent conversation
+  - Attempts to delete conversation with fake UUID
+  - Validates 404 status and error message
+
+#### Create Conversation Color Distribution (2 tests)
+- ✅ `test_create_conversation_color_distribution` - Tests color assignment for multiple thinkers
+  - Creates conversation with 5 thinkers (max)
+  - Validates all thinkers get unique colors from palette
+  - Ensures proper color distribution
+
+- ✅ `test_create_conversation_respects_custom_colors` - Tests custom color preservation
+  - Creates conversation with custom color (#ff00ff) and default color
+  - Validates custom color is preserved
+  - Validates default color gets palette color
+
+#### Add Thinkers Refresh Behavior (2 tests)
+- ✅ `test_add_thinkers_refresh_sets_ids_and_timestamps` - Validates database refresh after flush
+  - Adds thinker to existing conversation
+  - Validates new thinker has ID and timestamp set
+  - Tests lines 216-220 in conversations.py
+
+- ✅ `test_add_multiple_thinkers_all_have_unique_ids` - Tests batch thinker addition
+  - Adds 3 thinkers at once
+  - Validates all get unique IDs
+  - Validates all have timestamps
+
+**Coverage Impact**: Targets untested paths in `app/api/conversations.py` (39% → improved)
+**Test Stability**: All 11 tests pass reliably (verified across 3 runs)
+**Lines Tested**: 85-105 (list), 126-129 (get error), 145-151 (delete), 46-61 (color), 216-220 (refresh)
+
+---
+
 ## 0. E2E Performance Optimization - Thursday Sprint (Added 2026-01-22)
 
 **Focus**: Optimize E2E test performance by replacing arbitrary `waitForTimeout` calls with event-driven waits
