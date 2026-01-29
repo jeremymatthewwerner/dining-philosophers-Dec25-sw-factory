@@ -141,19 +141,21 @@ test.describe('Concurrent Operations', () => {
       await page.waitForTimeout(200);
     }
 
-    // Wait for all messages to appear
-    await page.waitForTimeout(2000);
+    // Wait for all user messages to appear using polling assertion
+    const userMessages = page.locator('[data-sender-type="user"]');
+    await expect
+      .poll(async () => await userMessages.count(), {
+        timeout: 10000,
+      })
+      .toBe(5);
 
     // All 5 messages should be visible
     for (const msg of messages) {
       await expect(page.locator(`text=${msg}`)).toBeVisible();
     }
 
-    // Get all user messages
-    const userMessages = page.locator('[data-sender-type="user"]');
-    const count = await userMessages.count();
-
     // Should have exactly 5 user messages (no duplicates)
+    const count = await userMessages.count();
     expect(count).toBe(5);
   });
 });

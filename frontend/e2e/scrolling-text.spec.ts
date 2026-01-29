@@ -108,8 +108,16 @@ test.describe('ScrollingText - Conversation List', () => {
     // After hover starts, the span class should change:
     // - 'truncate' class removed (no ellipsis during animation)
     // - 'inline-block' class added (needed for transform)
-    // Wait for the animation to start (after initial delay of ~2000ms)
-    await page.waitForTimeout(2500);
+    // Wait for the animation to start using polling assertion
+    await expect
+      .poll(
+        async () => {
+          const cls = await textSpan.getAttribute('class');
+          return cls?.includes('inline-block') && !cls?.includes('truncate');
+        },
+        { timeout: 5000 }
+      )
+      .toBe(true);
 
     // During animation, the span should have inline-block class instead of truncate
     const spanClass = await textSpan.getAttribute('class');
@@ -151,7 +159,17 @@ test.describe('ScrollingText - Conversation List', () => {
 
     // Hover to start animation
     await scrollingTextContainer.hover();
-    await page.waitForTimeout(3000); // Wait for animation to progress
+
+    // Wait for animation to start (class changes to inline-block)
+    await expect
+      .poll(
+        async () => {
+          const cls = await textSpan.getAttribute('class');
+          return cls?.includes('inline-block');
+        },
+        { timeout: 5000 }
+      )
+      .toBe(true);
 
     // Leave hover
     await page.mouse.move(0, 0);

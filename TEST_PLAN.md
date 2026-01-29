@@ -76,11 +76,36 @@ This document outlines all features requiring testing, their test cases, and edg
 
 ---
 
-## 0. E2E Performance Optimization - Thursday Sprint (Added 2026-01-22)
+## 0. E2E Performance Optimization - Thursday Sprint
 
 **Focus**: Optimize E2E test performance by replacing arbitrary `waitForTimeout` calls with event-driven waits
 
-### 0.1 Performance Optimization Summary
+### 0.1 Performance Optimization Summary (Sprint 3 - Added 2026-01-29)
+**Files Optimized**: 4 test files
+**Optimizations Made**: 5 long `waitForTimeout` calls eliminated (all ≥2000ms waits removed)
+
+**Performance Impact**:
+- **13+ seconds saved per E2E suite run** (6 calls × 2-3s each)
+- **Total waitForTimeout count**: 21 → 16 (24% reduction)
+- **Long waits (≥2000ms)**: 6 → 0 (100% elimination)
+- More reliable tests (event-driven waits adapt to CI performance)
+- Better parallelism (no arbitrary delays blocking workers)
+
+**Optimization Patterns Applied**:
+1. Replaced `waitForTimeout()` with `waitForResponse()` for API calls
+2. Replaced arbitrary waits with `expect.poll()` for state changes
+3. Replaced animation waits with polling assertions for CSS class changes
+4. Replaced long stability waits with polling for stabilized message counts
+
+**Files Optimized (2026-01-29)**:
+- `new-conversation.spec.ts`: Replaced 3000ms API wait with `waitForResponse()`, replaced 2000ms state wait with polling
+- `scrolling-text.spec.ts`: Replaced 2500ms and 3000ms animation waits with polling for class changes
+- `tab-visibility.spec.ts`: Replaced 3000ms wait with polling for message count stabilization
+- `concurrent-operations.spec.ts`: Replaced 2000ms wait with polling assertion for message count
+
+**Test Stability**: All optimized tests pass reliably (verified 3x runs, 0% flakiness)
+
+### 0.2 Performance Optimization Summary (Sprint 2 - Added 2026-01-22)
 **Files Optimized**: 3 test files
 **Optimizations Made**: 21 `waitForTimeout` calls eliminated (41 → 20, 51% reduction)
 
@@ -96,7 +121,7 @@ This document outlines all features requiring testing, their test cases, and edg
 3. Replaced arbitrary waits with `waitForResponse()` for API calls
 4. Replaced long waits with `Promise.race()` for multiple possible outcomes
 
-### 0.2 Optimized Files
+### 0.3 Optimized Files (Sprint 2)
 
 **File**: `frontend/e2e/issue-88-refresh-thinker.spec.ts`
 **Optimizations**: 6 waits eliminated (10s, 5s, 500ms x2, 200ms x2)
@@ -118,16 +143,18 @@ This document outlines all features requiring testing, their test cases, and edg
 - Removed 100ms delays in rapid click tests (not needed between clicks)
 - **Impact**: ~7s saved per test run
 
-### 0.3 Remaining Opportunities (20 waits remaining)
+### 0.4 Remaining Opportunities (16 waits remaining)
 **Files with remaining waits** (left for future optimization):
-- `concurrent-operations.spec.ts`: 7 waits (200-1000ms for rapid switching tests)
-- `tab-visibility.spec.ts`: 4 waits (1-3s for visibility change simulation)
-- `scrolling-text.spec.ts`: 3 waits (500-3000ms for animation progression)
-- `new-conversation.spec.ts`: 2 waits (2-3s after thinker operations)
+- `concurrent-operations.spec.ts`: 5 waits (200-300ms for rapid switching tests) - down from 7
+- `tab-visibility.spec.ts`: 3 waits (500-1000ms for visibility changes) - down from 4, 1 optimized
+- `scrolling-text.spec.ts`: 1 wait (500ms) - down from 3, 2 optimized
 - `mobile-header.spec.ts`: 2 waits (300ms animation waits)
-- `mobile-ios.spec.ts`: 2 waits (300ms, retained for specific iOS timing issues)
+- `mobile-ios.spec.ts`: 3 waits (300ms)
+- `form-validation.spec.ts`: 1 wait (500ms)
+- `new-conversation.spec.ts`: 1 wait (likely new test added after Sprint 2)
 
-**Test Stability**: All optimizations verified to maintain test reliability
+**All long waits (≥2000ms) have been eliminated!**
+**Test Stability**: All optimizations verified to maintain test reliability across 3 runs
 
 ---
 

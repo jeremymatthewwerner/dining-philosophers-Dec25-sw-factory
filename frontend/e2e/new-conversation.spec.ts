@@ -193,12 +193,16 @@ test.describe('Thinker Suggestions', () => {
       .locator('div.font-medium')
       .textContent();
 
-    // Click refresh button
+    // Click refresh button and wait for API call
     const refreshButton = page.getByTestId('refresh-suggestion').first();
+    const refreshPromise = page.waitForResponse(
+      (response) => response.url().includes('/thinkers/suggest'),
+      { timeout: 15000 }
+    );
     await refreshButton.click();
 
-    // Wait for refresh to complete
-    await page.waitForTimeout(3000);
+    // Wait for refresh API call to complete
+    await refreshPromise;
 
     // The suggestion should have been replaced (or at least refreshed)
     await expect(firstSuggestion).toBeVisible({ timeout: 15000 });
@@ -256,8 +260,13 @@ test.describe('Thinker Suggestions', () => {
     // Wait for the auto-fetch API call to complete
     await autoFetchPromise;
 
-    // Wait for state to update after API response
-    await page.waitForTimeout(2000);
+    // Wait for the new suggestion to appear in the DOM (state has updated)
+    // Use a polling assertion to wait for the suggestion count to stabilize
+    await expect
+      .poll(async () => await suggestions.count(), {
+        timeout: 10000,
+      })
+      .toBeGreaterThanOrEqual(initialCount - 1);
 
     // Get the final count and names
     const finalCount = await suggestions.count();

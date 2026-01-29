@@ -111,8 +111,20 @@ test.describe('Tab Visibility Handling', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    // Wait while hidden (WebSocket should disconnect or pause)
-    await page.waitForTimeout(3000);
+    // Wait for visibility change to take effect and any in-flight messages to arrive
+    // Use polling to check that message count stabilizes (no new messages arriving)
+    await expect
+      .poll(
+        async () => {
+          const count = await getMessageCount();
+          // Give it a moment to see if more messages arrive
+          await page.waitForTimeout(500);
+          const countAfter = await getMessageCount();
+          return count === countAfter; // Count has stabilized
+        },
+        { timeout: 5000 }
+      )
+      .toBe(true);
 
     const countWhileHidden = await getMessageCount();
 
