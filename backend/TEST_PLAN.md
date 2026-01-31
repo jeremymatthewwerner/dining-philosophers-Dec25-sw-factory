@@ -420,3 +420,100 @@
 - Integration: Mocks thinker_service.is_idle_paused() and resume_from_idle()
 - Tests auto-resume flow: check if idle → resume → broadcast RESUMED message
 - Expected behavior: Conversation resumes, RESUMED WebSocket message sent to clients
+
+## Saturday Edge Case Analysis Sprint (Added 2026-01-31)
+
+**Focus**: Add comprehensive edge case tests for error paths, boundary conditions, and security validation
+
+### Conversation Edge Case Tests
+**File**: `backend/tests/test_conversations_edge_cases.py`
+**Purpose**: Test error paths, boundary conditions, and security edge cases for conversation management
+**Lines Covered**: app/api/conversations.py - error handling, validation, authorization
+
+**Tests Added (13 total)**:
+
+#### Conversation Creation Edge Cases (5 tests)
+- ✅ `test_create_conversation_with_no_thinkers` - Empty thinkers list rejected with 422
+  - Edge case: Required list field validation
+  - Validates that conversations require at least one thinker
+  - Tests Pydantic min_items constraint
+
+- ✅ `test_create_conversation_with_too_many_thinkers` - Max thinkers boundary (11 thinkers)
+  - Edge case: Upper boundary for list size
+  - Tests max_items validation (if defined)
+  - System currently allows unlimited thinkers, test verifies graceful handling
+
+- ✅ `test_create_conversation_with_duplicate_thinker_names` - Duplicate thinker names allowed
+  - Edge case: Duplicate entries in list
+  - Validates system handles duplicates without crashing
+  - Tests that color assignment still works with duplicates
+
+- ✅ `test_create_conversation_with_very_long_topic` - Topic with 5000+ characters
+  - Edge case: Large text input validation
+  - Tests max_length constraint on topic field
+  - System currently allows long topics, test verifies no crashes
+
+- ✅ `test_create_conversation_with_special_characters_in_thinker_fields` - XSS/Unicode handling
+  - Edge case: Special characters, emojis, HTML, script tags
+  - Tests: `<script>alert('xss')</script>`, `🎉`, `你好`, `"quotes"`, `&<>` symbols
+  - Validates backend preserves content without sanitization (frontend's job)
+  - Security: No SQL injection, no crashes from special chars
+
+#### Conversation Retrieval Edge Cases (3 tests)
+- ✅ `test_get_nonexistent_conversation_different_user` - Cross-user authorization
+  - Edge case: Authorization boundary - session isolation
+  - User2 attempts to access User1's conversation
+  - Returns 404 (not 403) to prevent information disclosure
+  - Security: Conversation ID existence not leaked
+
+- ✅ `test_list_conversations_when_session_has_none` - Empty result set
+  - Edge case: No conversations exist for session
+  - Tests endpoint returns empty list (not error)
+  - Validates empty state handling
+
+- ✅ `test_get_conversation_after_session_expired` - Invalid/expired token
+  - Edge case: Token expiration, malformed JWT
+  - Tests with invalid Bearer token
+  - Returns 401 (unauthorized) not crash
+
+#### Conversation Deletion Edge Cases (2 tests)
+- ✅ `test_delete_nonexistent_conversation` - Delete non-existent resource
+  - Edge case: Idempotency check
+  - DELETE on fake UUID returns 404
+  - Tests error handling for missing resources
+
+- ✅ `test_delete_conversation_with_many_messages` - Cascade deletion
+  - Edge case: Foreign key cascade performance
+  - Creates conversation, deletes it, verifies cascade
+  - Tests database CASCADE constraints work correctly
+  - Validates 200 OK response with {"status": "deleted"}
+
+#### Message Creation Edge Cases (3 tests)
+- ✅ `test_create_message_with_empty_content` - Empty message content
+  - Edge case: Required field validation
+  - POST with empty string content rejected with 422
+  - Tests min_length validation on message content
+
+- ✅ `test_create_message_with_extremely_long_content` - 100k character message
+  - Edge case: Large input validation
+  - Tests max_length constraint (if defined)
+  - System currently allows, test verifies no memory issues
+
+- ✅ `test_create_message_in_nonexistent_conversation` - Invalid foreign key
+  - Edge case: Referential integrity
+  - POST to fake conversation UUID returns 404
+  - Tests foreign key constraint handling
+
+**Coverage Impact**:
+- app/api/conversations.py: Error paths now covered (previously 39%, targeting 60%)
+- Improved validation testing for all endpoints
+- Security edge cases (XSS, SQL injection attempts, authorization leaks) now tested
+- Boundary conditions (empty lists, very long strings, special chars) covered
+
+**Edge Case Categories Covered**:
+1. **Validation**: Empty/missing/too-long fields
+2. **Security**: XSS, authorization boundaries, information disclosure
+3. **Boundary Conditions**: Min/max values, special characters, Unicode
+4. **Error Paths**: 404s, 401s, 422s
+5. **Idempotency**: DELETE non-existent, double operations
+6. **Data Integrity**: Foreign keys, cascade deletes, session isolation
