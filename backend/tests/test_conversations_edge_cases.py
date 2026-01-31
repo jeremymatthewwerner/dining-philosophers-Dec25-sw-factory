@@ -189,9 +189,7 @@ class TestConversationRetrievalEdgeCases:
     """Test edge cases when retrieving conversations."""
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_conversation_different_user(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_get_nonexistent_conversation_different_user(self, client: AsyncClient) -> None:
         """Test accessing another user's conversation returns 404.
 
         Edge case: Authorization boundary - cross-user access
