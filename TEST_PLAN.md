@@ -2,6 +2,70 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0. Regression Prevention - Sunday Sprint (Added 2026-02-01)
+
+**Focus**: Add regression tests for recent bug fixes to prevent recurrence
+
+### 0.1 Speed Multiplier Linear Scaling (Issue #531 / PR #533)
+**File**: `backend/tests/test_regression_prevention.py` (TestSpeedMultiplierLinearScaling class)
+**Purpose**: Prevent regression of speed multiplier scaling fix
+
+**Bug**: Contemplation slider was "way too slow" even at max 6x setting
+**Root Cause**: Used exponential scaling (speed^1.5), so 6x became ~14.7x delays
+**Fix**: Changed to linear scaling (speed_mult = speed), so 6x stays 6x
+
+**Tests Added (3 total)**:
+- ✅ `test_speed_multiplier_uses_linear_scaling` - Verifies linear scaling at multiple speeds
+  - Tests speeds: 1.0, 2.0, 3.0, 4.0, 6.0
+  - Validates actual multiplier equals input speed (not speed^1.5)
+  - Confirms exponential values are NOT used (e.g., 6.0 not 14.7)
+
+- ✅ `test_speed_multiplier_at_contemplative_6x` - Validates Contemplative (6x) speed
+  - Sets speed to 6.0 (Contemplative/slowest setting)
+  - Confirms multiplier is 6.0, not ~14.7 (exponential)
+  - Validates fix directly addresses user complaint
+
+- ✅ `test_speed_multiplier_boundary_values` - Tests min/max clamping
+  - Min: 0.5x (fastest) - clamping prevents values below 0.5
+  - Max: 6.0x (contemplative) - clamping prevents values above 6.0
+  - Normal: 1.0x (default speed)
+
+**Coverage Impact**: Prevents regression of speed multiplier calculation
+**Test Stability**: All 3 tests pass 3x runs with 0% flakiness
+**Lines Tested**: `app/api/websocket.py:139-150` (get/set_speed_multiplier)
+
+### 0.2 @Mention Badge Alignment (Issue #494 / PR #495)
+**File**: `frontend/e2e/mention-badge-alignment.spec.ts`
+**Purpose**: Prevent regression of @mention badge visual alignment fix
+
+**Bug**: @mention badges appeared elevated/misaligned with surrounding text
+**Root Cause**: `inline-flex` span didn't align to text baseline
+**Fix**: Added `verticalAlign: 'text-bottom'` to mention span inline styles
+
+**Tests Added (3 total)**:
+- ✅ `mention badges have correct vertical alignment CSS` - Validates CSS properties
+  - Confirms `display: inline-flex` (for avatar + text layout)
+  - Confirms `alignItems: center` (centers within badge)
+  - **CRITICAL:** Confirms `verticalAlign: text-bottom` (the fix for Issue #494)
+  - Prevents badges from appearing elevated above text
+
+- ✅ `mention badges align with surrounding text visually` - Visual alignment validation
+  - Sends message: "I agree with @Plato on this important philosophical question."
+  - Gets bounding boxes for text before, badge, and text after mention
+  - Validates badge bottom aligns within 4px of surrounding text bottom
+  - Before fix: badge was 6-8px higher than text
+
+- ✅ `mention badges in mobile viewport maintain alignment` - Mobile responsiveness
+  - Sets viewport to 375x667 (iPhone SE)
+  - Confirms `verticalAlign: text-bottom` applies on mobile
+  - Validates fix works across all screen sizes
+
+**Coverage Impact**: Prevents regression of mention badge visual alignment
+**Test Stability**: E2E tests use API helpers and proper element waiting
+**Lines Tested**: `src/components/Message.tsx` (mention badge span styling)
+
+---
+
 ## 0. Integration Gaps - Wednesday Sprint (Added 2026-01-28)
 
 **Focus**: Add integration tests for untested API endpoints

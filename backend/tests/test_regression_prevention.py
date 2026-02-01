@@ -612,3 +612,121 @@ class TestAPITimeoutHandling:
         # We should test that it doesn't raise but returns empty list
         result = await service._suggest_single_batch("Test topic", 3)
         assert result == []  # Should return empty list on timeout, not raise
+
+
+class TestSpeedMultiplierLinearScaling:
+    """Regression tests for speed multiplier linear scaling (Issue #531).
+
+    Bug: Contemplation slider was "way too slow" even at max setting (6x).
+    Root cause: Used exponential scaling (speed^1.5), so 6x became ~14.7x.
+    Fix: Changed to linear scaling (speed_mult = speed), so 6x stays 6x (PR #533).
+
+    Impact at Contemplative (6x):
+    - Before: Min interval ~220s (3.7 min), delays 14.7x longer
+    - After: Min interval ~90s, delays 6x longer (as user expects)
+    """
+
+    @pytest.mark.asyncio
+    async def test_speed_multiplier_uses_linear_scaling(self) -> None:
+        """Test that speed multiplier uses linear scaling, not exponential.
+
+        Regression test for Issue #531 - ensures speed_mult = speed (not speed^1.5).
+        """
+        from app.api.websocket import ConversationRoom, manager
+
+        conversation_id = "test-conv-linear"
+
+        # Create the conversation room (manager needs this to exist)
+        manager.rooms[conversation_id] = ConversationRoom(conversation_id=conversation_id)
+
+        # Test various speed values
+        test_cases = [
+            (1.0, 1.0),  # Normal speed
+            (2.0, 2.0),  # 2x slower (should be 2.0, not 2^1.5=2.83)
+            (3.0, 3.0),  # 3x slower (should be 3.0, not 3^1.5=5.20)
+            (4.0, 4.0),  # 4x slower (should be 4.0, not 4^1.5=8.0)
+            (6.0, 6.0),  # Contemplative (should be 6.0, not 6^1.5=14.7)
+        ]
+
+        for speed, expected_mult in test_cases:
+            await manager.set_speed_multiplier(conversation_id, speed)
+            actual_mult = manager.get_speed_multiplier(conversation_id)
+
+            # Verify linear scaling (actual should equal input speed)
+            assert actual_mult == expected_mult, (
+                f"Speed {speed} should produce multiplier {expected_mult} "
+                f"(linear), but got {actual_mult}"
+            )
+
+            # Verify it's NOT exponential (would be speed^1.5)
+            exponential_mult = speed**1.5
+            if speed > 1.5:  # Only check for speeds where difference is significant
+                assert actual_mult != exponential_mult, (
+                    f"Speed {speed} appears to use exponential scaling "
+                    f"({actual_mult} ≈ {exponential_mult})"
+                )
+
+    @pytest.mark.asyncio
+    async def test_speed_multiplier_at_contemplative_6x(self) -> None:
+        """Test that Contemplative (6x) produces 6.0 multiplier, not ~14.7.
+
+        Regression test for Issue #531 - the key complaint was 6x being too slow.
+        With exponential: 6^1.5 = 14.7x (way too slow)
+        With linear: 6.0x (appropriate)
+        """
+        from app.api.websocket import ConversationRoom, manager
+
+        conversation_id = "test-conv-contemplative"
+
+        # Create the conversation room (manager needs this to exist)
+        manager.rooms[conversation_id] = ConversationRoom(conversation_id=conversation_id)
+
+        # Set to Contemplative speed (6x)
+        await manager.set_speed_multiplier(conversation_id, 6.0)
+        actual_mult = manager.get_speed_multiplier(conversation_id)
+
+        # Should be 6.0 (linear), not 14.7 (exponential)
+        assert actual_mult == 6.0, (
+            f"Contemplative (6x) should produce 6.0 multiplier, got {actual_mult}"
+        )
+
+        # Verify it's NOT the old exponential value
+        exponential_value = 6**1.5  # ~14.7
+        assert abs(actual_mult - exponential_value) > 5.0, (
+            f"Multiplier {actual_mult} is too close to exponential value "
+            f"{exponential_value}, suggests exponential scaling not fixed"
+        )
+
+    @pytest.mark.asyncio
+    async def test_speed_multiplier_boundary_values(self) -> None:
+        """Test speed multiplier handles boundary values correctly.
+
+        Regression test for Issue #531 - validates min/max clamping works.
+        Valid range: 0.5 (fast) to 6.0 (contemplative).
+        """
+        from app.api.websocket import ConversationRoom, manager
+
+        conversation_id = "test-conv-boundaries"
+
+        # Create the conversation room (manager needs this to exist)
+        manager.rooms[conversation_id] = ConversationRoom(conversation_id=conversation_id)
+
+        # Test minimum (0.5x - fastest)
+        await manager.set_speed_multiplier(conversation_id, 0.5)
+        assert manager.get_speed_multiplier(conversation_id) == 0.5
+
+        # Test below minimum (should clamp to 0.5)
+        await manager.set_speed_multiplier(conversation_id, 0.1)
+        assert manager.get_speed_multiplier(conversation_id) == 0.5
+
+        # Test maximum (6.0x - contemplative)
+        await manager.set_speed_multiplier(conversation_id, 6.0)
+        assert manager.get_speed_multiplier(conversation_id) == 6.0
+
+        # Test above maximum (should clamp to 6.0)
+        await manager.set_speed_multiplier(conversation_id, 10.0)
+        assert manager.get_speed_multiplier(conversation_id) == 6.0
+
+        # Test normal speed (1.0x - default)
+        await manager.set_speed_multiplier(conversation_id, 1.0)
+        assert manager.get_speed_multiplier(conversation_id) == 1.0
