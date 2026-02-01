@@ -9,6 +9,14 @@ on:
   repository_dispatch:  # Triggered by claude-work after auto-merge (GITHUB_TOKEN can't trigger push)
     types: [deploy-after-merge]
 
+# Default permissions for all jobs
+# Required for repository_dispatch events which don't inherit default permissions
+# Job-level permissions can still override these as needed
+permissions:
+  contents: read
+  packages: write
+  issues: write
+
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/${{ github.repository }}-backend
