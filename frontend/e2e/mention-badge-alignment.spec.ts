@@ -11,44 +11,32 @@
 
 import { expect, test } from '@playwright/test';
 import {
-  cleanupTestUser,
   createConversationViaAPI,
-  loginViaUI,
-  registerViaUI,
-  sendMessageViaAPI,
-} from './helpers';
+  setupAuthenticatedUser,
+} from './test-utils';
 
 test.describe('Regression: @mention badge alignment (Issue #494)', () => {
-  const testUsername = `mention-align-${Date.now()}`;
-  const testPassword = 'testpass123';
-
-  test.afterEach(async () => {
-    await cleanupTestUser(testUsername);
+  test.beforeEach(async ({ page }) => {
+    await setupAuthenticatedUser(page);
   });
 
   test('mention badges have correct vertical alignment CSS', async ({ page }) => {
-    // Register, login, and create conversation with thinker
-    await registerViaUI(page, testUsername, testPassword);
-    await loginViaUI(page, testUsername, testPassword);
-
-    const conversationId = await createConversationViaAPI(
-      testUsername,
-      testPassword,
+    // Create conversation with thinker via API
+    const conversation = await createConversationViaAPI(
+      page,
       'Test alignment',
       ['Socrates']
     );
 
     // Navigate to the conversation
-    await page.goto(`/?conversation=${conversationId}`);
+    await page.goto(`/?conversation=${conversation.id}`);
     await page.waitForLoadState('networkidle');
 
-    // Send a message with @mention via API
-    await sendMessageViaAPI(
-      testUsername,
-      testPassword,
-      conversationId,
-      'Hello @Socrates, what do you think about this topic?'
-    );
+    // Send a message with @mention
+    const messageTextarea = page.getByTestId('message-textarea');
+    await messageTextarea.fill('Hello @Socrates, what do you think about this topic?');
+    const sendButton = page.getByTestId('send-button');
+    await sendButton.click();
 
     // Wait for message to appear in UI
     await page.waitForSelector('.message-content', { state: 'visible', timeout: 10000 });
@@ -80,27 +68,21 @@ test.describe('Regression: @mention badge alignment (Issue #494)', () => {
   });
 
   test('mention badges align with surrounding text visually', async ({ page }) => {
-    // Register, login, and create conversation
-    await registerViaUI(page, testUsername, testPassword);
-    await loginViaUI(page, testUsername, testPassword);
-
-    const conversationId = await createConversationViaAPI(
-      testUsername,
-      testPassword,
+    // Create conversation via API
+    const conversation = await createConversationViaAPI(
+      page,
       'Test visual alignment',
       ['Plato']
     );
 
-    await page.goto(`/?conversation=${conversationId}`);
+    await page.goto(`/?conversation=${conversation.id}`);
     await page.waitForLoadState('networkidle');
 
     // Send message with mention in middle of sentence (most visible alignment issue)
-    await sendMessageViaAPI(
-      testUsername,
-      testPassword,
-      conversationId,
-      'I agree with @Plato on this important philosophical question.'
-    );
+    const messageTextarea = page.getByTestId('message-textarea');
+    await messageTextarea.fill('I agree with @Plato on this important philosophical question.');
+    const sendButton = page.getByTestId('send-button');
+    await sendButton.click();
 
     await page.waitForSelector('.message-content', { state: 'visible', timeout: 10000 });
 
@@ -144,26 +126,21 @@ test.describe('Regression: @mention badge alignment (Issue #494)', () => {
     // Set mobile viewport to test responsiveness
     await page.setViewportSize({ width: 375, height: 667 }); // iPhone SE
 
-    // Register, login, and create conversation
-    await registerViaUI(page, testUsername, testPassword);
-    await loginViaUI(page, testUsername, testPassword);
-
-    const conversationId = await createConversationViaAPI(
-      testUsername,
-      testPassword,
+    // Create conversation via API
+    const conversation = await createConversationViaAPI(
+      page,
       'Mobile alignment test',
       ['Aristotle']
     );
 
-    await page.goto(`/?conversation=${conversationId}`);
+    await page.goto(`/?conversation=${conversation.id}`);
     await page.waitForLoadState('networkidle');
 
-    await sendMessageViaAPI(
-      testUsername,
-      testPassword,
-      conversationId,
-      'Testing @Aristotle mention on mobile'
-    );
+    // Send message with mention
+    const messageTextarea = page.getByTestId('message-textarea');
+    await messageTextarea.fill('Testing @Aristotle mention on mobile');
+    const sendButton = page.getByTestId('send-button');
+    await sendButton.click();
 
     await page.waitForSelector('.message-content', { state: 'visible', timeout: 10000 });
 
