@@ -2,6 +2,105 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0. Coverage Sprint - Monday (Added 2026-02-02)
+
+**Focus**: Bring lowest-coverage module up by 15%+
+
+###  0.1 Conversations API Coverage Improvement
+**File**: `backend/tests/test_conversations_coverage_sprint_feb2.py`
+**Target**: `app/api/conversations.py` (39% coverage)
+**Purpose**: Add targeted tests for uncovered code paths in conversation management
+
+**Tests Added (14 total)**:
+
+#### Create Conversation Color Cycling (2 tests)
+- ✅ `test_create_conversation_assigns_colors_from_palette` - Verifies color cycling
+  - Creates conversation with 5 thinkers using default color `#6366f1`
+  - Validates each thinker gets a different color from the palette
+  - Ensures all 5 colors are used: `#6366f1`, `#ec4899`, `#10b981`, `#f59e0b`, `#8b5cf6`
+  - Tests lines 46-61: thinker color assignment logic
+
+- ✅ `test_create_conversation_respects_custom_colors` - Validates custom color preservation
+  - Creates conversation with custom color `#ff0000`
+  - Confirms custom colors (not `#6366f1`) are preserved as-is
+  - Tests color assignment conditional logic
+
+#### List Conversations Message Counts (2 tests)
+- ✅ `test_list_conversations_calculates_total_cost` - Tests cost aggregation
+  - Creates conversation and sends 3 messages
+  - Verifies list endpoint calculates message_count and total_cost correctly
+  - Tests lines 85-105: summary calculation logic
+
+- ✅ `test_list_conversations_includes_all_summary_fields` - Validates schema completeness
+  - Confirms all ConversationSummary fields are present
+  - Required fields: id, session_id, topic, title, is_active, created_at, thinkers, message_count, total_cost
+
+#### Delete Conversation (1 test)
+- ✅ `test_delete_conversation_returns_status_deleted` - Tests successful deletion
+  - Creates conversation then deletes it
+  - Validates response: `{"status": "deleted"}`
+  - Confirms conversation is actually deleted (404 on subsequent GET)
+  - Tests line 151: delete response format
+
+#### Add Thinkers Validation (4 tests)
+- ✅ `test_add_thinkers_rejects_when_exceeds_limit` - Tests max limit enforcement
+  - Creates conversation with 3 thinkers
+  - Attempts to add 3 more (would exceed limit of 5 total)
+  - Validates 400 error with message: "Cannot add 3 thinkers. Conversation has 3/5 thinkers. Maximum is 5 total."
+  - Tests lines 173-185: max limit validation
+
+- ✅ `test_add_thinkers_allows_up_to_limit` - Tests within-limit additions
+  - Creates conversation with 2 thinkers
+  - Adds 2 more (4 total, within limit)
+  - Validates success (200 OK)
+
+- ✅ `test_add_thinkers_avoids_existing_colors` - Tests color deduplication
+  - Creates conversation with 2 thinkers (using first 2 colors)
+  - Adds 2 more thinkers with default color
+  - Validates new thinkers get different colors from existing ones
+  - Tests lines 186-212: color avoidance logic
+
+- ✅ `test_add_thinkers_preserves_custom_colors` - Tests custom color handling
+  - Adds thinker with custom color `#abcdef`
+  - Confirms custom color is preserved, not replaced
+
+#### Add Thinkers Research Trigger (1 test)
+- ✅ `test_add_thinkers_calls_trigger_research` - Tests knowledge research integration
+  - Mocks `knowledge_service.trigger_research`
+  - Adds 2 thinkers and verifies trigger_research called for each
+  - Tests lines 210-213: research triggering logic
+
+#### Send Message Auto-Resume (2 tests)
+- ✅ `test_send_message_auto_resumes_if_idle_paused` - Tests idle auto-resume
+  - Mocks `is_idle_paused()` to return True
+  - Sends message and verifies `resume_from_idle()` is called
+  - Tests lines 245-254: auto-resume logic
+
+- ✅ `test_send_message_skips_resume_if_not_idle_paused` - Tests skip behavior
+  - Mocks `is_idle_paused()` to return False
+  - Sends message and verifies `resume_from_idle()` is NOT called
+
+#### Send Message Display Name (2 tests)
+- ✅ `test_send_message_uses_display_name_when_available` - Tests display name usage
+  - Registers user with display_name "John Doe"
+  - Sends message and validates sender_name is "John Doe"
+  - Tests lines 256-268: sender name resolution
+
+- ✅ `test_send_message_falls_back_to_username` - Tests username fallback
+  - Registers user without display_name (defaults to title-cased username)
+  - Sends message and validates sender_name uses username
+  - Tests display_name OR username fallback logic
+
+**Test Quality**:
+- All 14 tests pass 3x with 0% flakiness
+- Uses proper mocking for external services (knowledge_service, thinker_service)
+- Validates both success and error paths
+- Tests edge cases (color exhaustion, limit enforcement)
+
+**Coverage Impact**: Added 14 comprehensive tests covering conversations API endpoints
+
+---
+
 ## 0. Regression Prevention - Sunday Sprint (Added 2026-02-01)
 
 **Focus**: Add regression tests for recent bug fixes to prevent recurrence
