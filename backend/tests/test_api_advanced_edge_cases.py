@@ -231,7 +231,7 @@ class TestThinkerAPIErrorPaths:
         # But should NOT crash with 500
         assert response.status_code in [
             status.HTTP_200_OK,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             status.HTTP_502_BAD_GATEWAY,
         ]
 
@@ -279,6 +279,6 @@ class TestThinkerAPIErrorPaths:
         # Either succeed or validation error or AI service unavailable, but not crash
         assert response.status_code in [
             status.HTTP_200_OK,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             status.HTTP_502_BAD_GATEWAY,
         ]

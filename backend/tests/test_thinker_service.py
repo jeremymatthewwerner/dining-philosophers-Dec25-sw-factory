@@ -651,7 +651,7 @@ class TestGetWikipediaImage:
 
             # Mock search response with no results
             mock_response = AsyncMock()
-            mock_response.json.return_value = {"query": {"search": []}}
+            mock_response.json = AsyncMock(return_value={"query": {"search": []}})
             mock_client.get = AsyncMock(return_value=mock_response)
 
             result = await service.get_wikipedia_image("NonexistentPerson123")

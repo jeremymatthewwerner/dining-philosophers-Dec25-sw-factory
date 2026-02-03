@@ -34,7 +34,7 @@ class TestConversationCreationEdgeCases:
         )
 
         # Should be rejected with validation error
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @pytest.mark.asyncio
     async def test_create_conversation_with_too_many_thinkers(self, client: AsyncClient) -> None:
@@ -71,7 +71,7 @@ class TestConversationCreationEdgeCases:
         # If no max_items constraint exists, this will succeed
         assert response.status_code in [
             status.HTTP_200_OK,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
         ]
 
     @pytest.mark.asyncio
@@ -146,7 +146,7 @@ class TestConversationCreationEdgeCases:
         # Should either succeed or reject based on max_length constraint
         assert response.status_code in [
             status.HTTP_200_OK,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
         ]
 
     @pytest.mark.asyncio
@@ -360,7 +360,7 @@ class TestMessageCreationEdgeCases:
         )
 
         # Should be rejected with validation error
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @pytest.mark.asyncio
     async def test_create_message_with_extremely_long_content(self, client: AsyncClient) -> None:
@@ -403,7 +403,7 @@ class TestMessageCreationEdgeCases:
         # Should either succeed or reject based on max_length constraint
         assert response.status_code in [
             status.HTTP_200_OK,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
         ]
 
     @pytest.mark.asyncio

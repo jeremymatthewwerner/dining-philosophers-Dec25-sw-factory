@@ -58,7 +58,7 @@ class TestAdminEdgeCases:
         )
 
         # Should be rejected with 422 (validation error)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @pytest.mark.asyncio
     async def test_update_spend_limit_with_zero(
@@ -100,7 +100,7 @@ class TestAdminEdgeCases:
         )
 
         # Should be rejected with 422 (validation error - must be > 0)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @pytest.mark.asyncio
     async def test_update_spend_limit_with_extremely_large_value(
@@ -243,7 +243,7 @@ class TestAuthEdgeCases:
 
         # Should be rejected with 422 or 400
         assert response.status_code in [
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             status.HTTP_400_BAD_REQUEST,
         ]
 
@@ -268,7 +268,7 @@ class TestAuthEdgeCases:
         # Depends on implementation - either accepted (truncated) or rejected
         # Most likely rejected due to database constraints
         assert response.status_code in [
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             status.HTTP_400_BAD_REQUEST,
             status.HTTP_500_INTERNAL_SERVER_ERROR,
         ]
@@ -335,7 +335,7 @@ class TestFeedbackEdgeCases:
 
         # Should reject due to max length (5000 chars per schema)
         # The feedback schema has max_length=5000 for message field
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     @pytest.mark.asyncio
     async def test_submit_feedback_with_special_characters(self, client: AsyncClient) -> None:
@@ -429,7 +429,7 @@ class TestConversationEdgeCases:
         # Either is valid depending on requirements
         assert response.status_code in [
             status.HTTP_200_OK,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             status.HTTP_400_BAD_REQUEST,
         ]
 
