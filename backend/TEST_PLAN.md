@@ -1,3 +1,121 @@
+## Integration Test Gaps - Wednesday Sprint (Added 2026-02-04)
+
+**Focus**: Add integration tests for untested API endpoints (Wednesday QA focus)
+
+### Conversation API Integration Tests Added (test_conversations_api_integration_feb4.py)
+
+**File**: `tests/test_conversations_api_integration_feb4.py`
+**Tests Added**: 18 comprehensive integration tests
+**Coverage Impact**: Significantly improved coverage for conversations.py API endpoints (39% baseline)
+
+### List Conversations Tests (4 tests)
+
+1. **test_list_conversations_empty**
+   - **What**: GET /api/conversations returns empty array when no conversations exist
+   - **Validates**: Empty state handling, proper response structure
+   - **Lines Covered**: app/api/conversations.py lines 70-105
+
+2. **test_list_conversations_with_data**
+   - **What**: List returns all conversations for session with proper structure
+   - **Validates**: Multi-conversation listing, response includes thinkers, message_count, total_cost
+   - **Lines Covered**: app/api/conversations.py conversation aggregation logic
+
+3. **test_list_conversations_with_messages_shows_count**
+   - **What**: Message count accurately reflects number of messages
+   - **Validates**: Message counting aggregation
+   - **Lines Covered**: app/api/conversations.py message count calculation
+
+4. **test_list_conversations_ordered_by_created_at_desc**
+   - **What**: Conversations ordered newest first
+   - **Validates**: Ordering logic, created_at timestamps
+   - **Lines Covered**: app/api/conversations.py ordering query
+
+### Get Conversation Tests (3 tests)
+
+5. **test_get_conversation_success**
+   - **What**: GET /api/conversations/{id} returns full conversation with messages and thinkers
+   - **Validates**: Single conversation retrieval with relationships
+   - **Lines Covered**: app/api/conversations.py lines 108-129
+
+6. **test_get_conversation_not_found**
+   - **What**: Returns 404 for non-existent conversation
+   - **Validates**: Error handling for missing resources
+   - **Lines Covered**: app/api/conversations.py error path
+
+7. **test_get_conversation_different_session_not_authorized**
+   - **What**: Returns 404 when accessing another session's conversation (not 403 to avoid info leak)
+   - **Validates**: Authorization enforcement
+   - **Lines Covered**: app/api/conversations.py session ownership check
+
+### Delete Conversation Tests (3 tests)
+
+8. **test_delete_conversation_success**
+   - **What**: DELETE /api/conversations/{id} removes conversation
+   - **Validates**: Deletion operation, status response
+   - **Lines Covered**: app/api/conversations.py lines 132-151
+
+9. **test_delete_conversation_not_found**
+   - **What**: Returns 404 for non-existent conversation
+   - **Validates**: Deletion error handling
+   - **Lines Covered**: app/api/conversations.py deletion error path
+
+10. **test_delete_conversation_cascades_to_messages**
+    - **What**: Deleting conversation also deletes all messages
+    - **Validates**: CASCADE DELETE behavior
+    - **Lines Covered**: Database cascade constraints validation
+
+### Update Thinkers Tests (4 tests)
+
+11. **test_add_thinkers_success**
+    - **What**: PUT /api/conversations/{id}/thinkers adds new thinkers
+    - **Validates**: Thinker addition, response includes new thinkers
+    - **Lines Covered**: app/api/conversations.py lines 154-220
+
+12. **test_add_thinkers_exceeds_max_limit**
+    - **What**: Returns 400 when adding would exceed 5 thinker limit
+    - **Validates**: Business rule enforcement (max 5 thinkers)
+    - **Lines Covered**: app/api/conversations.py max thinker validation
+
+13. **test_add_thinkers_assigns_unique_colors**
+    - **What**: New thinkers get colors from available pool
+    - **Validates**: Color assignment algorithm avoids duplicates
+    - **Lines Covered**: app/api/conversations.py color allocation logic
+
+14. **test_add_thinkers_conversation_not_found**
+    - **What**: Returns 404 for non-existent conversation
+    - **Validates**: Error handling for thinker addition
+    - **Lines Covered**: app/api/conversations.py error path
+
+### Send Message Tests (4 tests)
+
+15. **test_send_message_success**
+    - **What**: POST /api/conversations/{id}/messages creates user message
+    - **Validates**: Message creation, proper response format
+    - **Lines Covered**: app/api/conversations.py lines 223-268
+
+16. **test_send_message_empty_content**
+    - **What**: Empty message content rejected with 422
+    - **Validates**: Schema validation for required content
+    - **Lines Covered**: Pydantic schema validation
+
+17. **test_send_message_conversation_not_found**
+    - **What**: Returns 404 for non-existent conversation
+    - **Validates**: Error handling for message sending
+    - **Lines Covered**: app/api/conversations.py send message error path
+
+18. **test_send_message_uses_display_name**
+    - **What**: Message sender_name uses user's display_name if set
+    - **Validates**: Display name preference in messages
+    - **Lines Covered**: app/api/conversations.py sender name logic
+
+### Test Quality Metrics
+
+- **Test Stability**: All 18 tests pass consistently (verified 3x runs)
+- **Integration Coverage**: Tests real API contracts, not mocked responses
+- **Error Path Testing**: Comprehensive 404, 422, 400 error scenarios
+- **Authorization Testing**: Cross-session access prevention validated
+- **Business Logic**: Max thinker limit, color assignment, cascade delete validated
+
 ## Edge Case Analysis - Saturday Sprint (Added 2026-01-24)
 
 **Focus**: Test error paths, boundary conditions, and security edge cases (Saturday QA focus)
