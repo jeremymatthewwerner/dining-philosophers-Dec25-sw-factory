@@ -66,11 +66,8 @@ test.describe('Mobile Header Behavior', () => {
       el.scrollTo({ top: 500, behavior: 'instant' });
     });
 
-    // Wait a moment for any layout shifts
-    await page.waitForTimeout(300);
-
-    // Header should still be visible after scrolling
-    await expect(header).toBeVisible();
+    // Header should still be visible after scrolling (wait for potential layout shifts)
+    await expect(header).toBeVisible({ timeout: 2000 });
 
     // Verify header is still at the top of the viewport
     const headerBox = await header.boundingBox();
@@ -270,11 +267,8 @@ test.describe('Mobile Header Behavior', () => {
     // Change to landscape
     await page.setViewportSize({ width: 844, height: 390 });
 
-    // Wait for layout to adjust
-    await page.waitForTimeout(300);
-
-    // Header should still be visible and functional
-    await expect(header).toBeVisible();
+    // Header should still be visible and functional after layout adjustment
+    await expect(header).toBeVisible({ timeout: 2000 });
     await expect(page.getByTestId('pause-resume-button')).toBeVisible();
 
     // Test clicking a control after orientation change

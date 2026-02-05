@@ -28,18 +28,17 @@ test.describe('Tab Visibility Handling', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    // Wait for WebSocket to potentially react
-    await page.waitForTimeout(1000);
-
     // Note: This test validates that the visibility change event is dispatched.
     // The actual pause behavior depends on implementation in useWebSocket hook.
     // We verify that the event can be triggered and handled without errors.
 
-    // No errors should occur
-    const errors = await page.evaluate(() =>
-      (window as any).__TEST_ERRORS__ || []
-    );
-    expect(errors).toHaveLength(0);
+    // Wait for event to be processed and check for errors
+    await expect.poll(async () => {
+      const errors = await page.evaluate(() =>
+        (window as any).__TEST_ERRORS__ || []
+      );
+      return errors.length;
+    }, { timeout: 3000 }).toBe(0);
   });
 
   test('resumes conversation when tab becomes visible', async ({ page }) => {
@@ -55,8 +54,6 @@ test.describe('Tab Visibility Handling', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    await page.waitForTimeout(500);
-
     // Simulate tab becoming visible again
     await page.evaluate(() => {
       Object.defineProperty(document, 'hidden', {
@@ -65,8 +62,6 @@ test.describe('Tab Visibility Handling', () => {
       });
       document.dispatchEvent(new Event('visibilitychange'));
     });
-
-    await page.waitForTimeout(1000);
 
     // Conversation should remain functional
     const pauseButton = page.getByTestId('pause-resume-button');
@@ -111,18 +106,18 @@ test.describe('Tab Visibility Handling', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    // Wait for visibility change to take effect and any in-flight messages to arrive
-    // Use polling to check that message count stabilizes (no new messages arriving)
+    // Wait for visibility change to take effect and verify message count stabilizes
+    // Poll with multiple checks to ensure no new messages are arriving
     await expect
       .poll(
         async () => {
-          const count = await getMessageCount();
-          // Give it a moment to see if more messages arrive
-          await page.waitForTimeout(500);
-          const countAfter = await getMessageCount();
-          return count === countAfter; // Count has stabilized
+          const count1 = await getMessageCount();
+          // Wait a brief moment between checks
+          await page.waitForLoadState('networkidle');
+          const count2 = await getMessageCount();
+          return count1 === count2; // Count has stabilized
         },
-        { timeout: 5000 }
+        { timeout: 5000, intervals: [100, 250, 500] }
       )
       .toBe(true);
 

@@ -248,8 +248,11 @@ test.describe('ScrollingText - Flex Layout Timing', () => {
     // Now resize viewport wider
     await page.setViewportSize({ width: 1400, height: 800 });
 
-    // Wait for ResizeObserver to re-check truncation
-    await page.waitForTimeout(500);
+    // Wait for ResizeObserver to re-check truncation by polling the title attribute
+    await expect.poll(
+      async () => await scrollingTextContainer.getAttribute('title'),
+      { timeout: 2000, intervals: [100, 200] }
+    ).toBe(longTopic);
 
     // Even at wider viewport, the sidebar width is constrained,
     // so it should still be truncated

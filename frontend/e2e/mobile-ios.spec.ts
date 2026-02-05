@@ -272,7 +272,11 @@ test.describe('iOS Safari - Sticky Positioning', () => {
       el.scrollTo({ top: 300, behavior: 'instant' });
     });
 
-    await page.waitForTimeout(300);
+    // Wait for scroll to complete by checking header position stability
+    await expect(async () => {
+      const headerBoxAfter = await header.boundingBox();
+      expect(headerBoxAfter).not.toBeNull();
+    }).toPass({ timeout: 2000 });
 
     // Header position should remain at top (sticky behavior)
     const headerBoxAfter = await header.boundingBox();

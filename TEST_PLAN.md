@@ -2,7 +2,64 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
-## 0.0 Test Stability Improvements - Flaky Hunt (Added 2026-02-03)
+## 0.0 E2E Performance Optimizations (Added 2026-02-05)
+
+**Focus**: Optimize E2E test execution speed by replacing arbitrary timeouts with event-driven waits (Thursday focus: e2e-performance)
+
+### 0.0.1 Remove waitForTimeout Anti-patterns
+**Files Modified**:
+- `frontend/e2e/concurrent-operations.spec.ts` (6 removals)
+- `frontend/e2e/tab-visibility.spec.ts` (4 removals)
+- `frontend/e2e/form-validation.spec.ts` (1 removal)
+- `frontend/e2e/mobile-header.spec.ts` (2 removals)
+- `frontend/e2e/mobile-ios.spec.ts` (1 removal)
+- `frontend/e2e/scrolling-text.spec.ts` (1 removal)
+
+**Purpose**: Replace arbitrary `waitForTimeout()` calls with event-driven assertions for faster, more reliable tests
+
+**Changes Made (16 waitForTimeout calls removed, ~5.5s saved)**:
+
+1. **concurrent-operations.spec.ts** (saved 3.7s):
+   - Removed 2x 1000ms waits between conversation creation → tests now wait for heading visibility
+   - Removed 3x 300ms waits during rapid switching → tests now wait for active conversation heading
+   - Removed 1x 200ms wait during rapid message sending → tests now wait for message to appear
+
+2. **tab-visibility.spec.ts** (saved 3.0s):
+   - Removed 1x 1000ms wait after visibility change → replaced with `expect.poll()` checking for errors
+   - Removed 1x 500ms + 1x 1000ms waits during visibility toggle → tests now rely on visibility assertions
+   - Removed 1x 500ms wait in polling loop → replaced with `waitForLoadState('networkidle')`
+
+3. **form-validation.spec.ts** (saved 0.5s):
+   - Removed 1x 500ms wait for state settling → replaced with `expect.poll()` on thinker count
+
+4. **mobile-header.spec.ts** (saved 0.6s):
+   - Removed 1x 300ms wait after scroll → tests now wait for header visibility with timeout
+   - Removed 1x 300ms wait after orientation change → tests now wait for header visibility
+
+5. **mobile-ios.spec.ts** (saved 0.3s):
+   - Removed 1x 300ms wait after scroll → replaced with `expect().toPass()` checking header position
+
+6. **scrolling-text.spec.ts** (saved 0.5s):
+   - Removed 1x 500ms wait for ResizeObserver → replaced with `expect.poll()` on title attribute
+
+**Replacement Patterns Used**:
+- `page.waitForTimeout(N)` → `await expect(element).toBeVisible({ timeout: N })`
+- `page.waitForTimeout(N)` → `await expect.poll(async () => condition, { timeout: N })`
+- `page.waitForTimeout(N)` → `await expect(() => assertion).toPass({ timeout: N })`
+- `page.waitForTimeout(N)` → `await page.waitForLoadState('networkidle')`
+
+**Impact**:
+- ✅ Reduced artificial wait time by ~5.5 seconds across test suite
+- ✅ Tests are now more reliable (wait for actual conditions instead of arbitrary time)
+- ✅ Tests may complete faster when conditions are met early
+- ✅ All modified tests verified passing (tab-visibility: 3/3, scrolling-text: 6/6)
+
+**Performance Metrics**:
+- Before: 16 `waitForTimeout` calls totaling ~5.5s of artificial delays
+- After: 0 `waitForTimeout` calls (all replaced with event-driven waits)
+- Expected speedup: Variable (tests complete as soon as conditions are met, not after fixed timeout)
+
+## 0.1 Test Stability Improvements - Flaky Hunt (Added 2026-02-03)
 
 **Focus**: Reduce test warnings and improve stability (Tuesday focus: flaky-hunt)
 

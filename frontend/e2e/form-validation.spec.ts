@@ -262,12 +262,11 @@ test.describe('Rapid-Fire Actions', () => {
       });
     }
 
-    // Wait briefly for final state to settle
-    await page.waitForTimeout(500);
-
-    // Should still only have a few thinkers (allow for race conditions in rapid clicks)
-    const selectedThinkers = await page.getByTestId('selected-thinker').count();
-    expect(selectedThinkers).toBeLessThanOrEqual(4); // Allow for possible race condition in rapid clicks
+    // Wait for state to settle by polling the thinker count
+    await expect.poll(
+      async () => await page.getByTestId('selected-thinker').count(),
+      { timeout: 2000, intervals: [100, 200] }
+    ).toBeLessThanOrEqual(4); // Allow for possible race condition in rapid clicks
   });
 
   test('handles rapid message sending', async ({ page }) => {

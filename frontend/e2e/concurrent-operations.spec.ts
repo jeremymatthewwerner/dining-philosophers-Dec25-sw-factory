@@ -22,14 +22,10 @@ test.describe('Concurrent Operations', () => {
       page.locator('h2', { hasText: 'First conversation' })
     ).toBeVisible();
 
-    await page.waitForTimeout(1000);
-
     await createConversationViaUI(page, 'Second conversation', 'Aristotle');
     await expect(
       page.locator('h2', { hasText: 'Second conversation' })
     ).toBeVisible();
-
-    await page.waitForTimeout(1000);
 
     await createConversationViaUI(page, 'Third conversation', 'Plato');
     await expect(
@@ -42,26 +38,26 @@ test.describe('Concurrent Operations', () => {
 
     // Rapidly switch between them
     for (let i = 0; i < 3; i++) {
-      // Click first conversation
+      // Click first conversation and wait for it to be active
       await page
         .getByTestId('conversation-item')
         .filter({ hasText: 'First conversation' })
         .click();
-      await page.waitForTimeout(300);
+      await expect(page.locator('h2', { hasText: 'First conversation' })).toBeVisible();
 
-      // Click second conversation
+      // Click second conversation and wait for it to be active
       await page
         .getByTestId('conversation-item')
         .filter({ hasText: 'Second conversation' })
         .click();
-      await page.waitForTimeout(300);
+      await expect(page.locator('h2', { hasText: 'Second conversation' })).toBeVisible();
 
-      // Click third conversation
+      // Click third conversation and wait for it to be active
       await page
         .getByTestId('conversation-item')
         .filter({ hasText: 'Third conversation' })
         .click();
-      await page.waitForTimeout(300);
+      await expect(page.locator('h2', { hasText: 'Third conversation' })).toBeVisible();
     }
 
     // After rapid switching, app should still be functional
@@ -137,8 +133,8 @@ test.describe('Concurrent Operations', () => {
     for (const msg of messages) {
       await messageTextarea.fill(msg);
       await sendButton.click();
-      // Small delay to avoid overwhelming the UI
-      await page.waitForTimeout(200);
+      // Wait for the message to appear before sending next
+      await expect(page.locator(`text=${msg}`)).toBeVisible({ timeout: 5000 });
     }
 
     // Wait for all user messages to appear using polling assertion
