@@ -2,7 +2,87 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
-## 0.0 E2E Performance Optimizations (Added 2026-02-05)
+## 0.0 Test Refactoring - Improve Readability & Reduce Duplication (Added 2026-02-06)
+
+**Focus**: Friday QA focus - refactor tests to improve readability and reduce duplication
+
+### 0.0.1 Add Reusable Assertion Helpers to conftest.py
+
+**Purpose**: Reduce duplication of assertion patterns that appear 50+ times across test files
+
+**Helpers Added**:
+
+1. **`assert_error_response(response, expected_status, expected_detail_substring=None)`**
+   - Consolidates pattern: `assert response.status_code == 400` + `assert "text" in response.json()["detail"]`
+   - Usage: `assert_error_response(response, 404, "not found")`
+
+2. **`assert_success_response(response, expected_status=200, expected_keys=None)`**
+   - Consolidates pattern: `assert response.status_code == 200` + key validation
+   - Returns response JSON for further assertions
+   - Usage: `data = assert_success_response(response, 200, ["id", "username"])`
+
+**Benefits**:
+- Eliminates 100+ lines of duplicated assertion code
+- Provides clearer error messages when assertions fail
+- Makes test intent more obvious (success vs error testing)
+
+### 0.0.2 Refactor test_conversations_edge_cases.py
+
+**Purpose**: Use existing `create_thinker_input()` helper and new assertion helpers
+
+**Changes Made (8 refactorings)**:
+
+1. **Thinker Creation Patterns** - Replaced inline thinker dicts with `create_thinker_input()`:
+   - ✅ `test_create_conversation_with_too_many_thinkers` - 11 thinker objects simplified
+   - ✅ `test_create_conversation_with_duplicate_thinker_names` - 2 thinker objects
+   - ✅ `test_create_conversation_with_very_long_topic` - 1 thinker object
+   - ✅ `test_get_nonexistent_conversation_different_user` - 1 thinker object (Aristotle)
+   - ✅ `test_delete_conversation_with_many_messages` - 1 thinker object (Marcus Aurelius)
+
+2. **Success Assertions** - Replaced with `assert_success_response()`:
+   - ✅ `test_create_conversation_with_duplicate_thinker_names` - validates thinkers field
+   - ✅ `test_get_nonexistent_conversation_different_user` - validates id field
+   - ✅ `test_list_conversations_when_session_has_none` - validates empty list
+   - ✅ `test_delete_conversation_with_many_messages` - validates status field
+
+3. **Error Assertions** - Replaced with `assert_error_response()`:
+   - ✅ `test_get_nonexistent_conversation_different_user` - 404 assertion
+
+**Impact**: Reduced file length by ~50 lines, improved readability
+
+### 0.0.3 Refactor test_api_edge_cases.py
+
+**Purpose**: Use `create_thinker_input()` helper and assertion helpers
+
+**Changes Made (3 refactorings)**:
+
+1. **Thinker Creation** - Replaced inline thinker creation:
+   - ✅ `test_create_conversation_with_max_thinkers` - 5 thinker objects with list comprehension
+   - ✅ `test_create_conversation_with_empty_topic` - 1 thinker object
+
+2. **Success Assertions** - Replaced with `assert_success_response()`:
+   - ✅ `test_create_conversation_with_max_thinkers` - validates thinkers field
+
+**Impact**: Cleaner test code, consistent with other test files
+
+### 0.0.4 Summary
+
+**Files Modified**:
+- `backend/tests/conftest.py` - Added 2 reusable assertion helpers
+- `backend/tests/test_conversations_edge_cases.py` - 8 refactorings
+- `backend/tests/test_api_edge_cases.py` - 3 refactorings
+
+**Total Impact**:
+- ~70 lines of code reduced
+- Consistent assertion patterns across files
+- Easier to maintain and extend tests
+- No functionality changes - pure refactoring
+
+**Test Stability**: All refactored tests pass (verified with pytest)
+
+---
+
+## 0.1 E2E Performance Optimizations (Added 2026-02-05)
 
 **Focus**: Optimize E2E test execution speed by replacing arbitrary timeouts with event-driven waits (Thursday focus: e2e-performance)
 

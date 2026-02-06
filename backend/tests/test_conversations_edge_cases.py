@@ -8,7 +8,12 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 
-from tests.conftest import get_auth_headers
+from tests.conftest import (
+    assert_error_response,
+    assert_success_response,
+    create_thinker_input,
+    get_auth_headers,
+)
 
 
 class TestConversationCreationEdgeCases:
@@ -49,10 +54,7 @@ class TestConversationCreationEdgeCases:
         # Create 11 thinkers (assuming max is 10)
         thinkers = [
             {
-                "name": f"Thinker{i}",
-                "bio": f"Bio {i}",
-                "positions": f"Position {i}",
-                "style": f"Style {i}",
+                **create_thinker_input(f"Thinker{i}", f"Bio {i}", f"Position {i}", f"Style {i}"),
                 "color": "#6366f1",
             }
             for i in range(11)
@@ -93,17 +95,18 @@ class TestConversationCreationEdgeCases:
                 "topic": "Duplicate thinkers test",
                 "thinkers": [
                     {
-                        "name": "Socrates",
-                        "bio": "Greek philosopher",
-                        "positions": "Question everything",
-                        "style": "Socratic method",
+                        **create_thinker_input(
+                            "Socrates",
+                            "Greek philosopher",
+                            "Question everything",
+                            "Socratic method",
+                        ),
                         "color": "#6366f1",
                     },
                     {
-                        "name": "Socrates",  # Duplicate name
-                        "bio": "Different bio",
-                        "positions": "Different positions",
-                        "style": "Different style",
+                        **create_thinker_input(
+                            "Socrates", "Different bio", "Different positions", "Different style"
+                        ),
                         "color": "#ec4899",
                     },
                 ],
@@ -111,8 +114,7 @@ class TestConversationCreationEdgeCases:
         )
 
         # API currently allows duplicate names - verify it handles gracefully
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        data = assert_success_response(response, status.HTTP_200_OK, ["thinkers"])
         assert len(data["thinkers"]) == 2
 
     @pytest.mark.asyncio
@@ -133,10 +135,9 @@ class TestConversationCreationEdgeCases:
                 "topic": long_topic,
                 "thinkers": [
                     {
-                        "name": "Plato",
-                        "bio": "Student of Socrates",
-                        "positions": "Theory of Forms",
-                        "style": "Dialogues",
+                        **create_thinker_input(
+                            "Plato", "Student of Socrates", "Theory of Forms", "Dialogues"
+                        ),
                         "color": "#ec4899",
                     }
                 ],
@@ -205,17 +206,16 @@ class TestConversationRetrievalEdgeCases:
                 "topic": "User1's conversation",
                 "thinkers": [
                     {
-                        "name": "Aristotle",
-                        "bio": "Greek philosopher",
-                        "positions": "Logic",
-                        "style": "Systematic",
+                        **create_thinker_input(
+                            "Aristotle", "Greek philosopher", "Logic", "Systematic"
+                        ),
                         "color": "#10b981",
                     }
                 ],
             },
         )
-        assert conv_response.status_code == 200
-        conv_id = conv_response.json()["id"]
+        conv_data = assert_success_response(conv_response, 200, ["id"])
+        conv_id = conv_data["id"]
 
         # Create user 2 and try to access user 1's conversation
         user2_headers = await get_auth_headers(
@@ -225,7 +225,7 @@ class TestConversationRetrievalEdgeCases:
 
         # Should return 404 (not found) not 403 (forbidden)
         # This prevents information disclosure about conversation existence
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert_error_response(response, status.HTTP_404_NOT_FOUND)
 
     @pytest.mark.asyncio
     async def test_list_conversations_when_session_has_none(self, client: AsyncClient) -> None:
@@ -237,8 +237,7 @@ class TestConversationRetrievalEdgeCases:
 
         response = await client.get("/api/conversations", headers=headers)
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        data = assert_success_response(response, status.HTTP_200_OK)
         assert isinstance(data, list)
         assert len(data) == 0
 
@@ -295,24 +294,22 @@ class TestConversationDeletionEdgeCases:
                 "topic": "Large conversation",
                 "thinkers": [
                     {
-                        "name": "Marcus Aurelius",
-                        "bio": "Roman Emperor",
-                        "positions": "Stoicism",
-                        "style": "Meditations",
+                        **create_thinker_input(
+                            "Marcus Aurelius", "Roman Emperor", "Stoicism", "Meditations"
+                        ),
                         "color": "#f59e0b",
                     }
                 ],
             },
         )
-        assert conv_response.status_code == 200
-        conv_id = conv_response.json()["id"]
+        conv_data = assert_success_response(conv_response, 200, ["id"])
+        conv_id = conv_data["id"]
 
         # Delete conversation (messages cascade)
         response = await client.delete(f"/api/conversations/{conv_id}", headers=headers)
 
         # Should succeed with 200 and JSON response
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        data = assert_success_response(response, status.HTTP_200_OK, ["status"])
         assert data["status"] == "deleted"
 
         # Verify conversation is gone

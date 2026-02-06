@@ -7,7 +7,12 @@ Saturday QA focus: Edge Case Analysis.
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import create_test_conversation, get_auth_headers
+from tests.conftest import (
+    assert_success_response,
+    create_test_conversation,
+    create_thinker_input,
+    get_auth_headers,
+)
 
 
 class TestConversationEdgeCases:
@@ -33,12 +38,7 @@ class TestConversationEdgeCases:
 
         headers = await get_auth_headers(client, "edgeuser2", "password123")
         thinkers = [
-            {
-                "name": f"Thinker {i}",
-                "bio": f"Bio {i}",
-                "positions": f"Position {i}",  # Must be string, not list
-                "style": f"Style {i}",
-            }
+            create_thinker_input(f"Thinker {i}", f"Bio {i}", f"Position {i}", f"Style {i}")
             for i in range(5)
         ]
         response = await client.post(
@@ -46,8 +46,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json={"topic": "Max thinkers test", "thinkers": thinkers},
         )
-        assert response.status_code == 200
-        data = response.json()
+        data = assert_success_response(response, 200, ["thinkers"])
         assert len(data["thinkers"]) == 5
 
     async def test_create_conversation_with_over_max_thinkers(self, client: AsyncClient) -> None:
@@ -81,12 +80,9 @@ class TestConversationEdgeCases:
             json={
                 "topic": "",  # Empty topic
                 "thinkers": [
-                    {
-                        "name": "Test Thinker",
-                        "bio": "Test bio",
-                        "positions": ["Test position"],
-                        "style": "Test style",
-                    }
+                    create_thinker_input(
+                        "Test Thinker", "Test bio", ["Test position"], "Test style"
+                    )
                 ],
             },
         )

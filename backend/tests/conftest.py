@@ -510,3 +510,63 @@ async def create_test_user_session_conversation(
     await db_session.refresh(conversation)
 
     return user, session, conversation
+
+
+# Error assertion helpers for test refactoring (Friday QA focus)
+def assert_error_response(
+    response: Any,
+    expected_status: int,
+    expected_detail_substring: str | None = None,
+) -> None:
+    """Assert that a response is an error with expected status and detail.
+
+    Reduces duplication of error assertion pattern that appears 50+ times:
+        assert response.status_code == 400
+        assert "error message" in response.json()["detail"]
+
+    Args:
+        response: HTTP response object
+        expected_status: Expected HTTP status code
+        expected_detail_substring: Optional substring to check in error detail
+
+    Example:
+        >>> assert_error_response(response, 400, "already taken")
+        >>> assert_error_response(response, 404)  # just check status
+    """
+    assert response.status_code == expected_status
+    if expected_detail_substring:
+        detail = response.json().get("detail", "")
+        assert expected_detail_substring in detail, (
+            f"Expected '{expected_detail_substring}' in error detail, but got: {detail}"
+        )
+
+
+def assert_success_response(
+    response: Any,
+    expected_status: int = 200,
+    expected_keys: list[str] | None = None,
+) -> dict[str, Any]:
+    """Assert that a response is successful and optionally validate keys.
+
+    Reduces duplication of success assertion + key validation pattern.
+
+    Args:
+        response: HTTP response object
+        expected_status: Expected HTTP status code (default: 200)
+        expected_keys: Optional list of keys that must be present in response JSON
+
+    Returns:
+        Response JSON data
+
+    Example:
+        >>> data = assert_success_response(response, 200, ["id", "username"])
+        >>> assert data["username"] == "testuser"
+    """
+    assert response.status_code == expected_status
+    data: dict[str, Any] = response.json()
+
+    if expected_keys:
+        for key in expected_keys:
+            assert key in data, f"Expected key '{key}' not found in response: {data}"
+
+    return data
