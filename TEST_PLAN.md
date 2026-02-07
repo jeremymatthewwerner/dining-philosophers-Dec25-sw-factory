@@ -2,6 +2,59 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.2 ThemeContext Edge Case Tests (Added 2026-02-07)
+
+**Focus**: Saturday QA focus - edge case analysis (test error paths and boundary conditions)
+
+**File**: `frontend/src/contexts/__tests__/ThemeContext.edge-cases.test.tsx`
+
+**Purpose**: Comprehensive edge case testing for ThemeContext to achieve higher branch coverage (50% → 78%)
+
+### Test Categories
+
+#### Invalid localStorage values
+- `should fallback to system theme when localStorage contains invalid value` - Tests handling of corrupted theme data
+- `should handle empty string in localStorage` - Tests empty string edge case
+- `should handle malformed JSON in localStorage` - Tests JSON-like strings that aren't valid theme values
+- `should handle null value in localStorage` - Tests null return from localStorage
+- `should handle localStorage getItem throwing error` - Tests localStorage access denied scenarios
+
+#### System theme changes
+- `should update resolved theme when system preference changes` - Tests mediaQuery listener responding to system changes
+- `should not affect resolved theme when user has explicit preference` - Tests that user preferences override system changes
+
+#### Rapid theme changes
+- `should handle rapid consecutive theme changes` - Tests multiple rapid setTheme calls
+- `should handle setting same theme multiple times` - Tests idempotent theme setting
+
+#### useTheme hook without provider
+- `should throw error when used outside ThemeProvider` - Tests proper error messaging for misuse
+
+#### DOM manipulation edge cases
+- `should clean up classes when switching between all theme modes` - Tests classList management (dark → light → system)
+
+#### localStorage persistence edge cases
+- `should handle localStorage setItem throwing QuotaExceededError` - Tests storage quota exceeded scenarios
+- `should handle localStorage being disabled/blocked` - Tests browser privacy modes where localStorage throws
+
+#### Memory leak prevention
+- `should clean up media query listener on unmount` - Tests removeEventListener called on cleanup
+
+### Coverage Impact
+- **Before**: 84.15% statement, 50% branch, 66.66% function
+- **After**: 98.01% statement, 78.26% branch, 100% function
+- **Improvement**: +13.86% statement, +28.26% branch, +33.34% function
+
+### Edge Cases Covered
+- Invalid/corrupted localStorage data
+- localStorage access errors (privacy mode, quota exceeded)
+- Rapid state changes
+- System preference changes while component mounted
+- Memory leak prevention (cleanup verification)
+- DOM manipulation edge cases
+
+---
+
 ## 0.0 Test Refactoring - Improve Readability & Reduce Duplication (Added 2026-02-06)
 
 **Focus**: Friday QA focus - refactor tests to improve readability and reduce duplication
