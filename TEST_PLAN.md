@@ -2,6 +2,102 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.2 Regression Prevention - Sunday (Added 2026-02-08)
+
+**Focus**: Add regression tests for recent features and bug fixes
+
+### 0.2.1 Conversation Color Cycling Tests
+**File**: `backend/tests/test_regression_recent_features.py::TestConversationColorCycling`
+**Target**: `app/api/conversations.py:46-56` (39% coverage)
+**Purpose**: Test thinker color assignment logic - default colors cycle through palette, custom colors are preserved
+
+**Tests Added (4 total)**:
+
+1. **`test_default_color_cycles_through_palette`**
+   - Validates that thinkers with default color (#6366f1) cycle through the 5-color palette
+   - Creates 5 thinkers, verifies each gets a different color from the palette
+   - Edge case: Tests modulo arithmetic for color index cycling
+
+2. **`test_custom_color_preserved`**
+   - Validates that custom colors (not #6366f1) are preserved, not cycled
+   - Creates mix of default and custom colored thinkers
+   - Verifies: default colors cycle, custom colors pass through unchanged
+
+3. **`test_all_custom_colors_no_cycling`**
+   - Validates that when NO thinker has default color, no cycling occurs
+   - All 5 thinkers have custom colors, all should be preserved exactly
+
+4. **`test_color_cycling_with_max_thinkers`**
+   - Boundary test: 5 thinkers (max allowed) with default color
+   - Validates cycling works correctly at maximum thinker count
+
+**Coverage Impact**: Brings conversations.py:46-56 color cycling logic to 100%
+
+### 0.2.2 Conversation Cost Calculation Tests
+**File**: `backend/tests/test_regression_recent_features.py::TestConversationCostCalculation`
+**Target**: `app/api/conversations.py:87-105` (39% coverage)
+**Purpose**: Test message cost summation in conversation summaries, handling None/zero values
+
+**Tests Added (3 total)**:
+
+1. **`test_cost_calculation_with_zero_cost_messages`**
+   - Validates that messages with cost=None or cost=0.0 don't cause errors
+   - Creates conversation with user message (no cost), verifies total_cost calculated correctly
+   - Edge case: `cost or 0.0` logic handles None values
+
+2. **`test_cost_calculation_empty_conversation`**
+   - Validates that empty conversations have total_cost=0.0
+   - Tests sum() of empty list doesn't error
+
+3. **`test_multiple_conversations_cost_isolation`**
+   - Validates that costs are calculated independently per conversation
+   - Creates 2 conversations, adds messages to only one
+   - Verifies: conv1 has cost, conv2 has zero cost (isolation)
+
+**Coverage Impact**: Brings conversations.py:87-105 cost calculation to 100%
+
+### 0.2.3 Language Preference Validation Tests
+**File**: `backend/tests/test_regression_recent_features.py::TestLanguagePreferenceValidation`
+**Target**: `app/api/auth.py:89-104` (68% coverage)
+**Purpose**: Test PATCH /api/auth/language validation edge cases
+
+**Tests Added (5 total)**:
+
+1. **`test_invalid_language_code_rejected`**
+   - Validates that invalid codes like "invalid" are rejected (422)
+
+2. **`test_empty_language_code_rejected`**
+   - Validates that empty string "" is rejected (422)
+
+3. **`test_case_sensitive_language_codes`**
+   - Validates that uppercase "EN" is rejected, lowercase "en" accepted
+   - Tests pattern matching is case-sensitive
+
+4. **`test_all_valid_language_codes`**
+   - Validates all valid codes: en, es, fr, de
+   - Each code is tested individually
+
+5. **`test_hindi_language_not_yet_validated_in_auth`**
+   - **Documents schema gap**: Hindi ("hi") is supported in ThinkerService but not auth.py
+   - Test validates "hi" is currently rejected (422)
+   - TODO comment for when Hindi is added to auth validation
+
+**Coverage Impact**: Brings auth.py:89-104 language validation to 100%
+**Discovered Issue**: Hindi language support gap between ThinkerService and auth validation (documented)
+
+### 0.2.4 Summary
+
+**Files Modified**:
+- `backend/tests/test_regression_recent_features.py` - Added 12 new regression tests
+
+**Total Impact**:
+- 12 regression tests added across 3 feature areas
+- Improved coverage for conversations.py (color cycling + cost calculation)
+- Improved coverage for auth.py (language validation)
+- Documented Hindi language support gap
+
+**Test Stability**: All 12 tests verified passing with 3 consecutive runs
+
 ## 0.0 Test Refactoring - Improve Readability & Reduce Duplication (Added 2026-02-06)
 
 **Focus**: Friday QA focus - refactor tests to improve readability and reduce duplication
