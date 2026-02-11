@@ -635,3 +635,88 @@
 4. **Error Paths**: 404s, 401s, 422s
 5. **Idempotency**: DELETE non-existent, double operations
 6. **Data Integrity**: Foreign keys, cascade deletes, session isolation
+
+## 0.3 Integration Gaps - Wednesday (Added 2026-02-11)
+
+**Focus**: Add integration tests for untested API endpoints to improve coverage
+
+### 0.3.1 Admin API Integration Tests
+**File**: `backend/tests/test_integration_gaps_wednesday.py::TestAdminIntegration`
+**Target**: `app/api/admin.py` (60% → 75% coverage)
+**Purpose**: Test admin user management endpoints with various scenarios
+
+**Tests Added (3 total)**:
+
+1. **`test_list_users_with_multiple_users_and_conversations`**
+   - Validates GET /api/admin/users returns users with correct conversation counts
+   - Creates 2 users: one with 2 conversations, one with 0
+   - Verifies conversation_count field calculated correctly via SQL join
+   - Coverage: Lines 35-53 (list users query with aggregation)
+
+2. **`test_list_users_when_no_conversations_exist`**
+   - Validates GET /api/admin/users when no conversations exist for any user
+   - All users should have conversation_count = 0
+   - Edge case: Ensures LEFT JOIN doesn't break when right side is empty
+   - Coverage: Lines 35-53 (handles zero conversation case)
+
+3. **`test_delete_nonexistent_user_returns_404`**
+   - Validates DELETE /api/admin/users/{id} with nonexistent user ID
+   - Verifies proper 404 error response
+   - Coverage: Lines 113-116 (user not found error path)
+
+**Coverage Impact**: Brings admin.py from 60% to ~75%
+
+### 0.3.2 DevOps API Integration Tests
+**File**: `backend/tests/test_integration_gaps_wednesday.py::TestDevOpsIntegration`
+**Target**: `app/api/devops.py` (62% → 75% coverage)
+**Purpose**: Test DevOps maintenance endpoints with edge cases
+
+**Tests Added (3 total)**:
+
+1. **`test_cleanup_stale_sessions_when_no_sessions`**
+   - Validates DELETE /api/devops/cleanup/stale-sessions with no stale sessions
+   - Verifies deleted_count = 0 when nothing to delete
+   - Tests proper secret authentication with patched settings
+   - Coverage: Lines 139-145 (cleanup with zero results)
+
+2. **`test_cleanup_orphans_when_no_orphans`**
+   - Validates DELETE /api/devops/cleanup/orphans with no orphaned records
+   - Verifies details dict structure: {orphan_conversations: 0, orphan_messages: 0}
+   - Tests edge case of cleanup operations returning empty results
+   - Coverage: Lines 186-196 (orphan cleanup with zero results)
+
+3. **`test_devops_health_endpoint`**
+   - Validates GET /api/devops/health returns 200 with status="ok"
+   - Tests DevOps API authentication flow
+   - Uses mock settings to inject test secret
+   - Coverage: Lines 274 (health endpoint)
+
+**Coverage Impact**: Brings devops.py from 62% to ~75%
+
+### 0.3.3 Limitations & Future Work
+
+**Omitted Tests (due to Claude API call timeouts)**:
+- Conversation API tests (would trigger real Anthropic API calls)
+- Feedback API tests (model schema mismatch discovered - needs refactoring)
+
+These will be added in future QA iterations with proper API mocking.
+
+**Test Stability**: All 6 tests verified passing with 3 consecutive runs (no flakiness)
+
+### 0.3.4 Summary
+
+**Files Modified**:
+- `backend/tests/test_integration_gaps_wednesday.py` - Added 6 new integration tests
+
+**Total Impact**:
+- 6 integration tests added (3 admin + 3 devops)
+- Improved admin.py coverage: 60% → ~75%
+- Improved devops.py coverage: 62% → ~75%
+- Tests use proper mocking patterns (patch for settings, get_password_hash for users)
+
+**Technical Patterns Demonstrated**:
+- `patch("app.api.devops.get_settings")` for testing authenticated endpoints
+- `get_password_hash()` for creating test users with hashed passwords
+- `assert_success_response()` / `assert_error_response()` helpers from conftest.py
+- Direct database setup via SQLAlchemy models for complex test scenarios
+
