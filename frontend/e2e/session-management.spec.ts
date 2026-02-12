@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
+import { setupAuthenticatedUser, createConversationViaUI, createConversationViaAPI } from './test-utils';
 
 test.describe('Session Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -48,8 +48,9 @@ test.describe('Session Management', () => {
       }
     });
 
-    // Create a conversation
-    await createConversationViaUI(page, 'Logout test', 'Aristotle');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Logout test', ['Aristotle']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Verify we're in a conversation
     await expect(page.getByTestId('chat-area')).toBeVisible();
@@ -93,8 +94,9 @@ test.describe('Session Management', () => {
   });
 
   test('maintains session across page reload', async ({ page }) => {
-    // Create a conversation
-    await createConversationViaUI(page, 'Session persistence test', 'Socrates');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Session persistence test', ['Socrates']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Get the stored token before reload
     const tokenBeforeReload = await page.evaluate(() =>

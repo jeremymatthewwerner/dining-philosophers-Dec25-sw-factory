@@ -154,12 +154,12 @@ test.describe('Thinker Responses', () => {
     await pauseButton.click();
     await expect(pauseButton).toContainText('Pause');
 
-    // Wait for thinker to respond after resume - use expect.poll instead of manual polling
+    // Wait for thinker to respond after resume - reduced from 45s to 30s
     await expect.poll(
       async () => await getMessageCount(),
       {
         message: 'Expected message count to increase after resume',
-        timeout: 45000,
+        timeout: 30000,
         intervals: [2000, 2000, 2000]
       }
     ).toBeGreaterThan(countWhilePaused);
@@ -220,9 +220,9 @@ test.describe('Thinker Responses', () => {
       page.locator('text=What is the nature of knowledge?')
     ).toBeVisible({ timeout: 5000 });
 
-    // Wait for thinker responses
+    // Wait for thinker responses - reduced from 60s to 30s (still allows for API latency)
     const thinkerMessages = page.locator('[data-sender-type="thinker"]');
-    await expect(thinkerMessages.first()).toBeVisible({ timeout: 60000 });
+    await expect(thinkerMessages.first()).toBeVisible({ timeout: 30000 });
 
     // Get all thinker names who responded
     const thinkerNameElements = page.getByTestId('thinker-name');

@@ -2,6 +2,84 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.3 E2E Performance Optimization - Thursday (Added 2026-02-12)
+
+**Focus**: Optimize E2E test performance by reducing timeouts and switching to API-based test setup
+
+### 0.3.1 Timeout Reduction
+**Files Modified**: `frontend/e2e/chat.spec.ts`
+**Purpose**: Reduce excessive timeouts from 45-60s to 30s while still allowing for API latency
+
+**Optimizations Applied (2 total)**:
+
+1. **chat.spec.ts:225** - Reduced thinker response timeout from 60s to 30s
+   - Still allows for Claude API latency
+   - Reduces worst-case test execution time by 30s
+
+2. **chat.spec.ts:162** - Reduced pause/resume polling timeout from 45s to 30s
+   - Maintains reliability while improving speed
+   - Uses expect.poll() with appropriate retry intervals
+
+### 0.3.2 API-Based Test Setup
+**Files Modified**: `frontend/e2e/tab-visibility.spec.ts`, `frontend/e2e/session-management.spec.ts`, `frontend/e2e/keyboard-navigation.spec.ts`
+**Purpose**: Switch from UI-based conversation creation to API-based setup for tests not testing the modal flow
+
+**Optimizations Applied (8 total)**:
+
+1. **tab-visibility.spec.ts** (3 tests optimized)
+   - `pauses conversation when tab becomes hidden` - switched to createConversationViaAPI
+   - `resumes conversation when tab becomes visible` - switched to createConversationViaAPI
+   - `no new messages arrive while tab is hidden` - switched to createConversationViaAPI
+   - **Impact**: Eliminates 3x modal interaction flows (saves ~45s per test run)
+
+2. **session-management.spec.ts** (2 tests optimized)
+   - `can logout mid-conversation without errors` - switched to createConversationViaAPI
+   - `maintains session across page reload` - switched to createConversationViaAPI
+   - **Impact**: Eliminates 2x modal interaction flows (saves ~30s per test run)
+
+3. **keyboard-navigation.spec.ts** (3 tests optimized)
+   - `can send message with Enter key` - switched to createConversationViaAPI
+   - `focus management after opening and closing export menu` - switched to createConversationViaAPI
+   - `Tab key navigates through conversation controls` - switched to createConversationViaAPI
+   - **Impact**: Eliminates 3x modal interaction flows (saves ~45s per test run)
+
+### 0.3.3 Performance Metrics
+
+**Before Optimization**:
+- Total E2E execution time: 11.3 minutes for 304 tests
+- Longest timeout: 60s (chat.spec.ts)
+- API-based setup: Limited usage
+
+**After Optimization**:
+- Expected improvement: ~2-3 minutes (target: <10 min total)
+- Longest timeout: 30s (reduced by 50%)
+- API-based setup: 8 additional tests now use fast API setup
+
+**Key Findings from Analysis**:
+- ✅ Only 1 waitForTimeout call in entire E2E suite (excellent!)
+- ✅ 51 event-driven waits (waitForLoadState, waitForResponse)
+- ✅ 4 workers with fullyParallel: true (good CI parallelism)
+- ⚠️ Opportunity: Add test.describe.parallel() for independent test groups (future work)
+
+### 0.3.4 Summary
+
+**Files Modified**:
+- `frontend/e2e/chat.spec.ts` - 2 timeout reductions
+- `frontend/e2e/tab-visibility.spec.ts` - 3 tests switched to API setup
+- `frontend/e2e/session-management.spec.ts` - 2 tests switched to API setup
+- `frontend/e2e/keyboard-navigation.spec.ts` - 3 tests switched to API setup
+
+**Total Impact**:
+- 10 test optimizations across 4 files
+- Reduced timeouts by 30-50% where safe
+- Eliminated 8 unnecessary modal interaction flows
+- Expected E2E suite improvement: 2-3 minutes (15-25% faster)
+
+**Test Stability**: All optimizations maintain test reliability by:
+- Using appropriate timeouts for API latency (30s)
+- Preserving event-driven wait patterns
+- Only optimizing setup, not test behavior validation
+
 ## 0.2 Regression Prevention - Sunday (Added 2026-02-08)
 
 **Focus**: Add regression tests for recent features and bug fixes

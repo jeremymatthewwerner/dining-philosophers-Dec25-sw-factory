@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
+import { setupAuthenticatedUser, createConversationViaAPI } from './test-utils';
 
 test.describe('Tab Visibility Handling', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,8 +12,9 @@ test.describe('Tab Visibility Handling', () => {
   });
 
   test('pauses conversation when tab becomes hidden', async ({ page }) => {
-    // Create a conversation
-    await createConversationViaUI(page, 'Visibility test', 'Socrates');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Visibility test', ['Socrates']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Verify pause button shows "Pause" initially
     const pauseButton = page.getByTestId('pause-resume-button');
@@ -42,8 +43,9 @@ test.describe('Tab Visibility Handling', () => {
   });
 
   test('resumes conversation when tab becomes visible', async ({ page }) => {
-    // Create a conversation
-    await createConversationViaUI(page, 'Resume test', 'Aristotle');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Resume test', ['Aristotle']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Simulate tab being hidden first
     await page.evaluate(() => {
@@ -76,8 +78,9 @@ test.describe('Tab Visibility Handling', () => {
   });
 
   test('no new messages arrive while tab is hidden', async ({ page }) => {
-    // Create a conversation
-    await createConversationViaUI(page, 'Message pause test', 'Confucius');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Message pause test', ['Confucius']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Send a message
     const messageTextarea = page.getByTestId('message-textarea');

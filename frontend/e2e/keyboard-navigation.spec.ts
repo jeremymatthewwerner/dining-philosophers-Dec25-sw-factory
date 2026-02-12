@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
+import { setupAuthenticatedUser, createConversationViaUI, createConversationViaAPI } from './test-utils';
 
 test.describe('Keyboard Navigation', () => {
   test.beforeEach(async ({ page }) => {
@@ -41,8 +41,9 @@ test.describe('Keyboard Navigation', () => {
   });
 
   test('can send message with Enter key', async ({ page }) => {
-    // Create a conversation
-    await createConversationViaUI(page, 'Enter key test', 'Socrates');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Enter key test', ['Socrates']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Focus message textarea
     const messageTextarea = page.getByTestId('message-textarea');
@@ -86,8 +87,9 @@ test.describe('Keyboard Navigation', () => {
   test('focus management after opening and closing export menu', async ({
     page,
   }) => {
-    // Create a conversation
-    await createConversationViaUI(page, 'Focus management test', 'Aristotle');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Focus management test', ['Aristotle']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Open export menu
     const exportButton = page.getByTestId('export-button');
@@ -114,8 +116,9 @@ test.describe('Keyboard Navigation', () => {
   });
 
   test('Tab key navigates through conversation controls', async ({ page }) => {
-    // Create a conversation
-    await createConversationViaUI(page, 'Control navigation test', 'Plato');
+    // Create a conversation via API for faster setup (not testing modal flow)
+    const conv = await createConversationViaAPI(page, 'Control navigation test', ['Plato']);
+    await page.goto(`/conversations/${conv.id}`);
 
     // Start from message textarea
     const messageTextarea = page.getByTestId('message-textarea');
