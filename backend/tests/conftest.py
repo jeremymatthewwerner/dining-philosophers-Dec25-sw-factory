@@ -570,3 +570,125 @@ def assert_success_response(
             assert key in data, f"Expected key '{key}' not found in response: {data}"
 
     return data
+
+
+# Additional assertion helpers for test refactoring (Feb 13, 2026)
+def assert_json_keys(
+    data: dict[str, Any],
+    required_keys: list[str],
+    optional_keys: list[str] | None = None,
+) -> None:
+    """Assert that a dictionary contains required keys and only allowed keys.
+
+    Reduces duplication of key validation logic across test files.
+
+    Args:
+        data: Dictionary to validate
+        required_keys: Keys that must be present
+        optional_keys: Keys that may be present (default: allow any extra keys)
+
+    Raises:
+        AssertionError: If required keys are missing or disallowed keys present
+
+    Example:
+        >>> assert_json_keys(data, ["id", "name"], ["email"])
+    """
+    for key in required_keys:
+        assert key in data, f"Required key '{key}' not found in data: {list(data.keys())}"
+
+    if optional_keys is not None:
+        allowed_keys = set(required_keys + optional_keys)
+        for key in data:
+            assert key in allowed_keys, f"Unexpected key '{key}' in data. Allowed: {allowed_keys}"
+
+
+def assert_list_response(
+    response: Any,
+    min_length: int = 0,
+    max_length: int | None = None,
+    expected_status: int = 200,
+) -> list[Any]:
+    """Assert response is a successful list with expected length constraints.
+
+    Reduces duplication of list response validation pattern.
+
+    Args:
+        response: HTTP response object
+        min_length: Minimum expected list length (default: 0)
+        max_length: Maximum expected list length (default: no limit)
+        expected_status: Expected HTTP status code (default: 200)
+
+    Returns:
+        Response JSON list data
+
+    Example:
+        >>> items = assert_list_response(response, min_length=1, max_length=10)
+        >>> assert all("id" in item for item in items)
+    """
+    assert response.status_code == expected_status
+    data: list[Any] = response.json()
+    assert isinstance(data, list), f"Expected list, got {type(data)}"
+    assert len(data) >= min_length, f"Expected at least {min_length} items, got {len(data)}"
+    if max_length is not None:
+        assert len(data) <= max_length, f"Expected at most {max_length} items, got {len(data)}"
+    return data
+
+
+def assert_unauthorized(response: Any, expected_detail_substring: str | None = None) -> None:
+    """Assert response is 401 Unauthorized with optional detail check.
+
+    Reduces duplication of 401 assertion pattern (appears 25+ times).
+
+    Args:
+        response: HTTP response object
+        expected_detail_substring: Optional substring to check in error detail
+
+    Example:
+        >>> assert_unauthorized(response, "Invalid token")
+    """
+    assert_error_response(response, 401, expected_detail_substring)
+
+
+def assert_forbidden(response: Any, expected_detail_substring: str | None = None) -> None:
+    """Assert response is 403 Forbidden with optional detail check.
+
+    Reduces duplication of 403 assertion pattern.
+
+    Args:
+        response: HTTP response object
+        expected_detail_substring: Optional substring to check in error detail
+
+    Example:
+        >>> assert_forbidden(response, "not authorized")
+    """
+    assert_error_response(response, 403, expected_detail_substring)
+
+
+def assert_not_found(response: Any, expected_detail_substring: str | None = None) -> None:
+    """Assert response is 404 Not Found with optional detail check.
+
+    Reduces duplication of 404 assertion pattern (appears 20+ times).
+
+    Args:
+        response: HTTP response object
+        expected_detail_substring: Optional substring to check in error detail
+
+    Example:
+        >>> assert_not_found(response, "Conversation not found")
+    """
+    assert_error_response(response, 404, expected_detail_substring)
+
+
+def assert_validation_error(response: Any, expected_detail_substring: str | None = None) -> None:
+    """Assert response is 422 Unprocessable Entity with optional detail check.
+
+    Reduces duplication of 422 assertion pattern (appears 15+ times).
+
+    Args:
+        response: HTTP response object
+        expected_detail_substring: Optional substring to check in error detail
+
+    Example:
+        >>> assert_validation_error(response, "Invalid language")
+    """
+    assert_error_response(response, 422, expected_detail_substring)

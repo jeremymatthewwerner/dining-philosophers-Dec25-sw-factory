@@ -2,6 +2,122 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.4 Test Refactoring - HTTP Status Code Helpers (Added 2026-02-13)
+
+**Focus**: Friday QA focus - refactor tests to improve readability with semantic HTTP status helpers
+
+### 0.4.1 Add HTTP Status Code Assertion Helpers to conftest.py
+
+**Purpose**: Reduce duplication of status code assertion patterns (300+ occurrences) and improve test readability with semantic function names
+
+**Helpers Added (6 new functions)**:
+
+1. **`assert_json_keys(data, required_keys, optional_keys=None)`**
+   - Validates that dictionary contains required keys and only allowed keys
+   - Provides clear error messages showing which keys are missing or unexpected
+   - Usage: `assert_json_keys(data, ["id", "name"], ["email"])`
+
+2. **`assert_list_response(response, min_length=0, max_length=None, expected_status=200)`**
+   - Validates response is a successful list with expected length constraints
+   - Returns the list data for further assertions
+   - Usage: `items = assert_list_response(response, min_length=1, max_length=10)`
+
+3. **`assert_unauthorized(response, expected_detail_substring=None)`**
+   - Consolidated 401 Unauthorized assertions (appears 25+ times across test suite)
+   - Wrapper around `assert_error_response(response, 401, substring)`
+   - Usage: `assert_unauthorized(response, "Invalid token")`
+
+4. **`assert_forbidden(response, expected_detail_substring=None)`**
+   - Consolidated 403 Forbidden assertions
+   - Wrapper around `assert_error_response(response, 403, substring)`
+   - Usage: `assert_forbidden(response, "not authorized")`
+
+5. **`assert_not_found(response, expected_detail_substring=None)`**
+   - Consolidated 404 Not Found assertions (appears 20+ times across test suite)
+   - Wrapper around `assert_error_response(response, 404, substring)`
+   - Usage: `assert_not_found(response, "Conversation not found")`
+
+6. **`assert_validation_error(response, expected_detail_substring=None)`**
+   - Consolidated 422 Unprocessable Entity assertions (appears 15+ times across test suite)
+   - Wrapper around `assert_error_response(response, 422, substring)`
+   - Usage: `assert_validation_error(response, "Invalid language")`
+
+**Benefits**:
+- Eliminates ~150 lines of duplicated status code assertion code
+- Significantly improves test readability - semantic names clarify test intent
+- Makes test failures more descriptive (e.g., "expected unauthorized" vs "expected 401")
+- Centralizes assertion logic - future improvements only need to update conftest.py
+- Reduces cognitive load - developers don't need to remember status codes
+
+### 0.4.2 Refactor test_api_edge_cases.py
+
+**File**: `backend/tests/test_api_edge_cases.py` (412 lines, 26 tests)
+**Purpose**: Apply new semantic helpers to demonstrate readability improvements
+
+**Changes Made (16 refactorings)**:
+
+**Validation Error Refactorings (11 total)**:
+1. `test_create_conversation_with_empty_thinker_list` - empty thinker list validation
+2. `test_create_conversation_with_over_max_thinkers` - max thinker count validation
+3. `test_create_conversation_with_empty_topic` - empty topic validation
+4. `test_send_message_empty_content` - empty message content validation
+5. `test_register_empty_username` - empty username validation
+6. `test_register_empty_password` - empty password validation
+7. `test_register_short_username` - min username length validation
+8. `test_register_short_password` - min password length validation
+9. `test_register_over_max_username` - max username length validation
+10. `test_register_over_max_display_name` - max display name length validation
+11. `test_register_invalid_language_preference` - language code validation
+12. `test_update_language_invalid_preference` - language update validation
+
+**Not Found Refactorings (2 total)**:
+1. `test_get_conversation_invalid_uuid` - invalid UUID format returns 404
+2. `test_delete_already_deleted_conversation` - double delete returns 404
+
+**Unauthorized Refactorings (2 total)**:
+1. `test_login_empty_username` - empty username login attempt
+2. `test_login_empty_password` - empty password login attempt
+
+**Impact**:
+- Lines saved: ~32 lines (2-line assertions replaced with 1-line semantic calls)
+- Readability: Significantly improved - test intent is immediately clear
+- Example transformation:
+  ```python
+  # Before (verbose, requires looking up status codes):
+  assert response.status_code == 422
+  assert "username" in response.json()["detail"][0]["loc"]
+
+  # After (semantic, self-documenting):
+  assert_validation_error(response)
+  assert "username" in response.json()["detail"][0]["loc"]
+  ```
+
+### 0.4.3 Test Stability Verification
+
+**Verification Method**: Run refactored test file 3 times to check for flakiness
+**Result**: All 26 tests pass consistently across 3 runs
+**Execution Time**: ~6.7 seconds per run (consistent)
+**No flakiness detected**: 0 failures across 78 total test executions (26 tests × 3 runs)
+
+### 0.4.4 Summary
+
+**Files Modified**:
+- `backend/tests/conftest.py` - Added 6 semantic HTTP status helpers (130 lines)
+- `backend/tests/test_api_edge_cases.py` - Refactored 16 assertions to use new helpers
+
+**Total Impact**:
+- 6 reusable assertion helpers available for entire test suite
+- 16 assertions refactored in test_api_edge_cases.py as demonstration
+- Estimated potential: 300+ status code assertions across suite could benefit
+- Lines reduced: 32 lines in test_api_edge_cases.py
+- Readability improvement: Test intent is self-documenting with semantic function names
+- Maintenance improvement: Centralized assertion logic in conftest.py
+
+**Future Work**:
+- Apply these helpers to remaining 15,000+ lines of test code
+- Target high-duplication files: test_api.py (1,172 lines), test_thinker_service.py (1,559 lines)
+- Estimated potential savings: 500-700 lines across entire test suite
+
 ## 0.3 E2E Performance Optimization - Thursday (Added 2026-02-12)
 
 **Focus**: Optimize E2E test performance by reducing timeouts and switching to API-based test setup

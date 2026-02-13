@@ -8,7 +8,10 @@ import pytest
 from httpx import AsyncClient
 
 from tests.conftest import (
+    assert_not_found,
     assert_success_response,
+    assert_unauthorized,
+    assert_validation_error,
     create_test_conversation,
     create_thinker_input,
     get_auth_headers,
@@ -30,7 +33,7 @@ class TestConversationEdgeCases:
                 "thinkers": [],  # Empty list should fail
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
         assert "thinkers" in response.json()["detail"][0]["loc"]
 
     async def test_create_conversation_with_max_thinkers(self, client: AsyncClient) -> None:
@@ -67,7 +70,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json={"topic": "Too many thinkers", "thinkers": thinkers},
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
         assert "thinkers" in response.json()["detail"][0]["loc"]
 
     async def test_create_conversation_with_empty_topic(self, client: AsyncClient) -> None:
@@ -86,7 +89,7 @@ class TestConversationEdgeCases:
                 ],
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
         assert "topic" in response.json()["detail"][0]["loc"]
 
     async def test_get_conversation_invalid_uuid(self, client: AsyncClient) -> None:
@@ -99,7 +102,7 @@ class TestConversationEdgeCases:
             headers=headers,
         )
         # Should return 404 (not found) since query won't match any conversation
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_delete_already_deleted_conversation(self, client: AsyncClient) -> None:
         """Test deleting a conversation twice returns 404 on second attempt."""
@@ -121,8 +124,7 @@ class TestConversationEdgeCases:
             f"/api/conversations/{conv_id}",
             headers=headers,
         )
-        assert response.status_code == 404
-        assert "Conversation not found" in response.json()["detail"]
+        assert_not_found(response, "Conversation not found")
 
     async def test_send_message_empty_content(self, client: AsyncClient) -> None:
         """Test sending message with empty content fails validation."""
@@ -135,7 +137,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json={"content": ""},  # Empty content
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
 
     async def test_send_message_very_long_content(self, client: AsyncClient) -> None:
         """Test sending message with very long content (10,000 chars)."""
@@ -170,7 +172,7 @@ class TestAuthEdgeCases:
                 "password": "password123",
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
         assert "username" in response.json()["detail"][0]["loc"]
 
     async def test_register_empty_password(self, client: AsyncClient) -> None:
@@ -183,7 +185,7 @@ class TestAuthEdgeCases:
                 "password": "",  # Empty password
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
         assert "password" in response.json()["detail"][0]["loc"]
 
     async def test_register_short_username(self, client: AsyncClient) -> None:
@@ -196,7 +198,7 @@ class TestAuthEdgeCases:
                 "password": "password123",
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
 
     async def test_register_short_password(self, client: AsyncClient) -> None:
         """Test registration with password shorter than min length (6 chars)."""
@@ -208,7 +210,7 @@ class TestAuthEdgeCases:
                 "password": "12345",  # Only 5 chars, min is 6
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
 
     async def test_register_username_with_special_characters(self, client: AsyncClient) -> None:
         """Test registration with special characters in username."""
@@ -249,7 +251,7 @@ class TestAuthEdgeCases:
                 "password": "password123",
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
 
     async def test_register_very_long_display_name(self, client: AsyncClient) -> None:
         """Test registration with display name at max length (100 chars)."""
@@ -277,7 +279,7 @@ class TestAuthEdgeCases:
                 "password": "password123",
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
 
     async def test_login_empty_username(self, client: AsyncClient) -> None:
         """Test login with empty username."""
@@ -290,7 +292,7 @@ class TestAuthEdgeCases:
         )
         # Should return 401 (unauthorized) not 422, as validation allows empty
         # but authentication will fail
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_login_empty_password(self, client: AsyncClient) -> None:
         """Test login with empty password."""
@@ -302,7 +304,7 @@ class TestAuthEdgeCases:
             },
         )
         # Should return 401 (unauthorized)
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_register_invalid_language_preference(self, client: AsyncClient) -> None:
         """Test registration with invalid language preference."""
@@ -315,7 +317,7 @@ class TestAuthEdgeCases:
                 "language_preference": "invalid",  # Only 'en', 'es', and 'fr' are valid
             },
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
         assert "language_preference" in response.json()["detail"][0]["loc"]
 
     async def test_update_language_invalid_preference(self, client: AsyncClient) -> None:
@@ -327,7 +329,7 @@ class TestAuthEdgeCases:
             headers=headers,
             json={"language_preference": "xx"},  # Invalid language (not en, es, fr, or de)
         )
-        assert response.status_code == 422  # Validation error
+        assert_validation_error(response)
 
 
 class TestThinkerEdgeCases:
