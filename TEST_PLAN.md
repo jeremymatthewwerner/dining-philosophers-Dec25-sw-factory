@@ -2,6 +2,86 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.5 Regression Prevention - February 2026 Bug Fixes (Added 2026-02-15)
+
+**Focus**: Sunday QA focus - add regression tests for bugs fixed in February 2026
+
+### 0.5.1 HTTP Status Code Semantics (PR #622)
+
+**Bug**: Tests used deprecated raw status codes (200, 400, 401) instead of semantic constants
+**Fix**: Replaced with `starlette.status` constants (`HTTP_200_OK`, `HTTP_400_BAD_REQUEST`, etc.)
+**File**: `tests/test_regression_prevention_feb2026.py`
+
+**Tests Added (3 tests)**:
+
+1. **`test_feedback_success_returns_201_created`**
+   - Validates feedback submission returns `HTTP_201_CREATED` (not raw 201)
+   - Ensures semantic status codes are used throughout the test suite
+
+2. **`test_feedback_validation_error_returns_422`**
+   - Validates validation errors return `HTTP_422_UNPROCESSABLE_ENTITY`
+   - Tests missing required 'message' field in feedback submission
+
+3. **`test_auth_missing_credentials_returns_401`**
+   - Validates protected endpoints return `HTTP_401_UNAUTHORIZED` without auth
+   - Tests conversation list endpoint requires authentication
+
+### 0.5.2 Admin Authorization Checks
+
+**Purpose**: Ensure non-admin users cannot access admin-only endpoints
+**File**: `tests/test_regression_prevention_feb2026.py`
+
+**Tests Added (3 tests)**:
+
+1. **`test_non_admin_cannot_list_users`**
+   - Non-admin users receive `HTTP_403_FORBIDDEN` when accessing `/api/admin/users`
+   - Prevents unauthorized access to user list
+
+2. **`test_non_admin_cannot_delete_user`**
+   - Non-admin users receive `HTTP_403_FORBIDDEN` when deleting users
+   - Prevents unauthorized user deletion
+
+3. **`test_non_admin_cannot_update_spend_limit`**
+   - Non-admin users receive `HTTP_403_FORBIDDEN` when updating spend limits
+   - Prevents unauthorized spend limit changes
+
+### 0.5.3 DevOps API Secret Validation
+
+**Purpose**: Ensure DevOps endpoints properly validate X-DevOps-Secret header
+**File**: `tests/test_regression_prevention_feb2026.py`
+
+**Tests Added (3 tests)**:
+
+1. **`test_devops_health_not_configured_returns_503`**
+   - DevOps health endpoint returns `HTTP_503_SERVICE_UNAVAILABLE` when DEVOPS_API_SECRET not set
+   - Validates proper error when API not configured
+
+2. **`test_devops_health_rejects_invalid_secret_when_configured`**
+   - DevOps health endpoint returns `HTTP_403_FORBIDDEN` with invalid secret
+   - Uses monkeypatch to configure secret for test
+
+3. **`test_devops_stats_not_configured_returns_503`**
+   - DevOps stats endpoint returns `HTTP_503_SERVICE_UNAVAILABLE` when not configured
+   - Prevents unauthorized access to database statistics
+
+### 0.5.4 Message Validation
+
+**Purpose**: Ensure message API properly validates inputs
+**File**: `tests/test_regression_prevention_feb2026.py`
+
+**Tests Added (2 tests)**:
+
+1. **`test_empty_message_rejected`**
+   - Empty message content is rejected with 422 validation error
+   - Prevents sending empty messages to conversations
+
+2. **`test_message_content_required`**
+   - Message content field is required (422 error when missing)
+   - Validates Pydantic schema enforcement
+
+**Total Tests Added**: 11 regression prevention tests
+**All tests verified stable**: Passed 3 consecutive runs without flakiness
+
 ## 0.4 Test Refactoring - HTTP Status Code Helpers (Added 2026-02-13)
 
 **Focus**: Friday QA focus - refactor tests to improve readability with semantic HTTP status helpers
