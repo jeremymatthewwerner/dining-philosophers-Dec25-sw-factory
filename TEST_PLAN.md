@@ -2,6 +2,82 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.5.1 Coverage Sprint - Conversations API (Added 2026-02-16)
+
+**Focus**: Monday coverage sprint targeting `app/api/conversations.py` (39% → 77% overall backend)
+**File**: `tests/test_conversations_coverage_sprint_feb16.py`
+
+### Color Cycling Logic Tests (3 tests)
+
+1. **`test_create_conversation_cycles_default_colors`**
+   - Tests lines 46-67: Thinker creation with color palette cycling
+   - When multiple thinkers use default color (#6366f1), they receive different colors from palette
+   - Validates color cycling through ["#6366f1", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6"]
+
+2. **`test_create_conversation_preserves_custom_colors`**
+   - Tests lines 54-56: Custom (non-default) colors bypass cycling logic
+   - Thinkers with custom colors keep their specified color
+   - Ensures only default color triggers cycling
+
+3. **`test_create_conversation_refreshes_with_thinkers`**
+   - Tests line 67: Conversation refresh includes thinkers relationship
+   - After flush, conversation.thinkers are loaded with IDs and timestamps
+   - Validates SQLAlchemy refresh behavior
+
+### List Conversations Detail (1 test)
+
+4. **`test_list_conversations_cost_aggregation_with_nulls`**
+   - Tests lines 85-105: Cost aggregation with null handling
+   - Uses `sum(msg.cost or 0.0 for msg in conv.messages)` to handle nulls
+   - Validates message_count and total_cost in response
+
+### Get/Delete Success Paths (2 tests)
+
+5. **`test_get_conversation_nonexistent_returns_404`**
+   - Tests lines 126-128: HTTPException(404) for nonexistent conversation
+   - Validates error message includes "not found"
+
+6. **`test_delete_conversation_returns_status_deleted`**
+   - Tests lines 145-151: Delete conversation returns `{"status": "deleted"}`
+   - Validates cascade delete (conversation removed from DB)
+   - Verifies 404 when fetching deleted conversation
+
+### Add Thinkers Validation (3 tests)
+
+7. **`test_add_thinkers_exceeds_max_limit`**
+   - Tests lines 173-185: Max thinker limit validation (5 total)
+   - Returns 400 with message showing "3/5 thinkers, Maximum is 5 total"
+   - Prevents exceeding conversation thinker limit
+
+8. **`test_add_thinkers_uses_available_colors_from_pool`**
+   - Tests lines 187-220: Color pool management for new thinkers
+   - Existing colors tracked, new thinkers get unused colors from palette
+   - Validates `available_colors = [c for c in all_colors if c not in existing_colors]`
+
+9. **`test_add_thinkers_color_pool_exhaustion`**
+   - Tests lines 197-198: Behavior when color pool is exhausted
+   - With 4 existing thinkers, 5th gets last available color
+   - Ensures graceful handling when `available_colors` is nearly empty
+
+### Send Message Features (3 tests)
+
+10. **`test_send_message_auto_resumes_idle_paused`**
+    - Tests lines 245-254: Idle pause detection and auto-resume
+    - Mocks `thinker_service.is_idle_paused(conversation_id)` returning True
+    - Validates `resume_from_idle()` called and RESUMED message broadcast
+
+11. **`test_send_message_prefers_display_name_over_username`**
+    - Tests lines 257-262: Display name preference over username
+    - User updates profile with display_name "The Philosopher"
+    - Message sender_name uses display_name when set
+
+12. **`test_send_message_falls_back_to_username`**
+    - Tests line 258: Username fallback when display_name is None
+    - User with no explicit display_name set
+    - Message sender_name falls back to username (title-cased by registration)
+
+**Coverage Impact**: Added 12 tests covering uncovered paths in create, list, get, delete, add_thinkers, and send_message endpoints. Improved overall backend coverage from 76% to 77%.
+
 ## 0.5 Regression Prevention - February 2026 Bug Fixes (Added 2026-02-15)
 
 **Focus**: Sunday QA focus - add regression tests for bugs fixed in February 2026
