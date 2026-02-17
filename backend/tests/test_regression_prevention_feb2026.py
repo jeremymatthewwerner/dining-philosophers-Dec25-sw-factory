@@ -126,7 +126,7 @@ class TestHTTPStatusCodeSemantics:
 
         Regression test for PR #622 - validates semantic status codes.
         """
-        from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+        from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT
 
         # Missing required 'message' field
         response = await client.post(
@@ -138,7 +138,7 @@ class TestHTTPStatusCodeSemantics:
         )
 
         # Should return 422 Unprocessable Entity for validation errors
-        assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == HTTP_422_UNPROCESSABLE_CONTENT
 
     @pytest.mark.asyncio
     async def test_auth_missing_credentials_returns_401(self, client: AsyncClient) -> None:
@@ -307,9 +307,9 @@ class TestMessageValidation:
 
         # Should return 422 Unprocessable Entity for empty content (validation error)
         # or 404 if it checks conversation first - both are acceptable
-        from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+        from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT
 
-        assert response.status_code in [HTTP_422_UNPROCESSABLE_ENTITY, HTTP_400_BAD_REQUEST, 404]
+        assert response.status_code in [HTTP_422_UNPROCESSABLE_CONTENT, HTTP_400_BAD_REQUEST, 404]
 
     @pytest.mark.asyncio
     async def test_message_content_required(self, client: AsyncClient) -> None:
@@ -317,7 +317,7 @@ class TestMessageValidation:
 
         Regression test to ensure proper validation.
         """
-        from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+        from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT
 
         # Create user and get auth headers
         headers = await get_auth_headers(client)
@@ -330,4 +330,4 @@ class TestMessageValidation:
         )
 
         # Should return 422 Unprocessable Entity for missing field
-        assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == HTTP_422_UNPROCESSABLE_CONTENT

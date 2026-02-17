@@ -11,7 +11,7 @@ Focused on remaining untested code paths:
 - Send message with idle resume (lines 241-268)
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -417,7 +417,8 @@ class TestSendMessageIdleResume:
         # The service is imported inside the function, so patch the module directly
         with patch("app.services.thinker.thinker_service") as mock_service:
             mock_service.is_idle_paused.return_value = True
-            mock_service.resume_from_idle = AsyncMock()
+            # resume_from_idle is synchronous, not async - use MagicMock not AsyncMock
+            mock_service.resume_from_idle = MagicMock()
 
             # Mock websocket manager
             with patch("app.api.websocket.manager") as mock_manager:

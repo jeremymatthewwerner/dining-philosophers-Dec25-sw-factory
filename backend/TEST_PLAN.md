@@ -1,3 +1,74 @@
+## Flaky Test Hunt - Tuesday Sprint (Added 2026-02-17)
+
+**Focus**: Run full test suite 5 times to identify and fix flaky tests (Tuesday QA focus)
+
+### Test Stability Analysis
+
+**Test Runs**: 5 complete runs of 552 tests each
+- **Run 1**: 552 passed, 9 skipped (153.75s)
+- **Run 2**: 552 passed, 9 skipped (147.91s)
+- **Run 3**: 552 passed, 9 skipped (147.81s)
+- **Run 4**: 552 passed, 9 skipped (148.35s)
+- **Run 5**: 552 passed, 9 skipped (152.70s)
+
+**Result**: ✅ **NO FLAKY TESTS DETECTED!** All tests passed consistently across 5 runs with identical results.
+
+### Warning Fixes Applied
+
+**Fixed 4 warnings in this session:**
+
+1. **Unawaited Coroutine Warning** - `test_conversations_coverage_sprint_feb9.py:420`
+   - **Issue**: `resume_from_idle` was mocked as `AsyncMock` but actual implementation is synchronous
+   - **Fix**: Changed mock from `AsyncMock()` to `MagicMock()` to match actual function signature
+   - **File**: `tests/test_conversations_coverage_sprint_feb9.py`
+   - **Line**: 420
+
+2. **Deprecated HTTP Status Code (3 occurrences)** - `test_regression_prevention_feb2026.py`
+   - **Issue**: `HTTP_422_UNPROCESSABLE_ENTITY` is deprecated in Starlette, replaced by `HTTP_422_UNPROCESSABLE_CONTENT`
+   - **Fix**: Replaced all 3 usages with the new constant name
+   - **Files**: `tests/test_regression_prevention_feb2026.py` lines 129, 310, 320
+   - **Impact**: Eliminates deprecation warnings, future-proofs for Starlette updates
+
+### Remaining Warnings (8 total)
+
+**SQLAlchemy Connection Warnings (8 occurrences)** - WebSocket tests
+- **Issue**: Database connections not properly closed in WebSocket tests, triggering garbage collector cleanup warnings
+- **Affected Tests**:
+  - `test_websocket.py::TestWebSocketEndpoint::test_websocket_connect`
+  - `test_websocket.py::TestWebSocketEndpoint::test_multiple_clients_receive_messages`
+  - `test_websocket.py::TestWebSocketMessageTypes::test_typing_start_message`
+  - `test_websocket.py::TestWebSocketMessageTypes::test_typing_stop_message`
+  - `test_websocket.py::TestWebSocketMessageTypes::test_pause_state_preserved_on_reconnect` (2x)
+  - `test_websocket.py::TestWebSocketMessageTypes::test_unpaused_conversation_sends_resumed_on_connect` (2x)
+- **Root Cause**: WebSocket test fixtures don't properly clean up database connections before garbage collection
+- **Impact**: Low - warnings only, tests pass successfully
+- **Recommendation**: Add explicit connection cleanup in `tests/conftest.py:38` fixture teardown
+
+**Passlib Crypt Deprecation (1 occurrence)**
+- **Issue**: Python 3.13 will remove the `crypt` module, which passlib currently uses
+- **Impact**: Low - Python 3.13 is future release, passlib will need to update
+- **Recommendation**: Monitor passlib updates, no action needed from test suite
+
+### Test Quality Metrics
+
+- **Total Tests**: 552 passing, 9 skipped
+- **Flaky Tests**: 0 detected ✅
+- **Warnings Fixed**: 4 (from 12 to 8)
+- **Test Stability**: 100% consistent across 5 runs
+- **Average Run Time**: 149.97s (~2.5 minutes)
+
+### Tests Modified in This Session
+
+1. **test_conversations_coverage_sprint_feb9.py**
+   - Fixed `TestSendMessageIdleResume::test_send_message_resumes_idle_paused_conversation`
+   - Changed mock from `AsyncMock()` to `MagicMock()` for synchronous `resume_from_idle`
+   - Test now runs without RuntimeWarning
+
+2. **test_regression_prevention_feb2026.py**
+   - Updated 3 tests to use `HTTP_422_UNPROCESSABLE_CONTENT` instead of deprecated `HTTP_422_UNPROCESSABLE_ENTITY`
+   - Tests: `test_feedback_validation_error_returns_422`, `test_empty_message_rejected`, `test_message_content_required`
+   - All tests verified passing 3x after changes
+
 ## Integration Test Gaps - Wednesday Sprint (Added 2026-02-04)
 
 **Focus**: Add integration tests for untested API endpoints (Wednesday QA focus)
