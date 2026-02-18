@@ -191,7 +191,7 @@ class TestConversationsIntegration:
     @pytest.mark.skip(reason="API schema validation needs investigation")
     @pytest.mark.asyncio
     async def test_add_thinkers_with_color_pool_exhaustion_integration(
-        self, client: AsyncClient, async_session: AsyncSession
+        self, client: AsyncClient, _async_session: AsyncSession
     ):
         """Test add_thinkers handles color pool exhaustion gracefully."""
         # Register user and get headers
@@ -236,7 +236,7 @@ class TestConversationsIntegration:
 
     @pytest.mark.asyncio
     async def test_send_message_with_idle_auto_resume_integration(
-        self, client: AsyncClient, async_session: AsyncSession
+        self, client: AsyncClient, _async_session: AsyncSession
     ):
         """Test send_message auto-resumes conversation from idle pause."""
         from app.services.thinker import thinker_service
@@ -269,7 +269,7 @@ class TestConversationsIntegration:
 
     @pytest.mark.asyncio
     async def test_create_conversation_triggers_knowledge_research_integration(
-        self, client: AsyncClient, async_session: AsyncSession, mocker
+        self, client: AsyncClient, _async_session: AsyncSession, mocker
     ):
         """Test create_conversation triggers background knowledge research for thinkers."""
         from app.services.knowledge_research import knowledge_service
