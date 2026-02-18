@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI, createConversationViaAPI } from './test-utils';
+import { setupAuthenticatedUser, createAndNavigateToConversation } from './test-utils';
 
 test.describe('Session Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -39,8 +39,7 @@ test.describe('Session Management', () => {
     }).toPass({ timeout: 15000 });
   });
 
-  // Skipped: Flaky - chat-area not visible after API creation. See #664
-  test.skip('can logout mid-conversation without errors', async ({ page }) => {
+  test('can logout mid-conversation without errors', async ({ page }) => {
     // Set up console error listener BEFORE actions
     const consoleErrors: string[] = [];
     page.on('console', (msg) => {
@@ -49,9 +48,8 @@ test.describe('Session Management', () => {
       }
     });
 
-    // Create a conversation via API for faster setup (not testing modal flow)
-    const conv = await createConversationViaAPI(page, 'Logout test', ['Aristotle']);
-    await page.goto(`/conversations/${conv.id}`);
+    // Create a conversation via API and navigate to it via sidebar
+    await createAndNavigateToConversation(page, 'Logout test', ['Aristotle']);
 
     // Verify we're in a conversation
     await expect(page.getByTestId('chat-area')).toBeVisible();
@@ -94,11 +92,9 @@ test.describe('Session Management', () => {
     expect(unexpectedErrors).toHaveLength(0);
   });
 
-  // Skipped: Flaky - conversation item not visible after reload. See #664
-  test.skip('maintains session across page reload', async ({ page }) => {
-    // Create a conversation via API for faster setup (not testing modal flow)
-    const conv = await createConversationViaAPI(page, 'Session persistence test', ['Socrates']);
-    await page.goto(`/conversations/${conv.id}`);
+  test('maintains session across page reload', async ({ page }) => {
+    // Create a conversation via API and navigate to it via sidebar
+    await createAndNavigateToConversation(page, 'Session persistence test', ['Socrates']);
 
     // Get the stored token before reload
     const tokenBeforeReload = await page.evaluate(() =>

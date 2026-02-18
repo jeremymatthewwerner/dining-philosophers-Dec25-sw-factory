@@ -118,6 +118,10 @@ export async function getStoredToken(page: Page): Promise<string | null> {
 /**
  * Creates a conversation directly via API for faster test setup.
  * Use this when you don't need to test the modal flow itself.
+ *
+ * IMPORTANT: After calling this, use navigateToConversation() to actually
+ * open the conversation in the chat view. The app doesn't have URL-based
+ * routing for conversations - you need to click the conversation in the sidebar.
  */
 export async function createConversationViaAPI(
   page: Page,
@@ -157,6 +161,50 @@ export async function createConversationViaAPI(
 
   const conversation = await createResponse.json();
   return { id: conversation.id, topic };
+}
+
+/**
+ * Navigates to a conversation by clicking on it in the sidebar.
+ * This is the correct way to open a conversation - the app doesn't have
+ * URL-based routing for individual conversations.
+ *
+ * Use after createConversationViaAPI() to enter the chat view.
+ */
+export async function navigateToConversation(
+  page: Page,
+  topic: string
+): Promise<void> {
+  // Reload the page to pick up the newly created conversation in the sidebar
+  // (The API call doesn't update the React state automatically)
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  // Find and click the conversation in the sidebar
+  // The topic may be truncated in the sidebar, so use partial matching
+  const conversationItem = page
+    .getByTestId('conversation-item')
+    .filter({ hasText: topic });
+
+  await conversationItem.waitFor({ state: 'visible', timeout: 10000 });
+  await conversationItem.click();
+
+  // Wait for chat area to be visible (indicates conversation is loaded)
+  await page.getByTestId('chat-area').waitFor({ state: 'visible', timeout: 10000 });
+}
+
+/**
+ * Creates a conversation via API and then navigates to it.
+ * This is the recommended approach for tests that need to be in a conversation
+ * but don't need to test the modal creation flow.
+ */
+export async function createAndNavigateToConversation(
+  page: Page,
+  topic: string,
+  thinkerNames: string[] = ['Aristotle']
+): Promise<ConversationSetup> {
+  const conv = await createConversationViaAPI(page, topic, thinkerNames);
+  await navigateToConversation(page, topic);
+  return conv;
 }
 
 /**

@@ -4,18 +4,16 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaAPI } from './test-utils';
+import { setupAuthenticatedUser, createAndNavigateToConversation } from './test-utils';
 
 test.describe('Tab Visibility Handling', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
 
-  // Skipped: Flaky - pause-resume-button not found (WebSocket timing). See #664
-  test.skip('pauses conversation when tab becomes hidden', async ({ page }) => {
-    // Create a conversation via API for faster setup (not testing modal flow)
-    const conv = await createConversationViaAPI(page, 'Visibility test', ['Socrates']);
-    await page.goto(`/conversations/${conv.id}`);
+  test('pauses conversation when tab becomes hidden', async ({ page }) => {
+    // Create a conversation via API and navigate to it via sidebar
+    await createAndNavigateToConversation(page, 'Visibility test', ['Socrates']);
 
     // Verify pause button shows "Pause" initially
     const pauseButton = page.getByTestId('pause-resume-button');
@@ -43,11 +41,9 @@ test.describe('Tab Visibility Handling', () => {
     }, { timeout: 3000 }).toBe(0);
   });
 
-  // Skipped: Flaky - pause-resume-button not found (WebSocket timing). See #664
-  test.skip('resumes conversation when tab becomes visible', async ({ page }) => {
-    // Create a conversation via API for faster setup (not testing modal flow)
-    const conv = await createConversationViaAPI(page, 'Resume test', ['Aristotle']);
-    await page.goto(`/conversations/${conv.id}`);
+  test('resumes conversation when tab becomes visible', async ({ page }) => {
+    // Create a conversation via API and navigate to it via sidebar
+    await createAndNavigateToConversation(page, 'Resume test', ['Aristotle']);
 
     // Simulate tab being hidden first
     await page.evaluate(() => {
@@ -79,11 +75,9 @@ test.describe('Tab Visibility Handling', () => {
     await expect(sendButton).toBeEnabled();
   });
 
-  // Skipped: Flaky - times out on message visibility. See #664
-  test.skip('no new messages arrive while tab is hidden', async ({ page }) => {
-    // Create a conversation via API for faster setup (not testing modal flow)
-    const conv = await createConversationViaAPI(page, 'Message pause test', ['Confucius']);
-    await page.goto(`/conversations/${conv.id}`);
+  test('no new messages arrive while tab is hidden', async ({ page }) => {
+    // Create a conversation via API and navigate to it via sidebar
+    await createAndNavigateToConversation(page, 'Message pause test', ['Confucius']);
 
     // Send a message
     const messageTextarea = page.getByTestId('message-textarea');
