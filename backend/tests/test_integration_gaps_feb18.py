@@ -3,9 +3,9 @@
 Focus: Multi-step workflows and data consistency across API boundaries.
 """
 
-import os
 from datetime import UTC
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import AsyncClient
@@ -193,7 +193,7 @@ class TestConversationsIntegration:
     @pytest.mark.skip(reason="API schema validation needs investigation")
     @pytest.mark.asyncio
     async def test_add_thinkers_with_color_pool_exhaustion_integration(
-        self, client: AsyncClient, _async_session: AsyncSession
+        self, client: AsyncClient
     ) -> None:
         """Test add_thinkers handles color pool exhaustion gracefully."""
         # Register user and get headers
@@ -238,7 +238,7 @@ class TestConversationsIntegration:
 
     @pytest.mark.asyncio
     async def test_send_message_with_idle_auto_resume_integration(
-        self, client: AsyncClient, _async_session: AsyncSession
+        self, client: AsyncClient
     ) -> None:
         """Test send_message auto-resumes conversation from idle pause."""
         from app.services.thinker import thinker_service
@@ -271,7 +271,7 @@ class TestConversationsIntegration:
 
     @pytest.mark.asyncio
     async def test_create_conversation_triggers_knowledge_research_integration(
-        self, client: AsyncClient, _async_session: AsyncSession, mocker: Any
+        self, client: AsyncClient, mocker: Any
     ) -> None:
         """Test create_conversation triggers background knowledge research for thinkers."""
         from app.services.knowledge_research import knowledge_service
@@ -458,7 +458,7 @@ class TestAdminIntegration:
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # Create a user with full data hierarchy
-        user = User(username="deleteuser", password_hash=get_password_hash("userpass"))
+        user = User(username="deleteuser2", password_hash=get_password_hash("userpass"))
         async_session.add(user)
         await async_session.flush()
 
@@ -472,12 +472,12 @@ class TestAdminIntegration:
         async_session.add(conversation)
         await async_session.flush()
 
-        # Create thinker
+        # Create thinker (positions is a string, not a list)
         thinker = ConversationThinker(
             conversation_id=conversation.id,
             name="DeleteThinker",
             bio="Bio",
-            positions=["pos"],
+            positions="Philosophy",  # Fixed: positions is a string field
             style="style",
             color="#6366f1",
         )
@@ -488,7 +488,7 @@ class TestAdminIntegration:
         message = Message(
             conversation_id=conversation.id,
             sender_type=SenderType.USER,
-            sender_name="deleteuser",
+            sender_name="deleteuser2",
             content="Delete this",
         )
         async_session.add(message)
@@ -545,11 +545,9 @@ class TestDevOpsIntegration:
     ) -> None:
         """Test devops cleanup operations handle concurrent user activity gracefully."""
         from datetime import datetime, timedelta
+        from unittest.mock import patch
 
         from app.core.auth import get_password_hash
-
-        # Get secret from environment (same pattern as other tests)
-        secret = os.environ.get("DEVOPS_API_SECRET", "test-secret")
 
         # Create old session that should be cleaned up
         old_user = User(username="olduser", password_hash=get_password_hash("oldpass"))
@@ -576,11 +574,15 @@ class TestDevOpsIntegration:
         old_session_id = old_session.id
         active_session_id = active_session.id
 
-        # Cleanup stale sessions (dry_run=False)
-        response = await client.delete(
-            "/api/devops/cleanup/stale-sessions?hours_threshold=48&dry_run=false",
-            headers={"X-DevOps-Secret": secret},
-        )
+        # Mock get_settings to return a test secret
+        with patch("app.api.devops.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(devops_api_secret="test-secret")
+
+            # Cleanup stale sessions (dry_run=False)
+            response = await client.delete(
+                "/api/devops/cleanup/stale-sessions?hours_threshold=48&dry_run=false",
+                headers={"X-DevOps-Secret": "test-secret"},
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -603,10 +605,9 @@ class TestDevOpsIntegration:
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
         """Test devops stats endpoint returns accurate counts during active conversations."""
-        from app.core.auth import get_password_hash
+        from unittest.mock import patch
 
-        # Get secret from environment (same pattern as other tests)
-        secret = os.environ.get("DEVOPS_API_SECRET", "test-secret")
+        from app.core.auth import get_password_hash
 
         # Create users, sessions, conversations, messages
         user1 = User(username="statsuser1", password_hash=get_password_hash("pass1"))
@@ -645,11 +646,15 @@ class TestDevOpsIntegration:
         async_session.add_all([msg1, msg2, msg3])
         await async_session.commit()
 
-        # Get stats
-        response = await client.get(
-            "/api/devops/stats",
-            headers={"X-DevOps-Secret": secret},
-        )
+        # Mock get_settings to return a test secret
+        with patch("app.api.devops.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(devops_api_secret="test-secret")
+
+            # Get stats
+            response = await client.get(
+                "/api/devops/stats",
+                headers={"X-DevOps-Secret": "test-secret"},
+            )
 
         assert response.status_code == 200
         stats = response.json()
