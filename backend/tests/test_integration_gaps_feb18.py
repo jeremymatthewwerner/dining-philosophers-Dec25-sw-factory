@@ -3,7 +3,9 @@
 Focus: Multi-step workflows and data consistency across API boundaries.
 """
 
+import os
 from datetime import UTC
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
@@ -21,7 +23,7 @@ class TestConversationsIntegration:
     @pytest.mark.asyncio
     async def test_list_conversations_with_messages_and_costs_integration(
         self, client: AsyncClient, async_session: AsyncSession
-    ):
+    ) -> None:
         """Test list_conversations calculates message counts and costs correctly."""
         # Register user and get headers
         headers = await get_auth_headers(client, "listuser", "testpass123")
@@ -91,7 +93,7 @@ class TestConversationsIntegration:
     @pytest.mark.asyncio
     async def test_get_conversation_with_thinkers_and_messages_integration(
         self, client: AsyncClient, async_session: AsyncSession
-    ):
+    ) -> None:
         """Test get_conversation returns full conversation with thinkers and messages."""
         # Register user and get headers
         headers = await get_auth_headers(client, "getuser", "testpass123")
@@ -136,7 +138,7 @@ class TestConversationsIntegration:
     @pytest.mark.asyncio
     async def test_delete_conversation_removes_messages_and_thinkers_integration(
         self, client: AsyncClient, async_session: AsyncSession
-    ):
+    ) -> None:
         """Test delete_conversation cascades to messages and thinkers."""
         # Register user and get headers
         headers = await get_auth_headers(client, "deleteuser", "testpass123")
@@ -192,7 +194,7 @@ class TestConversationsIntegration:
     @pytest.mark.asyncio
     async def test_add_thinkers_with_color_pool_exhaustion_integration(
         self, client: AsyncClient, _async_session: AsyncSession
-    ):
+    ) -> None:
         """Test add_thinkers handles color pool exhaustion gracefully."""
         # Register user and get headers
         headers = await get_auth_headers(client, "coloruser", "testpass123")
@@ -237,7 +239,7 @@ class TestConversationsIntegration:
     @pytest.mark.asyncio
     async def test_send_message_with_idle_auto_resume_integration(
         self, client: AsyncClient, _async_session: AsyncSession
-    ):
+    ) -> None:
         """Test send_message auto-resumes conversation from idle pause."""
         from app.services.thinker import thinker_service
 
@@ -269,8 +271,8 @@ class TestConversationsIntegration:
 
     @pytest.mark.asyncio
     async def test_create_conversation_triggers_knowledge_research_integration(
-        self, client: AsyncClient, _async_session: AsyncSession, mocker
-    ):
+        self, client: AsyncClient, _async_session: AsyncSession, mocker: Any
+    ) -> None:
         """Test create_conversation triggers background knowledge research for thinkers."""
         from app.services.knowledge_research import knowledge_service
 
@@ -321,7 +323,7 @@ class TestAdminIntegration:
     @pytest.mark.asyncio
     async def test_admin_list_users_aggregates_multi_session_data(
         self, client: AsyncClient, async_session: AsyncSession
-    ):
+    ) -> None:
         """Test list_users correctly aggregates conversation counts across multiple sessions."""
         # Register admin user
         from app.core.auth import get_password_hash
@@ -376,7 +378,7 @@ class TestAdminIntegration:
     @pytest.mark.asyncio
     async def test_admin_update_spend_limit_validates_business_rules(
         self, client: AsyncClient, async_session: AsyncSession
-    ):
+    ) -> None:
         """Test update_spend_limit validates business rules and persists correctly."""
         # Register admin user
         from app.core.auth import create_access_token, get_password_hash
@@ -439,7 +441,7 @@ class TestAdminIntegration:
     @pytest.mark.asyncio
     async def test_admin_delete_user_cascades_all_related_data(
         self, client: AsyncClient, async_session: AsyncSession
-    ):
+    ) -> None:
         """Test delete_user cascades to sessions, conversations, messages, and thinkers."""
         # Register admin user
         from app.core.auth import create_access_token, get_password_hash
@@ -539,16 +541,15 @@ class TestDevOpsIntegration:
 
     @pytest.mark.asyncio
     async def test_devops_cleanup_with_concurrent_user_activity(
-        self, client: AsyncClient, async_session: AsyncSession, mocker
-    ):
+        self, client: AsyncClient, async_session: AsyncSession
+    ) -> None:
         """Test devops cleanup operations handle concurrent user activity gracefully."""
         from datetime import datetime, timedelta
 
         from app.core.auth import get_password_hash
-        from app.core.config import settings
 
-        # Mock DEVOPS_API_SECRET
-        mocker.patch.object(settings, "DEVOPS_API_SECRET", "test-secret")
+        # Get secret from environment (same pattern as other tests)
+        secret = os.environ.get("DEVOPS_API_SECRET", "test-secret")
 
         # Create old session that should be cleaned up
         old_user = User(username="olduser", password_hash=get_password_hash("oldpass"))
@@ -578,7 +579,7 @@ class TestDevOpsIntegration:
         # Cleanup stale sessions (dry_run=False)
         response = await client.delete(
             "/api/devops/cleanup/stale-sessions?hours_threshold=48&dry_run=false",
-            headers={"X-DevOps-Secret": "test-secret"},
+            headers={"X-DevOps-Secret": secret},
         )
 
         assert response.status_code == 200
@@ -599,14 +600,13 @@ class TestDevOpsIntegration:
 
     @pytest.mark.asyncio
     async def test_devops_stats_during_active_conversations(
-        self, client: AsyncClient, async_session: AsyncSession, mocker
-    ):
+        self, client: AsyncClient, async_session: AsyncSession
+    ) -> None:
         """Test devops stats endpoint returns accurate counts during active conversations."""
         from app.core.auth import get_password_hash
-        from app.core.config import settings
 
-        # Mock DEVOPS_API_SECRET
-        mocker.patch.object(settings, "DEVOPS_API_SECRET", "test-secret")
+        # Get secret from environment (same pattern as other tests)
+        secret = os.environ.get("DEVOPS_API_SECRET", "test-secret")
 
         # Create users, sessions, conversations, messages
         user1 = User(username="statsuser1", password_hash=get_password_hash("pass1"))
@@ -648,7 +648,7 @@ class TestDevOpsIntegration:
         # Get stats
         response = await client.get(
             "/api/devops/stats",
-            headers={"X-DevOps-Secret": "test-secret"},
+            headers={"X-DevOps-Secret": secret},
         )
 
         assert response.status_code == 200
