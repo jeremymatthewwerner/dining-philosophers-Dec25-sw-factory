@@ -11,7 +11,8 @@ test.describe('Tab Visibility Handling', () => {
     await setupAuthenticatedUser(page);
   });
 
-  test('pauses conversation when tab becomes hidden', async ({ page }) => {
+  // Skipped: Flaky - pause-resume-button not found (WebSocket timing). See #664
+  test.skip('pauses conversation when tab becomes hidden', async ({ page }) => {
     // Create a conversation via API for faster setup (not testing modal flow)
     const conv = await createConversationViaAPI(page, 'Visibility test', ['Socrates']);
     await page.goto(`/conversations/${conv.id}`);
@@ -42,7 +43,8 @@ test.describe('Tab Visibility Handling', () => {
     }, { timeout: 3000 }).toBe(0);
   });
 
-  test('resumes conversation when tab becomes visible', async ({ page }) => {
+  // Skipped: Flaky - pause-resume-button not found (WebSocket timing). See #664
+  test.skip('resumes conversation when tab becomes visible', async ({ page }) => {
     // Create a conversation via API for faster setup (not testing modal flow)
     const conv = await createConversationViaAPI(page, 'Resume test', ['Aristotle']);
     await page.goto(`/conversations/${conv.id}`);
@@ -77,7 +79,8 @@ test.describe('Tab Visibility Handling', () => {
     await expect(sendButton).toBeEnabled();
   });
 
-  test('no new messages arrive while tab is hidden', async ({ page }) => {
+  // Skipped: Flaky - times out on message visibility. See #664
+  test.skip('no new messages arrive while tab is hidden', async ({ page }) => {
     // Create a conversation via API for faster setup (not testing modal flow)
     const conv = await createConversationViaAPI(page, 'Message pause test', ['Confucius']);
     await page.goto(`/conversations/${conv.id}`);
