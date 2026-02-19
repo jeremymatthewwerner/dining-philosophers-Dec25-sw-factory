@@ -830,8 +830,22 @@ jobs:
           fi
 
           echo "Fetching pending feedback from $BACKEND_URL/api/feedback/pending..."
+
+          # Capture curl exit code separately to handle connection/timeout errors
+          set +e
           RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 30 \
             "$BACKEND_URL/api/feedback/pending?secret=$SECRET&limit=10" 2>&1)
+          CURL_EXIT_CODE=$?
+          set -e
+
+          # Handle curl-level failures (timeout=28, connection refused=7, DNS=6, etc.)
+          if [ $CURL_EXIT_CODE -ne 0 ]; then
+            echo "::warning::curl failed with exit code $CURL_EXIT_CODE (timeout or connection error)"
+            echo "This is likely a transient issue - will retry on next scheduled run"
+            echo "has_feedback=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | head -n-1)
 
