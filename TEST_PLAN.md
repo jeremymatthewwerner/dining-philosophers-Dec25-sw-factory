@@ -2,6 +2,69 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.6 E2E Performance Optimizations (Added 2026-02-19)
+
+**Focus**: Thursday QA focus - E2E test performance optimization
+**File**: `frontend/e2e/` (multiple files)
+
+### Summary of Changes
+
+Replaced broad `waitForLoadState('networkidle')` calls with targeted element-based waits.
+`networkidle` waits for ALL network activity to cease, which is slower and more brittle than
+waiting for the specific UI element or URL that indicates readiness.
+
+**Before**: 42 `waitForLoadState('networkidle')` calls
+**After**: 38 (removed 4 high-impact instances, preserved legitimate bounded waits)
+
+### Optimizations Applied
+
+**`frontend/e2e/test-utils.ts`** - Core utility affecting all 140 E2E tests:
+
+1. **`setupAuthenticatedUser` (beforeEach in all 23 files)**
+   - **Changed**: `page.waitForLoadState('networkidle')` → `page.getByTestId('new-chat-button').waitFor({ state: 'visible', timeout: 15000 })`
+   - **Why**: Element-driven wait completes as soon as the auth'd UI renders, vs. waiting for all background polling to settle
+   - **Impact**: Applies to every single test's setup phase
+
+2. **`navigateToConversation`**
+   - **Changed**: Removed `page.waitForLoadState('networkidle')` after `page.goto('/')`
+   - **Why**: Redundant - the `conversationItem.waitFor({ state: 'visible', timeout: 10000 })` call that follows handles readiness
+   - **Impact**: All tests using API-based conversation creation
+
+3. **`resetPageState`**
+   - **Changed**: `page.waitForLoadState('networkidle')` → `page.waitForURL(/\/login/, { timeout: 10000 })`
+   - **Why**: After clearing auth state, the app always redirects to `/login` - waiting for this specific URL is the targeted check
+
+**`frontend/e2e/chat.spec.ts`**:
+
+4. **`can switch between conversations` test**
+   - **Changed**: `page.waitForLoadState('networkidle')` → `page.getByTestId('new-chat-button').waitFor({ state: 'visible' })`
+   - **Why**: Was waiting for networkidle between creating two conversations; the button being visible is the right readiness signal
+
+**`frontend/e2e/thinker-selection-edge.spec.ts`** (active tests):
+
+5. **`should handle adding thinker with only whitespace name` test**
+   - **Changed**: `page.waitForLoadState('networkidle', { timeout: 5000 })` + manual count → `expect(locator).toHaveCount(0, { timeout: 5000 })`
+   - **Why**: Direct assertion is more readable and uses built-in Playwright retry logic
+
+6. **`should prevent creating conversation with no thinkers selected` test**
+   - **Changed**: `page.waitForLoadState('networkidle', { timeout: 5000 })` in Promise.race → `headingSelector.waitFor({ state: 'visible' })`
+   - **Why**: The heading remaining visible IS the assertion we need, not network idleness
+
+**`frontend/playwright.config.ts`**:
+
+7. **Added `expect: { timeout: 10000 }` global assertion timeout**
+   - **Why**: Sets a consistent default for all `expect()` calls without overrides. Tests needing longer timeouts explicitly override with `{ timeout: N }`. This prevents accidentally short default timeouts.
+
+### Pattern Reference
+
+Preferred wait patterns (fastest to slowest):
+1. `expect(locator).toBeVisible({ timeout: N })` - assertion with retry
+2. `locator.waitFor({ state: 'visible', timeout: N })` - element-driven wait
+3. `page.waitForURL(/pattern/, { timeout: N })` - URL-driven wait
+4. `page.waitForResponse('**/api/endpoint')` - response-driven wait
+5. `page.waitForLoadState('domcontentloaded')` - DOM-only (faster than networkidle)
+6. `page.waitForLoadState('networkidle')` - use only when all network activity must settle
+
 ## 0.5 Regression Prevention - February 2026 Bug Fixes (Added 2026-02-15)
 
 **Focus**: Sunday QA focus - add regression tests for bugs fixed in February 2026
