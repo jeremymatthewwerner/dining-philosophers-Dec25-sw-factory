@@ -145,13 +145,14 @@ test.describe('Thinker Selection Edge Cases', () => {
     if (!isDisabled) {
       await createButton.click();
 
-      // Wait for error OR page to stay (use Promise.race)
+      // Wait for error OR page heading to remain (both are element-driven)
       const errorSelector = page.locator(
         'text=/select.*thinker|add.*thinker|at least one/i'
       );
+      const headingSelector = page.locator('h2', { hasText: 'Select Thinkers' });
       await Promise.race([
         errorSelector.waitFor({ timeout: 5000 }).catch(() => {}),
-        page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {}),
+        headingSelector.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {}),
       ]);
 
       // Should show error
@@ -183,12 +184,11 @@ test.describe('Thinker Selection Edge Cases', () => {
 
     if (!isDisabled) {
       await addButton.click();
-      // Wait for network idle (API validation if any)
-      await page.waitForLoadState('networkidle', { timeout: 5000 });
-
-      // No thinker should be added
-      const thinkerCount = await page.getByTestId('selected-thinker').count();
-      expect(thinkerCount).toBe(0);
+      // Wait for any client-side validation to complete (element-count assertion
+      // with a short timeout is faster than a broad networkidle wait)
+      await expect(page.getByTestId('selected-thinker')).toHaveCount(0, {
+        timeout: 5000,
+      });
     } else {
       // Expected: button is disabled for whitespace input
       expect(isDisabled).toBe(true);

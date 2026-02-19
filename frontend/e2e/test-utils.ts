@@ -103,7 +103,9 @@ export async function setupAuthenticatedUser(
 
   // Reload to pick up the new auth state
   await page.reload();
-  await page.waitForLoadState('networkidle');
+  // Wait for the main UI to be ready (element-driven wait is faster than networkidle)
+  // new-chat-button is visible once auth succeeds and the app has loaded
+  await page.getByTestId('new-chat-button').waitFor({ state: 'visible', timeout: 15000 });
 
   return auth;
 }
@@ -177,7 +179,7 @@ export async function navigateToConversation(
   // Reload the page to pick up the newly created conversation in the sidebar
   // (The API call doesn't update the React state automatically)
   await page.goto('/');
-  await page.waitForLoadState('networkidle');
+  // No networkidle wait here - the element-specific waitFor below handles readiness
 
   // Find and click the conversation in the sidebar
   // The topic may be truncated in the sidebar, so use partial matching
@@ -244,9 +246,11 @@ export async function createConversationViaUI(
 
 /**
  * Clear localStorage and reload for fresh state.
+ * After clearing auth, the app redirects to /login.
  */
 export async function resetPageState(page: Page): Promise<void> {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.waitForLoadState('networkidle');
+  // Wait for the login redirect (URL-based wait is more targeted than networkidle)
+  await page.waitForURL(/\/login/, { timeout: 10000 });
 }

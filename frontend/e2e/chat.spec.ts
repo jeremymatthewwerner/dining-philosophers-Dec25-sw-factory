@@ -73,8 +73,9 @@ test.describe('Chat Functionality', () => {
     await createConversationViaUI(page, 'First topic', 'Aristotle');
     await expect(page.locator('h2', { hasText: 'First topic' })).toBeVisible();
 
-    // Wait for page to stabilize before creating second conversation
-    await page.waitForLoadState('networkidle');
+    // Wait for UI to be ready before creating second conversation
+    // (new-chat-button visibility confirms the app is in a stable state)
+    await page.getByTestId('new-chat-button').waitFor({ state: 'visible' });
 
     // Create second conversation
     await createConversationViaUI(page, 'Second topic', 'Socrates');
