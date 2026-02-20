@@ -1,55 +1,11 @@
 """Unit tests for the trigger-error test endpoint."""
 
-from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from httpx import AsyncClient
 
 from app.api.websocket import WSMessage, WSMessageType
-from app.core.database import get_db
-from app.main import app
-from app.models import Base
-
-
-@pytest.fixture
-async def engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite engine for testing."""
-    test_engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        future=True,
-    )
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield test_engine
-    await test_engine.dispose()
-
-
-@pytest.fixture
-async def client(engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
-    """Create a test client with database override."""
-    async_session_maker = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        async with async_session_maker() as session:
-            yield session
-
-    app.dependency_overrides[get_db] = override_get_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,65 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.7 Test Refactoring (Added 2026-02-20)
+
+**Focus**: Friday QA focus - improve test readability and reduce duplication
+**Files**: Multiple backend test files
+
+### 0.7.1 Duplicate Fixture Removal
+
+**Problem**: 7 test files locally re-defined `engine`, `client`, and `get_auth_headers` fixtures
+that already exist in `conftest.py`, creating ~200 lines of redundant code.
+
+**Solution**: Removed local fixtures from affected files so they inherit from `conftest.py`.
+
+**Files Refactored**:
+- `tests/test_regression_prevention.py` - removed local `engine`, `client`, `get_auth_headers`
+- `tests/test_regression_prevention_feb2026.py` - removed local `engine`, `client`, `get_auth_headers`
+- `tests/test_regression_recent_features.py` - removed local `engine`, `client`, `get_auth_headers`
+- `tests/test_billing_error_endpoint.py` - removed local `engine`, `client`
+- `tests/test_billing_error_integration.py` - removed local `engine`, `client`, `db_session`
+- `tests/test_integration_workflows.py` - removed local `engine`, `client`, `db_session`
+- `tests/test_trigger_error_endpoint.py` - removed local `engine`, `client`
+
+**What the tests validate**: Same as before - that conftest.py fixtures are sufficient
+for all test scenarios and no local overrides are needed.
+
+### 0.7.2 Parametrized Validation Tests
+
+**Problem**: Multiple tests in `TestAuthAPI` tested the same endpoint with different invalid
+inputs as separate test functions, making it harder to add new cases.
+
+**Solution**: Consolidated into `@pytest.mark.parametrize` test functions.
+
+**Tests Added/Refactored (5 parametrized cases)**:
+
+1. **`test_update_profile_invalid_display_name[emptyprofile--empty string rejected]`**
+   - File: `tests/test_api.py`
+   - Validates: Empty display name returns 422
+   - Edge case: min_length constraint on display_name field
+
+2. **`test_update_profile_invalid_display_name[longprofile-AAAA...-name over 100 chars rejected]`**
+   - File: `tests/test_api.py`
+   - Validates: Display name over 100 chars returns 422
+   - Edge case: max_length=100 constraint on display_name field
+
+3. **`test_change_password_invalid_new_password[sho-422-password under minimum length (3 chars)]`**
+   - File: `tests/test_api.py`
+   - Validates: Password of 3 chars fails validation (422)
+   - Edge case: Near-boundary value for password minimum length
+
+4. **`test_change_password_invalid_new_password[-422-empty password rejected]`**
+   - File: `tests/test_api.py`
+   - Validates: Empty password string returns 422
+
+5. **`test_change_password_invalid_new_password[ab-422-password of 2 chars rejected]`**
+   - File: `tests/test_api.py`
+   - Validates: Password of 2 chars returns 422
+
+**Benefits**: Easier to add new validation cases (just add to the parametrize list);
+each case runs independently with a fresh database.
+
 ## 0.6 E2E Performance Optimizations (Added 2026-02-19)
 
 **Focus**: Thursday QA focus - E2E test performance optimization
