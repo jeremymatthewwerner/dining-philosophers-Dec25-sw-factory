@@ -131,25 +131,33 @@ class TestAuthAPI:
         )
         assert response.status_code == 401
 
-    async def test_update_profile_empty_name(self, client: AsyncClient) -> None:
-        """Test that empty display name is rejected."""
-        headers = await get_auth_headers(client, "emptyprofile", "password123")
-        response = await client.patch(
-            "/api/auth/profile",
-            headers=headers,
-            json={"display_name": ""},
-        )
-        assert response.status_code == 422
+    @pytest.mark.parametrize(
+        "username,display_name,description",
+        [
+            ("emptyprofile", "", "empty string rejected"),
+            ("longprofile", "A" * 101, "name over 100 chars rejected"),
+        ],
+    )
+    async def test_update_profile_invalid_display_name(
+        self,
+        client: AsyncClient,
+        username: str,
+        display_name: str,
+        description: str,
+    ) -> None:
+        """Test that invalid display names are rejected with 422.
 
-    async def test_update_profile_name_too_long(self, client: AsyncClient) -> None:
-        """Test that display name over 100 chars is rejected."""
-        headers = await get_auth_headers(client, "longprofile", "password123")
+        Parametrized to cover multiple validation failure cases:
+        - Empty string (violates min_length constraint)
+        - Name over 100 chars (violates max_length constraint)
+        """
+        headers = await get_auth_headers(client, username, "password123")
         response = await client.patch(
             "/api/auth/profile",
             headers=headers,
-            json={"display_name": "A" * 101},
+            json={"display_name": display_name},
         )
-        assert response.status_code == 422
+        assert response.status_code == 422, f"Expected 422 for {description}"
 
     async def test_change_password_success(self, client: AsyncClient) -> None:
         """Test successful password change."""
@@ -205,18 +213,41 @@ class TestAuthAPI:
         )
         assert response.status_code == 401
 
-    async def test_change_password_too_short(self, client: AsyncClient) -> None:
-        """Test that new password must be at least 6 characters."""
-        headers = await get_auth_headers(client, "shortpwduser", "password123")
+    @pytest.mark.parametrize(
+        "new_password,expected_status,description",
+        [
+            ("sho", 422, "password under minimum length (3 chars)"),
+            ("", 422, "empty password rejected"),
+            ("ab", 422, "password of 2 chars rejected"),
+        ],
+    )
+    async def test_change_password_invalid_new_password(
+        self,
+        client: AsyncClient,
+        new_password: str,
+        expected_status: int,
+        description: str,
+    ) -> None:
+        """Test that invalid new passwords are rejected with 422.
+
+        Parametrized to cover multiple password validation failure cases.
+        The original test_change_password_too_short covered just one case;
+        this covers additional boundary values.
+        """
+        headers = await get_auth_headers(
+            client, f"invalidpwduser_{len(new_password)}", "password123"
+        )
         response = await client.post(
             "/api/auth/change-password",
             headers=headers,
             json={
                 "current_password": "password123",
-                "new_password": "short",
+                "new_password": new_password,
             },
         )
-        assert response.status_code == 422
+        assert response.status_code == expected_status, (
+            f"Expected {expected_status} for {description}"
+        )
 
 
 class TestSessionAPI:
