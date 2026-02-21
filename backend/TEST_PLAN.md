@@ -1,3 +1,81 @@
+## Edge Case Analysis - Saturday Sprint (Added 2026-02-21)
+
+**Focus**: Add tests for error paths and boundary conditions (Saturday QA focus)
+
+### Tests Added (test_edge_cases_feb21_2026.py)
+
+**File**: `tests/test_edge_cases_feb21_2026.py`
+**Tests Added**: 40 edge case tests across 8 test classes
+
+#### TestAuthLogoutEndpoint (2 tests)
+1. `test_logout_succeeds_without_auth` - Logout endpoint works without authentication (stateless JWT)
+2. `test_logout_succeeds_with_valid_auth` - Logout with valid auth token still succeeds
+
+#### TestRequireAdminEdgeCases (2 tests)
+3. `test_admin_endpoint_rejects_non_admin_user` - Non-admin users get 403 from admin endpoints
+4. `test_admin_endpoint_rejects_no_auth` - Unauthenticated requests get 401/403 from admin endpoints
+
+#### TestLoginSessionCreation (3 tests)
+5. `test_login_creates_session_when_none_exists` - Login creates new session when all sessions deleted
+6. `test_login_wrong_password_returns_401` - Invalid password returns 401 with correct message
+7. `test_login_nonexistent_user_returns_401` - Non-existent username returns 401
+
+#### TestAuthUpdateEndpoints (4 tests)
+8. `test_update_language_returns_user_response` - PATCH /auth/language returns full user object
+9. `test_update_profile_returns_user_with_new_name` - PATCH /auth/profile returns updated display name
+10. `test_change_password_returns_success_message` - Password change returns success message
+11. `test_change_password_wrong_current_password` - Wrong current password returns 400
+
+#### TestRegisterEdgeCases (2 tests)
+12. `test_register_duplicate_username_returns_400` - Duplicate username returns 400 with "already taken"
+13. `test_register_with_display_name_none` - Registration without display_name field
+
+#### TestAdminSpendLimitEdgeCases (3 tests)
+14. `test_update_spend_limit_for_nonexistent_user` - Updating spend limit for non-existent user returns 404
+15. `test_delete_nonexistent_user_returns_404` - Deleting non-existent user returns 404
+16. `test_update_spend_limit_success_returns_response` - Successful update returns proper response with message
+
+#### TestFeedbackEdgeCases (9 tests)
+17. `test_submit_feedback_minimum_valid_message` - Exactly 10 char message (min_length boundary)
+18. `test_submit_feedback_maximum_valid_message` - Exactly 5000 char message (max_length boundary)
+19. `test_submit_feedback_message_too_short` - 5 char message fails validation
+20. `test_submit_feedback_message_too_long` - 5001 char message fails validation
+21. `test_submit_feedback_feature_type` - Feedback type "feature" is accepted
+22. `test_submit_feedback_with_invalid_type` - Invalid feedback type fails validation
+23. `test_get_pending_feedback_no_secret_configured` - Pending endpoint returns 503 when no secret configured
+24. `test_submit_feedback_with_all_optional_fields` - All optional fields populated in submission
+25. `test_submit_feedback_oversized_screenshot` - Screenshot >7MB fails validation
+26. `test_submit_feedback_rate_limiting` - 6th submission in an hour returns 429
+
+#### TestConversationMaxThinkersEdgeCases (5 tests)
+27. `test_create_conversation_with_exactly_5_thinkers` - Max 5 thinkers creates successfully
+28. `test_create_conversation_with_6_thinkers_rejected` - 6 thinkers in creation fails with 422
+29. `test_add_thinkers_when_at_capacity_returns_400` - Adding thinker to full (5) conversation returns 400
+30. `test_add_thinkers_to_nonexistent_conversation_returns_404` - Add thinkers to missing conversation
+31. `test_add_thinkers_too_many_at_once_returns_400` - Adding batch that exceeds 5 total returns 400
+
+#### TestUnicodeAndSpecialCharacters (4 tests)
+32. `test_create_conversation_with_unicode_topic` - Japanese/CJK unicode topic preserved correctly
+33. `test_create_conversation_with_arabic_topic` - Arabic RTL text topic preserved correctly
+34. `test_create_conversation_with_special_chars_in_thinker_name` - Special chars in thinker name/bio
+35. `test_send_message_with_unicode_content` - Chinese unicode message stored and retrieved correctly
+
+#### TestMessageBoundaryConditions (3 tests)
+36. `test_send_message_to_nonexistent_conversation` - Message to missing conversation returns 404
+37. `test_send_message_to_other_users_conversation` - Cross-user message isolation returns 404
+38. `test_get_conversation_with_messages_returns_cost` - Conversation with messages includes total_cost
+
+#### TestConversationListEdgeCases (2 tests)
+39. `test_list_conversations_empty_for_new_user` - New user gets empty list
+40. `test_list_conversations_includes_zero_cost_messages` - New conversation shows 0 cost and 0 messages
+
+### Coverage Impact
+- All 40 tests pass consistently (verified 3x)
+- Tests cover error paths in: auth.py, admin.py, feedback.py, conversations.py
+- Key edge cases: rate limiting, capacity limits, unicode handling, cross-user isolation, boundary conditions
+
+---
+
 ## Flaky Test Hunt - Tuesday Sprint (Added 2026-02-17)
 
 **Focus**: Run full test suite 5 times to identify and fix flaky tests (Tuesday QA focus)
