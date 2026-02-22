@@ -3423,3 +3423,102 @@ Since no flaky tests were found, focused on improving coverage for the lowest-co
 **Total Tests Added**: 19 tests across 2 files
 **Flakiness Check**: All tests pass 3x without flakiness
 
+
+---
+
+## 0.4.0 QA Sunday Regression Prevention (Feb 22, 2026)
+
+**Session Date**: February 22, 2026
+**File**: `backend/tests/test_regression_sunday_feb22_2026.py`
+**Coverage Change**: 76.41% → 77.39% (+0.98%)
+**Total Tests Added**: 31
+
+### Focus: Regression Prevention for Recent Bug Fixes
+
+#### 0.4.1 Multi-Language Support Regression Tests (Lines 896-930)
+**Class**: `TestExtractThinkingDisplayLanguages`
+**Target**: `app/services/thinker.py` - `_extract_thinking_display` language starters
+
+Prevents regression of language support features in thinker internal monologue display.
+
+**Tests (8 total)**:
+1. `test_german_language_replacements_applied` - PR #455 German replacements don't use English starters
+2. `test_german_language_returns_non_empty_for_long_text` - German text processed without error
+3. `test_french_language_replacements_applied` - PR #336 French replacements don't use English starters
+4. `test_french_language_returns_non_empty_for_long_text` - French text processed without error
+5. `test_spanish_language_replacements_applied` - Spanish replacements and starter detection
+6. `test_hindi_language_replacements_applied` - PR #570 Hindi text processed without error
+7. `test_short_text_returns_empty_for_all_languages` - 80-char minimum applies to ALL languages
+8. `test_english_default_language_still_works` - Adding languages doesn't break English
+
+#### 0.4.2 _should_respond Addressed-By-Name Tests (Line 1585)
+**Class**: `TestShouldRespondAddressedByName`
+**Target**: `app/services/thinker.py` - `_should_respond` `elif was_addressed` branch
+
+Tests that name mention (without @) properly boosts response probability.
+
+**Tests (3 total)**:
+1. `test_addressed_by_name_has_high_probability` - Name in message → high response rate (>70%)
+2. `test_addressed_by_name_higher_than_not_addressed` - Name mention > no mention probability
+3. `test_case_insensitive_name_addressing` - "plato", "PLATO", "Plato" all trigger addressing
+
+#### 0.4.3 _should_respond Consecutive Silence Tests (Line 1589)
+**Class**: `TestShouldRespondConsecutiveSilence`
+**Target**: `app/services/thinker.py` - `_should_respond` consecutive_silence boost
+
+Tests that long silence increases response probability (prevents thinkers from staying silent forever).
+
+**Tests (3 total)**:
+1. `test_consecutive_silence_above_threshold_boosts_probability` - silence=5 > silence=0
+2. `test_consecutive_silence_exactly_2_no_boost` - silence=2 doesn't boost (> not >=, off-by-one)
+3. `test_at_mention_overrides_silence_boost` - @mentioned thinker still responds with high silence
+
+#### 0.4.4 _count_messages_since_user Branch Tests (Branch 1436→1442)
+**Class**: `TestCountMessagesSinceUserAllThinkers`
+**Target**: `app/services/thinker.py` - `_count_messages_since_user` loop-exhaustion branch
+
+Tests the branch where the for loop exhausts without finding any user message.
+
+**Tests (4 total)**:
+1. `test_count_all_thinker_messages_no_user` - All thinker messages → count = len(messages)
+2. `test_count_empty_messages_returns_zero` - Empty list returns 0 without error
+3. `test_count_with_user_message_in_middle` - Correctly stops counting at user message
+4. `test_count_with_enum_sender_type` - Works with both string and enum sender_type values
+
+#### 0.4.5 _should_prompt_user Threshold Tests (Line 1465)
+**Class**: `TestShouldPromptUserThresholdBehavior`
+**Target**: `app/services/thinker.py` - `_should_prompt_user` threshold return False
+
+Tests that prompting threshold works correctly with different speed values.
+
+**Tests (3 total)**:
+1. `test_below_threshold_never_prompts` - messages_since_user < threshold → False
+2. `test_too_few_messages_never_prompts` - Total messages < 5 → never prompt
+3. `test_threshold_lower_at_high_speed` - threshold(6x)=4 ≤ threshold(1x)=8 (contemplative=more inclusive)
+
+#### 0.4.6 Idle Timeout Chain Regression Tests (PR #483)
+**Class**: `TestIdleTimeoutChainRegression`
+**Target**: `app/services/thinker.py` - idle timeout chain: pause → resume → no double-resume
+
+Full regression tests for idle timeout auto-pause/resume feature.
+
+**Tests (5 total)**:
+1. `test_idle_pause_marks_conversation_as_idle` - pause_for_idle() sets is_idle_paused()
+2. `test_resume_from_idle_only_clears_idle_pause` - Manual pauses NOT auto-resumed
+3. `test_idle_pause_and_resume_full_cycle` - Complete idle → pause → message → resume cycle
+4. `test_multiple_idle_pause_calls_idempotent` - Double pause_for_idle is safe
+5. `test_resume_from_idle_when_not_idle_paused_is_safe` - resume_from_idle on active conv is safe
+
+#### 0.4.7 Speed Multiplier Linear Scaling Regression Tests (PR #533)
+**Class**: `TestSpeedMultiplierLinearRegression`
+**Target**: `app/api/websocket.py` - `ConnectionManager.set_speed_multiplier` / `get_speed_multiplier`
+
+Regression tests verifying speed uses linear scaling (not exponential speed^1.5).
+
+**Tests (4 total)**:
+1. `test_speed_stored_as_set_not_exponential` - 6.0 stored as 6.0, not 14.7 (6^1.5)
+2. `test_speed_clamped_to_valid_range` - Values outside [0.5, 6.0] are clamped
+3. `test_default_speed_is_one` - Unknown conversations default to 1.0x speed
+4. `test_all_speed_levels_linear` - All speeds 1x-6x are linear (not exponential)
+
+**Flakiness Check**: All 31 tests pass 3x without flakiness
