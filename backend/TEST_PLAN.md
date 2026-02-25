@@ -1,3 +1,58 @@
+## Integration Gaps - Wednesday Sprint (Added 2026-02-25)
+
+**Focus**: Fill coverage gaps in API modules by testing untested integration paths.
+
+### Root Cause Discovered
+`knowledge_service.trigger_research()` spawns `asyncio.create_task()` background tasks
+that call the Anthropic API. Existing tests without mocking this method cause slow/hanging
+tests, resulting in missing coverage for the thinker creation loop in `conversations.py`.
+Fix: patch `app.services.knowledge_research.knowledge_service.trigger_research`.
+
+### Tests Added (test_integration_gaps_feb25_2026.py)
+
+**File**: `tests/test_integration_gaps_feb25_2026.py`
+**Tests Added**: 27 integration tests across 3 test classes
+
+#### TestConversationsWithMockedKnowledge (14 tests)
+1. `test_create_conversation_with_thinkers_covers_loop` - Create conversation with thinkers, verifies trigger_research called 2x (covers lines 46-61)
+2. `test_create_conversation_color_assignment_in_loop` - Colors assigned from pool during thinker loop execution
+3. `test_create_conversation_with_custom_thinker_color` - Custom color preserved, not overridden by pool
+4. `test_list_conversations_with_message_counts` - list_conversations calculates message_count and total_cost (lines 85-105)
+5. `test_list_conversations_none_cost_treated_as_zero` - None-cost messages treated as 0.0
+6. `test_get_conversation_not_found_returns_404` - 404 path in get_conversation (line 128)
+7. `test_delete_conversation_not_found_returns_404` - 404 path in delete_conversation (lines 145-147)
+8. `test_delete_conversation_success` - Successful delete returns status and verifies gone (line 151)
+9. `test_add_thinkers_conversation_not_found_404` - 404 when conversation missing (lines 173-175)
+10. `test_add_thinkers_exceeds_max_limit_400` - 400 when would exceed 5 thinkers (lines 179-185)
+11. `test_add_thinkers_success_with_colors` - Successful thinker addition with color assignment (lines 189-220)
+12. `test_send_message_conversation_not_found_404` - 404 when conversation missing (lines 241-243)
+13. `test_send_message_creates_message_with_correct_sender` - Message created with correct sender_name (lines 256-268)
+14. `test_send_message_cross_session_unauthorized` - Cross-session access returns 404
+
+#### TestFeedbackIntegrationPaths (8 tests)
+15. `test_submit_feedback_with_x_forwarded_for_header` - X-Forwarded-For branch in get_client_ip (line 46)
+16. `test_submit_feedback_full_data_creates_record` - Full feedback record creation (lines 84-114)
+17. `test_submit_feedback_other_type` - 'other' type maps to correct enum
+18. `test_submit_feedback_rate_limit_triggers_429` - Rate limit enforcement (lines 77-82)
+19. `test_get_pending_feedback_returns_submitted_items` - get_pending returns items (lines 160-182)
+20. `test_get_pending_feedback_with_limit_parameter` - Limit parameter respected
+21. `test_mark_feedback_processed_success` - Successful processing with GitHub URL (lines 201-220)
+22. `test_mark_feedback_processed_not_found_404` - 404 for non-existent feedback (lines 203-207)
+
+#### TestAdminIntegrationPaths (5 tests)
+23. `test_list_users_builds_correct_stats_response` - UserWithStats building (lines 35-53)
+24. `test_update_spend_limit_user_not_found_404` - 404 for missing user (lines 79-85)
+25. `test_update_spend_limit_success_commits_to_db` - Successful update returns full response (lines 87-94)
+26. `test_delete_user_not_found_returns_404` - 404 for missing user (lines 113-116)
+27. `test_delete_user_returns_success_message` - Success message includes username (line 125)
+
+### Coverage Impact
+- All 27 tests pass consistently (verified 3x, ~8.4s per run)
+- Coverage improvements in: conversations.py, feedback.py, admin.py
+- Root cause fix prevents future test hangs from background API tasks
+
+---
+
 ## Edge Case Analysis - Saturday Sprint (Added 2026-02-21)
 
 **Focus**: Add tests for error paths and boundary conditions (Saturday QA focus)
