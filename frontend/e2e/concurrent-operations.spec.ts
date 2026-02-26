@@ -90,7 +90,6 @@ test.describe('Concurrent Operations', () => {
 
     // Reload to see them in the UI
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     // All 3 should appear in sidebar
     const conversationItems = page.getByTestId('conversation-item');

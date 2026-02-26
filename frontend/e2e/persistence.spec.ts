@@ -42,7 +42,6 @@ test.describe('Persistence', () => {
 
     // Reload the page
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     // Conversation should still be there
     await expect(page.getByTestId('conversation-item')).toBeVisible({

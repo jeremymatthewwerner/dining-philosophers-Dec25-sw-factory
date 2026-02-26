@@ -30,7 +30,6 @@ test.describe('ScrollingText - Conversation List', () => {
 
     // Reload to see the conversation in the sidebar
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     // Find the conversation item in the sidebar
     const conversationItem = page.getByTestId('conversation-item');
@@ -59,7 +58,6 @@ test.describe('ScrollingText - Conversation List', () => {
 
     // Reload to see the conversation in the sidebar
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     // Find the conversation item
     const conversationItem = page.getByTestId('conversation-item');
@@ -89,7 +87,6 @@ test.describe('ScrollingText - Conversation List', () => {
 
     // Reload to see the conversation in the sidebar
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     // Find the conversation item
     const conversationItem = page.getByTestId('conversation-item');
@@ -149,7 +146,6 @@ test.describe('ScrollingText - Conversation List', () => {
 
     // Reload to see the conversation
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     const conversationItem = page.getByTestId('conversation-item');
     await expect(conversationItem).toBeVisible({ timeout: 10000 });
@@ -198,7 +194,6 @@ test.describe('ScrollingText - Conversation List', () => {
 
     // Reload to see all conversations
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     // All conversation items should be visible
     const conversationItems = page.getByTestId('conversation-item');
@@ -235,7 +230,6 @@ test.describe('ScrollingText - Flex Layout Timing', () => {
     // Set a narrow viewport to ensure truncation
     await page.setViewportSize({ width: 800, height: 600 });
     await page.reload();
-    await page.waitForLoadState('networkidle');
 
     const conversationItem = page.getByTestId('conversation-item');
     await expect(conversationItem).toBeVisible({ timeout: 10000 });

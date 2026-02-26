@@ -112,8 +112,8 @@ test.describe('Tab Visibility Handling', () => {
       .poll(
         async () => {
           const count1 = await getMessageCount();
-          // Wait a brief moment between checks
-          await page.waitForLoadState('networkidle');
+          // Wait a brief fixed delay between checks to verify count stability
+          await page.waitForTimeout(500);
           const count2 = await getMessageCount();
           return count1 === count2; // Count has stabilized
         },
