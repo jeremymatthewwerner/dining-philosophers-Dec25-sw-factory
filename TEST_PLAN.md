@@ -3423,3 +3423,57 @@ Since no flaky tests were found, focused on improving coverage for the lowest-co
 **Total Tests Added**: 19 tests across 2 files
 **Flakiness Check**: All tests pass 3x without flakiness
 
+
+---
+
+## E2E Performance Optimizations (QA Agent - Thursday Focus)
+
+**Date:** 2026-02-26
+**Focus:** e2e-performance — reduce unnecessary `networkidle` waits, replace with element-specific assertions
+
+### Overview
+
+Replaced 9 `waitForLoadState('networkidle')` calls across 4 E2E test files with faster, more
+deterministic alternatives. `networkidle` waits up to 500ms after the last network request, making
+it a worst-case wait even when content is already visible. Element-specific waits exit as soon as
+the expected element appears, which is typically much faster.
+
+### Files Modified
+
+#### `frontend/e2e/scrolling-text.spec.ts` (6 removals)
+
+All 6 `waitForLoadState('networkidle')` calls appeared immediately after `page.reload()`, followed
+by `await expect(conversationItem).toBeVisible({ timeout: 10000 })`. The element wait already
+handles post-reload synchronization; the `networkidle` call was redundant.
+
+Removed calls from:
+1. `truncates long conversation topics with ellipsis` — reload synchronization (line ~33)
+2. `short topics do not show ellipsis or tooltip` — reload synchronization (line ~62)
+3. `hover triggers animation on truncated text` — reload synchronization (line ~92)
+4. `animation resets when mouse leaves` — reload synchronization (line ~152)
+5. `multiple conversations with long topics all show truncation` — reload synchronization (line ~201)
+6. `detects truncation correctly in flex layout after resize` — reload synchronization (line ~238)
+
+#### `frontend/e2e/concurrent-operations.spec.ts` (1 removal)
+
+`waitForLoadState('networkidle')` after `page.reload()` before `toHaveCount(3)` assertion.
+Removed — the count assertion with `{ timeout: 10000 }` handles post-reload synchronization.
+
+#### `frontend/e2e/persistence.spec.ts` (1 removal)
+
+`waitForLoadState('networkidle')` after `page.reload()` before `toBeVisible` assertion.
+Removed — the element visibility assertion with `{ timeout: 10000 }` handles post-reload wait.
+
+#### `frontend/e2e/tab-visibility.spec.ts` (1 replacement)
+
+`waitForLoadState('networkidle')` used as a "brief delay" between two message-count readings inside
+an `expect.poll()` callback to verify count stability. Replaced with `page.waitForTimeout(500)` —
+a fixed, predictable 500ms pause that communicates intent clearly and avoids waiting for network
+silence in a context where only DOM state matters.
+
+### Expected Impact
+
+- Estimated test suite speedup: 20–40 seconds total (1–5s per removed `networkidle` call)
+- Tests are now more deterministic — wait time is bounded by element appearance, not network silence
+- `networkidle` can mask slow network responses; element-specific waits surface regressions faster
+
