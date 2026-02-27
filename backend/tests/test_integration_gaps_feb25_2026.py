@@ -15,7 +15,6 @@ Coverage targets:
 
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,11 +30,9 @@ _KNOWLEDGE_PATCH = "app.services.knowledge_research.knowledge_service.trigger_re
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestConversationsWithMockedKnowledge:
     """Test conversations API with knowledge_service.trigger_research mocked."""
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_thinkers_covers_loop(self, client: AsyncClient) -> None:
         """Create conversation - covers thinker loop (lines 46-61) via mocked knowledge."""
         headers = await get_auth_headers(client, "cquser1", "pass123")
@@ -73,7 +70,6 @@ class TestConversationsWithMockedKnowledge:
         # Verify knowledge research was triggered for each thinker
         assert mock_tr.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_create_conversation_color_assignment_in_loop(self, client: AsyncClient) -> None:
         """Colors assigned from color pool during thinker creation loop."""
         headers = await get_auth_headers(client, "cquser2", "pass123")
@@ -106,7 +102,6 @@ class TestConversationsWithMockedKnowledge:
         # Colors should be distinct
         assert len(set(assigned_colors)) == 3
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_custom_thinker_color(self, client: AsyncClient) -> None:
         """Custom color on thinker is preserved (not overridden by pool)."""
         headers = await get_auth_headers(client, "cquser3", "pass123")
@@ -134,7 +129,6 @@ class TestConversationsWithMockedKnowledge:
         data = response.json()
         assert data["thinkers"][0]["color"] == custom_color
 
-    @pytest.mark.asyncio
     async def test_list_conversations_with_message_counts(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -175,7 +169,6 @@ class TestConversationsWithMockedKnowledge:
         assert conv_data["message_count"] == 2
         assert abs(conv_data["total_cost"] - 0.10) < 0.001
 
-    @pytest.mark.asyncio
     async def test_list_conversations_none_cost_treated_as_zero(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -209,7 +202,6 @@ class TestConversationsWithMockedKnowledge:
         assert conv_data["total_cost"] == 0.0
         assert conv_data["message_count"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_conversation_not_found_returns_404(self, client: AsyncClient) -> None:
         """get_conversation raises 404 when conversation not found (line 128)."""
         headers = await get_auth_headers(client, "cq404user", "pass123")
@@ -221,7 +213,6 @@ class TestConversationsWithMockedKnowledge:
         assert response.status_code == 404
         assert "Conversation not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_not_found_returns_404(self, client: AsyncClient) -> None:
         """delete_conversation raises 404 when conversation not found (lines 145-147)."""
         headers = await get_auth_headers(client, "cqdel404user", "pass123")
@@ -233,7 +224,6 @@ class TestConversationsWithMockedKnowledge:
         assert response.status_code == 404
         assert "Conversation not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_success(self, client: AsyncClient) -> None:
         """delete_conversation removes conversation and returns status (line 151)."""
         headers = await get_auth_headers(client, "cqdeluser", "pass123")
@@ -257,7 +247,6 @@ class TestConversationsWithMockedKnowledge:
         )
         assert get_response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_conversation_not_found_404(self, client: AsyncClient) -> None:
         """add_thinkers returns 404 when conversation not found (lines 173-175)."""
         headers = await get_auth_headers(client, "cqadd404user", "pass123")
@@ -277,7 +266,6 @@ class TestConversationsWithMockedKnowledge:
         assert response.status_code == 404
         assert "Conversation not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_exceeds_max_limit_400(self, client: AsyncClient) -> None:
         """add_thinkers returns 400 when total would exceed 5 (lines 179-185)."""
         headers = await get_auth_headers(client, "cqmaxuser", "pass123")
@@ -312,7 +300,6 @@ class TestConversationsWithMockedKnowledge:
         assert "Cannot add" in response.json()["detail"]
         assert "Maximum is 5" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_success_with_colors(self, client: AsyncClient) -> None:
         """add_thinkers adds thinkers with correct color assignment (lines 189-220)."""
         headers = await get_auth_headers(client, "cqaddok", "pass123")
@@ -341,7 +328,6 @@ class TestConversationsWithMockedKnowledge:
         assert thinkers[0]["id"] is not None
         assert thinkers[0]["color"] is not None
 
-    @pytest.mark.asyncio
     async def test_send_message_conversation_not_found_404(self, client: AsyncClient) -> None:
         """send_message returns 404 for non-existent conversation (lines 241-243)."""
         headers = await get_auth_headers(client, "cqmsg404user", "pass123")
@@ -354,7 +340,6 @@ class TestConversationsWithMockedKnowledge:
         assert response.status_code == 404
         assert "Conversation not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_send_message_creates_message_with_correct_sender(
         self, client: AsyncClient
     ) -> None:
@@ -378,7 +363,6 @@ class TestConversationsWithMockedKnowledge:
         assert msg["sender_name"] is not None
         assert msg["id"] is not None
 
-    @pytest.mark.asyncio
     async def test_send_message_cross_session_unauthorized(self, client: AsyncClient) -> None:
         """Users cannot send messages to another user's conversation."""
         headers1 = await get_auth_headers(client, "cqown1", "pass123")
@@ -403,11 +387,9 @@ class TestConversationsWithMockedKnowledge:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestFeedbackIntegrationPaths:
     """Test feedback API paths that lack coverage."""
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_with_x_forwarded_for_header(self, client: AsyncClient) -> None:
         """X-Forwarded-For header is used for IP extraction (line 46 in feedback.py)."""
         response = await client.post(
@@ -422,7 +404,6 @@ class TestFeedbackIntegrationPaths:
         data = response.json()
         assert "Thank you" in data["message"]
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_full_data_creates_record(self, client: AsyncClient) -> None:
         """Submit feedback with all optional fields creates a feedback record."""
         response = await client.post(
@@ -441,7 +422,6 @@ class TestFeedbackIntegrationPaths:
         assert data["id"] is not None
         assert "Thank you" in data["message"]
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_other_type(self, client: AsyncClient) -> None:
         """'other' feedback type maps correctly in feedback_type_map."""
         response = await client.post(
@@ -453,7 +433,6 @@ class TestFeedbackIntegrationPaths:
         )
         assert response.status_code == 201
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_rate_limit_triggers_429(self, client: AsyncClient) -> None:
         """Rate limiting triggers 429 after 5 submissions from same IP."""
         rate_limit_ip = "192.0.2.100"
@@ -483,7 +462,6 @@ class TestFeedbackIntegrationPaths:
         assert response.status_code == 429
         assert "Too many" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_get_pending_feedback_returns_submitted_items(self, client: AsyncClient) -> None:
         """get_pending_feedback returns items from DB (lines 160-182)."""
         with patch("app.api.feedback.get_settings") as mock_settings:
@@ -517,7 +495,6 @@ class TestFeedbackIntegrationPaths:
         assert "status" in fb
         assert "created_at" in fb
 
-    @pytest.mark.asyncio
     async def test_get_pending_feedback_with_limit_parameter(self, client: AsyncClient) -> None:
         """get_pending_feedback respects the limit parameter."""
         with patch("app.api.feedback.get_settings") as mock_settings:
@@ -543,7 +520,6 @@ class TestFeedbackIntegrationPaths:
         data = response.json()
         assert len(data["feedbacks"]) <= 2
 
-    @pytest.mark.asyncio
     async def test_mark_feedback_processed_success(self, client: AsyncClient) -> None:
         """mark_feedback_processed updates status and returns response (lines 201-220)."""
         with patch("app.api.feedback.get_settings") as mock_settings:
@@ -574,7 +550,6 @@ class TestFeedbackIntegrationPaths:
         assert data["feedback_id"] == feedback_id
         assert data["github_issue_url"] == "https://github.com/owner/repo/issues/999"
 
-    @pytest.mark.asyncio
     async def test_mark_feedback_processed_not_found_404(self, client: AsyncClient) -> None:
         """mark_feedback_processed returns 404 for non-existent feedback."""
         with patch("app.api.feedback.get_settings") as mock_settings:
@@ -595,11 +570,9 @@ class TestFeedbackIntegrationPaths:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestAdminIntegrationPaths:
     """Test admin API paths that need coverage."""
 
-    @pytest.mark.asyncio
     async def test_list_users_builds_correct_stats_response(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -651,7 +624,6 @@ class TestAdminIntegrationPaths:
             assert "conversation_count" in user
             assert "created_at" in user
 
-    @pytest.mark.asyncio
     async def test_update_spend_limit_user_not_found_404(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -684,7 +656,6 @@ class TestAdminIntegrationPaths:
         assert response.status_code == 404
         assert "User not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_update_spend_limit_success_commits_to_db(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -732,7 +703,6 @@ class TestAdminIntegrationPaths:
         assert data["spend_limit"] == 100.0
         assert "100.00" in data["message"]
 
-    @pytest.mark.asyncio
     async def test_delete_user_not_found_returns_404(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -764,7 +734,6 @@ class TestAdminIntegrationPaths:
         assert response.status_code == 404
         assert "User not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_delete_user_returns_success_message(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:

@@ -12,7 +12,6 @@ Test Organization:
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
@@ -118,7 +117,6 @@ class TestSpanishModeFirstMessage:
     Fix: Added CRITICAL instruction for initial messages (commit 0d849f7).
     """
 
-    @pytest.mark.asyncio
     async def test_initial_message_includes_first_person_instruction(self) -> None:
         """Test that initial message generation includes first-person instruction.
 
@@ -164,7 +162,6 @@ class TestSpanishModeFirstMessage:
         assert f'Do NOT say things like "I am {thinker.name}"' in prompt
         assert "jump straight into sharing your perspective" in prompt
 
-    @pytest.mark.asyncio
     async def test_non_initial_message_excludes_first_person_instruction(self) -> None:
         """Test that non-initial messages don't include first-person instruction.
 
@@ -212,7 +209,6 @@ class TestSpanishModeFirstMessage:
         assert "CRITICAL FOR FIRST MESSAGE" not in prompt
         assert "DO NOT INTRODUCE YOURSELF" not in prompt
 
-    @pytest.mark.asyncio
     async def test_spanish_mode_initial_message_includes_language_instruction(
         self,
     ) -> None:
@@ -259,7 +255,6 @@ class TestSpanishModeFirstMessage:
         # Also verify the first-person instruction is still there
         assert "CRITICAL FOR FIRST MESSAGE" in prompt
 
-    @pytest.mark.asyncio
     async def test_streaming_method_uses_same_prompt_construction(self) -> None:
         """Test that streaming method uses same prompt construction logic.
 
@@ -305,7 +300,6 @@ class TestSpanishThinkingDisplay:
     Fix: Added language parameter to _extract_thinking_display with Spanish support.
     """
 
-    @pytest.mark.asyncio
     async def test_extract_thinking_display_uses_spanish_starters(self) -> None:
         """Test that Spanish mode uses Spanish starter phrases.
 
@@ -330,7 +324,6 @@ class TestSpanishThinkingDisplay:
         assert "Now then..." not in result_es
         assert "Let me consider..." not in result_es
 
-    @pytest.mark.asyncio
     async def test_extract_thinking_display_english_vs_spanish(self) -> None:
         """Test that English and Spanish produce different transformations.
 
@@ -356,7 +349,6 @@ class TestSpanishThinkingDisplay:
         assert result_en.endswith("...")
         assert result_es.endswith("...")
 
-    @pytest.mark.asyncio
     async def test_extract_thinking_display_spanish_replacements(self) -> None:
         """Test that Spanish replacements are applied correctly.
 
@@ -382,7 +374,6 @@ class TestSpanishThinkingDisplay:
         assert "Let me consider..." not in result
         assert "*pondering*" not in result  # English action
 
-    @pytest.mark.asyncio
     async def test_extract_thinking_display_accepts_language_param(self) -> None:
         """Test that _extract_thinking_display accepts and uses language parameter.
 
@@ -411,7 +402,6 @@ class TestHindiLanguageSupport:
     Fix: Added "hi": "Hindi" to LANGUAGE_NAMES and Hindi transformations/starters.
     """
 
-    @pytest.mark.asyncio
     async def test_hindi_in_language_names(self) -> None:
         """Test that Hindi is included in the LANGUAGE_NAMES mapping.
 
@@ -422,7 +412,6 @@ class TestHindiLanguageSupport:
         assert "hi" in LANGUAGE_NAMES
         assert LANGUAGE_NAMES["hi"] == "Hindi"
 
-    @pytest.mark.asyncio
     async def test_hindi_language_instruction_generated(self) -> None:
         """Test that Hindi language generates proper instruction.
 
@@ -434,7 +423,6 @@ class TestHindiLanguageSupport:
         assert "Hindi" in instruction
         assert "IMPORTANT: Respond in Hindi" in instruction
 
-    @pytest.mark.asyncio
     async def test_extract_thinking_display_uses_hindi_starters(self) -> None:
         """Test that Hindi mode uses Hindi starter phrases.
 
@@ -458,7 +446,6 @@ class TestHindiLanguageSupport:
         assert "Let me consider..." not in result_hi
         assert "*pondering*" not in result_hi
 
-    @pytest.mark.asyncio
     async def test_hindi_vs_english_thinking_display(self) -> None:
         """Test that Hindi and English produce different transformations.
 
@@ -493,7 +480,6 @@ class TestAPITimeoutHandling:
     Fix: Increased timeout from 10s to 30s (commits 99ff619, 9b33174).
     """
 
-    @pytest.mark.asyncio
     async def test_thinker_service_has_reasonable_timeout(self) -> None:
         """Test that ThinkerService API calls have reasonable timeout.
 
@@ -513,7 +499,6 @@ class TestAPITimeoutHandling:
         # In production with a real API key, the client would have a timeout
         # The timeout is handled at the httpx level in the Anthropic SDK
 
-    @pytest.mark.asyncio
     async def test_suggest_thinkers_timeout_handling(self) -> None:
         """Test that suggest_thinkers handles timeouts gracefully.
 
@@ -553,7 +538,6 @@ class TestSpeedMultiplierLinearScaling:
     - After: Min interval ~90s, delays 6x longer (as user expects)
     """
 
-    @pytest.mark.asyncio
     async def test_speed_multiplier_uses_linear_scaling(self) -> None:
         """Test that speed multiplier uses linear scaling, not exponential.
 
@@ -593,7 +577,6 @@ class TestSpeedMultiplierLinearScaling:
                     f"({actual_mult} ≈ {exponential_mult})"
                 )
 
-    @pytest.mark.asyncio
     async def test_speed_multiplier_at_contemplative_6x(self) -> None:
         """Test that Contemplative (6x) produces 6.0 multiplier, not ~14.7.
 
@@ -624,7 +607,6 @@ class TestSpeedMultiplierLinearScaling:
             f"{exponential_value}, suggests exponential scaling not fixed"
         )
 
-    @pytest.mark.asyncio
     async def test_speed_multiplier_boundary_values(self) -> None:
         """Test speed multiplier handles boundary values correctly.
 

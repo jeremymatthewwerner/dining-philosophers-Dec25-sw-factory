@@ -20,7 +20,6 @@ from tests.conftest import create_test_conversation, get_auth_headers
 class TestConversationsIntegration:
     """Integration tests for conversations API covering full request→response flows."""
 
-    @pytest.mark.asyncio
     async def test_list_conversations_with_messages_and_costs_integration(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -90,7 +89,6 @@ class TestConversationsIntegration:
         assert abs(conv1_data["total_cost"] - 0.06) < 0.001  # 0.01 + 0.05
         assert conv2_data["total_cost"] == 0.0  # None treated as 0.0
 
-    @pytest.mark.asyncio
     async def test_get_conversation_with_thinkers_and_messages_integration(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -135,7 +133,6 @@ class TestConversationsIntegration:
         assert data["messages"][0]["content"] == "What is the good life?"
         assert data["messages"][1]["sender_name"] == "Socrates"
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_removes_messages_and_thinkers_integration(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -191,7 +188,6 @@ class TestConversationsIntegration:
         assert message_result.scalar_one_or_none() is None
 
     @pytest.mark.skip(reason="API schema validation needs investigation")
-    @pytest.mark.asyncio
     async def test_add_thinkers_with_color_pool_exhaustion_integration(
         self, client: AsyncClient
     ) -> None:
@@ -236,7 +232,6 @@ class TestConversationsIntegration:
         new_colors = {t["color"] for t in added_thinkers}
         assert len(new_colors) == 2  # Both got different colors
 
-    @pytest.mark.asyncio
     async def test_send_message_with_idle_auto_resume_integration(
         self, client: AsyncClient
     ) -> None:
@@ -270,7 +265,6 @@ class TestConversationsIntegration:
         assert not thinker_service.is_idle_paused(conv_id)
 
     @pytest.mark.skip(reason="Requires pytest-mock fixture - needs investigation")
-    @pytest.mark.asyncio
     async def test_create_conversation_triggers_knowledge_research_integration(
         self, client: AsyncClient, mocker: Any
     ) -> None:
@@ -321,7 +315,6 @@ class TestConversationsIntegration:
 class TestAdminIntegration:
     """Integration tests for admin API covering operations with cascading effects."""
 
-    @pytest.mark.asyncio
     async def test_admin_list_users_aggregates_multi_session_data(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -376,7 +369,6 @@ class TestAdminIntegration:
         # Verify conversation count is aggregated correctly
         assert user_data["conversation_count"] == 3
 
-    @pytest.mark.asyncio
     async def test_admin_update_spend_limit_validates_business_rules(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -440,7 +432,6 @@ class TestAdminIntegration:
         assert response.status_code == 422  # Validation error
 
     @pytest.mark.skip(reason="Cascade delete not working as expected - needs investigation")
-    @pytest.mark.asyncio
     async def test_admin_delete_user_cascades_all_related_data(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -542,7 +533,6 @@ class TestDevOpsIntegration:
     """Integration tests for devops API covering concurrent operations."""
 
     @pytest.mark.skip(reason="Session cleanup not finding expected sessions - needs investigation")
-    @pytest.mark.asyncio
     async def test_devops_cleanup_with_concurrent_user_activity(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
@@ -603,7 +593,6 @@ class TestDevOpsIntegration:
         )
         assert active_result.scalar_one_or_none() is not None
 
-    @pytest.mark.asyncio
     async def test_devops_stats_during_active_conversations(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:

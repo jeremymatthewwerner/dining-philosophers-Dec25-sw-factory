@@ -10,7 +10,6 @@ These tests target uncovered error paths and edge cases:
 - Edge cases for max thinker limits
 """
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import create_thinker_input, get_auth_headers
@@ -19,7 +18,6 @@ from tests.conftest import create_thinker_input, get_auth_headers
 class TestConversationErrorPaths:
     """Test error paths in conversation endpoints."""
 
-    @pytest.mark.asyncio
     async def test_get_nonexistent_conversation_returns_404(self, client: AsyncClient) -> None:
         """Test getting a conversation that doesn't exist returns 404."""
         headers = await get_auth_headers(client, "flaky_get_404", "password123")
@@ -30,7 +28,6 @@ class TestConversationErrorPaths:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_delete_nonexistent_conversation_returns_404(self, client: AsyncClient) -> None:
         """Test deleting a conversation that doesn't exist returns 404."""
         headers = await get_auth_headers(client, "flaky_del_404", "password123")
@@ -41,7 +38,6 @@ class TestConversationErrorPaths:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_to_nonexistent_conversation_returns_404(
         self, client: AsyncClient
     ) -> None:
@@ -58,7 +54,6 @@ class TestConversationErrorPaths:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_exceeding_max_limit_returns_400(self, client: AsyncClient) -> None:
         """Test adding thinkers beyond the 5 thinker limit returns 400."""
         headers = await get_auth_headers(client, "flaky_max_limit", "password123")
@@ -95,7 +90,6 @@ class TestConversationErrorPaths:
         assert "3/5" in error_msg.lower()
         assert "maximum is 5" in error_msg.lower()
 
-    @pytest.mark.asyncio
     async def test_add_thinker_picks_available_colors(self, client: AsyncClient) -> None:
         """Test that adding thinkers picks from available colors."""
         headers = await get_auth_headers(client, "flaky_colors", "password123")
@@ -149,7 +143,6 @@ class TestConversationErrorPaths:
         # Should be one of the available colors
         assert new_thinker["color"] in ["#10b981", "#f59e0b", "#8b5cf6"]
 
-    @pytest.mark.asyncio
     async def test_list_conversations_empty_for_new_user(self, client: AsyncClient) -> None:
         """Test listing conversations returns empty array for new users."""
         headers = await get_auth_headers(client, "flaky_empty_list", "password123")

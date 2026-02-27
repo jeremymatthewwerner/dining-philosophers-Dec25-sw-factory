@@ -24,7 +24,6 @@ class TestHTTPStatusCodeSemantics:
     Commit: b6f805f
     """
 
-    @pytest.mark.asyncio
     async def test_feedback_success_returns_201_created(self, client: AsyncClient) -> None:
         """Test that successful feedback submission returns 201 Created status.
 
@@ -47,7 +46,6 @@ class TestHTTPStatusCodeSemantics:
         # Feedback response includes the ID
         assert "id" in response.json()
 
-    @pytest.mark.asyncio
     async def test_feedback_validation_error_returns_422(self, client: AsyncClient) -> None:
         """Test that invalid feedback returns 422 Unprocessable Entity.
 
@@ -67,7 +65,6 @@ class TestHTTPStatusCodeSemantics:
         # Should return 422 Unprocessable Entity for validation errors
         assert response.status_code == HTTP_422_UNPROCESSABLE_CONTENT
 
-    @pytest.mark.asyncio
     async def test_auth_missing_credentials_returns_401(self, client: AsyncClient) -> None:
         """Test that missing auth credentials return 401 Unauthorized.
 
@@ -88,7 +85,6 @@ class TestAdminAuthorizationChecks:
     Ensures non-admin users cannot access admin-only endpoints.
     """
 
-    @pytest.mark.asyncio
     async def test_non_admin_cannot_list_users(self, client: AsyncClient) -> None:
         """Test that non-admin users cannot access /api/admin/users endpoint.
 
@@ -105,7 +101,6 @@ class TestAdminAuthorizationChecks:
         # Should return 403 Forbidden
         assert response.status_code == HTTP_403_FORBIDDEN
 
-    @pytest.mark.asyncio
     async def test_non_admin_cannot_delete_user(self, client: AsyncClient) -> None:
         """Test that non-admin users cannot delete other users.
 
@@ -122,7 +117,6 @@ class TestAdminAuthorizationChecks:
         # Should return 403 Forbidden
         assert response.status_code == HTTP_403_FORBIDDEN
 
-    @pytest.mark.asyncio
     async def test_non_admin_cannot_update_spend_limit(self, client: AsyncClient) -> None:
         """Test that non-admin users cannot update spend limits.
 
@@ -150,7 +144,6 @@ class TestDevOpsAPISecretValidation:
     Ensures DevOps endpoints properly validate the X-DevOps-Secret header.
     """
 
-    @pytest.mark.asyncio
     async def test_devops_health_not_configured_returns_503(self, client: AsyncClient) -> None:
         """Test that DevOps health endpoint returns 503 when not configured.
 
@@ -166,7 +159,6 @@ class TestDevOpsAPISecretValidation:
         assert response.status_code == HTTP_503_SERVICE_UNAVAILABLE
         assert "not configured" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_devops_health_rejects_invalid_secret_when_configured(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -191,7 +183,6 @@ class TestDevOpsAPISecretValidation:
         # Should return 403 Forbidden
         assert response.status_code == HTTP_403_FORBIDDEN
 
-    @pytest.mark.asyncio
     async def test_devops_stats_not_configured_returns_503(self, client: AsyncClient) -> None:
         """Test that DevOps stats endpoint returns 503 when not configured.
 
@@ -213,7 +204,6 @@ class TestMessageValidation:
     Ensures message API properly validates inputs.
     """
 
-    @pytest.mark.asyncio
     async def test_empty_message_rejected(self, client: AsyncClient) -> None:
         """Test that empty messages are rejected with 400 Bad Request.
 
@@ -238,7 +228,6 @@ class TestMessageValidation:
 
         assert response.status_code in [HTTP_422_UNPROCESSABLE_CONTENT, HTTP_400_BAD_REQUEST, 404]
 
-    @pytest.mark.asyncio
     async def test_message_content_required(self, client: AsyncClient) -> None:
         """Test that message content field is required.
 

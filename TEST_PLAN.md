@@ -2,6 +2,127 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.8 Test Refactoring (Added 2026-02-27)
+
+**Focus**: Friday QA focus - reduce duplication, improve readability with parametrize and shared helpers
+**Files**: `tests/test_thinker_service.py`, `frontend/src/__tests__/components/MessageInput.test.tsx`,
+and 30 additional backend test files
+
+### 0.8.1 Shared Mock Helper Functions in test_thinker_service.py
+
+**Problem**: Tests in `TestBillingErrorDetection`, `TestGenerateResponse`,
+`TestGenerateResponseErrorHandling`, `TestGenerateUserPromptErrorHandling`, and
+`TestGenerateResponseWithStreamingThinking` each repeated the same 5-line thinker mock setup
+and 3-line mock_request setup blocks. This appeared 15+ times total.
+
+**Solution**: Extracted two module-level helper functions:
+- `make_mock_thinker(name, bio, positions, style)` - Creates a configured mock thinker
+- `make_mock_api_request(url, method)` - Creates a mock httpx.Request for API error testing
+
+Also added `_make_streaming_client(api_error_message)` as a class method on
+`TestBillingErrorDetection` to reduce the 4-line streaming mock setup.
+
+**Files Refactored**: `tests/test_thinker_service.py`
+
+### 0.8.2 Parametrized Billing Error Tests
+
+**Problem**: `TestBillingErrorDetection` had two near-identical tests (`test_billing_error_raised_on_credit_balance_error`
+and `test_billing_error_raised_on_billing_keyword`) that differed only in the error message and
+expected keyword assertion.
+
+**Solution**: Merged into one parametrized test:
+`test_billing_error_raised_for_billing_messages[(credit balance message)]`
+`test_billing_error_raised_for_billing_messages[(billing keyword message)]`
+
+**Tests Affected** (2 → 1 parametrized, 2 cases):
+- File: `tests/test_thinker_service.py`
+- Validates: BillingError raised for 'credit balance' messages, error contains 'credit'
+- Validates: BillingError raised for 'billing' keyword messages, error contains 'billing'
+
+### 0.8.3 Parametrized Extract Mentions and Is Mentioned Tests
+
+**Problem**: `TestExtractMentions` had 3 separate tests (simple mention, mention at end, mention
+with punctuation) that were structurally identical - each called `extract_mentions()` and checked
+one name. `TestIsMentioned` had 9 simple boolean-assertion tests.
+
+**Solution**:
+- `TestExtractMentions`: merged 3 simple cases into `test_extract_single_mention[...]` (3 parametrized cases)
+- `TestIsMentioned`: merged 5 positive cases into `test_is_mentioned_positive_cases[...]` and
+  5 negative cases into `test_is_mentioned_negative_cases[...]`
+
+**Files Refactored**: `tests/test_thinker_service.py`
+
+**Tests Added** (10 parametrized test cases):
+1. `test_extract_single_mention[@Socrates what do you think?-Socrates]` - simple @mention
+2. `test_extract_single_mention[What do you think @Aristotle-Aristotle]` - mention at end
+3. `test_extract_single_mention[@Socrates, can you explain?-Socrates]` - mention with punctuation
+4. `test_is_mentioned_positive_cases[exact name match]`
+5. `test_is_mentioned_positive_cases[first name of multi-word name]`
+6. `test_is_mentioned_positive_cases[quoted full name]`
+7. `test_is_mentioned_positive_cases[lowercase @mention]`
+8. `test_is_mentioned_positive_cases[uppercase @mention]`
+9. `test_is_mentioned_negative_cases[different thinker mentioned]`
+10. `test_is_mentioned_negative_cases[name without @ prefix]`
+11. `test_is_mentioned_negative_cases[partial name does not match]`
+12. `test_is_mentioned_negative_cases[empty thinker name]`
+13. `test_is_mentioned_negative_cases[empty text]`
+
+### 0.8.4 MessageInput beforeEach Refactoring
+
+**Problem**: All 31 tests in `MessageInput.test.tsx` individually declared `const onSend = jest.fn()`
+at the start of each test body, creating 31 lines of identical boilerplate.
+
+**Solution**: Moved `onSend = jest.fn()` to `beforeEach()` in each describe block.
+Each describe block now has a shared `let onSend: jest.Mock` that is freshly created before each test.
+
+**Files Refactored**: `frontend/src/__tests__/components/MessageInput.test.tsx`
+
+**Benefits**: Cleaner test bodies, consistent mock reset between tests, easier to add new tests.
+
+### 0.8.5 Removal of Redundant @pytest.mark.asyncio Decorators
+
+**Problem**: 347 instances of `@pytest.mark.asyncio` decorators across 30 test files were
+completely redundant because `pyproject.toml` sets `asyncio_mode = "auto"`, which makes pytest
+automatically handle async test functions without requiring the decorator.
+
+**Solution**: Removed all 347 redundant `@pytest.mark.asyncio` decorators from all affected files.
+Also removed 3 now-unused `import pytest` statements from files where pytest was only used for this decorator.
+
+**Files Refactored** (30 files):
+- `tests/test_add_thinkers_integration.py` (8 removed)
+- `tests/test_billing_error_endpoint.py` (2 removed)
+- `tests/test_billing_error_integration.py` (6 removed)
+- `tests/test_cleanup_test_users.py` (8 removed)
+- `tests/test_conversations_api_integration_feb4.py` (18 removed)
+- `tests/test_conversations_coverage_sprint.py` (6 removed, import removed)
+- `tests/test_conversations_coverage_sprint_feb2.py` (14 removed, import removed)
+- `tests/test_conversations_coverage_sprint_feb9.py` (11 removed)
+- `tests/test_conversations_coverage_sprint_jan26.py` (8 removed)
+- `tests/test_conversations_direct_coverage.py` (8 removed)
+- `tests/test_conversations_direct_feb9.py` (8 removed)
+- `tests/test_conversations_edge_cases.py` (13 removed)
+- `tests/test_conversations_flaky_hunt.py` (6 removed)
+- `tests/test_conversations_integration_gaps.py` (8 removed)
+- `tests/test_conversations_integration_jan28.py` (11 removed, import removed)
+- `tests/test_devops_api.py` (21 removed)
+- `tests/test_edge_cases_admin_auth_feedback.py` (15 removed)
+- `tests/test_edge_cases_feb21_2026.py` (40 removed)
+- `tests/test_edge_cases_saturday.py` (3 removed)
+- `tests/test_feedback.py` (27 removed)
+- `tests/test_integration_gaps_feb18.py` (11 removed)
+- `tests/test_integration_gaps_feb25_2026.py` (30 removed)
+- `tests/test_knowledge_research.py` (10 removed)
+- `tests/test_regression_prevention.py` (17 removed)
+- `tests/test_regression_prevention_feb2026.py` (11 removed)
+- `tests/test_regression_prevention_jan2026.py` (3 removed)
+- `tests/test_regression_prevention_jan25_2026.py` (2 removed)
+- `tests/test_spend_service.py` (14 removed)
+- `tests/test_trigger_error_endpoint.py` (5 removed)
+- `tests/test_websocket.py` (3 removed)
+
+**Total**: 347 decorators removed across 30 files
+**Impact**: Significantly reduced visual noise in test files; tests still pass because asyncio_mode=auto handles them automatically
+
 ## 0.7 Test Refactoring (Added 2026-02-20)
 
 **Focus**: Friday QA focus - improve test readability and reduce duplication

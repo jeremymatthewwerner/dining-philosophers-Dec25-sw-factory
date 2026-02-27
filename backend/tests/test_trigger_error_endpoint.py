@@ -2,13 +2,11 @@
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 from app.api.websocket import WSMessage, WSMessageType
 
 
-@pytest.mark.asyncio
 async def test_trigger_error_endpoint_forbidden_when_not_in_test_mode(client: AsyncClient) -> None:
     """Test that trigger-error endpoint returns 403 when TEST_MODE is disabled."""
     # Arrange: Ensure test mode is disabled
@@ -29,7 +27,6 @@ async def test_trigger_error_endpoint_forbidden_when_not_in_test_mode(client: As
         assert "test mode" in response_json["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_trigger_error_endpoint_not_found_when_conversation_not_active(
     client: AsyncClient,
 ) -> None:
@@ -55,7 +52,6 @@ async def test_trigger_error_endpoint_not_found_when_conversation_not_active(
         assert "no active connections" in response_json["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_trigger_error_endpoint_broadcasts_error_message(client: AsyncClient) -> None:
     """Test that trigger-error endpoint successfully broadcasts ERROR message to conversation."""
     # Arrange: Enable test mode and mock active conversation
@@ -96,7 +92,6 @@ async def test_trigger_error_endpoint_broadcasts_error_message(client: AsyncClie
         assert ws_message.content == error_message
 
 
-@pytest.mark.asyncio
 async def test_trigger_error_endpoint_validates_request_body(client: AsyncClient) -> None:
     """Test that trigger-error endpoint validates request body fields."""
     # Arrange: Enable test mode
@@ -117,7 +112,6 @@ async def test_trigger_error_endpoint_validates_request_body(client: AsyncClient
         assert response.status_code == 422
 
 
-@pytest.mark.asyncio
 async def test_trigger_error_endpoint_accepts_custom_error_messages(client: AsyncClient) -> None:
     """Test that trigger-error endpoint accepts custom error messages."""
     # Arrange: Enable test mode and mock active conversation

@@ -377,7 +377,6 @@ class TestWebSocketMessageTypes:
 class TestCostAccumulation:
     """Tests for cost accumulation to user.total_spend."""
 
-    @pytest.mark.asyncio
     async def test_save_thinker_message_updates_user_total_spend(
         self, db_session: AsyncSession
     ) -> None:
@@ -424,7 +423,6 @@ class TestCostAccumulation:
         updated_user = result.scalar_one()
         assert updated_user.total_spend == pytest.approx(cost_1 + cost_2)
 
-    @pytest.mark.asyncio
     async def test_save_thinker_message_with_zero_cost(self, db_session: AsyncSession) -> None:
         """Test that saving a message with zero cost still works correctly."""
         from tests.conftest import create_test_user_session_conversation
@@ -448,7 +446,6 @@ class TestCostAccumulation:
         updated_user = result.scalar_one()
         assert updated_user.total_spend == 0.0
 
-    @pytest.mark.asyncio
     async def test_save_thinker_message_multiple_users(self, db_session: AsyncSession) -> None:
         """Test that costs are tracked separately for different users."""
         # Create two users

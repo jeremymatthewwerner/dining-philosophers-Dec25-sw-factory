@@ -11,7 +11,6 @@ QA Agent - Coverage Sprint (Monday)
 Issue: #544
 """
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import create_thinker_input, get_auth_headers
@@ -20,7 +19,6 @@ from tests.conftest import create_thinker_input, get_auth_headers
 class TestCreateConversationThinkerLoop:
     """Test the thinker creation loop in create_conversation (lines 46-61)."""
 
-    @pytest.mark.asyncio
     async def test_create_with_single_thinker_executes_loop(self, client: AsyncClient) -> None:
         """Test creating conversation with 1 thinker to execute the loop."""
         headers = await get_auth_headers(client, "direct1", "password123")
@@ -48,7 +46,6 @@ class TestCreateConversationThinkerLoop:
         # Should get first color from array since default was provided
         assert data["thinkers"][0]["color"] == "#6366f1"
 
-    @pytest.mark.asyncio
     async def test_create_with_three_thinkers_with_default_colors(
         self, client: AsyncClient
     ) -> None:
@@ -93,7 +90,6 @@ class TestCreateConversationThinkerLoop:
         colors = [t["color"] for t in data["thinkers"]]
         assert len(set(colors)) == 3  # All unique
 
-    @pytest.mark.asyncio
     async def test_create_with_custom_non_default_color(self, client: AsyncClient) -> None:
         """Test thinker with custom (non-#6366f1) color preserves it."""
         headers = await get_auth_headers(client, "direct3", "password123")
@@ -125,7 +121,6 @@ class TestCreateConversationThinkerLoop:
 class TestListConversationsSummaries:
     """Test list_conversations with summary calculations (lines 85-105)."""
 
-    @pytest.mark.asyncio
     async def test_list_calculates_message_count(self, client: AsyncClient) -> None:
         """Test that list endpoint calculates message_count correctly."""
         headers = await get_auth_headers(client, "direct4", "password123")
@@ -160,7 +155,6 @@ class TestListConversationsSummaries:
         assert our_conv["message_count"] == 3
         assert "total_cost" in our_conv
 
-    @pytest.mark.asyncio
     async def test_list_calculates_total_cost_from_messages(self, client: AsyncClient) -> None:
         """Test that total_cost is calculated from message costs."""
         headers = await get_auth_headers(client, "direct5", "password123")
@@ -194,7 +188,6 @@ class TestListConversationsSummaries:
 class TestSendMessageEndpoint:
     """Test send_message endpoint (lines 241-268)."""
 
-    @pytest.mark.asyncio
     async def test_send_message_creates_user_message(self, client: AsyncClient) -> None:
         """Test sending a message creates a user message."""
         headers = await get_auth_headers(client, "direct6", "password123")
@@ -222,7 +215,6 @@ class TestSendMessageEndpoint:
         assert message["content"] == "Hello!"
         assert message["sender_type"] == "user"
 
-    @pytest.mark.asyncio
     async def test_send_message_uses_display_name(self, client: AsyncClient) -> None:
         """Test send_message uses user's display_name (line 257-258)."""
         # Register with display_name
@@ -260,7 +252,6 @@ class TestSendMessageEndpoint:
         # Should use display_name (line 258)
         assert message["sender_name"] == "Display Name Test"
 
-    @pytest.mark.asyncio
     async def test_send_message_to_nonexistent_conversation_returns_404(
         self, client: AsyncClient
     ) -> None:

@@ -6,7 +6,6 @@ These tests ensure that previously fixed bugs do not regress.
 
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -21,7 +20,6 @@ class TestConversationKnowledgeResearch:
     new conversation.
     """
 
-    @pytest.mark.asyncio
     async def test_create_conversation_triggers_knowledge_research(
         self,
         client: AsyncClient,
@@ -82,7 +80,6 @@ class TestConversationKnowledgeResearch:
             mock_trigger.assert_any_call("Socrates")
             mock_trigger.assert_any_call("Aristotle")
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_single_thinker_triggers_research(
         self,
         client: AsyncClient,
@@ -126,7 +123,6 @@ class TestConversationKnowledgeResearch:
             assert mock_trigger.call_count == 1
             mock_trigger.assert_called_once_with("Confucius")
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_max_thinkers_triggers_research(
         self,
         client: AsyncClient,

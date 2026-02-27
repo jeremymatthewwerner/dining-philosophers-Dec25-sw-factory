@@ -12,7 +12,6 @@ Focused on lines that other tests haven't covered:
 - 241-268: Send message with idle handling
 """
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
@@ -21,7 +20,6 @@ from tests.conftest import get_auth_headers
 class TestCreateConversationIntegration:
     """Integration tests for create_conversation without heavy mocking."""
 
-    @pytest.mark.asyncio
     async def test_create_with_multiple_thinkers_different_colors(
         self, client: AsyncClient
     ) -> None:
@@ -83,7 +81,6 @@ class TestCreateConversationIntegration:
 class TestListConversationsIntegration:
     """Integration tests for list_conversations with cost calculations."""
 
-    @pytest.mark.asyncio
     async def test_list_with_messages_shows_cost_and_count(self, client: AsyncClient) -> None:
         """Test list conversations includes message count and total cost.
 
@@ -138,7 +135,6 @@ class TestListConversationsIntegration:
 class TestGetAndDeleteConversation:
     """Integration tests for get and delete endpoints."""
 
-    @pytest.mark.asyncio
     async def test_get_nonexistent_conversation_404(self, client: AsyncClient) -> None:
         """Test getting non-existent conversation returns 404.
 
@@ -155,7 +151,6 @@ class TestGetAndDeleteConversation:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_delete_nonexistent_conversation_404(self, client: AsyncClient) -> None:
         """Test deleting non-existent conversation returns 404.
 
@@ -171,7 +166,6 @@ class TestGetAndDeleteConversation:
         # Lines 146-147: check for None and raise 404
         assert response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_success_returns_status(self, client: AsyncClient) -> None:
         """Test successful delete returns status dict.
 
@@ -215,7 +209,6 @@ class TestGetAndDeleteConversation:
 class TestAddThinkersIntegration:
     """Integration tests for add_thinkers endpoint."""
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_max_limit_validation(self, client: AsyncClient) -> None:
         """Test that adding too many thinkers is rejected.
 
@@ -263,7 +256,6 @@ class TestAddThinkersIntegration:
         assert "cannot add" in add_response.json()["detail"].lower()
         assert "5 total" in add_response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_avoids_existing_colors(self, client: AsyncClient) -> None:
         """Test that adding thinkers avoids colors already in use.
 
@@ -334,7 +326,6 @@ class TestAddThinkersIntegration:
 class TestSendMessageIntegration:
     """Integration tests for send_message endpoint."""
 
-    @pytest.mark.asyncio
     async def test_send_message_creates_message_with_sender_name(self, client: AsyncClient) -> None:
         """Test that sending a message creates it with proper sender_name.
 

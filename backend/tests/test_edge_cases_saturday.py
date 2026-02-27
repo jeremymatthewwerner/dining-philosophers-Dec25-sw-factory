@@ -6,13 +6,11 @@ Tests cover:
 - Password change validation edge cases
 """
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
 
 
-@pytest.mark.asyncio
 class TestConversationMessageEdgeCases:
     """Test edge cases for conversation messaging."""
 
@@ -87,7 +85,6 @@ class TestConversationMessageEdgeCases:
         assert msg_response.status_code == 422
 
 
-@pytest.mark.asyncio
 class TestPasswordChangeEdgeCases:
     """Test edge cases for password change validation."""
 
@@ -172,7 +169,6 @@ class TestPasswordChangeEdgeCases:
             assert login_response.status_code == 200
 
 
-@pytest.mark.asyncio
 class TestConversationEdgeCases:
     """Test edge cases for conversation creation and management."""
 
