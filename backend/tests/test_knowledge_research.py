@@ -14,7 +14,6 @@ from app.services.knowledge_research import KnowledgeResearchService
 class TestThinkerKnowledgeModel:
     """Tests for the ThinkerKnowledge database model."""
 
-    @pytest.mark.asyncio
     async def test_create_thinker_knowledge(self, async_session: AsyncSession) -> None:
         """Test creating a ThinkerKnowledge entry."""
         knowledge = ThinkerKnowledge(
@@ -32,7 +31,6 @@ class TestThinkerKnowledgeModel:
         assert knowledge.created_at is not None
         assert knowledge.updated_at is not None
 
-    @pytest.mark.asyncio
     async def test_update_research_data(self, async_session: AsyncSession) -> None:
         """Test updating research data in ThinkerKnowledge."""
         knowledge = ThinkerKnowledge(
@@ -58,7 +56,6 @@ class TestThinkerKnowledgeModel:
         assert "wikipedia" in knowledge.research_data
         assert knowledge.research_data["wikipedia"]["summary"] == "Ancient Greek philosopher"
 
-    @pytest.mark.asyncio
     async def test_unique_name_constraint(self, async_session: AsyncSession) -> None:
         """Test that name must be unique."""
         from sqlalchemy.exc import IntegrityError
@@ -85,7 +82,6 @@ class TestThinkerKnowledgeModel:
 class TestKnowledgeResearchService:
     """Tests for the KnowledgeResearchService."""
 
-    @pytest.mark.asyncio
     async def test_get_knowledge_returns_none_when_not_found(
         self, async_session: AsyncSession
     ) -> None:
@@ -94,7 +90,6 @@ class TestKnowledgeResearchService:
         knowledge = await service.get_knowledge(async_session, "Unknown Person")
         assert knowledge is None
 
-    @pytest.mark.asyncio
     async def test_get_or_create_creates_new_entry(self, async_session: AsyncSession) -> None:
         """Test get_or_create_knowledge creates a new pending entry."""
         service = KnowledgeResearchService()
@@ -105,7 +100,6 @@ class TestKnowledgeResearchService:
         assert knowledge.status == ResearchStatus.PENDING
         assert knowledge.research_data == {}
 
-    @pytest.mark.asyncio
     async def test_get_or_create_returns_existing(self, async_session: AsyncSession) -> None:
         """Test get_or_create_knowledge returns existing entry."""
         service = KnowledgeResearchService()
@@ -163,7 +157,6 @@ class TestKnowledgeResearchService:
         knowledge.updated_at = datetime.now(UTC) - timedelta(days=60)
         assert service.is_stale(knowledge) is True
 
-    @pytest.mark.asyncio
     async def test_trigger_research_starts_background_task(self) -> None:
         """Test trigger_research starts a background task."""
         service = KnowledgeResearchService()
@@ -200,7 +193,6 @@ class TestKnowledgeResearchService:
 class TestWikipediaFetching:
     """Tests for Wikipedia data fetching."""
 
-    @pytest.mark.asyncio
     async def test_fetch_wikipedia_data_success(self) -> None:
         """Test successful Wikipedia data fetch."""
         service = KnowledgeResearchService()
@@ -243,7 +235,6 @@ class TestWikipediaFetching:
             assert "summary" in result
             assert "image_url" in result
 
-    @pytest.mark.asyncio
     async def test_fetch_wikipedia_data_not_found(self) -> None:
         """Test Wikipedia data fetch when page not found."""
         service = KnowledgeResearchService()
@@ -266,7 +257,6 @@ class TestWikipediaFetching:
 
             assert result is None
 
-    @pytest.mark.asyncio
     async def test_fetch_wikipedia_data_handles_errors(self) -> None:
         """Test Wikipedia data fetch handles errors gracefully."""
         service = KnowledgeResearchService()

@@ -11,7 +11,6 @@ Tests cover:
 
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +22,6 @@ from tests.conftest import get_auth_headers, register_and_get_token
 class TestAuthLogoutEndpoint:
     """Test logout endpoint edge cases."""
 
-    @pytest.mark.asyncio
     async def test_logout_succeeds_without_auth(self, client: AsyncClient) -> None:
         """Test that logout endpoint works without authentication.
 
@@ -35,7 +33,6 @@ class TestAuthLogoutEndpoint:
         data = response.json()
         assert data["message"] == "Logged out successfully"
 
-    @pytest.mark.asyncio
     async def test_logout_succeeds_with_valid_auth(self, client: AsyncClient) -> None:
         """Test that logout succeeds with a valid auth token.
 
@@ -52,7 +49,6 @@ class TestAuthLogoutEndpoint:
 class TestRequireAdminEdgeCases:
     """Test require_admin dependency edge cases."""
 
-    @pytest.mark.asyncio
     async def test_admin_endpoint_rejects_non_admin_user(self, client: AsyncClient) -> None:
         """Test that admin endpoints return 403 for non-admin users.
 
@@ -69,7 +65,6 @@ class TestRequireAdminEdgeCases:
         assert response.status_code == 403
         assert "admin" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_admin_endpoint_rejects_no_auth(self, client: AsyncClient) -> None:
         """Test that admin endpoints return 401 without authentication.
 
@@ -83,7 +78,6 @@ class TestRequireAdminEdgeCases:
 class TestLoginSessionCreation:
     """Test login when user has no existing session."""
 
-    @pytest.mark.asyncio
     async def test_login_creates_session_when_none_exists(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -116,7 +110,6 @@ class TestLoginSessionCreation:
         assert "access_token" in login_data
         assert login_data["user"]["username"] == "no_session_user_feb21"
 
-    @pytest.mark.asyncio
     async def test_login_wrong_password_returns_401(self, client: AsyncClient) -> None:
         """Test that login with wrong password returns 401.
 
@@ -134,7 +127,6 @@ class TestLoginSessionCreation:
         assert response.status_code == 401
         assert "Invalid username or password" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_login_nonexistent_user_returns_401(self, client: AsyncClient) -> None:
         """Test that login with nonexistent username returns 401.
 
@@ -151,7 +143,6 @@ class TestLoginSessionCreation:
 class TestAuthUpdateEndpoints:
     """Test auth profile update endpoints."""
 
-    @pytest.mark.asyncio
     async def test_update_language_returns_user_response(self, client: AsyncClient) -> None:
         """Test that updating language returns full user response.
 
@@ -172,7 +163,6 @@ class TestAuthUpdateEndpoints:
         assert "id" in data
         assert "username" in data
 
-    @pytest.mark.asyncio
     async def test_update_profile_returns_user_with_new_name(self, client: AsyncClient) -> None:
         """Test that updating profile returns user with updated display name.
 
@@ -192,7 +182,6 @@ class TestAuthUpdateEndpoints:
         data = response.json()
         assert data["display_name"] == new_display_name
 
-    @pytest.mark.asyncio
     async def test_change_password_returns_success_message(self, client: AsyncClient) -> None:
         """Test that changing password returns success message.
 
@@ -215,7 +204,6 @@ class TestAuthUpdateEndpoints:
         assert "message" in data
         assert "success" in data["message"].lower() or "changed" in data["message"].lower()
 
-    @pytest.mark.asyncio
     async def test_change_password_wrong_current_password(self, client: AsyncClient) -> None:
         """Test that changing password with wrong current password returns 400.
 
@@ -241,7 +229,6 @@ class TestAuthUpdateEndpoints:
 class TestRegisterEdgeCases:
     """Test registration edge cases."""
 
-    @pytest.mark.asyncio
     async def test_register_duplicate_username_returns_400(self, client: AsyncClient) -> None:
         """Test that registering with duplicate username returns 400.
 
@@ -263,7 +250,6 @@ class TestRegisterEdgeCases:
         assert response.status_code == 400
         assert "already taken" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_register_with_display_name_none(self, client: AsyncClient) -> None:
         """Test that registering without a display_name uses username by default.
 
@@ -287,7 +273,6 @@ class TestRegisterEdgeCases:
 class TestAdminSpendLimitEdgeCases:
     """Test admin spend limit endpoint edge cases."""
 
-    @pytest.mark.asyncio
     async def test_update_spend_limit_for_nonexistent_user(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -321,7 +306,6 @@ class TestAdminSpendLimitEdgeCases:
         assert response.status_code == 404
         assert "User not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_delete_nonexistent_user_returns_404(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -354,7 +338,6 @@ class TestAdminSpendLimitEdgeCases:
         assert response.status_code == 404
         assert "User not found" in response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_update_spend_limit_success_returns_response(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -397,7 +380,6 @@ class TestAdminSpendLimitEdgeCases:
 class TestFeedbackEdgeCases:
     """Test feedback API edge cases."""
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_minimum_valid_message(self, client: AsyncClient) -> None:
         """Test submitting feedback with exactly minimum length message (10 chars).
 
@@ -415,7 +397,6 @@ class TestFeedbackEdgeCases:
         assert "id" in data
         assert "message" in data
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_maximum_valid_message(self, client: AsyncClient) -> None:
         """Test submitting feedback with exactly maximum length message (5000 chars).
 
@@ -430,7 +411,6 @@ class TestFeedbackEdgeCases:
         )
         assert response.status_code == 201
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_message_too_short(self, client: AsyncClient) -> None:
         """Test submitting feedback with message shorter than 10 chars.
 
@@ -445,7 +425,6 @@ class TestFeedbackEdgeCases:
         )
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_message_too_long(self, client: AsyncClient) -> None:
         """Test submitting feedback with message longer than 5000 chars.
 
@@ -460,7 +439,6 @@ class TestFeedbackEdgeCases:
         )
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_feature_type(self, client: AsyncClient) -> None:
         """Test submitting feedback with 'feature' type.
 
@@ -475,7 +453,6 @@ class TestFeedbackEdgeCases:
         )
         assert response.status_code == 201
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_with_invalid_type(self, client: AsyncClient) -> None:
         """Test submitting feedback with invalid feedback type.
 
@@ -490,7 +467,6 @@ class TestFeedbackEdgeCases:
         )
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_get_pending_feedback_no_secret_configured(self, client: AsyncClient) -> None:
         """Test that pending feedback endpoint returns 503 when no secret is configured.
 
@@ -505,7 +481,6 @@ class TestFeedbackEdgeCases:
         # Returns 503 because secret is not configured, or 403 if wrong secret
         assert response.status_code in [503, 403]
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_with_all_optional_fields(self, client: AsyncClient) -> None:
         """Test submitting feedback with all optional fields populated.
 
@@ -526,7 +501,6 @@ class TestFeedbackEdgeCases:
         data = response.json()
         assert "id" in data
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_oversized_screenshot(self, client: AsyncClient) -> None:
         """Test submitting feedback with screenshot that exceeds 7MB limit.
 
@@ -547,7 +521,6 @@ class TestFeedbackEdgeCases:
         )
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_rate_limiting(self, client: AsyncClient) -> None:
         """Test that feedback rate limiting kicks in after 5 submissions.
 
@@ -580,7 +553,6 @@ class TestFeedbackEdgeCases:
 class TestConversationMaxThinkersEdgeCases:
     """Test conversation thinker limit edge cases."""
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_exactly_5_thinkers(self, client: AsyncClient) -> None:
         """Test that creating a conversation with exactly 5 thinkers succeeds.
 
@@ -614,7 +586,6 @@ class TestConversationMaxThinkersEdgeCases:
         data = response.json()
         assert len(data["thinkers"]) == 5
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_6_thinkers_rejected(self, client: AsyncClient) -> None:
         """Test that creating a conversation with 6 thinkers is rejected.
 
@@ -644,7 +615,6 @@ class TestConversationMaxThinkersEdgeCases:
         )
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_when_at_capacity_returns_400(self, client: AsyncClient) -> None:
         """Test that adding thinkers to a conversation already at 5 returns 400.
 
@@ -697,7 +667,6 @@ class TestConversationMaxThinkersEdgeCases:
         assert "Cannot add" in add_response.json()["detail"]
         assert "Maximum is 5" in add_response.json()["detail"]
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_to_nonexistent_conversation_returns_404(
         self, client: AsyncClient
     ) -> None:
@@ -726,7 +695,6 @@ class TestConversationMaxThinkersEdgeCases:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_too_many_at_once_returns_400(self, client: AsyncClient) -> None:
         """Test adding multiple thinkers that would exceed 5 total.
 
@@ -782,7 +750,6 @@ class TestConversationMaxThinkersEdgeCases:
 class TestUnicodeAndSpecialCharacters:
     """Test unicode and special character handling across the API."""
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_unicode_topic(self, client: AsyncClient) -> None:
         """Test that unicode topic is stored and retrieved correctly.
 
@@ -815,7 +782,6 @@ class TestUnicodeAndSpecialCharacters:
         data = response.json()
         assert data["topic"] == unicode_topic
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_arabic_topic(self, client: AsyncClient) -> None:
         """Test that Arabic topic text is handled correctly.
 
@@ -847,7 +813,6 @@ class TestUnicodeAndSpecialCharacters:
         assert response.status_code == 200
         assert response.json()["topic"] == arabic_topic
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_special_chars_in_thinker_name(
         self, client: AsyncClient
     ) -> None:
@@ -880,7 +845,6 @@ class TestUnicodeAndSpecialCharacters:
         data = response.json()
         assert data["thinkers"][0]["name"] == "J.J. Rousseau"
 
-    @pytest.mark.asyncio
     async def test_send_message_with_unicode_content(self, client: AsyncClient) -> None:
         """Test that unicode messages are sent and stored correctly.
 
@@ -923,7 +887,6 @@ class TestUnicodeAndSpecialCharacters:
 class TestMessageBoundaryConditions:
     """Test message content boundary conditions."""
 
-    @pytest.mark.asyncio
     async def test_send_message_to_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test sending message to nonexistent conversation returns 404.
 
@@ -940,7 +903,6 @@ class TestMessageBoundaryConditions:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_send_message_to_other_users_conversation(self, client: AsyncClient) -> None:
         """Test that user cannot send messages to another user's conversation.
 
@@ -982,7 +944,6 @@ class TestMessageBoundaryConditions:
         )
         assert response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_get_conversation_with_messages_returns_cost(self, client: AsyncClient) -> None:
         """Test that getting a conversation with messages returns total_cost.
 
@@ -1032,7 +993,6 @@ class TestMessageBoundaryConditions:
 class TestConversationListEdgeCases:
     """Test conversation list edge cases."""
 
-    @pytest.mark.asyncio
     async def test_list_conversations_empty_for_new_user(self, client: AsyncClient) -> None:
         """Test that new user with no conversations gets empty list.
 
@@ -1046,7 +1006,6 @@ class TestConversationListEdgeCases:
         assert response.status_code == 200
         assert response.json() == []
 
-    @pytest.mark.asyncio
     async def test_list_conversations_includes_zero_cost_messages(
         self, client: AsyncClient
     ) -> None:

@@ -1,6 +1,5 @@
 """Integration tests for conversation API gaps - QA Agent Wednesday focus."""
 
-import pytest
 from httpx import AsyncClient
 
 from app.services.thinker import thinker_service
@@ -10,7 +9,6 @@ from tests.conftest import get_auth_headers
 class TestIdlePauseAutoResume:
     """Test idle-pause auto-resume integration (lines 245-254 in conversations.py)."""
 
-    @pytest.mark.asyncio
     async def test_idle_pause_auto_resume_on_user_message(self, client: AsyncClient) -> None:
         """When a user sends a message to an idle-paused conversation, it should auto-resume."""
         auth_headers = await get_auth_headers(client)
@@ -52,7 +50,6 @@ class TestIdlePauseAutoResume:
         # Conversation should no longer be idle-paused
         assert thinker_service.is_idle_paused(conversation_id) is False
 
-    @pytest.mark.asyncio
     async def test_regular_pause_not_affected_by_auto_resume(self, client: AsyncClient) -> None:
         """Manual pause should not be auto-resumed by user messages."""
         auth_headers = await get_auth_headers(client)
@@ -96,7 +93,6 @@ class TestIdlePauseAutoResume:
 class TestAddThinkersColorPool:
     """Test color assignment from available pool when adding thinkers (lines 188-198)."""
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_uses_available_colors_from_pool(self, client: AsyncClient) -> None:
         """When adding thinkers with default color, should pick from available pool."""
         auth_headers = await get_auth_headers(client)
@@ -158,7 +154,6 @@ class TestAddThinkersColorPool:
             "#8b5cf6",
         ]
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_respects_custom_color(self, client: AsyncClient) -> None:
         """When adding thinkers with custom color, should preserve it."""
         auth_headers = await get_auth_headers(client)
@@ -202,7 +197,6 @@ class TestAddThinkersColorPool:
         assert len(new_thinkers) == 1
         assert new_thinkers[0]["color"] == custom_color
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_color_pool_exhaustion(self, client: AsyncClient) -> None:
         """When all colors are used, adding with default should still work."""
         auth_headers = await get_auth_headers(client)
@@ -254,7 +248,6 @@ class TestAddThinkersColorPool:
 class TestSendMessageDisplayName:
     """Test message creation with display name fallback (lines 257-265)."""
 
-    @pytest.mark.asyncio
     async def test_send_message_uses_display_name_when_set(self, client: AsyncClient) -> None:
         """Messages should use user's display_name if set."""
         auth_headers = await get_auth_headers(client)
@@ -297,7 +290,6 @@ class TestSendMessageDisplayName:
         assert message["sender_name"] == "Dr. Alice"
         assert message["sender_type"] == "user"
 
-    @pytest.mark.asyncio
     async def test_send_message_falls_back_to_username_when_no_display_name(
         self, client: AsyncClient
     ) -> None:
@@ -335,7 +327,6 @@ class TestSendMessageDisplayName:
         assert message["sender_name"] == "Testuser"
         assert message["sender_type"] == "user"
 
-    @pytest.mark.asyncio
     async def test_send_message_updates_sender_name_after_profile_change(
         self, client: AsyncClient
     ) -> None:

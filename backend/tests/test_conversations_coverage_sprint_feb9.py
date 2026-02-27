@@ -13,7 +13,6 @@ Focused on remaining untested code paths:
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
@@ -22,7 +21,6 @@ from tests.conftest import get_auth_headers
 class TestListConversationsWithCosts:
     """Test list conversations endpoint with cost calculations."""
 
-    @pytest.mark.asyncio
     async def test_list_conversations_includes_message_counts_and_costs(
         self, client: AsyncClient
     ) -> None:
@@ -74,7 +72,6 @@ class TestListConversationsWithCosts:
         assert "total_cost" in our_conv
         assert our_conv["total_cost"] >= 0.0
 
-    @pytest.mark.asyncio
     async def test_list_conversations_orders_by_created_at_desc(self, client: AsyncClient) -> None:
         """Test that conversations are ordered by created_at descending.
 
@@ -124,7 +121,6 @@ class TestListConversationsWithCosts:
 class TestGetConversationEdgeCases:
     """Test get conversation endpoint edge cases."""
 
-    @pytest.mark.asyncio
     async def test_get_conversation_returns_404_for_nonexistent_id(
         self, client: AsyncClient
     ) -> None:
@@ -142,7 +138,6 @@ class TestGetConversationEdgeCases:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_get_conversation_returns_404_for_other_users_conversation(
         self, client: AsyncClient
     ) -> None:
@@ -188,7 +183,6 @@ class TestGetConversationEdgeCases:
 class TestDeleteConversationEdgeCases:
     """Test delete conversation endpoint."""
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_returns_404_for_nonexistent_id(
         self, client: AsyncClient
     ) -> None:
@@ -205,7 +199,6 @@ class TestDeleteConversationEdgeCases:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_returns_success_status(self, client: AsyncClient) -> None:
         """Test that successful delete returns correct status.
 
@@ -256,7 +249,6 @@ class TestDeleteConversationEdgeCases:
 class TestAddThinkersColorLogic:
     """Test add thinkers endpoint with color availability logic."""
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_uses_available_colors(self, client: AsyncClient) -> None:
         """Test that adding thinkers picks from available colors.
 
@@ -325,7 +317,6 @@ class TestAddThinkersColorLogic:
             for color in new_colors:
                 assert color not in existing_colors
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_refreshes_and_returns_thinkers(self, client: AsyncClient) -> None:
         """Test that add thinkers refreshes models and returns them.
 
@@ -382,7 +373,6 @@ class TestAddThinkersColorLogic:
 class TestSendMessageIdleResume:
     """Test send message endpoint with idle resume logic."""
 
-    @pytest.mark.asyncio
     async def test_send_message_resumes_idle_paused_conversation(self, client: AsyncClient) -> None:
         """Test that sending a message auto-resumes idle-paused conversations.
 
@@ -437,7 +427,6 @@ class TestSendMessageIdleResume:
                 mock_service.resume_from_idle.assert_called_once_with(conversation_id)
                 mock_manager.broadcast_to_conversation.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_send_message_uses_display_name(self, client: AsyncClient) -> None:
         """Test that messages use user's display name if available.
 
@@ -480,7 +469,6 @@ class TestSendMessageIdleResume:
         assert message["sender_name"] == "Displaynameuser"
         assert message["content"] == "Hello from John"
 
-    @pytest.mark.asyncio
     async def test_send_message_fallback_to_username(self, client: AsyncClient) -> None:
         """Test that messages fallback to username if no display name.
 

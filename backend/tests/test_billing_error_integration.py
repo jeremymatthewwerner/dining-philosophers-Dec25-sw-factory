@@ -27,7 +27,6 @@ from httpx import AsyncClient
 @pytest.mark.skip(
     reason="Requires BillingError exception handler to be implemented (issues #114, #123, #124)"
 )
-@pytest.mark.asyncio
 async def test_billing_error_returns_503_response(client: AsyncClient) -> None:
     """Test that BillingError exception returns HTTP 503 response.
 
@@ -58,7 +57,6 @@ async def test_billing_error_returns_503_response(client: AsyncClient) -> None:
 @pytest.mark.skip(
     reason="Requires GitHubIssueService and background task integration (issues #108, #112, #113, #124)"
 )
-@pytest.mark.asyncio
 async def test_billing_error_triggers_github_issue_filing(client: AsyncClient) -> None:
     """Test that BillingError triggers GitHub issue filing in background.
 
@@ -94,7 +92,6 @@ async def test_billing_error_triggers_github_issue_filing(client: AsyncClient) -
 @pytest.mark.skip(
     reason="Requires complete exception handler with GitHub integration (issues #112, #113, #124)"
 )
-@pytest.mark.asyncio
 async def test_github_api_failure_does_not_crash_request(
     client: AsyncClient, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -131,7 +128,6 @@ async def test_github_api_failure_does_not_crash_request(
 
 
 @pytest.mark.skip(reason="GitHubIssueService not implemented - test written prematurely")
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "exception_type,exception_message",
     [
@@ -183,7 +179,6 @@ async def test_github_api_failure_with_different_exceptions(
 
 
 @pytest.mark.skip(reason="Requires complete exception handler with background tasks (issue #124)")
-@pytest.mark.asyncio
 async def test_background_task_does_not_block_response(client: AsyncClient) -> None:
     """Test that GitHub issue filing runs in background and doesn't block response.
 
@@ -216,7 +211,6 @@ async def test_background_task_does_not_block_response(client: AsyncClient) -> N
 
 
 @pytest.mark.skip(reason="Requires test helper endpoint that raises BillingError (issue #123)")
-@pytest.mark.asyncio
 async def test_billing_error_message_includes_context(client: AsyncClient) -> None:
     """Test that BillingError response includes helpful context for users.
 

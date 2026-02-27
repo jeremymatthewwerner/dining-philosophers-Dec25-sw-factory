@@ -37,8 +37,14 @@ const mockThinkers: ConversationThinker[] = [
 ];
 
 describe('MessageInput', () => {
+  // Shared mock for onSend - avoids repeating `const onSend = jest.fn()` in every test
+  let onSend: jest.Mock;
+
+  beforeEach(() => {
+    onSend = jest.fn();
+  });
+
   it('renders input and send button', () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     expect(screen.getByTestId('message-input')).toBeInTheDocument();
@@ -47,7 +53,6 @@ describe('MessageInput', () => {
   });
 
   it('calls onSend when form is submitted', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -58,7 +63,6 @@ describe('MessageInput', () => {
   });
 
   it('clears input after sending', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -69,7 +73,6 @@ describe('MessageInput', () => {
   });
 
   it('does not send empty message', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     await user.click(screen.getByTestId('send-button'));
@@ -78,7 +81,6 @@ describe('MessageInput', () => {
   });
 
   it('does not send whitespace-only message', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -89,7 +91,6 @@ describe('MessageInput', () => {
   });
 
   it('sends on Enter key (without Shift)', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -100,7 +101,6 @@ describe('MessageInput', () => {
   });
 
   it('does not send on Shift+Enter', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -111,7 +111,6 @@ describe('MessageInput', () => {
   });
 
   it('disables input when disabled prop is true', () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} disabled />);
 
     expect(screen.getByTestId('message-textarea')).toBeDisabled();
@@ -119,7 +118,6 @@ describe('MessageInput', () => {
   });
 
   it('shows custom placeholder', () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} placeholder="Custom placeholder" />);
 
     expect(
@@ -128,7 +126,6 @@ describe('MessageInput', () => {
   });
 
   it('calls onTypingStart when user starts typing', async () => {
-    const onSend = jest.fn();
     const onTypingStart = jest.fn();
     render(<MessageInput onSend={onSend} onTypingStart={onTypingStart} />);
 
@@ -140,8 +137,14 @@ describe('MessageInput', () => {
 });
 
 describe('MessageInput - @mention autocomplete', () => {
+  // Shared mock for onSend - avoids repeating `const onSend = jest.fn()` in every test
+  let onSend: jest.Mock;
+
+  beforeEach(() => {
+    onSend = jest.fn();
+  });
+
   it('shows autocomplete dropdown when @ is typed', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -151,7 +154,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('does not show autocomplete when no thinkers provided', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -163,7 +165,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('filters thinkers as user types after @', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -177,7 +178,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('hides autocomplete when no thinkers match query', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -189,7 +189,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('inserts thinker name when clicking autocomplete option', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -203,7 +202,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('navigates autocomplete with arrow keys', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -243,7 +241,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('selects thinker with Enter key when autocomplete is active', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -255,7 +252,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('selects thinker with Tab key when autocomplete is active', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -266,7 +262,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('closes autocomplete with Escape key', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -280,7 +275,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('preserves text before @ when inserting mention', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -291,7 +285,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('handles @ at start of message', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -302,7 +295,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('does not show autocomplete when @ is not at word boundary', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -314,7 +306,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('shows autocomplete when @ follows newline', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -327,7 +318,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('wraps around when navigating past last thinker', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -353,7 +343,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('wraps around when navigating before first thinker', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -369,7 +358,6 @@ describe('MessageInput - @mention autocomplete', () => {
   });
 
   it('clears autocomplete state when message is sent', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -387,8 +375,14 @@ describe('MessageInput - @mention autocomplete', () => {
 });
 
 describe('MessageInput - styled mention overlay', () => {
+  // Shared mock for onSend - avoids repeating `const onSend = jest.fn()` in every test
+  let onSend: jest.Mock;
+
+  beforeEach(() => {
+    onSend = jest.fn();
+  });
+
   it('shows styled mention overlay when thinker name is in message', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -400,7 +394,6 @@ describe('MessageInput - styled mention overlay', () => {
   });
 
   it('does not show overlay when no mentions in text', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -411,7 +404,6 @@ describe('MessageInput - styled mention overlay', () => {
   });
 
   it('overlay contains the thinker name text', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -423,7 +415,6 @@ describe('MessageInput - styled mention overlay', () => {
   });
 
   it('clears overlay when message is sent', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');
@@ -439,7 +430,6 @@ describe('MessageInput - styled mention overlay', () => {
   });
 
   it('makes textarea text transparent when overlay is visible', async () => {
-    const onSend = jest.fn();
     render(<MessageInput onSend={onSend} thinkers={mockThinkers} />);
 
     const textarea = screen.getByTestId('message-textarea');

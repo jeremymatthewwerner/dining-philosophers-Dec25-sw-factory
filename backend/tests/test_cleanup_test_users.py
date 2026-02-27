@@ -78,7 +78,6 @@ async def create_test_user(
     return user
 
 
-@pytest.mark.asyncio
 async def test_cleanup_without_secret_configured(client: AsyncClient) -> None:
     """Test cleanup fails when secret is not configured."""
     # The default settings have empty test_cleanup_secret
@@ -88,7 +87,6 @@ async def test_cleanup_without_secret_configured(client: AsyncClient) -> None:
     assert "not configured" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_cleanup_with_invalid_secret(client: AsyncClient) -> None:
     """Test cleanup fails with invalid secret."""
     with patch("app.api.test_helpers.get_settings") as mock_settings:
@@ -100,7 +98,6 @@ async def test_cleanup_with_invalid_secret(client: AsyncClient) -> None:
         assert "invalid" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_cleanup_deletes_smoketest_users(client: AsyncClient, session: AsyncSession) -> None:
     """Test cleanup deletes users with smoketest_ prefix."""
     # Create test users
@@ -121,7 +118,6 @@ async def test_cleanup_deletes_smoketest_users(client: AsyncClient, session: Asy
         assert "real_user" not in data["deleted_users"]
 
 
-@pytest.mark.asyncio
 async def test_cleanup_deletes_canary_users(client: AsyncClient, session: AsyncSession) -> None:
     """Test cleanup deletes users with canary_ prefix."""
     # Create test users
@@ -141,7 +137,6 @@ async def test_cleanup_deletes_canary_users(client: AsyncClient, session: AsyncS
         assert "canary_1704412900" in data["deleted_users"]
 
 
-@pytest.mark.asyncio
 async def test_cleanup_deletes_testuser_users(client: AsyncClient, session: AsyncSession) -> None:
     """Test cleanup deletes users with testuser_ prefix (E2E test users)."""
     # Create test users following the E2E pattern: testuser_{timestamp}_{random}
@@ -162,7 +157,6 @@ async def test_cleanup_deletes_testuser_users(client: AsyncClient, session: Asyn
         assert "real_user" not in data["deleted_users"]
 
 
-@pytest.mark.asyncio
 async def test_cleanup_deletes_mixed_test_users(client: AsyncClient, session: AsyncSession) -> None:
     """Test cleanup deletes smoketest_, canary_, and testuser_ users."""
     # Create test users
@@ -181,7 +175,6 @@ async def test_cleanup_deletes_mixed_test_users(client: AsyncClient, session: As
         assert data["deleted_count"] == 3
 
 
-@pytest.mark.asyncio
 async def test_cleanup_no_test_users(client: AsyncClient, session: AsyncSession) -> None:
     """Test cleanup returns zero when no test users exist."""
     # Create only regular users
@@ -199,7 +192,6 @@ async def test_cleanup_no_test_users(client: AsyncClient, session: AsyncSession)
         assert data["deleted_users"] == []
 
 
-@pytest.mark.asyncio
 async def test_cleanup_missing_secret_param(client: AsyncClient) -> None:
     """Test cleanup fails when secret parameter is missing."""
     response = await client.delete("/api/test/cleanup-test-users")

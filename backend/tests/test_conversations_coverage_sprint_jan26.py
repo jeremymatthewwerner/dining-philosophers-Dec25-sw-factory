@@ -15,7 +15,6 @@ Focus areas:
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
@@ -24,7 +23,6 @@ from tests.conftest import get_auth_headers
 class TestListConversationsEdgeCases:
     """Test list_conversations edge cases for missing coverage."""
 
-    @pytest.mark.asyncio
     async def test_list_conversations_when_empty(self, client: AsyncClient) -> None:
         """Test listing conversations when user has no conversations yet."""
         headers = await get_auth_headers(client, username="empty_list_user", password="testpass123")
@@ -37,7 +35,6 @@ class TestListConversationsEdgeCases:
         assert conversations == []
         assert len(conversations) == 0
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_list_conversations_with_null_costs(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -87,7 +84,6 @@ class TestListConversationsEdgeCases:
 class TestGetConversationErrorPaths:
     """Test get_conversation 404 error handling."""
 
-    @pytest.mark.asyncio
     async def test_get_conversation_returns_404_for_nonexistent(self, client: AsyncClient) -> None:
         """Test that getting a nonexistent conversation returns 404."""
         headers = await get_auth_headers(client, username="get_404_user", password="testpass123")
@@ -103,7 +99,6 @@ class TestGetConversationErrorPaths:
 class TestDeleteConversationErrorPaths:
     """Test delete_conversation 404 error handling and success response."""
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_returns_404_for_nonexistent(
         self, client: AsyncClient
     ) -> None:
@@ -117,7 +112,6 @@ class TestDeleteConversationErrorPaths:
         assert response.status_code == 404
         assert response.json()["detail"] == "Conversation not found"
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_delete_conversation_returns_success_response(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -162,7 +156,6 @@ class TestDeleteConversationErrorPaths:
 class TestAddThinkersValidation:
     """Test add_thinkers max limit validation and color pool handling."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_add_thinkers_when_at_max_limit(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -213,7 +206,6 @@ class TestAddThinkersValidation:
         assert "5/5 thinkers" in error_detail
         assert "Maximum is 5" in error_detail
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_add_thinkers_when_color_pool_exhausted(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -271,7 +263,6 @@ class TestAddThinkersValidation:
 class TestSendMessageIdlePause:
     """Test send_message auto-resume from idle pause."""
 
-    @pytest.mark.asyncio
     @patch("app.services.thinker.thinker_service.is_idle_paused")
     @patch("app.services.thinker.thinker_service.resume_from_idle")
     @patch("app.api.websocket.manager.broadcast_to_conversation")

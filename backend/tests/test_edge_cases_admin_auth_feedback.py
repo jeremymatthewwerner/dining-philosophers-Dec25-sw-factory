@@ -4,7 +4,6 @@ Focus: Boundary conditions, error paths, and security edge cases.
 Saturday QA focus: Edge case analysis - test error paths and boundary conditions.
 """
 
-import pytest
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import update
@@ -17,7 +16,6 @@ from tests.conftest import get_auth_headers, register_and_get_token
 class TestAdminEdgeCases:
     """Edge case tests for admin API operations."""
 
-    @pytest.mark.asyncio
     async def test_update_spend_limit_with_negative_value(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -60,7 +58,6 @@ class TestAdminEdgeCases:
         # Should be rejected with 422 (validation error)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    @pytest.mark.asyncio
     async def test_update_spend_limit_with_zero(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -102,7 +99,6 @@ class TestAdminEdgeCases:
         # Should be rejected with 422 (validation error - must be > 0)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    @pytest.mark.asyncio
     async def test_update_spend_limit_with_extremely_large_value(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -146,7 +142,6 @@ class TestAdminEdgeCases:
         data = response.json()
         assert data["spend_limit"] == large_limit
 
-    @pytest.mark.asyncio
     async def test_list_users_when_no_users_exist(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -186,7 +181,6 @@ class TestAdminEdgeCases:
         assert len(admin_in_list) == 1
         assert admin_in_list[0]["is_admin"] is True
 
-    @pytest.mark.asyncio
     async def test_admin_cannot_delete_own_account(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -226,7 +220,6 @@ class TestAdminEdgeCases:
 class TestAuthEdgeCases:
     """Edge case tests for authentication API."""
 
-    @pytest.mark.asyncio
     async def test_register_with_empty_password(self, client: AsyncClient) -> None:
         """Test that empty passwords are rejected.
 
@@ -247,7 +240,6 @@ class TestAuthEdgeCases:
             status.HTTP_400_BAD_REQUEST,
         ]
 
-    @pytest.mark.asyncio
     async def test_register_with_extremely_long_username(self, client: AsyncClient) -> None:
         """Test that extremely long usernames (>255 chars) are handled.
 
@@ -273,7 +265,6 @@ class TestAuthEdgeCases:
             status.HTTP_500_INTERNAL_SERVER_ERROR,
         ]
 
-    @pytest.mark.asyncio
     async def test_login_with_username_containing_null_bytes(self, client: AsyncClient) -> None:
         """Test that null bytes in username are handled safely.
 
@@ -290,7 +281,6 @@ class TestAuthEdgeCases:
         # Should return 401 (invalid credentials) not crash
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    @pytest.mark.asyncio
     async def test_register_with_whitespace_only_username(self, client: AsyncClient) -> None:
         """Test that whitespace-only usernames are accepted (API allows it).
 
@@ -312,7 +302,6 @@ class TestAuthEdgeCases:
 class TestFeedbackEdgeCases:
     """Edge case tests for feedback API."""
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_with_extremely_long_text(self, client: AsyncClient) -> None:
         """Test submitting feedback with 50,000+ characters.
 
@@ -337,7 +326,6 @@ class TestFeedbackEdgeCases:
         # The feedback schema has max_length=5000 for message field
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_with_special_characters(self, client: AsyncClient) -> None:
         """Test feedback with special characters, emojis, and unicode.
 
@@ -372,7 +360,6 @@ class TestFeedbackEdgeCases:
         assert "id" in data
         assert "message" in data
 
-    @pytest.mark.asyncio
     async def test_submit_feedback_with_only_whitespace(self, client: AsyncClient) -> None:
         """Test submitting feedback that is only whitespace.
 
@@ -398,7 +385,6 @@ class TestFeedbackEdgeCases:
 class TestConversationEdgeCases:
     """Additional edge case tests for conversations API."""
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_empty_topic(self, client: AsyncClient) -> None:
         """Test creating conversation with empty string topic.
 
@@ -433,7 +419,6 @@ class TestConversationEdgeCases:
             status.HTTP_400_BAD_REQUEST,
         ]
 
-    @pytest.mark.asyncio
     async def test_list_conversations_cost_calculation_with_null_costs(
         self, client: AsyncClient
     ) -> None:
@@ -475,7 +460,6 @@ class TestConversationEdgeCases:
         # total_cost should be 0.0 when no messages or all null costs
         assert our_conv[0]["total_cost"] == 0.0
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_with_all_default_colors(self, client: AsyncClient) -> None:
         """Test adding multiple thinkers all with default color.
 

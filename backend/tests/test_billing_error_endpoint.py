@@ -1,10 +1,8 @@
 """Unit test to verify test helper endpoint exists and works correctly."""
 
-import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
 async def test_billing_error_endpoint_exists(client: AsyncClient) -> None:
     """Test that /api/test/billing-error endpoint exists and raises BillingError."""
     # Act: Call the test endpoint
@@ -21,7 +19,6 @@ async def test_billing_error_endpoint_exists(client: AsyncClient) -> None:
     assert "unavailable" in detail
 
 
-@pytest.mark.asyncio
 async def test_billing_error_handler_returns_proper_response(client: AsyncClient) -> None:
     """Test that BillingError exception handler returns proper 503 response."""
     # Act: Call endpoint that raises BillingError

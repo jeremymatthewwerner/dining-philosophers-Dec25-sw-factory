@@ -4,7 +4,6 @@ Focus: Testing error conditions, race scenarios, and boundary cases for conversa
 Saturday QA focus: Edge case analysis - test error paths and boundary conditions.
 """
 
-import pytest
 from fastapi import status
 from httpx import AsyncClient
 
@@ -19,7 +18,6 @@ from tests.conftest import (
 class TestConversationCreationEdgeCases:
     """Test edge cases when creating conversations."""
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_no_thinkers(self, client: AsyncClient) -> None:
         """Test that creating a conversation with empty thinkers list is rejected.
 
@@ -41,7 +39,6 @@ class TestConversationCreationEdgeCases:
         # Should be rejected with validation error
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_too_many_thinkers(self, client: AsyncClient) -> None:
         """Test creating conversation with more than maximum allowed thinkers.
 
@@ -76,7 +73,6 @@ class TestConversationCreationEdgeCases:
             status.HTTP_422_UNPROCESSABLE_CONTENT,
         ]
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_duplicate_thinker_names(
         self, client: AsyncClient
     ) -> None:
@@ -117,7 +113,6 @@ class TestConversationCreationEdgeCases:
         data = assert_success_response(response, status.HTTP_200_OK, ["thinkers"])
         assert len(data["thinkers"]) == 2
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_very_long_topic(self, client: AsyncClient) -> None:
         """Test creating conversation with extremely long topic (5000+ chars).
 
@@ -150,7 +145,6 @@ class TestConversationCreationEdgeCases:
             status.HTTP_422_UNPROCESSABLE_CONTENT,
         ]
 
-    @pytest.mark.asyncio
     async def test_create_conversation_with_special_characters_in_thinker_fields(
         self, client: AsyncClient
     ) -> None:
@@ -189,7 +183,6 @@ class TestConversationCreationEdgeCases:
 class TestConversationRetrievalEdgeCases:
     """Test edge cases when retrieving conversations."""
 
-    @pytest.mark.asyncio
     async def test_get_nonexistent_conversation_different_user(self, client: AsyncClient) -> None:
         """Test accessing another user's conversation returns 404.
 
@@ -227,7 +220,6 @@ class TestConversationRetrievalEdgeCases:
         # This prevents information disclosure about conversation existence
         assert_error_response(response, status.HTTP_404_NOT_FOUND)
 
-    @pytest.mark.asyncio
     async def test_list_conversations_when_session_has_none(self, client: AsyncClient) -> None:
         """Test listing conversations when user has no conversations.
 
@@ -241,7 +233,6 @@ class TestConversationRetrievalEdgeCases:
         assert isinstance(data, list)
         assert len(data) == 0
 
-    @pytest.mark.asyncio
     async def test_get_conversation_after_session_expired(self, client: AsyncClient) -> None:
         """Test accessing conversation with expired/invalid token.
 
@@ -260,7 +251,6 @@ class TestConversationRetrievalEdgeCases:
 class TestConversationDeletionEdgeCases:
     """Test edge cases when deleting conversations."""
 
-    @pytest.mark.asyncio
     async def test_delete_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test deleting a conversation that doesn't exist.
 
@@ -276,7 +266,6 @@ class TestConversationDeletionEdgeCases:
         # Should return 404
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_with_many_messages(self, client: AsyncClient) -> None:
         """Test deleting conversation with many associated messages.
 
@@ -320,7 +309,6 @@ class TestConversationDeletionEdgeCases:
 class TestMessageCreationEdgeCases:
     """Test edge cases when creating messages in conversations."""
 
-    @pytest.mark.asyncio
     async def test_create_message_with_empty_content(self, client: AsyncClient) -> None:
         """Test creating message with empty content string.
 
@@ -359,7 +347,6 @@ class TestMessageCreationEdgeCases:
         # Should be rejected with validation error
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    @pytest.mark.asyncio
     async def test_create_message_with_extremely_long_content(self, client: AsyncClient) -> None:
         """Test creating message with 100k+ character content.
 
@@ -403,7 +390,6 @@ class TestMessageCreationEdgeCases:
             status.HTTP_422_UNPROCESSABLE_CONTENT,
         ]
 
-    @pytest.mark.asyncio
     async def test_create_message_in_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test creating message in conversation that doesn't exist.
 

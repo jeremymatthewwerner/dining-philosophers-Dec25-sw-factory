@@ -1,6 +1,5 @@
 """Integration tests for conversation API gaps - QA Agent Jan 28, 2026."""
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +11,6 @@ from tests.conftest import get_auth_headers
 class TestListConversationsIntegration:
     """Test list_conversations endpoint integration (lines 85-105)."""
 
-    @pytest.mark.asyncio
     async def test_list_conversations_message_count_accuracy(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -61,7 +59,6 @@ class TestListConversationsIntegration:
         actual_messages = result.scalars().all()
         assert len(actual_messages) == 3
 
-    @pytest.mark.asyncio
     async def test_list_conversations_cost_aggregation(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -121,7 +118,6 @@ class TestListConversationsIntegration:
         # Total should be 0.0015 + 0.0025 + 0.0010 = 0.0050
         assert abs(conversations[0]["total_cost"] - 0.0050) < 0.0001
 
-    @pytest.mark.asyncio
     async def test_list_conversations_with_zero_cost_messages(self, client: AsyncClient) -> None:
         """Verify total_cost handles None and zero costs correctly."""
         auth_headers = await get_auth_headers(client)
@@ -164,7 +160,6 @@ class TestListConversationsIntegration:
 class TestGetConversationIntegration:
     """Test get_conversation endpoint error handling (lines 126-129)."""
 
-    @pytest.mark.asyncio
     async def test_get_conversation_not_found(self, client: AsyncClient) -> None:
         """Verify 404 is returned when conversation doesn't exist."""
         auth_headers = await get_auth_headers(client)
@@ -175,7 +170,6 @@ class TestGetConversationIntegration:
         assert response.status_code == 404
         assert response.json()["detail"] == "Conversation not found"
 
-    @pytest.mark.asyncio
     async def test_get_conversation_belongs_to_different_session(self, client: AsyncClient) -> None:
         """Verify 404 when trying to access another session's conversation."""
         # Create first user and conversation
@@ -208,7 +202,6 @@ class TestGetConversationIntegration:
 class TestDeleteConversationIntegration:
     """Test delete_conversation cascade behavior (lines 145-151)."""
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_cascades_messages(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -264,7 +257,6 @@ class TestDeleteConversationIntegration:
         messages_after = result.scalars().all()
         assert len(messages_after) == 0
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_not_found(self, client: AsyncClient) -> None:
         """Verify 404 when trying to delete non-existent conversation."""
         auth_headers = await get_auth_headers(client)
@@ -278,7 +270,6 @@ class TestDeleteConversationIntegration:
 class TestCreateConversationColorDistribution:
     """Test create_conversation color assignment (lines 46-61)."""
 
-    @pytest.mark.asyncio
     async def test_create_conversation_color_distribution(self, client: AsyncClient) -> None:
         """Verify colors are distributed correctly when creating conversation with multiple thinkers."""
         auth_headers = await get_auth_headers(client)
@@ -313,7 +304,6 @@ class TestCreateConversationColorDistribution:
         for color in colors:
             assert color in expected_colors
 
-    @pytest.mark.asyncio
     async def test_create_conversation_respects_custom_colors(self, client: AsyncClient) -> None:
         """Verify custom colors are preserved when provided."""
         auth_headers = await get_auth_headers(client)
@@ -362,7 +352,6 @@ class TestCreateConversationColorDistribution:
 class TestAddThinkersRefreshBehavior:
     """Test add_thinkers refresh after db.flush (lines 216-220)."""
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_refresh_sets_ids_and_timestamps(self, client: AsyncClient) -> None:
         """Verify new thinkers have IDs and timestamps after being added."""
         auth_headers = await get_auth_headers(client)
@@ -417,7 +406,6 @@ class TestAddThinkersRefreshBehavior:
         assert new_thinker["name"] == "Hume"
         assert new_thinker["bio"] == "Skeptic"
 
-    @pytest.mark.asyncio
     async def test_add_multiple_thinkers_all_have_unique_ids(self, client: AsyncClient) -> None:
         """Verify multiple thinkers added at once all get unique IDs."""
         auth_headers = await get_auth_headers(client)

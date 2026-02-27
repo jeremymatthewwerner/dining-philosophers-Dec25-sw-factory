@@ -1,6 +1,5 @@
 """Tests for spend tracking service."""
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conversation import Conversation
@@ -10,14 +9,12 @@ from app.models.user import User
 from app.services.spend import can_user_spend, check_spend_limit, get_user_spend_data
 
 
-@pytest.mark.asyncio
 async def test_get_user_spend_data_user_not_found(db_session: AsyncSession) -> None:
     """Test that None is returned when user doesn't exist."""
     result = await get_user_spend_data(db_session, "nonexistent-user-id")
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_get_user_spend_data_user_with_no_sessions(
     db_session: AsyncSession,
 ) -> None:
@@ -42,7 +39,6 @@ async def test_get_user_spend_data_user_with_no_sessions(
     assert result.conversations == []
 
 
-@pytest.mark.asyncio
 async def test_get_user_spend_data_user_with_sessions_no_conversations(
     db_session: AsyncSession,
 ) -> None:
@@ -68,7 +64,6 @@ async def test_get_user_spend_data_user_with_sessions_no_conversations(
     assert result.conversations == []
 
 
-@pytest.mark.asyncio
 async def test_get_user_spend_data_user_with_conversations_no_messages(
     db_session: AsyncSession,
 ) -> None:
@@ -101,7 +96,6 @@ async def test_get_user_spend_data_user_with_conversations_no_messages(
     assert result.conversations[0].message_count == 0
 
 
-@pytest.mark.asyncio
 async def test_get_user_spend_data_with_message_costs(
     db_session: AsyncSession,
 ) -> None:
@@ -156,7 +150,6 @@ async def test_get_user_spend_data_with_message_costs(
     assert result.sessions[0].total_spend == 0.35
 
 
-@pytest.mark.asyncio
 async def test_get_user_spend_data_multiple_sessions_and_conversations(
     db_session: AsyncSession,
 ) -> None:
@@ -218,14 +211,12 @@ async def test_get_user_spend_data_multiple_sessions_and_conversations(
 # Spend limit checking tests
 
 
-@pytest.mark.asyncio
 async def test_check_spend_limit_user_not_found(db_session: AsyncSession) -> None:
     """Test check_spend_limit returns None for non-existent user."""
     result = await check_spend_limit(db_session, "nonexistent-user")
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_check_spend_limit_under_limit(db_session: AsyncSession) -> None:
     """Test user under spend limit."""
     user = User(
@@ -249,7 +240,6 @@ async def test_check_spend_limit_under_limit(db_session: AsyncSession) -> None:
     assert result.percentage_used == 50.0
 
 
-@pytest.mark.asyncio
 async def test_check_spend_limit_at_limit(db_session: AsyncSession) -> None:
     """Test user at exactly their spend limit."""
     user = User(
@@ -271,7 +261,6 @@ async def test_check_spend_limit_at_limit(db_session: AsyncSession) -> None:
     assert result.percentage_used == 100.0
 
 
-@pytest.mark.asyncio
 async def test_check_spend_limit_over_limit(db_session: AsyncSession) -> None:
     """Test user over their spend limit."""
     user = User(
@@ -293,7 +282,6 @@ async def test_check_spend_limit_over_limit(db_session: AsyncSession) -> None:
     assert result.percentage_used == 100.0  # Capped at 100
 
 
-@pytest.mark.asyncio
 async def test_check_spend_limit_near_limit(db_session: AsyncSession) -> None:
     """Test user near (85%+) their spend limit."""
     user = User(
@@ -315,7 +303,6 @@ async def test_check_spend_limit_near_limit(db_session: AsyncSession) -> None:
     assert result.percentage_used == 85.0
 
 
-@pytest.mark.asyncio
 async def test_can_user_spend_under_limit(db_session: AsyncSession) -> None:
     """Test can_user_spend returns True when under limit."""
     user = User(
@@ -332,7 +319,6 @@ async def test_can_user_spend_under_limit(db_session: AsyncSession) -> None:
     assert result is True
 
 
-@pytest.mark.asyncio
 async def test_can_user_spend_at_limit(db_session: AsyncSession) -> None:
     """Test can_user_spend returns False when at limit."""
     user = User(
@@ -349,7 +335,6 @@ async def test_can_user_spend_at_limit(db_session: AsyncSession) -> None:
     assert result is False
 
 
-@pytest.mark.asyncio
 async def test_can_user_spend_user_not_found(db_session: AsyncSession) -> None:
     """Test can_user_spend returns False for non-existent user."""
     result = await can_user_spend(db_session, "nonexistent-user")

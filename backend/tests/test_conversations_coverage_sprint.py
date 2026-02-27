@@ -11,7 +11,6 @@ Focus areas:
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
@@ -20,7 +19,6 @@ from tests.conftest import get_auth_headers
 class TestConversationColorAssignment:
     """Test color assignment logic when creating conversations."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_create_with_default_color_uses_color_array(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -74,7 +72,6 @@ class TestConversationColorAssignment:
         # All should be unique
         assert len(set(colors)) == 3
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_create_with_custom_color_preserves_it(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -112,7 +109,6 @@ class TestConversationColorAssignment:
 class TestListConversationsWithData:
     """Test list_conversations with message counts and costs."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_list_shows_message_counts_and_costs(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -167,7 +163,6 @@ class TestListConversationsWithData:
         # User messages have no cost
         assert our_conv["total_cost"] == 0.0
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_list_with_multiple_conversations_all_have_counts(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -241,7 +236,6 @@ class TestListConversationsWithData:
 class TestSendMessageWithDisplayName:
     """Test send_message uses display_name correctly."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_send_message_uses_display_name_when_set(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -295,7 +289,6 @@ class TestSendMessageWithDisplayName:
         assert message["sender_name"] == "Display Name"
         assert message["sender_name"] != "test_display"
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_send_message_falls_back_to_username(
         self, mock_trigger: MagicMock, client: AsyncClient

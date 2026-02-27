@@ -282,7 +282,6 @@ class TestDevOpsAPIErrorHandling:
 class TestThinkerServiceEdgeCases:
     """Test thinker service edge cases (71% coverage → improve)."""
 
-    @pytest.mark.asyncio
     async def test_extract_mentions_with_edge_case_patterns(self) -> None:
         """Test mention extraction with edge case text patterns."""
         from app.services.thinker import extract_mentions
@@ -310,7 +309,6 @@ class TestThinkerServiceEdgeCases:
             if text in ["", "@"]:
                 assert len(mentions) == 0
 
-    @pytest.mark.asyncio
     async def test_generate_response_with_api_timeout(self) -> None:
         """Test that generate_response handles API timeouts by raising ThinkerAPIError."""
         from app.exceptions import ThinkerAPIError

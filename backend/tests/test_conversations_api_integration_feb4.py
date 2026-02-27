@@ -1,6 +1,5 @@
 """Integration tests for conversation API endpoints - QA Agent Wednesday Feb 4."""
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
@@ -9,7 +8,6 @@ from tests.conftest import get_auth_headers
 class TestListConversations:
     """Test GET /api/conversations - list conversations for session."""
 
-    @pytest.mark.asyncio
     async def test_list_conversations_empty(self, client: AsyncClient) -> None:
         """List conversations should return empty array when no conversations exist."""
         auth_headers = await get_auth_headers(client)
@@ -20,7 +18,6 @@ class TestListConversations:
         assert isinstance(conversations, list)
         assert len(conversations) == 0
 
-    @pytest.mark.asyncio
     async def test_list_conversations_with_data(self, client: AsyncClient) -> None:
         """List conversations should return all conversations for the session."""
         auth_headers = await get_auth_headers(client)
@@ -82,7 +79,6 @@ class TestListConversations:
             assert "total_cost" in conv
             assert "created_at" in conv
 
-    @pytest.mark.asyncio
     async def test_list_conversations_with_messages_shows_count(self, client: AsyncClient) -> None:
         """List conversations should include accurate message counts."""
         auth_headers = await get_auth_headers(client)
@@ -122,7 +118,6 @@ class TestListConversations:
         assert len(conversations) == 1
         assert conversations[0]["message_count"] == 3
 
-    @pytest.mark.asyncio
     async def test_list_conversations_ordered_by_created_at_desc(self, client: AsyncClient) -> None:
         """List conversations should be ordered newest first."""
         auth_headers = await get_auth_headers(client)
@@ -165,7 +160,6 @@ class TestListConversations:
 class TestGetConversation:
     """Test GET /api/conversations/{id} - get conversation with messages."""
 
-    @pytest.mark.asyncio
     async def test_get_conversation_success(self, client: AsyncClient) -> None:
         """Get conversation should return full conversation with messages and thinkers."""
         auth_headers = await get_auth_headers(client)
@@ -211,7 +205,6 @@ class TestGetConversation:
         assert len(conversation["messages"]) == 1
         assert conversation["messages"][0]["content"] == "What is falsifiability?"
 
-    @pytest.mark.asyncio
     async def test_get_conversation_not_found(self, client: AsyncClient) -> None:
         """Get conversation should return 404 for non-existent conversation."""
         auth_headers = await get_auth_headers(client)
@@ -220,7 +213,6 @@ class TestGetConversation:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_get_conversation_different_session_not_authorized(
         self, client: AsyncClient
     ) -> None:
@@ -258,7 +250,6 @@ class TestGetConversation:
 class TestDeleteConversation:
     """Test DELETE /api/conversations/{id} - delete conversation."""
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_success(self, client: AsyncClient) -> None:
         """Delete conversation should remove conversation and return success status."""
         auth_headers = await get_auth_headers(client)
@@ -291,7 +282,6 @@ class TestDeleteConversation:
         get_response = await client.get(f"/api/conversations/{conv_id}", headers=auth_headers)
         assert get_response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_not_found(self, client: AsyncClient) -> None:
         """Delete conversation should return 404 for non-existent conversation."""
         auth_headers = await get_auth_headers(client)
@@ -300,7 +290,6 @@ class TestDeleteConversation:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_delete_conversation_cascades_to_messages(self, client: AsyncClient) -> None:
         """Deleting conversation should also delete all messages."""
         auth_headers = await get_auth_headers(client)
@@ -344,7 +333,6 @@ class TestDeleteConversation:
 class TestUpdateConversationThinkers:
     """Test PUT /api/conversations/{id}/thinkers - add thinkers to conversation."""
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_success(self, client: AsyncClient) -> None:
         """Add thinkers should add new thinkers to existing conversation."""
         auth_headers = await get_auth_headers(client)
@@ -399,7 +387,6 @@ class TestUpdateConversationThinkers:
         conversation = get_response.json()
         assert len(conversation["thinkers"]) == 3
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_exceeds_max_limit(self, client: AsyncClient) -> None:
         """Add thinkers should reject if total exceeds 5 thinkers."""
         auth_headers = await get_auth_headers(client)
@@ -431,7 +418,6 @@ class TestUpdateConversationThinkers:
         assert response.status_code == 400
         assert "maximum" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_assigns_unique_colors(self, client: AsyncClient) -> None:
         """Add thinkers should assign colors from available pool."""
         auth_headers = await get_auth_headers(client)
@@ -467,7 +453,6 @@ class TestUpdateConversationThinkers:
         # Verify new thinker has a different color
         assert new_thinker["color"] not in existing_colors
 
-    @pytest.mark.asyncio
     async def test_add_thinkers_conversation_not_found(self, client: AsyncClient) -> None:
         """Add thinkers should return 404 for non-existent conversation."""
         auth_headers = await get_auth_headers(client)
@@ -484,7 +469,6 @@ class TestUpdateConversationThinkers:
 class TestSendMessage:
     """Test POST /api/conversations/{id}/messages - send user message."""
 
-    @pytest.mark.asyncio
     async def test_send_message_success(self, client: AsyncClient) -> None:
         """Send message should create message and return message data."""
         auth_headers = await get_auth_headers(client)
@@ -518,7 +502,6 @@ class TestSendMessage:
         assert "sender_name" in message
         assert "created_at" in message
 
-    @pytest.mark.asyncio
     async def test_send_message_empty_content(self, client: AsyncClient) -> None:
         """Send message should accept empty content (validation at API level)."""
         auth_headers = await get_auth_headers(client)
@@ -546,7 +529,6 @@ class TestSendMessage:
         # Should be rejected at schema validation level (422)
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_send_message_conversation_not_found(self, client: AsyncClient) -> None:
         """Send message should return 404 for non-existent conversation."""
         auth_headers = await get_auth_headers(client)
@@ -559,7 +541,6 @@ class TestSendMessage:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_send_message_uses_display_name(self, client: AsyncClient) -> None:
         """Send message should use user's display name if set."""
         # Create user with display name via profile update

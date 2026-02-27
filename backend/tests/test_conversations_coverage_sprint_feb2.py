@@ -14,7 +14,6 @@ Focus areas:
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import get_auth_headers
@@ -23,7 +22,6 @@ from tests.conftest import get_auth_headers
 class TestCreateConversationColorCycling:
     """Test thinker color assignment cycles through available colors."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_create_conversation_assigns_colors_from_palette(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -68,7 +66,6 @@ class TestCreateConversationColorCycling:
         for color in assigned_colors:
             assert color in expected_colors
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_create_conversation_respects_custom_colors(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -105,7 +102,6 @@ class TestCreateConversationColorCycling:
 class TestListConversationsWithMessageCosts:
     """Test that list_conversations calculates message counts and costs correctly."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     @patch("app.services.thinker.thinker_service.generate_response_with_streaming_thinking")
     async def test_list_conversations_calculates_total_cost(
@@ -159,7 +155,6 @@ class TestListConversationsWithMessageCosts:
         assert "total_cost" in our_conv
         assert isinstance(our_conv["total_cost"], (int, float))
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_list_conversations_includes_all_summary_fields(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -214,7 +209,6 @@ class TestListConversationsWithMessageCosts:
 class TestDeleteConversationSuccess:
     """Test successful conversation deletion."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_delete_conversation_returns_status_deleted(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -262,7 +256,6 @@ class TestDeleteConversationSuccess:
 class TestAddThinkersMaxLimitValidation:
     """Test that add_thinkers validates maximum thinker limit."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_add_thinkers_rejects_when_exceeds_limit(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -318,7 +311,6 @@ class TestAddThinkersMaxLimitValidation:
         assert "3/5 thinkers" in add_response.json()["detail"]
         assert "Maximum is 5 total" in add_response.json()["detail"]
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_add_thinkers_allows_up_to_limit(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -372,7 +364,6 @@ class TestAddThinkersMaxLimitValidation:
 class TestAddThinkersColorAvoidance:
     """Test that add_thinkers avoids duplicate colors."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_add_thinkers_avoids_existing_colors(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -448,7 +439,6 @@ class TestAddThinkersColorAvoidance:
         for color in new_colors:
             assert color in all_colors
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_add_thinkers_preserves_custom_colors(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -502,7 +492,6 @@ class TestAddThinkersColorAvoidance:
 class TestAddThinkersTriggersResearch:
     """Test that adding thinkers triggers knowledge research."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_add_thinkers_calls_trigger_research(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -565,7 +554,6 @@ class TestAddThinkersTriggersResearch:
 class TestSendMessageAutoResume:
     """Test that send_message auto-resumes idle-paused conversations."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     @patch("app.services.thinker.thinker_service.is_idle_paused")
     @patch("app.services.thinker.thinker_service.resume_from_idle")
@@ -618,7 +606,6 @@ class TestSendMessageAutoResume:
         mock_is_idle.assert_called_once_with(conversation_id)
         mock_resume.assert_called_once_with(conversation_id)
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     @patch("app.services.thinker.thinker_service.is_idle_paused")
     @patch("app.services.thinker.thinker_service.resume_from_idle")
@@ -669,7 +656,6 @@ class TestSendMessageAutoResume:
 class TestSendMessageDisplayName:
     """Test that send_message uses user's display name."""
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_send_message_uses_display_name_when_available(
         self, mock_trigger: MagicMock, client: AsyncClient
@@ -739,7 +725,6 @@ class TestSendMessageDisplayName:
         message = msg_response.json()
         assert message["sender_name"] == display_name
 
-    @pytest.mark.asyncio
     @patch("app.services.knowledge_research.knowledge_service.trigger_research")
     async def test_send_message_falls_back_to_username(
         self, mock_trigger: MagicMock, client: AsyncClient

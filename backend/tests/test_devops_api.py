@@ -7,7 +7,6 @@ including authentication, stats retrieval, and cleanup operations.
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +24,6 @@ TEST_DEVOPS_SECRET = "test-devops-secret"
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_devops_health_with_valid_secret(client: AsyncClient) -> None:
     """Test DevOps health endpoint with valid secret."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -42,7 +40,6 @@ async def test_devops_health_with_valid_secret(client: AsyncClient) -> None:
         assert data["service"] == "devops-api"
 
 
-@pytest.mark.asyncio
 async def test_devops_health_without_secret(client: AsyncClient) -> None:
     """Test DevOps health endpoint without secret header (403)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -54,7 +51,6 @@ async def test_devops_health_without_secret(client: AsyncClient) -> None:
         assert "Invalid or missing" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_devops_health_with_invalid_secret(client: AsyncClient) -> None:
     """Test DevOps health endpoint with wrong secret (403)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -69,7 +65,6 @@ async def test_devops_health_with_invalid_secret(client: AsyncClient) -> None:
         assert "Invalid or missing" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_devops_health_not_configured(client: AsyncClient) -> None:
     """Test DevOps health endpoint when DEVOPS_API_SECRET not set (503)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -89,7 +84,6 @@ async def test_devops_health_not_configured(client: AsyncClient) -> None:
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_stats_with_valid_secret(client: AsyncClient) -> None:
     """Test stats endpoint with valid secret returns database counts."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -150,7 +144,6 @@ async def test_stats_with_valid_secret(client: AsyncClient) -> None:
         assert data["conversations"] > 0
 
 
-@pytest.mark.asyncio
 async def test_stats_without_secret(client: AsyncClient) -> None:
     """Test stats endpoint without secret header (403)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -161,7 +154,6 @@ async def test_stats_without_secret(client: AsyncClient) -> None:
         assert response.status_code == 403
 
 
-@pytest.mark.asyncio
 async def test_stats_with_invalid_secret(client: AsyncClient) -> None:
     """Test stats endpoint with wrong secret (403)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -180,7 +172,6 @@ async def test_stats_with_invalid_secret(client: AsyncClient) -> None:
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_cleanup_stale_sessions_dry_run(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -221,7 +212,6 @@ async def test_cleanup_stale_sessions_dry_run(
         assert len(sessions_after) == count_before + 1  # Still has the old session
 
 
-@pytest.mark.asyncio
 async def test_cleanup_stale_sessions_actually_deletes(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -267,7 +257,6 @@ async def test_cleanup_stale_sessions_actually_deletes(
         assert count_after < count_before
 
 
-@pytest.mark.asyncio
 async def test_cleanup_stale_sessions_respects_threshold(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -324,7 +313,6 @@ async def test_cleanup_stale_sessions_respects_threshold(
         assert recent_found, "Recent session was incorrectly deleted"
 
 
-@pytest.mark.asyncio
 async def test_cleanup_stale_sessions_without_secret(client: AsyncClient) -> None:
     """Test stale session cleanup without secret (403)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -340,7 +328,6 @@ async def test_cleanup_stale_sessions_without_secret(client: AsyncClient) -> Non
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_cleanup_orphans_dry_run(client: AsyncClient, async_session: AsyncSession) -> None:
     """Test orphan cleanup with dry_run=True (preview mode)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -369,7 +356,6 @@ async def test_cleanup_orphans_dry_run(client: AsyncClient, async_session: Async
         assert conv_count_after == conv_count_before
 
 
-@pytest.mark.asyncio
 async def test_cleanup_orphans_deletes_orphaned_conversations(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -424,7 +410,6 @@ async def test_cleanup_orphans_deletes_orphaned_conversations(
         assert deleted_conversation is None
 
 
-@pytest.mark.asyncio
 async def test_cleanup_orphans_deletes_orphaned_messages(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -475,7 +460,6 @@ async def test_cleanup_orphans_deletes_orphaned_messages(
         assert deleted_msg is None
 
 
-@pytest.mark.asyncio
 async def test_cleanup_orphans_without_secret(client: AsyncClient) -> None:
     """Test orphan cleanup without secret (403)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -491,7 +475,6 @@ async def test_cleanup_orphans_without_secret(client: AsyncClient) -> None:
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_cleanup_test_users_dry_run(client: AsyncClient, async_session: AsyncSession) -> None:
     """Test test user cleanup with dry_run=True (preview mode)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -535,7 +518,6 @@ async def test_cleanup_test_users_dry_run(client: AsyncClient, async_session: As
         assert user is not None, "Dry run should not delete users"
 
 
-@pytest.mark.asyncio
 async def test_cleanup_test_users_actually_deletes(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -584,7 +566,6 @@ async def test_cleanup_test_users_actually_deletes(
         assert result.scalar_one_or_none() is None
 
 
-@pytest.mark.asyncio
 async def test_cleanup_test_users_spares_regular_users(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -624,7 +605,6 @@ async def test_cleanup_test_users_spares_regular_users(
         assert regular is not None, "Regular user was incorrectly deleted"
 
 
-@pytest.mark.asyncio
 async def test_cleanup_test_users_cascades_sessions(
     client: AsyncClient, async_session: AsyncSession
 ) -> None:
@@ -670,7 +650,6 @@ async def test_cleanup_test_users_cascades_sessions(
         assert result.scalar_one_or_none() is None
 
 
-@pytest.mark.asyncio
 async def test_cleanup_test_users_without_secret(client: AsyncClient) -> None:
     """Test test user cleanup without secret (403)."""
     with patch("app.api.devops.get_settings") as mock_settings:
@@ -681,7 +660,6 @@ async def test_cleanup_test_users_without_secret(client: AsyncClient) -> None:
         assert response.status_code == 403
 
 
-@pytest.mark.asyncio
 async def test_cleanup_test_users_no_matches(client: AsyncClient) -> None:
     """Test test user cleanup when no users match the patterns."""
     with patch("app.api.devops.get_settings") as mock_settings:

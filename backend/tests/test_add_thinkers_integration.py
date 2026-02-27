@@ -9,7 +9,6 @@ Issue: #485 (QA Agent integration-gaps focus)
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 from tests.conftest import create_thinker_input, get_auth_headers
@@ -18,7 +17,6 @@ from tests.conftest import create_thinker_input, get_auth_headers
 class TestAddThinkersToConversation:
     """Test suite for adding thinkers to existing conversations."""
 
-    @pytest.mark.asyncio
     async def test_add_single_thinker_to_conversation(self, client: AsyncClient) -> None:
         """Test adding a single thinker to a conversation with existing thinkers."""
         # Create conversation with 2 thinkers
@@ -71,7 +69,6 @@ class TestAddThinkersToConversation:
         conversation = get_response.json()
         assert len(conversation["thinkers"]) == 3
 
-    @pytest.mark.asyncio
     async def test_add_multiple_thinkers_to_conversation(self, client: AsyncClient) -> None:
         """Test adding multiple thinkers at once."""
         headers = await get_auth_headers(client, "add2user", "password123")
@@ -113,7 +110,6 @@ class TestAddThinkersToConversation:
         # Verify knowledge research was triggered for both
         assert mock_service.trigger_research.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_add_thinker_assigns_unique_colors(self, client: AsyncClient) -> None:
         """Test that added thinkers get unique colors not used by existing thinkers."""
         headers = await get_auth_headers(client, "add3user", "password123")
@@ -152,7 +148,6 @@ class TestAddThinkersToConversation:
         # Verify the new thinker got a unique color
         assert new_thinker["color"] not in existing_colors
 
-    @pytest.mark.asyncio
     async def test_add_thinker_preserves_custom_color(self, client: AsyncClient) -> None:
         """Test that custom colors are preserved when adding thinkers."""
         headers = await get_auth_headers(client, "add4user", "password123")
@@ -192,7 +187,6 @@ class TestAddThinkersToConversation:
         # Verify custom color was preserved
         assert new_thinker["color"] == custom_color
 
-    @pytest.mark.asyncio
     async def test_add_thinker_at_max_limit(self, client: AsyncClient) -> None:
         """Test adding thinker when at exactly 4 existing (reaches max 5)."""
         headers = await get_auth_headers(client, "add5user", "password123")
@@ -237,7 +231,6 @@ class TestAddThinkersToConversation:
         assert get_response.status_code == 200
         assert len(get_response.json()["thinkers"]) == 5
 
-    @pytest.mark.asyncio
     async def test_add_thinker_exceeds_max_limit(self, client: AsyncClient) -> None:
         """Test that adding thinker when at 5 limit fails with 400."""
         headers = await get_auth_headers(client, "add6user", "password123")
@@ -275,7 +268,6 @@ class TestAddThinkersToConversation:
         assert "5" in error_detail  # Error mentions the limit
         assert "Cannot add" in error_detail
 
-    @pytest.mark.asyncio
     async def test_add_thinker_to_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test adding thinker to non-existent conversation returns 404."""
         headers = await get_auth_headers(client, "add7user", "password123")
@@ -293,7 +285,6 @@ class TestAddThinkersToConversation:
         assert add_response.status_code == 404
         assert "not found" in add_response.json()["detail"].lower()
 
-    @pytest.mark.asyncio
     async def test_add_thinker_to_other_users_conversation(self, client: AsyncClient) -> None:
         """Test that users cannot add thinkers to other users' conversations."""
         # User A creates conversation

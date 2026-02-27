@@ -2,11 +2,9 @@
 
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_success(client: AsyncClient) -> None:
     """Test successful feedback submission."""
     response = await client.post(
@@ -26,7 +24,6 @@ async def test_submit_feedback_success(client: AsyncClient) -> None:
     assert "Thank you" in data["message"]
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_minimal(client: AsyncClient) -> None:
     """Test feedback submission with only required fields."""
     response = await client.post(
@@ -41,7 +38,6 @@ async def test_submit_feedback_minimal(client: AsyncClient) -> None:
     assert "id" in data
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_feature_request(client: AsyncClient) -> None:
     """Test feature request feedback type."""
     response = await client.post(
@@ -55,7 +51,6 @@ async def test_submit_feedback_feature_request(client: AsyncClient) -> None:
     assert response.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_other_type(client: AsyncClient) -> None:
     """Test 'other' feedback type."""
     response = await client.post(
@@ -69,7 +64,6 @@ async def test_submit_feedback_other_type(client: AsyncClient) -> None:
     assert response.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_message_too_short(client: AsyncClient) -> None:
     """Test that short messages are rejected."""
     response = await client.post(
@@ -82,7 +76,6 @@ async def test_submit_feedback_message_too_short(client: AsyncClient) -> None:
     assert response.status_code == 422  # Validation error
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_no_message(client: AsyncClient) -> None:
     """Test that missing message is rejected."""
     response = await client.post(
@@ -95,7 +88,6 @@ async def test_submit_feedback_no_message(client: AsyncClient) -> None:
     assert response.status_code == 422  # Validation error
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_invalid_type(client: AsyncClient) -> None:
     """Test that invalid feedback type is rejected."""
     response = await client.post(
@@ -109,7 +101,6 @@ async def test_submit_feedback_invalid_type(client: AsyncClient) -> None:
     assert response.status_code == 422  # Validation error
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_with_user_agent(client: AsyncClient) -> None:
     """Test feedback submission with user agent."""
     response = await client.post(
@@ -123,7 +114,6 @@ async def test_submit_feedback_with_user_agent(client: AsyncClient) -> None:
     assert response.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_rate_limit(client: AsyncClient) -> None:
     """Test rate limiting on feedback submissions."""
     # Submit 5 feedback items (should succeed)
@@ -146,7 +136,6 @@ async def test_submit_feedback_rate_limit(client: AsyncClient) -> None:
     assert response.status_code == 429  # Too Many Requests
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_email_optional(client: AsyncClient) -> None:
     """Test that email is optional and can be empty."""
     response = await client.post(
@@ -160,7 +149,6 @@ async def test_submit_feedback_email_optional(client: AsyncClient) -> None:
     assert response.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_name_optional(client: AsyncClient) -> None:
     """Test that name is optional and can be empty."""
     response = await client.post(
@@ -174,7 +162,6 @@ async def test_submit_feedback_name_optional(client: AsyncClient) -> None:
     assert response.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_with_username(client: AsyncClient) -> None:
     """Test feedback submission with a Dining Philosophers username."""
     response = await client.post(
@@ -193,7 +180,6 @@ async def test_submit_feedback_with_username(client: AsyncClient) -> None:
     assert "id" in data
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_username_optional(client: AsyncClient) -> None:
     """Test that username is optional (anonymous users can submit feedback)."""
     response = await client.post(
@@ -207,7 +193,6 @@ async def test_submit_feedback_username_optional(client: AsyncClient) -> None:
     assert response.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_with_screenshot(client: AsyncClient) -> None:
     """Test feedback submission with screenshot data."""
     # Base64 encoded small test image (1x1 PNG)
@@ -228,7 +213,6 @@ async def test_submit_feedback_with_screenshot(client: AsyncClient) -> None:
     assert "id" in data
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_screenshot_without_filename(client: AsyncClient) -> None:
     """Test feedback submission with screenshot data but no filename."""
     test_screenshot = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -244,7 +228,6 @@ async def test_submit_feedback_screenshot_without_filename(client: AsyncClient) 
     assert response.status_code == 201
 
 
-@pytest.mark.asyncio
 async def test_submit_feedback_screenshot_too_large(client: AsyncClient) -> None:
     """Test that overly large screenshots are rejected."""
     # Create a string larger than 7MB (the limit)
@@ -269,14 +252,12 @@ async def test_submit_feedback_screenshot_too_large(client: AsyncClient) -> None
 TEST_SECRET = "test-feedback-processor-secret"
 
 
-@pytest.mark.asyncio
 async def test_get_pending_feedback_no_secret(client: AsyncClient) -> None:
     """Test that GET /api/feedback/pending requires a secret."""
     response = await client.get("/api/feedback/pending")
     assert response.status_code == 422  # Missing required query param
 
 
-@pytest.mark.asyncio
 async def test_get_pending_feedback_invalid_secret(client: AsyncClient) -> None:
     """Test that GET /api/feedback/pending rejects invalid secrets."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -285,7 +266,6 @@ async def test_get_pending_feedback_invalid_secret(client: AsyncClient) -> None:
         assert response.status_code == 403
 
 
-@pytest.mark.asyncio
 async def test_get_pending_feedback_not_configured(client: AsyncClient) -> None:
     """Test that GET /api/feedback/pending returns 503 when not configured."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -294,7 +274,6 @@ async def test_get_pending_feedback_not_configured(client: AsyncClient) -> None:
         assert response.status_code == 503
 
 
-@pytest.mark.asyncio
 async def test_get_pending_feedback_success(client: AsyncClient) -> None:
     """Test successful GET /api/feedback/pending."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -314,7 +293,6 @@ async def test_get_pending_feedback_success(client: AsyncClient) -> None:
         assert isinstance(data["feedbacks"], list)
 
 
-@pytest.mark.asyncio
 async def test_get_pending_feedback_includes_username(client: AsyncClient) -> None:
     """Test that GET /api/feedback/pending includes the username field."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -342,7 +320,6 @@ async def test_get_pending_feedback_includes_username(client: AsyncClient) -> No
         assert "username" in feedbacks_with_username[0]
 
 
-@pytest.mark.asyncio
 async def test_get_pending_feedback_with_limit(client: AsyncClient) -> None:
     """Test GET /api/feedback/pending with limit parameter."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -352,7 +329,6 @@ async def test_get_pending_feedback_with_limit(client: AsyncClient) -> None:
         assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_mark_processed_no_secret(client: AsyncClient) -> None:
     """Test that PATCH /api/feedback/{id}/processed requires a secret."""
     response = await client.patch(
@@ -362,7 +338,6 @@ async def test_mark_processed_no_secret(client: AsyncClient) -> None:
     assert response.status_code == 422  # Missing required query param
 
 
-@pytest.mark.asyncio
 async def test_mark_processed_invalid_secret(client: AsyncClient) -> None:
     """Test that PATCH /api/feedback/{id}/processed rejects invalid secrets."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -374,7 +349,6 @@ async def test_mark_processed_invalid_secret(client: AsyncClient) -> None:
         assert response.status_code == 403
 
 
-@pytest.mark.asyncio
 async def test_mark_processed_not_found(client: AsyncClient) -> None:
     """Test that PATCH /api/feedback/{id}/processed returns 404 for unknown ID."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -386,7 +360,6 @@ async def test_mark_processed_not_found(client: AsyncClient) -> None:
         assert response.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_mark_processed_success(client: AsyncClient) -> None:
     """Test successful PATCH /api/feedback/{id}/processed."""
     with patch("app.api.feedback.get_settings") as mock_settings:
@@ -411,7 +384,6 @@ async def test_mark_processed_success(client: AsyncClient) -> None:
         assert data["github_issue_url"] == "https://github.com/test/test/issues/123"
 
 
-@pytest.mark.asyncio
 async def test_mark_processed_missing_url(client: AsyncClient) -> None:
     """Test that PATCH /api/feedback/{id}/processed requires github_issue_url."""
     with patch("app.api.feedback.get_settings") as mock_settings:

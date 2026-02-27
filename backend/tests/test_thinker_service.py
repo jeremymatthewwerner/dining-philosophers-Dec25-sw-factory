@@ -12,6 +12,70 @@ from app.models.message import SenderType
 from app.services.thinker import ThinkerService, extract_mentions, is_mentioned
 
 
+def make_mock_thinker(
+    name: str = "Socrates",
+    bio: str = "Ancient philosopher",
+    positions: str = "Questioning everything",
+    style: str = "Socratic method",
+) -> MagicMock:
+    """Create a configured mock thinker for use in tests.
+
+    Reduces duplication of the 5-line thinker setup block that appears
+    in 15+ tests across TestBillingErrorDetection, TestGenerateResponseErrorHandling,
+    TestGenerateUserPromptErrorHandling, and TestGenerateResponse.
+
+    Args:
+        name: Thinker name
+        bio: Biographical description
+        positions: Philosophical positions
+        style: Communication style
+
+    Returns:
+        Configured MagicMock thinker
+
+    Example:
+        >>> thinker = make_mock_thinker()
+        >>> thinker.name
+        'Socrates'
+        >>> thinker = make_mock_thinker("Plato", style="Dialogues")
+        >>> thinker.name
+        'Plato'
+    """
+    thinker = MagicMock()
+    thinker.name = name
+    thinker.bio = bio
+    thinker.positions = positions
+    thinker.style = style
+    return thinker
+
+
+def make_mock_api_request(
+    url: str = "https://api.anthropic.com/v1/messages",
+    method: str = "POST",
+) -> MagicMock:
+    """Create a mock httpx.Request for APIError testing.
+
+    Reduces duplication of the 3-line mock_request setup block that appears
+    in TestBillingErrorDetection and TestGenerateResponseErrorHandling.
+
+    Args:
+        url: Request URL
+        method: HTTP method
+
+    Returns:
+        Configured MagicMock request
+
+    Example:
+        >>> request = make_mock_api_request()
+        >>> request.url
+        'https://api.anthropic.com/v1/messages'
+    """
+    mock_request = MagicMock()
+    mock_request.url = url
+    mock_request.method = method
+    return mock_request
+
+
 class TestThinkerService:
     """Tests for ThinkerService."""
 
@@ -213,11 +277,10 @@ class TestGenerateResponse:
         mock_client.messages.create = AsyncMock(return_value=mock_response)
         service._client = mock_client
 
-        thinker = MagicMock()
-        thinker.name = "Descartes"
-        thinker.bio = "French philosopher"
-        thinker.positions = "Rationalism"
-        thinker.style = "Methodical doubt"
+        # Use module-level helper instead of repeating 5-line thinker setup
+        thinker = make_mock_thinker(
+            "Descartes", "French philosopher", "Rationalism", "Methodical doubt"
+        )
 
         message = MagicMock()
         message.sender_type = SenderType.USER
@@ -381,11 +444,8 @@ class TestGenerateResponseWithStreamingThinking:
     async def test_returns_empty_without_client(self) -> None:
         """Test that method returns empty without client."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Questioning everything"
-        thinker.style = "Socratic method"
+        # Use module-level helper instead of repeating 5-line thinker setup
+        thinker = make_mock_thinker()
         messages: Any = []
 
         # Mock the client property to return None
@@ -428,94 +488,71 @@ class TestConversationAgents:
 
 
 class TestBillingErrorDetection:
-    """Tests for billing error detection in ThinkerService."""
+    """Tests for billing error detection in ThinkerService.
 
-    def _create_mock_request(self) -> MagicMock:
-        """Create a mock httpx.Request for APIError."""
-        mock_request = MagicMock()
-        mock_request.url = "https://api.anthropic.com/v1/messages"
-        mock_request.method = "POST"
-        return mock_request
+    Uses module-level make_mock_thinker() and make_mock_api_request() helpers
+    to avoid repeating the same 5-line thinker and 3-line request setup in each test.
+    """
 
-    async def test_billing_error_raised_on_credit_balance_error(self) -> None:
-        """Test that BillingError is raised when API returns credit balance error."""
-        service = ThinkerService()
+    def _make_streaming_client(self, api_error_message: str) -> AsyncMock:
+        """Create a mock streaming client that raises APIError on stream enter.
 
-        # Mock the client to raise APIError with credit balance message
+        Reduces duplication of the 4-line mock_client + mock_stream + mock_request
+        setup that appeared in every billing error test.
+
+        Args:
+            api_error_message: Error message to use in APIError
+
+        Returns:
+            Configured AsyncMock client with streaming that raises APIError
+        """
+        mock_request = make_mock_api_request()
         mock_client = AsyncMock()
         mock_stream = AsyncMock()
-        mock_request = self._create_mock_request()
         mock_stream.__aenter__ = AsyncMock(
-            side_effect=APIError("Your credit balance is too low", mock_request, body=None)
+            side_effect=APIError(api_error_message, mock_request, body=None)
         )
         mock_client.messages.stream = MagicMock(return_value=mock_stream)
-        service._client = mock_client
+        return mock_client
 
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Questioning everything"
-        thinker.style = "Socratic method"
+    @pytest.mark.parametrize(
+        "error_message,expected_keyword",
+        [
+            ("Your credit balance is too low", "credit"),
+            ("Billing issue: payment method required", "billing"),
+        ],
+    )
+    async def test_billing_error_raised_for_billing_messages(
+        self, error_message: str, expected_keyword: str
+    ) -> None:
+        """Test that BillingError is raised when API returns a billing-related error.
+
+        Parametrized to cover both 'credit balance' and 'billing' keyword variants
+        without duplicating test body code.
+
+        Covers:
+        - Credit balance too low error -> BillingError with 'credit' in message
+        - Billing keyword error -> BillingError with 'billing' in message
+        """
+        service = ThinkerService()
+        service._client = self._make_streaming_client(error_message)
+        thinker = make_mock_thinker()
         messages: Any = []
 
-        # Should raise BillingError, not ThinkerAPIError
         with pytest.raises(BillingError) as exc_info:
             await service.generate_response_with_streaming_thinking(
                 "test-conv", thinker, messages, "philosophy"
             )
 
-        assert "credit" in str(exc_info.value).lower()
-
-    async def test_billing_error_raised_on_billing_keyword(self) -> None:
-        """Test that BillingError is raised when API returns error with 'billing' keyword."""
-        service = ThinkerService()
-
-        # Mock the client to raise APIError with billing message
-        mock_client = AsyncMock()
-        mock_stream = AsyncMock()
-        mock_request = self._create_mock_request()
-        mock_stream.__aenter__ = AsyncMock(
-            side_effect=APIError("Billing issue: payment method required", mock_request, body=None)
-        )
-        mock_client.messages.stream = MagicMock(return_value=mock_stream)
-        service._client = mock_client
-
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Questioning everything"
-        thinker.style = "Socratic method"
-        messages: Any = []
-
-        # Should raise BillingError
-        with pytest.raises(BillingError) as exc_info:
-            await service.generate_response_with_streaming_thinking(
-                "test-conv", thinker, messages, "philosophy"
-            )
-
-        assert "billing" in str(exc_info.value).lower()
+        assert expected_keyword in str(exc_info.value).lower()
 
     async def test_non_billing_api_error_raises_thinker_api_error(self) -> None:
         """Test that non-billing API errors raise ThinkerAPIError, not BillingError."""
         from app.exceptions import ThinkerAPIError
 
         service = ThinkerService()
-
-        # Mock the client to raise APIError without billing keywords
-        mock_client = AsyncMock()
-        mock_stream = AsyncMock()
-        mock_request = self._create_mock_request()
-        mock_stream.__aenter__ = AsyncMock(
-            side_effect=APIError("Rate limit exceeded", mock_request, body=None)
-        )
-        mock_client.messages.stream = MagicMock(return_value=mock_stream)
-        service._client = mock_client
-
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Questioning everything"
-        thinker.style = "Socratic method"
+        service._client = self._make_streaming_client("Rate limit exceeded")
+        thinker = make_mock_thinker()
         messages: Any = []
 
         # Should raise ThinkerAPIError, not BillingError
@@ -864,11 +901,8 @@ class TestGenerateUserPrompt:
         mock_client.messages.create = AsyncMock(return_value=mock_response)
         service._client = mock_client
 
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Socratic method"
-        thinker.style = "Questions everything"
+        # Use module-level helper instead of repeating 5-line thinker setup
+        thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
 
         user_message = MagicMock()
         user_message.sender_type = SenderType.USER
@@ -1039,13 +1073,12 @@ class TestSuggestThinkersErrorHandling:
 
         service = ThinkerService()
 
-        mock_request = MagicMock()
-        mock_request.url = "https://api.anthropic.com/v1/messages"
-        mock_request.method = "POST"
-
+        # Use module-level helper instead of repeating 3-line mock_request setup
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(
-            side_effect=APIError("Your credit balance is too low", mock_request, body=None)
+            side_effect=APIError(
+                "Your credit balance is too low", make_mock_api_request(), body=None
+            )
         )
         service._client = mock_client
 
@@ -1098,13 +1131,10 @@ class TestValidateThinkerErrorHandling:
 
         service = ThinkerService()
 
-        mock_request = MagicMock()
-        mock_request.url = "https://api.anthropic.com/v1/messages"
-        mock_request.method = "POST"
-
+        # Use module-level helper instead of repeating 3-line mock_request setup
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(
-            side_effect=APIError("credit balance is too low", mock_request, body=None)
+            side_effect=APIError("credit balance is too low", make_mock_api_request(), body=None)
         )
         service._client = mock_client
 
@@ -1161,7 +1191,11 @@ class TestWikipediaImage:
 
 
 class TestGenerateResponseErrorHandling:
-    """Tests for error handling in generate_response."""
+    """Tests for error handling in generate_response.
+
+    Uses module-level make_mock_thinker() and make_mock_api_request() helpers
+    to reduce repeated setup code across tests.
+    """
 
     async def test_generate_response_api_error(self) -> None:
         """Test that generate_response properly handles API errors."""
@@ -1169,21 +1203,14 @@ class TestGenerateResponseErrorHandling:
 
         service = ThinkerService()
 
-        mock_request = MagicMock()
-        mock_request.url = "https://api.anthropic.com/v1/messages"
-        mock_request.method = "POST"
-
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(
-            side_effect=APIError("Rate limit exceeded", mock_request, body=None)
+            side_effect=APIError("Rate limit exceeded", make_mock_api_request(), body=None)
         )
         service._client = mock_client
 
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Socratic method"
-        thinker.style = "Questions everything"
+        # Use module-level helper instead of repeating 5-line thinker setup
+        thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
         messages: Any = []
 
         with pytest.raises(ThinkerAPIError):
@@ -1204,11 +1231,8 @@ class TestGenerateResponseErrorHandling:
         mock_client.messages.create = AsyncMock(return_value=mock_response)
         service._client = mock_client
 
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Socratic method"
-        thinker.style = "Questions everything"
+        # Use module-level helper instead of repeating 5-line thinker setup
+        thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
         messages: Any = []
 
         response, cost = await service.generate_response(thinker, messages, "test")
@@ -1218,7 +1242,11 @@ class TestGenerateResponseErrorHandling:
 
 
 class TestGenerateUserPromptErrorHandling:
-    """Tests for error handling in generate_user_prompt."""
+    """Tests for error handling in generate_user_prompt.
+
+    Uses module-level make_mock_thinker() helper to eliminate repeated
+    5-line thinker setup blocks in each test.
+    """
 
     async def test_generate_user_prompt_handles_exception(self) -> None:
         """Test that generate_user_prompt handles exceptions gracefully."""
@@ -1228,11 +1256,8 @@ class TestGenerateUserPromptErrorHandling:
         mock_client.messages.create = AsyncMock(side_effect=Exception("Network error"))
         service._client = mock_client
 
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Socratic method"
-        thinker.style = "Questions everything"
+        # Use module-level helper instead of repeating 5-line thinker setup
+        thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
         messages: Any = []
 
         response, cost = await service.generate_user_prompt(thinker, messages, "test", "Alice")
@@ -1256,11 +1281,8 @@ class TestGenerateUserPromptErrorHandling:
         mock_client.messages.create = AsyncMock(return_value=mock_response)
         service._client = mock_client
 
-        thinker = MagicMock()
-        thinker.name = "Socrates"
-        thinker.bio = "Ancient philosopher"
-        thinker.positions = "Socratic method"
-        thinker.style = "Questions everything"
+        # Use module-level helper instead of repeating 5-line thinker setup
+        thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
         messages: Any = []
 
         response, cost = await service.generate_user_prompt(thinker, messages, "test", "Alice")
@@ -1270,12 +1292,28 @@ class TestGenerateUserPromptErrorHandling:
 
 
 class TestExtractMentions:
-    """Tests for the extract_mentions function."""
+    """Tests for the extract_mentions function.
 
-    def test_extract_simple_mention(self) -> None:
-        """Test extracting a simple @mention."""
-        result = extract_mentions("@Socrates what do you think?")
-        assert result == ["Socrates"]
+    Uses parametrize for simple single-assertion cases to reduce code duplication
+    while keeping multi-assertion tests (multiple mentions, email quirk) as full tests.
+    """
+
+    @pytest.mark.parametrize(
+        "text,expected_name",
+        [
+            ("@Socrates what do you think?", "Socrates"),
+            ("What do you think @Aristotle", "Aristotle"),
+            ("@Socrates, can you explain?", "Socrates"),
+        ],
+    )
+    def test_extract_single_mention(self, text: str, expected_name: str) -> None:
+        """Test extracting a single @mention from various positions and punctuation.
+
+        Parametrized to cover simple mention, mention at end, and mention with
+        trailing punctuation without repeating test body code.
+        """
+        result = extract_mentions(text)
+        assert expected_name in result
 
     def test_extract_multiple_mentions(self) -> None:
         """Test extracting multiple @mentions."""
@@ -1300,16 +1338,6 @@ class TestExtractMentions:
         result = extract_mentions("This is a message without mentions")
         assert result == []
 
-    def test_mention_at_end(self) -> None:
-        """Test mention at the end of text."""
-        result = extract_mentions("What do you think @Aristotle")
-        assert result == ["Aristotle"]
-
-    def test_mention_with_punctuation(self) -> None:
-        """Test mention followed by punctuation."""
-        result = extract_mentions("@Socrates, can you explain?")
-        assert result == ["Socrates"]
-
     def test_email_not_extracted(self) -> None:
         """Test that email addresses are not confused with mentions."""
         # This is a quirk - the @ in email will still match
@@ -1320,46 +1348,54 @@ class TestExtractMentions:
 
 
 class TestIsMentioned:
-    """Tests for the is_mentioned function."""
+    """Tests for the is_mentioned function.
 
-    def test_exact_name_match(self) -> None:
-        """Test exact full name match."""
-        assert is_mentioned("@Socrates what do you think?", "Socrates")
+    Uses parametrize to reduce code duplication for the 9 simple boolean
+    assertion tests, grouping them into 'should match' and 'should not match'
+    parametrized test methods.
+    """
 
-    def test_first_name_match(self) -> None:
-        """Test first name match for multi-word names."""
-        assert is_mentioned("@Marie what do you think?", "Marie Curie")
+    @pytest.mark.parametrize(
+        "text,thinker_name,description",
+        [
+            ("@Socrates what do you think?", "Socrates", "exact name match"),
+            ("@Marie what do you think?", "Marie Curie", "first name of multi-word name"),
+            ('@"Marie Curie" what do you think?', "Marie Curie", "quoted full name"),
+            ("@socrates please respond", "Socrates", "lowercase @mention"),
+            ("@SOCRATES please respond", "Socrates", "uppercase @mention"),
+        ],
+    )
+    def test_is_mentioned_positive_cases(
+        self, text: str, thinker_name: str, description: str
+    ) -> None:
+        """Test cases where thinker should be detected as mentioned.
 
-    def test_quoted_full_name_match(self) -> None:
-        """Test quoted full name match."""
-        assert is_mentioned('@"Marie Curie" what do you think?', "Marie Curie")
+        Parametrized to cover exact name, first name, quoted name, and
+        case variations without repeating test body code.
+        """
+        assert is_mentioned(text, thinker_name), f"Expected mention detected for: {description}"
 
-    def test_case_insensitive(self) -> None:
-        """Test that matching is case-insensitive."""
-        assert is_mentioned("@socrates please respond", "Socrates")
-        assert is_mentioned("@SOCRATES please respond", "Socrates")
+    @pytest.mark.parametrize(
+        "text,thinker_name,description",
+        [
+            ("@Plato what do you think?", "Socrates", "different thinker mentioned"),
+            ("Socrates what do you think?", "Socrates", "name without @ prefix"),
+            ("@Soc what do you think?", "Socrates", "partial name does not match"),
+            ("@Socrates", "", "empty thinker name"),
+            ("", "Socrates", "empty text"),
+        ],
+    )
+    def test_is_mentioned_negative_cases(
+        self, text: str, thinker_name: str, description: str
+    ) -> None:
+        """Test cases where thinker should NOT be detected as mentioned.
 
-    def test_not_mentioned(self) -> None:
-        """Test when thinker is not mentioned."""
-        assert not is_mentioned("@Plato what do you think?", "Socrates")
-
-    def test_name_without_at_not_detected(self) -> None:
-        """Test that name without @ is not detected as mention."""
-        # This function is specifically for @mentions
-        assert not is_mentioned("Socrates what do you think?", "Socrates")
-
-    def test_partial_name_no_match(self) -> None:
-        """Test that partial name match doesn't work."""
-        # @Soc should not match Socrates
-        assert not is_mentioned("@Soc what do you think?", "Socrates")
-
-    def test_empty_name(self) -> None:
-        """Test with empty thinker name."""
-        assert not is_mentioned("@Socrates", "")
-
-    def test_empty_text(self) -> None:
-        """Test with empty text."""
-        assert not is_mentioned("", "Socrates")
+        Parametrized to cover wrong thinker, missing @, partial name,
+        and empty inputs without repeating test body code.
+        """
+        assert not is_mentioned(text, thinker_name), (
+            f"Expected no mention detected for: {description}"
+        )
 
 
 class TestShouldRespondWithMentions:
