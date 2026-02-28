@@ -2,6 +2,88 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.9 Edge Case Analysis (Added 2026-02-28)
+
+**Focus**: Saturday QA focus - edge cases, error paths, and boundary conditions
+**Files**: `tests/test_edge_cases_feb28_2026.py`, `backend/pyproject.toml`
+
+### 0.9.0 Coverage Infrastructure Fix
+
+**Problem**: `app/api/conversations.py` and other async SQLAlchemy files showed stale coverage
+numbers despite tests passing. Root cause: SQLAlchemy async operations use Python greenlets
+internally. When a greenlet context switches, coverage.py's trace function is NOT automatically
+restored, causing lines after any `await db.*()` call to appear uncovered.
+
+**Solution**: Added `concurrency = ["greenlet"]` to `[tool.coverage.run]` in `pyproject.toml`.
+**File**: `backend/pyproject.toml`
+
+### 0.9.1 Conversation Creation Edge Cases
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestConversationCreateFullFlow`
+
+- `test_create_conversation_thinker_loop_assigns_colors` - color cycling for default-color thinkers
+- `test_create_conversation_custom_color_preserved` - custom color bypass of cycling
+- `test_create_conversation_knowledge_research_triggered` - trigger_research called per thinker
+
+### 0.9.2 Conversation List Summaries
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestListConversationsSummaries`
+
+- `test_list_conversations_shows_message_count` - message count aggregation after 2 messages
+- `test_list_conversations_zero_messages_zero_cost` - empty message set returns 0.0 cost
+- `test_list_conversations_ordered_by_created_desc` - newest-first ordering guarantee
+
+### 0.9.3 Conversation Get/Delete
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestGetConversationPath`, `TestDeleteConversationPath`
+
+- `test_get_conversation_returns_messages_and_cost` - full retrieval with messages and cost
+- `test_delete_conversation_removes_from_list` - deleted conversation absent from list
+- `test_delete_conversation_then_get_returns_404` - 404 on GET after deletion
+
+### 0.9.4 Add Thinkers to Conversation
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestAddThinkersFullFlow`
+
+- `test_add_thinkers_uses_available_colors` - color deduplication avoids existing thinker colors
+- `test_add_thinkers_with_custom_color` - custom color preserved when adding thinker
+- `test_add_thinkers_triggers_knowledge_research` - trigger_research called for each added thinker
+
+### 0.9.5 Send Message Edge Cases
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestSendMessageEdgeCases`
+
+- `test_send_message_creates_message_with_correct_fields` - message has all required response fields
+- `test_send_message_auto_resume_from_idle_pause` - auto-resume + WebSocket broadcast when idle-paused
+- `test_send_message_no_idle_pause_skips_resume` - resume NOT called when not idle-paused
+- `test_send_message_uses_username_when_no_display_name` - sender_name set from display_name or username
+
+### 0.9.6 Admin API Edge Cases
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestAdminListUsersFullFlow`, `TestAdminDeleteUserEdgeCases`
+
+- `test_admin_list_users_includes_conversation_count` - users list has conversation_count per user
+- `test_admin_list_users_empty_database` - works with only admin user
+- `test_admin_delete_user_self_deletion_prevented` - 400 when admin tries to delete themselves
+- `test_admin_delete_user_success` - admin can delete another user, response confirms username
+
+### 0.9.7 Auth Boundary Conditions
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestAuthEdgeCases`
+
+- `test_get_current_user_with_no_sub_in_token` - token without sub field causes 401/404
+- `test_request_without_authorization_header` - missing auth header returns 401/403
+- `test_login_with_empty_username` - empty username returns 401/422
+- `test_register_with_very_long_username` - 300-char username handled without crash
+- `test_get_current_user_with_expired_token_format` - malformed JWT returns 401/422
+
+### 0.9.8 Cross-User Isolation
+
+**File**: `tests/test_edge_cases_feb28_2026.py` - `TestConversationBoundaryConditions`
+
+- `test_send_message_to_own_conversation_not_others` - User 2 cannot message User 1's conversation
+- `test_add_thinkers_to_other_users_conversation_returns_404` - User 2 cannot add thinkers to User 1's conversation
+
 ## 0.8 Test Refactoring (Added 2026-02-27)
 
 **Focus**: Friday QA focus - reduce duplication, improve readability with parametrize and shared helpers
