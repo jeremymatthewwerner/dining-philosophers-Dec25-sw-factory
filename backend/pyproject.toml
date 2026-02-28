@@ -90,6 +90,7 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["app"]
 branch = true
+concurrency = ["greenlet"]
 
 [tool.coverage.report]
 fail_under = 70
