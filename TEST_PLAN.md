@@ -2,6 +2,123 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.0 Regression Prevention (Added 2026-03-01)
+
+**Focus**: Sunday QA focus - regression prevention for recently fixed bugs and uncovered code paths
+**File**: `backend/tests/test_regression_prevention_mar2026.py`
+**Coverage Impact**: 79.95% → 80.45% (+0.50%)
+- `app/api/thinkers.py`: 89% → **100%** (lines 140-141, 148, 188, 198-201 now covered)
+- `app/api/auth.py`: 98% → **100%** (line 50 now covered)
+- `app/services/knowledge_research.py`: lines 331-344 (refresh_stale_knowledge) now covered
+
+### 1.0.1 Thinker Suggest API Path (thinkers.py lines 135-148)
+
+**File**: `backend/tests/test_regression_prevention_mar2026.py` - `TestThinkerSuggestAPIPath`
+
+Tests the API path that executes when `anthropic_api_key` is configured. Previously these paths
+were unreachable in tests because the mock path (no API key) was always taken.
+
+- `test_suggest_thinkers_with_api_key_returns_results` - API returns non-empty results that are
+  returned to caller (lines 140-141). Prevents regression where refactor discards API results.
+- `test_suggest_thinkers_empty_api_result_falls_back_to_mock` - Empty API response triggers
+  fallback to mock suggestions (line 148). Tests the quiet failure path.
+- `test_suggest_thinkers_non_quota_api_error_returns_502` - Non-quota API errors return 502
+  (Bad Gateway), not 503. Tests the `is_quota_error=False` branch (line 144).
+- `test_suggest_thinkers_quota_error_returns_503` - Quota errors return 503 (Service Unavailable).
+  Tests the `is_quota_error=True` branch. Prevents 502/503 status code mix-up.
+
+### 1.0.2 Thinker Validate API Path (thinkers.py lines 185-213)
+
+**File**: `backend/tests/test_regression_prevention_mar2026.py` - `TestThinkerValidateAPIPath`
+
+Tests validation paths for unknown thinkers (not in MOCK_THINKERS dict).
+
+- `test_validate_unknown_thinker_without_api_key_returns_helpful_error` - Unknown thinker
+  without API key returns descriptive error listing accepted thinkers (line 188).
+- `test_validate_known_thinker_with_api_key_triggers_knowledge_research` - API-validated thinker
+  triggers knowledge_service.trigger_research() (lines 198-201). Prevents regression where
+  knowledge research is silently skipped for API-validated thinkers.
+- `test_validate_thinker_non_quota_error_returns_502` - Non-quota validation errors return 502,
+  not 503 (line 211). Validates status code differentiation.
+
+### 1.0.3 JWT Token Edge Cases (auth.py line 50)
+
+**File**: `backend/tests/test_regression_prevention_mar2026.py` - `TestJWTTokenEdgeCases`
+
+Tests the `get_current_user` function path where JWT payload has no `sub` field.
+
+- `test_jwt_token_without_sub_field_returns_401` - JWT with no 'sub' field returns 401 on
+  /api/auth/me (auth.py line 50: `return None` when `not user_id`). Prevents regression where
+  malformed tokens without 'sub' might be incorrectly accepted.
+- `test_jwt_token_with_empty_string_sub_returns_401` - JWT with empty string 'sub' returns 401.
+  Empty string is falsy - caught by `if not user_id` guard.
+- `test_valid_jwt_with_sub_grants_access_to_me_endpoint` - Valid JWT with correct 'sub' grants
+  access. Ensures the fix doesn't break the happy path.
+
+### 1.0.4 Knowledge Research Refresh Stale (knowledge_research.py lines 331-344)
+
+**File**: `backend/tests/test_regression_prevention_mar2026.py` - `TestKnowledgeResearchRefreshStale`
+
+Tests the `refresh_stale_knowledge` method that queues old COMPLETE entries for re-research.
+
+- `test_refresh_stale_knowledge_returns_count` - Method returns count of stale COMPLETE entries
+  queued for refresh. Uses direct SQL UPDATE to bypass SQLAlchemy's `onupdate=func.now()`.
+- `test_refresh_stale_knowledge_returns_zero_when_no_stale_entries` - Returns 0 for empty DB.
+  Verifies graceful handling of no-work case.
+- `test_refresh_stale_skips_non_complete_entries` - PENDING, IN_PROGRESS, FAILED entries are
+  not refreshed. Only COMPLETE entries that have grown stale should be re-researched.
+
+### 1.0.5 Thinker Last User Message Timestamp (thinker.py lines 1421-1431)
+
+**File**: `backend/tests/test_regression_prevention_mar2026.py` - `TestThinkerLastUserMessageTimestamp`
+
+Tests `_get_last_user_message_timestamp` which powers the idle timeout feature (PR #483).
+
+- `test_get_last_user_message_timestamp_returns_zero_for_no_messages` - Empty messages returns
+  0.0 (no timestamp). Base case for idle timeout "no messages" state.
+- `test_get_last_user_message_timestamp_skips_thinker_messages` - Skips thinker messages when
+  searching. Returns 0.0 if all messages are from thinkers.
+- `test_get_last_user_message_timestamp_finds_user_message` - Returns timestamp of user message
+  even when thinker messages follow it. Tests the reverse-iteration logic.
+- `test_get_last_user_message_timestamp_uses_enum_value` - Handles enum `sender_type` with
+  `.value == 'user'`. Tests the enum branch of the sender type check.
+- `test_get_last_user_message_timestamp_returns_most_recent` - Returns timestamp of LAST user
+  message when multiple user messages exist. Prevents off-by-one errors.
+
+### 1.0.6 Idle Pause/Resume Cycle (thinker.py, PR #483)
+
+**File**: `backend/tests/test_regression_prevention_mar2026.py` - `TestIdlePauseResumeCycle`
+
+Tests the idle timeout pause/resume feature that distinguishes idle pauses from manual pauses.
+Bug: `resume_from_idle` must NOT clear manually paused conversations.
+
+- `test_pause_for_idle_sets_idle_flag` - `pause_for_idle` sets both `is_paused` and
+  `is_idle_paused` flags.
+- `test_resume_from_idle_clears_idle_pause` - `resume_from_idle` clears both flags.
+- `test_resume_from_idle_does_not_clear_manual_pause` - Critical regression test. Manual
+  pauses are NOT cleared by `resume_from_idle`. Prevents user confusion where manual pause
+  would be auto-resumed when user sends a message.
+- `test_is_idle_paused_is_false_for_manual_pause` - Manual pause does NOT set `is_idle_paused`.
+  Ensures clean flag separation.
+- `test_full_idle_pause_resume_cycle` - Full lifecycle: not paused → idle pause → resume.
+  Validates the complete user journey.
+- `test_multiple_idle_pauses_are_idempotent` - Multiple `pause_for_idle` calls are safe. No
+  state corruption from repeated idle timeout signals.
+
+### 1.0.7 Thinker API Knowledge Integration (thinkers.py lines 168-184)
+
+**File**: `backend/tests/test_regression_prevention_mar2026.py` - `TestThinkerAPIKnowledgeIntegration`
+
+Documents expected behavior for mock thinker validation path (MOCK_THINKERS dict).
+
+- `test_validate_mock_thinker_triggers_knowledge_research` - Validating a mock thinker (e.g.,
+  Socrates) triggers `knowledge_service.trigger_research()`. Ensures background knowledge
+  loading happens for all validated thinkers.
+- `test_validate_mock_thinker_includes_wikipedia_image` - Mock thinker validation fetches and
+  includes Wikipedia image URL in the response profile.
+- `test_validate_mock_thinker_handles_missing_wikipedia_image` - Validation succeeds even when
+  Wikipedia returns no image. Profile is returned with `image_url=None`.
+
 ## 0.9 Edge Case Analysis (Added 2026-02-28)
 
 **Focus**: Saturday QA focus - edge cases, error paths, and boundary conditions
