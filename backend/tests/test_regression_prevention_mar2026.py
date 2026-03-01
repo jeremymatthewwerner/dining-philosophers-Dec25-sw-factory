@@ -808,13 +808,16 @@ class TestThinkerAPIKnowledgeIntegration:
         trigger_calls: list[str] = []
 
         # Patch at module level since knowledge_service is imported inside function body
-        with patch(
-            "app.services.knowledge_research.knowledge_service.trigger_research",
-            side_effect=lambda name: trigger_calls.append(name),
-        ), patch.object(
-            thinker_service,
-            "get_wikipedia_image",
-            AsyncMock(return_value="https://example.com/socrates.jpg"),
+        with (
+            patch(
+                "app.services.knowledge_research.knowledge_service.trigger_research",
+                side_effect=lambda name: trigger_calls.append(name),
+            ),
+            patch.object(
+                thinker_service,
+                "get_wikipedia_image",
+                AsyncMock(return_value="https://example.com/socrates.jpg"),
+            ),
         ):
             response = await client.post(
                 "/api/thinkers/validate",
@@ -839,12 +842,15 @@ class TestThinkerAPIKnowledgeIntegration:
         """
         from app.services.thinker import thinker_service
 
-        with patch(
-            "app.services.knowledge_research.knowledge_service.trigger_research",
-        ), patch.object(
-            thinker_service,
-            "get_wikipedia_image",
-            AsyncMock(return_value="https://upload.wikimedia.org/aristotle.jpg"),
+        with (
+            patch(
+                "app.services.knowledge_research.knowledge_service.trigger_research",
+            ),
+            patch.object(
+                thinker_service,
+                "get_wikipedia_image",
+                AsyncMock(return_value="https://upload.wikimedia.org/aristotle.jpg"),
+            ),
         ):
             response = await client.post(
                 "/api/thinkers/validate",
@@ -866,12 +872,15 @@ class TestThinkerAPIKnowledgeIntegration:
         """
         from app.services.thinker import thinker_service
 
-        with patch(
-            "app.services.knowledge_research.knowledge_service.trigger_research",
-        ), patch.object(
-            thinker_service,
-            "get_wikipedia_image",
-            AsyncMock(return_value=None),  # No image found
+        with (
+            patch(
+                "app.services.knowledge_research.knowledge_service.trigger_research",
+            ),
+            patch.object(
+                thinker_service,
+                "get_wikipedia_image",
+                AsyncMock(return_value=None),  # No image found
+            ),
         ):
             response = await client.post(
                 "/api/thinkers/validate",
