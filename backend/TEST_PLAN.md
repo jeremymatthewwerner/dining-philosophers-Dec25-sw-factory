@@ -1,3 +1,68 @@
+## Coverage Sprint - Monday Sprint (Added 2026-03-02)
+
+**Focus**: Bring the three lowest-coverage modules up by 15%+.
+
+### Targets & Results
+
+| File | Before | After | Delta |
+|------|--------|-------|-------|
+| `app/core/database.py` | 43% | 100% | +57% |
+| `app/main.py` | 60% | 100% | +40% |
+| `app/core/config.py` | 72% | 100% | +28% |
+| Overall (backend) | 80.45% | 83.39% | +2.94% |
+
+### Tests Added (`tests/test_coverage_sprint_mar2026.py`)
+
+**File**: `tests/test_coverage_sprint_mar2026.py`
+**Tests Added**: 21 tests across 7 test classes (all verified stable across 3 consecutive runs)
+
+#### TestDatabaseAsyncSession (2 tests)
+1. `test_async_session_commits_on_success` — verifies `async_session` calls `commit()` when no exception raised (covers `database.py:43`)
+2. `test_async_session_rollbacks_on_exception` — verifies `async_session` calls `rollback()` and re-raises on failure (covers `database.py:45-46`)
+
+#### TestGetDb (2 tests)
+3. `test_get_db_rollback_on_exception` — verifies `get_db` async-generator rolls back when exception is thrown in (covers `database.py:55-57`)
+4. `test_get_db_commits_on_success` — verifies `get_db` commits normally after successful yield
+
+#### TestRunMigrations (3 tests)
+5. `test_returns_false_when_alembic_ini_missing` — `run_migrations` returns False when no `alembic.ini` (covers `database.py:69-71`)
+6. `test_returns_true_when_migrations_succeed` — `run_migrations` returns True and calls `alembic.command.upgrade` (covers `database.py:73-82`)
+7. `test_upgrades_to_head_revision` — verifies the "head" revision string is passed to `alembic.command.upgrade`
+
+#### TestInitDb (3 tests)
+8. `test_runs_migrations_when_ini_exists` — `init_db` calls `run_migrations()` when `alembic.ini` is present (covers `database.py:98-102`)
+9. `test_falls_back_to_create_all_when_no_ini` — `init_db` uses `create_all` when no `alembic.ini` (covers `database.py:107-109`)
+10. `test_falls_back_to_create_all_when_migrations_fail` — `init_db` falls back to `create_all` when `run_migrations` raises (covers `database.py:103-109`)
+
+#### TestCloseDb (1 test)
+11. `test_close_db_disposes_engine` — `close_db` calls `engine.dispose()` (covers `database.py:114`)
+
+#### TestCreateAdminUser (2 tests)
+12. `test_creates_admin_when_not_exists` — `create_admin_user` inserts admin User when table is empty (covers `main.py:32-41`)
+13. `test_skips_creation_when_admin_exists` — `create_admin_user` is a no-op when admin already exists (covers `main.py:42-43`)
+
+#### TestHealthReadyDbFailure (1 test)
+14. `test_returns_503_when_db_execute_fails` — `/health/ready` returns HTTP 503 with `"status": "degraded"` when DB raises (covers `main.py:155-157`)
+
+#### TestLifespan (2 tests)
+15. `test_lifespan_calls_init_and_close_db` — lifespan calls `init_db`, `create_admin_user`, `close_db` in order (covers `main.py:49-68`)
+16. `test_lifespan_propagates_startup_exception` — lifespan re-raises if `init_db` fails (covers `main.py:63-65`)
+
+#### TestSyncDatabaseUrl (5 tests)
+17. `test_asyncpg_url_converted_to_sync` — `postgresql+asyncpg://` → `postgresql://` (covers `config.py:37-38`)
+18. `test_aiosqlite_url_converted_to_sync` — `sqlite+aiosqlite://` → `sqlite://` (covers `config.py:39-40`)
+19. `test_postgres_url_converted_to_postgresql` — `postgres://` → `postgresql://` (covers `config.py:42-43`)
+20. `test_plain_postgresql_url_unchanged` — `postgresql://` passthrough (covers `config.py:44`)
+21. `test_other_url_passthrough` — unrecognised scheme returned unchanged
+
+### Technique Notes
+- `async_session_maker` patched at module level to inject a mock `AsyncSession` without touching the real database engine
+- `Path.exists` patched with `patch.object(Path, "exists", ...)` to toggle the alembic.ini presence check
+- `lifespan` tested by calling it directly as an `@asynccontextmanager` with FastAPI app, all callees mocked
+- `create_admin_user` tested by injecting the conftest `db_session` via a thin `asynccontextmanager` wrapper
+
+---
+
 ## Integration Gaps - Wednesday Sprint (Added 2026-02-25)
 
 **Focus**: Fill coverage gaps in API modules by testing untested integration paths.
