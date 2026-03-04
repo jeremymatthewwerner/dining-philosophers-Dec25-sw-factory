@@ -3797,3 +3797,95 @@ silence in a context where only DOM state matters.
 - Tests are now more deterministic — wait time is bounded by element appearance, not network silence
 - `networkidle` can mask slow network responses; element-specific waits surface regressions faster
 
+
+---
+
+## QA Session: Integration Gaps - March 4, 2026
+
+**Focus:** Wednesday Integration Gaps
+**Coverage Before:** 80.45% (total), 47% (websocket.py)
+**Coverage After:** 83.24% (total), 68% (websocket.py)
+**New Tests:** 40 tests in `backend/tests/test_integration_gaps_mar2026.py`
+
+### Problem
+
+`app/api/websocket.py` had only 47% coverage because its building blocks
+(`ConversationRoom`, `ConnectionManager`) had no direct unit/integration tests.
+The Starlette `TestClient` runs the ASGI app in a background thread, so coverage
+doesn't capture code running in that thread — meaning the websocket endpoint
+itself (lines 351-506) stays uncovered. The solution: test the building blocks
+and helpers directly with mock WebSocket objects.
+
+### New Tests Added
+
+#### `backend/tests/test_integration_gaps_mar2026.py`
+
+**TestConversationRoomMethods** — `ConversationRoom` add/remove/broadcast:
+
+1. `test_add_connection_adds_websocket_and_sets_active` — `add_connection()` stores WS and sets `is_active=True` (lines 87-88)
+2. `test_add_connection_multiple_websockets` — multiple connections can coexist in a room
+3. `test_remove_connection_clears_active_when_no_connections_remain` — `remove_connection()` clears `is_active` when empty (lines 92-94)
+4. `test_remove_connection_stays_active_when_others_remain` — room stays active if other WS remains (lines 92-93)
+5. `test_broadcast_sends_to_all_connected_clients` — `broadcast()` calls `send_text` on every connection (lines 101-104)
+6. `test_broadcast_removes_failed_connections` — failed `send_text` removes the dead connection (lines 103-107)
+7. `test_broadcast_sets_inactive_when_all_clients_disconnect` — all-fail broadcast sets `is_active=False` (lines 107-109)
+
+**TestConnectionManagerConnect** — `connect()` and `disconnect()`:
+
+8. `test_connect_accepts_websocket_and_creates_room` — calls `accept()` and creates a new room (lines 123-127)
+9. `test_connect_adds_to_existing_room` — second connection joins existing room without duplicating it
+10. `test_disconnect_removes_websocket_from_room` — removes WS from room (lines 131-133)
+11. `test_disconnect_no_op_for_unknown_conversation` — silent no-op for nonexistent conversation
+12. `test_disconnect_sets_room_inactive_when_last_client` — marks room inactive after last client leaves
+
+**TestConnectionManagerSetSpeed** — `set_speed_multiplier()`:
+
+13. `test_set_speed_multiplier_below_minimum_clamps_to_half` — values <0.5 clamped to 0.5 (line 149)
+14. `test_set_speed_multiplier_above_maximum_clamps_to_six` — values >6.0 clamped to 6.0 (line 149)
+15. `test_set_speed_multiplier_broadcasts_speed_changed` — broadcasts `SPEED_CHANGED` with new value (lines 150-158)
+16. `test_set_speed_multiplier_no_op_for_unknown_conversation` — silent no-op when no room exists
+
+**TestConnectionManagerSendThinkerMessage** — `send_thinker_message()`:
+
+17. `test_send_thinker_message_broadcasts_message_type` — sends `MESSAGE` type with all fields (lines 175-185)
+18. `test_send_thinker_message_without_cost` — works correctly with `cost=None`
+
+**TestConnectionManagerTypingMethods** — typing indicators:
+
+19. `test_send_thinker_typing_tracks_thinker_and_broadcasts` — adds to `typing_thinkers` set and broadcasts (lines 189-196)
+20. `test_send_thinker_thinking_broadcasts_with_content` — sends `THINKER_THINKING` with thinking text (lines 202-208)
+21. `test_send_thinker_stopped_typing_removes_from_set_and_broadcasts` — removes from `typing_thinkers` and broadcasts (lines 212-219)
+22. `test_send_thinker_typing_for_unknown_conversation_does_not_track` — no crash for unknown conversation
+23. `test_send_thinker_stopped_typing_for_unknown_conversation_no_crash` — no crash, skips discard (branch 212->214)
+
+**TestConnectionManagerResearchMethods** — research status events:
+
+24. `test_send_research_started_broadcasts_with_timestamp` — sends `RESEARCH_STARTED` with thinker name and timestamp (lines 223-229)
+25. `test_send_research_complete_broadcasts` — sends `RESEARCH_COMPLETE` (lines 233-239)
+26. `test_send_research_failed_broadcasts_with_error` — sends `RESEARCH_FAILED` with error content (lines 245-252)
+27. `test_send_research_failed_without_error_message` — works with `error=None`
+28. `test_send_cache_hit_broadcasts_with_thinker_name` — sends `CACHE_HIT` with timestamp (lines 256-262)
+
+**TestGetMessagesForConversation** — DB helper:
+
+29. `test_returns_messages_in_creation_order` — messages ordered by `created_at` (lines 273-278)
+30. `test_returns_empty_for_nonexistent_conversation` — returns empty list for unknown ID
+31. `test_returns_only_messages_for_given_conversation` — filters by conversation_id
+
+**TestSpendLimitExceededException** — exception class:
+
+32. `test_spend_limit_exceeded_stores_current_and_limit` — stores both amounts (lines 285-287)
+33. `test_spend_limit_exceeded_message_includes_amounts` — message includes dollar amounts
+34. `test_spend_limit_exceeded_is_exception` — is proper `Exception` subclass
+
+**TestSaveThinkerMessageSpendLimit** — spend enforcement:
+
+35. `test_raises_spend_limit_exceeded_when_at_limit` — raises when `total_spend >= spend_limit` (lines 308-317)
+36. `test_raises_spend_limit_exceeded_when_above_limit` — raises when spend already exceeded (line 314)
+37. `test_updates_spend_when_under_limit` — correctly increments `user.total_spend` (lines 327-330)
+38. `test_saves_message_for_nonexistent_conversation_without_spend_update` — saves message without spend update when conversation doesn't exist (branch 308->317)
+
+**TestHealthReadyDegradedPath** — `app/main.py` degraded health:
+
+39. `test_health_ready_returns_503_when_database_fails` — returns 503 + degraded status when DB execute raises (lines 155-157)
+40. `test_health_ready_returns_200_when_database_ok` — returns 200 + ready status when DB is healthy
