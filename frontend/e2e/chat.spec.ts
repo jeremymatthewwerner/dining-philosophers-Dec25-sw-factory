@@ -4,7 +4,10 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { createConversationViaUI, setupAuthenticatedUser } from './test-utils';
+import {
+  createAndNavigateToConversation,
+  setupAuthenticatedUser,
+} from './test-utils';
 
 test.describe('Chat Functionality', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,7 +15,9 @@ test.describe('Chat Functionality', () => {
   });
 
   test('can send a message in conversation', async ({ page }) => {
-    await createConversationViaUI(page, 'Quick test chat', 'Socrates');
+    await createAndNavigateToConversation(page, 'Quick test chat', [
+      'Socrates',
+    ]);
 
     // Type and send a message
     const messageTextarea = page.getByTestId('message-textarea');
@@ -28,7 +33,7 @@ test.describe('Chat Functionality', () => {
   });
 
   test('pause/resume button toggles UI state', async ({ page }) => {
-    await createConversationViaUI(page, 'Pause test', 'Confucius');
+    await createAndNavigateToConversation(page, 'Pause test', ['Confucius']);
 
     // Pause button should be visible
     const pauseResumeButton = page.getByTestId('pause-resume-button');
@@ -46,7 +51,9 @@ test.describe('Chat Functionality', () => {
 
   test('can delete a conversation', async ({ page }) => {
     // Create a conversation to delete
-    await createConversationViaUI(page, 'Topic to delete', 'Aristotle');
+    await createAndNavigateToConversation(page, 'Topic to delete', [
+      'Aristotle',
+    ]);
     await expect(
       page.locator('h2', { hasText: 'Topic to delete' })
     ).toBeVisible();
@@ -70,15 +77,11 @@ test.describe('Chat Functionality', () => {
 
   test('can switch between conversations', async ({ page }) => {
     // Create first conversation
-    await createConversationViaUI(page, 'First topic', 'Aristotle');
+    await createAndNavigateToConversation(page, 'First topic', ['Aristotle']);
     await expect(page.locator('h2', { hasText: 'First topic' })).toBeVisible();
 
-    // Wait for UI to be ready before creating second conversation
-    // (new-chat-button visibility confirms the app is in a stable state)
-    await page.getByTestId('new-chat-button').waitFor({ state: 'visible' });
-
-    // Create second conversation
-    await createConversationViaUI(page, 'Second topic', 'Socrates');
+    // Create second conversation (API creation is atomic, no stability wait needed)
+    await createAndNavigateToConversation(page, 'Second topic', ['Socrates']);
     await expect(page.locator('h2', { hasText: 'Second topic' })).toBeVisible();
 
     // Both conversations should be in sidebar
@@ -117,7 +120,9 @@ test.describe('Thinker Responses', () => {
     test.setTimeout(90000);
     await setupAuthenticatedUser(page);
 
-    await createConversationViaUI(page, 'Tell me about ethics', 'Aristotle');
+    await createAndNavigateToConversation(page, 'Tell me about ethics', [
+      'Aristotle',
+    ]);
 
     // Send a message to trigger thinker response
     const messageTextarea = page.getByTestId('message-textarea');
@@ -136,7 +141,9 @@ test.describe('Thinker Responses', () => {
     };
 
     // Wait for potential thinker response to start - use network idle instead of arbitrary wait
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 5000 })
+      .catch(() => {});
     const countBeforePause = await getMessageCount();
 
     // Pause the conversation
@@ -145,7 +152,9 @@ test.describe('Thinker Responses', () => {
     await expect(pauseButton).toContainText('Resume');
 
     // Wait and verify no new messages appear while paused - use shorter check
-    await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 3000 })
+      .catch(() => {});
     const countWhilePaused = await getMessageCount();
 
     // Message count should not have increased significantly while paused
@@ -156,14 +165,13 @@ test.describe('Thinker Responses', () => {
     await expect(pauseButton).toContainText('Pause');
 
     // Wait for thinker to respond after resume - reduced from 45s to 30s
-    await expect.poll(
-      async () => await getMessageCount(),
-      {
+    await expect
+      .poll(async () => await getMessageCount(), {
         message: 'Expected message count to increase after resume',
         timeout: 30000,
-        intervals: [2000, 2000, 2000]
-      }
-    ).toBeGreaterThan(countWhilePaused);
+        intervals: [2000, 2000, 2000],
+      })
+      .toBeGreaterThan(countWhilePaused);
   });
 
   // SKIP: Flaky in CI - depends on Claude API response times which can timeout
@@ -230,14 +238,13 @@ test.describe('Thinker Responses', () => {
     await expect(thinkerNameElements.first()).toBeVisible({ timeout: 5000 });
 
     // Wait for second thinker to potentially respond - poll for count to stabilize
-    await expect.poll(
-      async () => await thinkerNameElements.count(),
-      {
+    await expect
+      .poll(async () => await thinkerNameElements.count(), {
         message: 'Expected at least one thinker to respond',
         timeout: 15000,
-        intervals: [2000, 2000, 2000]
-      }
-    ).toBeGreaterThanOrEqual(1);
+        intervals: [2000, 2000, 2000],
+      })
+      .toBeGreaterThanOrEqual(1);
 
     // Collect unique thinker names that responded
     const thinkerNamesCount = await thinkerNameElements.count();

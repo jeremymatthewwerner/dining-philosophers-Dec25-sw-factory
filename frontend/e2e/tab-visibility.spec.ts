@@ -4,7 +4,10 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createAndNavigateToConversation } from './test-utils';
+import {
+  setupAuthenticatedUser,
+  createAndNavigateToConversation,
+} from './test-utils';
 
 test.describe('Tab Visibility Handling', () => {
   test.beforeEach(async ({ page }) => {
@@ -13,7 +16,9 @@ test.describe('Tab Visibility Handling', () => {
 
   test('pauses conversation when tab becomes hidden', async ({ page }) => {
     // Create a conversation via API and navigate to it via sidebar
-    await createAndNavigateToConversation(page, 'Visibility test', ['Socrates']);
+    await createAndNavigateToConversation(page, 'Visibility test', [
+      'Socrates',
+    ]);
 
     // Verify pause button shows "Pause" initially
     const pauseButton = page.getByTestId('pause-resume-button');
@@ -33,12 +38,17 @@ test.describe('Tab Visibility Handling', () => {
     // We verify that the event can be triggered and handled without errors.
 
     // Wait for event to be processed and check for errors
-    await expect.poll(async () => {
-      const errors = await page.evaluate(() =>
-        (window as any).__TEST_ERRORS__ || []
-      );
-      return errors.length;
-    }, { timeout: 3000 }).toBe(0);
+    await expect
+      .poll(
+        async () => {
+          const errors = await page.evaluate(
+            () => (window as any).__TEST_ERRORS__ || []
+          );
+          return errors.length;
+        },
+        { timeout: 3000 }
+      )
+      .toBe(0);
   });
 
   test('resumes conversation when tab becomes visible', async ({ page }) => {
@@ -77,7 +87,9 @@ test.describe('Tab Visibility Handling', () => {
 
   test('no new messages arrive while tab is hidden', async ({ page }) => {
     // Create a conversation via API and navigate to it via sidebar
-    await createAndNavigateToConversation(page, 'Message pause test', ['Confucius']);
+    await createAndNavigateToConversation(page, 'Message pause test', [
+      'Confucius',
+    ]);
 
     // Send a message
     const messageTextarea = page.getByTestId('message-textarea');
@@ -106,20 +118,26 @@ test.describe('Tab Visibility Handling', () => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    // Wait for visibility change to take effect and verify message count stabilizes
-    // Poll with multiple checks to ensure no new messages are arriving
+    // Wait briefly to allow any in-flight messages to arrive after tab is hidden,
+    // then verify count is stable. Testing absence-of-change inherently needs
+    // a brief time window - use expect.poll with longer intervals instead of inner timeout.
+    let stableCount = 0;
+    let prevCount = -1;
     await expect
       .poll(
         async () => {
-          const count1 = await getMessageCount();
-          // Wait a brief fixed delay between checks to verify count stability
-          await page.waitForTimeout(500);
-          const count2 = await getMessageCount();
-          return count1 === count2; // Count has stabilized
+          const count = await getMessageCount();
+          if (count === prevCount) {
+            stableCount++;
+          } else {
+            stableCount = 0;
+            prevCount = count;
+          }
+          return stableCount;
         },
-        { timeout: 5000, intervals: [100, 250, 500] }
+        { timeout: 3000, intervals: [300, 300, 300, 300, 300, 300, 300] }
       )
-      .toBe(true);
+      .toBeGreaterThanOrEqual(3); // Count stable for 3 consecutive polls (~900ms)
 
     const countWhileHidden = await getMessageCount();
 

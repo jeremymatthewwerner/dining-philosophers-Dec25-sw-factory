@@ -4,7 +4,10 @@
  */
 
 import { test, expect, devices } from '@playwright/test';
-import { createConversationViaUI, setupAuthenticatedUser } from './test-utils';
+import {
+  createAndNavigateToConversation,
+  setupAuthenticatedUser,
+} from './test-utils';
 
 test.describe('Mobile Header Behavior', () => {
   test.beforeEach(async ({ page }) => {
@@ -15,7 +18,9 @@ test.describe('Mobile Header Behavior', () => {
     // Set viewport to iPhone SE (375x667)
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await createConversationViaUI(page, 'Mobile scroll test', 'Socrates');
+    await createAndNavigateToConversation(page, 'Mobile scroll test', [
+      'Socrates',
+    ]);
 
     // Wait for chat area to be visible
     const chatArea = page.getByTestId('chat-area');
@@ -81,7 +86,9 @@ test.describe('Mobile Header Behavior', () => {
     // Set viewport to iPhone SE (375x667)
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await createConversationViaUI(page, 'Mobile controls test', 'Aristotle');
+    await createAndNavigateToConversation(page, 'Mobile controls test', [
+      'Aristotle',
+    ]);
 
     // Wait for chat area
     await expect(page.getByTestId('chat-area')).toBeVisible();
@@ -138,7 +145,9 @@ test.describe('Mobile Header Behavior', () => {
     // Set viewport to iPhone 12 Pro (390x844)
     await page.setViewportSize({ width: 390, height: 844 });
 
-    await createConversationViaUI(page, 'iPhone 12 Pro test', 'Confucius');
+    await createAndNavigateToConversation(page, 'iPhone 12 Pro test', [
+      'Confucius',
+    ]);
 
     // Wait for chat area
     const chatArea = page.getByTestId('chat-area');
@@ -180,7 +189,9 @@ test.describe('Mobile Header Behavior', () => {
     // Set viewport to iPhone 14 Pro Max (430x932)
     await page.setViewportSize({ width: 430, height: 932 });
 
-    await createConversationViaUI(page, 'iPhone 14 Pro Max test', 'Plato');
+    await createAndNavigateToConversation(page, 'iPhone 14 Pro Max test', [
+      'Plato',
+    ]);
 
     // Wait for chat area
     const chatArea = page.getByTestId('chat-area');
@@ -224,7 +235,9 @@ test.describe('Mobile Header Behavior', () => {
     // Set viewport to very narrow (320x568 - iPhone SE 1st gen)
     await page.setViewportSize({ width: 320, height: 568 });
 
-    await createConversationViaUI(page, 'Narrow viewport test', 'Nietzsche');
+    await createAndNavigateToConversation(page, 'Narrow viewport test', [
+      'Nietzsche',
+    ]);
 
     // Wait for chat area
     await expect(page.getByTestId('chat-area')).toBeVisible();
@@ -257,7 +270,9 @@ test.describe('Mobile Header Behavior', () => {
     // Start in portrait
     await page.setViewportSize({ width: 390, height: 844 });
 
-    await createConversationViaUI(page, 'Orientation test', 'Einstein');
+    await createAndNavigateToConversation(page, 'Orientation test', [
+      'Einstein',
+    ]);
 
     // Verify header in portrait
     const header = page.getByTestId('chat-area').locator('div').first();
@@ -283,7 +298,9 @@ test.describe('Mobile Header Behavior', () => {
     // Test on medium-sized mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await createConversationViaUI(page, 'No overlap test', 'Descartes');
+    await createAndNavigateToConversation(page, 'No overlap test', [
+      'Descartes',
+    ]);
 
     // Send a message
     const messageTextarea = page.getByTestId('message-textarea');
@@ -320,7 +337,9 @@ test.describe('Mobile Header Behavior', () => {
     // Test on iPhone SE (smallest common viewport)
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await createConversationViaUI(page, 'Touch target test', 'Marcus Aurelius');
+    await createAndNavigateToConversation(page, 'Touch target test', [
+      'Marcus Aurelius',
+    ]);
 
     // Wait for chat area
     await expect(page.getByTestId('chat-area')).toBeVisible();
@@ -364,7 +383,9 @@ test.describe('Mobile Header Behavior', () => {
     // Test on iPhone SE (smallest common viewport)
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await createConversationViaUI(page, 'Button spacing test', 'Seneca');
+    await createAndNavigateToConversation(page, 'Button spacing test', [
+      'Seneca',
+    ]);
 
     // Wait for chat area
     await expect(page.getByTestId('chat-area')).toBeVisible();
@@ -396,7 +417,9 @@ test.describe('Mobile Header Behavior', () => {
     // Test on iPhone SE
     await page.setViewportSize({ width: 375, height: 667 });
 
-    await createConversationViaUI(page, 'Slider usability test', 'Epictetus');
+    await createAndNavigateToConversation(page, 'Slider usability test', [
+      'Epictetus',
+    ]);
 
     // Wait for chat area
     await expect(page.getByTestId('chat-area')).toBeVisible();

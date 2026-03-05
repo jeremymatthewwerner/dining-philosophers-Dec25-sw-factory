@@ -4,7 +4,10 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
+import {
+  setupAuthenticatedUser,
+  createAndNavigateToConversation,
+} from './test-utils';
 
 test.describe('Export Edge Cases', () => {
   test.beforeEach(async ({ page }) => {
@@ -13,7 +16,9 @@ test.describe('Export Edge Cases', () => {
 
   test('can export empty conversation without errors', async ({ page }) => {
     // Create a conversation but don't send any messages
-    await createConversationViaUI(page, 'Empty export test', 'Socrates');
+    await createAndNavigateToConversation(page, 'Empty export test', [
+      'Socrates',
+    ]);
 
     // Open export menu
     const exportButton = page.getByTestId('export-button');
@@ -47,7 +52,9 @@ test.describe('Export Edge Cases', () => {
 
   test('exports conversation with very long messages', async ({ page }) => {
     // Create a conversation
-    await createConversationViaUI(page, 'Long message export test', 'Aristotle');
+    await createAndNavigateToConversation(page, 'Long message export test', [
+      'Aristotle',
+    ]);
 
     // Send a very long message
     const longMessage = 'A'.repeat(2000) + ' This is a very long message.';
@@ -84,7 +91,9 @@ test.describe('Export Edge Cases', () => {
     page,
   }) => {
     // Create a conversation
-    await createConversationViaUI(page, 'Special chars export 🧠', 'Plato');
+    await createAndNavigateToConversation(page, 'Special chars export 🧠', [
+      'Plato',
+    ]);
 
     // Send message with special characters
     const specialMessage =
@@ -121,7 +130,9 @@ test.describe('Export Edge Cases', () => {
 
   test('can export in both HTML and Markdown formats', async ({ page }) => {
     // Create a conversation with some content
-    await createConversationViaUI(page, 'Dual format export test', 'Confucius');
+    await createAndNavigateToConversation(page, 'Dual format export test', [
+      'Confucius',
+    ]);
 
     // Send a message
     const messageTextarea = page.getByTestId('message-textarea');
@@ -145,7 +156,9 @@ test.describe('Export Edge Cases', () => {
     expect(htmlDownload.suggestedFilename()).toMatch(/\.html$/);
 
     // Wait for menu to close and be ready to open again
-    await expect(page.getByTestId('export-menu')).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('export-menu')).not.toBeVisible({
+      timeout: 5000,
+    });
 
     // Export as Markdown
     await page.getByTestId('export-button').click();

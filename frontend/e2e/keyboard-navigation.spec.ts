@@ -4,7 +4,10 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI, createAndNavigateToConversation } from './test-utils';
+import {
+  setupAuthenticatedUser,
+  createAndNavigateToConversation,
+} from './test-utils';
 
 test.describe('Keyboard Navigation', () => {
   test.beforeEach(async ({ page }) => {
@@ -87,7 +90,9 @@ test.describe('Keyboard Navigation', () => {
     page,
   }) => {
     // Create a conversation via API and navigate to it via sidebar
-    await createAndNavigateToConversation(page, 'Focus management test', ['Aristotle']);
+    await createAndNavigateToConversation(page, 'Focus management test', [
+      'Aristotle',
+    ]);
 
     // Open export menu
     const exportButton = page.getByTestId('export-button');
@@ -115,7 +120,9 @@ test.describe('Keyboard Navigation', () => {
 
   test('Tab key navigates through conversation controls', async ({ page }) => {
     // Create a conversation via API and navigate to it via sidebar
-    await createAndNavigateToConversation(page, 'Control navigation test', ['Plato']);
+    await createAndNavigateToConversation(page, 'Control navigation test', [
+      'Plato',
+    ]);
 
     // Start from message textarea
     const messageTextarea = page.getByTestId('message-textarea');
@@ -164,7 +171,9 @@ test.describe('Keyboard Navigation', () => {
 
   test('Shift+Enter creates new line in message textarea', async ({ page }) => {
     // Create a conversation
-    await createConversationViaUI(page, 'Multiline test', 'Confucius');
+    await createAndNavigateToConversation(page, 'Multiline test', [
+      'Confucius',
+    ]);
 
     // Focus message textarea
     const messageTextarea = page.getByTestId('message-textarea');

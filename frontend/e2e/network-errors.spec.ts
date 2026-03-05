@@ -4,14 +4,19 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
+import {
+  setupAuthenticatedUser,
+  createAndNavigateToConversation,
+} from './test-utils';
 
 test.describe('Network Error Recovery', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
 
-  test('handles API errors during thinker suggestion gracefully', async ({ page }) => {
+  test('handles API errors during thinker suggestion gracefully', async ({
+    page,
+  }) => {
     // Intercept the suggest thinkers API call and simulate a failure
     await page.route('**/api/thinkers/suggest', (route) => {
       route.fulfill({
@@ -33,7 +38,7 @@ test.describe('Network Error Recovery', () => {
 
     await Promise.race([
       errorLocator.waitFor({ state: 'visible', timeout: 10000 }),
-      customInputLocator.waitFor({ state: 'visible', timeout: 10000 })
+      customInputLocator.waitFor({ state: 'visible', timeout: 10000 }),
     ]).catch(() => {
       // Either one should be visible, catch to check manually
     });
@@ -42,13 +47,18 @@ test.describe('Network Error Recovery', () => {
     const errorVisible = await errorLocator.isVisible().catch(() => false);
 
     // Or check if we can still proceed (graceful degradation)
-    const customInputVisible = await customInputLocator.isVisible().catch(() => false);
+    const customInputVisible = await customInputLocator
+      .isVisible()
+      .catch(() => false);
 
     // Either error is shown OR custom input is available as fallback
     expect(errorVisible || customInputVisible).toBe(true);
   });
 
-  test('handles API timeout during thinker validation', async ({ page, context }) => {
+  test('handles API timeout during thinker validation', async ({
+    page,
+    context,
+  }) => {
     // Set a short timeout for this test
     test.setTimeout(60000);
 
@@ -84,7 +94,7 @@ test.describe('Network Error Recovery', () => {
     // Wait for either error to appear or loading to finish (max 10s)
     await Promise.race([
       errorLocator.waitFor({ state: 'visible', timeout: 10000 }),
-      page.waitForLoadState('networkidle', { timeout: 10000 })
+      page.waitForLoadState('networkidle', { timeout: 10000 }),
     ]).catch(() => {
       // Continue to verification
     });
@@ -97,7 +107,10 @@ test.describe('Network Error Recovery', () => {
     expect(selectedThinkers === 0 || errorVisible).toBe(true);
   });
 
-  test('handles offline state during conversation creation', async ({ page, context }) => {
+  test('handles offline state during conversation creation', async ({
+    page,
+    context,
+  }) => {
     // Open modal
     await page.getByTestId('new-chat-button').click();
     await page.getByTestId('topic-input').fill('Offline test');
@@ -130,14 +143,16 @@ test.describe('Network Error Recovery', () => {
 
     await Promise.race([
       errorLocator.waitFor({ state: 'visible', timeout: 5000 }),
-      page.waitForLoadState('networkidle', { timeout: 5000 })
+      page.waitForLoadState('networkidle', { timeout: 5000 }),
     ]).catch(() => {
       // Continue to verification
     });
 
     // Should show error or remain on same page
     const errorVisible = await errorLocator.isVisible().catch(() => false);
-    const stillOnThinkerPage = await createButtonLocator.isVisible().catch(() => false);
+    const stillOnThinkerPage = await createButtonLocator
+      .isVisible()
+      .catch(() => false);
 
     // Either error shown or still on thinker selection (didn't crash)
     expect(errorVisible || stillOnThinkerPage).toBe(true);
@@ -151,7 +166,7 @@ test.describe('WebSocket Error Recovery', () => {
 
   test('handles WebSocket connection failure', async ({ page }) => {
     // Create conversation first
-    await createConversationViaUI(page, 'WebSocket test', 'Spinoza');
+    await createAndNavigateToConversation(page, 'WebSocket test', ['Spinoza']);
 
     // Wait for chat area
     await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
@@ -180,11 +195,14 @@ test.describe('WebSocket Error Recovery', () => {
     await expect(page.getByTestId('chat-area')).toBeVisible();
   });
 
-  test('reconnects WebSocket after temporary disconnection', async ({ page, context }) => {
+  test('reconnects WebSocket after temporary disconnection', async ({
+    page,
+    context,
+  }) => {
     test.setTimeout(60000);
 
     // Create conversation
-    await createConversationViaUI(page, 'Reconnection test', 'Hume');
+    await createAndNavigateToConversation(page, 'Reconnection test', ['Hume']);
     await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
 
     // Send initial message to verify connection works
@@ -202,7 +220,9 @@ test.describe('WebSocket Error Recovery', () => {
     });
 
     // Wait briefly for the block to take effect
-    await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 3000 })
+      .catch(() => {});
 
     // Unblock WebSocket
     await page.unroute('**/ws/**');
@@ -261,11 +281,15 @@ test.describe('API Error Messages', () => {
 
     // Should show error message (use specific error element to avoid matching thinker descriptions)
     await expect(
-      page.locator('.text-red-600, .text-red-400').filter({ hasText: /invalid|error|failed/i })
+      page
+        .locator('.text-red-600, .text-red-400')
+        .filter({ hasText: /invalid|error|failed/i })
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test('displays user-friendly error for 401 Unauthorized', async ({ page }) => {
+  test('displays user-friendly error for 401 Unauthorized', async ({
+    page,
+  }) => {
     // Intercept auth check with 401
     await page.route('**/api/auth/me', (route) => {
       route.fulfill({
@@ -280,12 +304,14 @@ test.describe('API Error Messages', () => {
 
     // Should redirect to login or show auth error - wait for either to appear
     const loginLocator = page.locator('text=/login|sign in/i');
-    const authErrorLocator = page.locator('text=/unauthorized|authentication/i');
+    const authErrorLocator = page.locator(
+      'text=/unauthorized|authentication/i'
+    );
 
     await Promise.race([
       loginLocator.waitFor({ state: 'visible', timeout: 5000 }),
       authErrorLocator.waitFor({ state: 'visible', timeout: 5000 }),
-      page.waitForLoadState('networkidle', { timeout: 5000 })
+      page.waitForLoadState('networkidle', { timeout: 5000 }),
     ]).catch(() => {
       // Continue to verification
     });
@@ -298,7 +324,9 @@ test.describe('API Error Messages', () => {
     expect(hasLoginButton || hasAuthError).toBe(true);
   });
 
-  test('displays user-friendly error for 500 Internal Server Error', async ({ page }) => {
+  test('displays user-friendly error for 500 Internal Server Error', async ({
+    page,
+  }) => {
     // Open modal
     await page.getByTestId('new-chat-button').click();
     await page.getByTestId('topic-input').fill('Server error test');
@@ -318,7 +346,9 @@ test.describe('API Error Messages', () => {
 
     // Should show error message (use specific error element to avoid matching thinker descriptions)
     await expect(
-      page.locator('.text-red-600, .text-red-400').filter({ hasText: /error|failed|something went wrong/i })
+      page
+        .locator('.text-red-600, .text-red-400')
+        .filter({ hasText: /error|failed|something went wrong/i })
     ).toBeVisible({ timeout: 10000 });
   });
 });
@@ -351,13 +381,15 @@ test.describe('Rate Limiting & Throttling', () => {
 
     await Promise.race([
       errorLocator.waitFor({ state: 'visible', timeout: 10000 }),
-      customInputLocator.waitFor({ state: 'visible', timeout: 10000 })
+      customInputLocator.waitFor({ state: 'visible', timeout: 10000 }),
     ]).catch(() => {
       // Continue to verification
     });
 
     const errorVisible = await errorLocator.isVisible().catch(() => false);
-    const canStillAddCustom = await customInputLocator.isVisible().catch(() => false);
+    const canStillAddCustom = await customInputLocator
+      .isVisible()
+      .catch(() => false);
 
     // Either error shown or fallback to custom input
     expect(errorVisible || canStillAddCustom).toBe(true);
