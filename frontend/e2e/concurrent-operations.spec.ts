@@ -6,7 +6,7 @@
 import { test, expect } from '@playwright/test';
 import {
   setupAuthenticatedUser,
-  createConversationViaUI,
+  createAndNavigateToConversation,
   createConversationViaAPI,
 } from './test-utils';
 
@@ -17,17 +17,23 @@ test.describe('Concurrent Operations', () => {
     await setupAuthenticatedUser(page);
 
     // Create 3 conversations
-    await createConversationViaUI(page, 'First conversation', 'Socrates');
+    await createAndNavigateToConversation(page, 'First conversation', [
+      'Socrates',
+    ]);
     await expect(
       page.locator('h2', { hasText: 'First conversation' })
     ).toBeVisible();
 
-    await createConversationViaUI(page, 'Second conversation', 'Aristotle');
+    await createAndNavigateToConversation(page, 'Second conversation', [
+      'Aristotle',
+    ]);
     await expect(
       page.locator('h2', { hasText: 'Second conversation' })
     ).toBeVisible();
 
-    await createConversationViaUI(page, 'Third conversation', 'Plato');
+    await createAndNavigateToConversation(page, 'Third conversation', [
+      'Plato',
+    ]);
     await expect(
       page.locator('h2', { hasText: 'Third conversation' })
     ).toBeVisible();
@@ -43,21 +49,27 @@ test.describe('Concurrent Operations', () => {
         .getByTestId('conversation-item')
         .filter({ hasText: 'First conversation' })
         .click();
-      await expect(page.locator('h2', { hasText: 'First conversation' })).toBeVisible();
+      await expect(
+        page.locator('h2', { hasText: 'First conversation' })
+      ).toBeVisible();
 
       // Click second conversation and wait for it to be active
       await page
         .getByTestId('conversation-item')
         .filter({ hasText: 'Second conversation' })
         .click();
-      await expect(page.locator('h2', { hasText: 'Second conversation' })).toBeVisible();
+      await expect(
+        page.locator('h2', { hasText: 'Second conversation' })
+      ).toBeVisible();
 
       // Click third conversation and wait for it to be active
       await page
         .getByTestId('conversation-item')
         .filter({ hasText: 'Third conversation' })
         .click();
-      await expect(page.locator('h2', { hasText: 'Third conversation' })).toBeVisible();
+      await expect(
+        page.locator('h2', { hasText: 'Third conversation' })
+      ).toBeVisible();
     }
 
     // After rapid switching, app should still be functional
@@ -115,7 +127,9 @@ test.describe('Concurrent Operations', () => {
     await setupAuthenticatedUser(page);
 
     // Create a conversation
-    await createConversationViaUI(page, 'Rapid messages test', 'Confucius');
+    await createAndNavigateToConversation(page, 'Rapid messages test', [
+      'Confucius',
+    ]);
 
     const messageTextarea = page.getByTestId('message-textarea');
     const sendButton = page.getByTestId('send-button');

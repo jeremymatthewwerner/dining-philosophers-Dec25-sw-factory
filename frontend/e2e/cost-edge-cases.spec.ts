@@ -4,7 +4,10 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
+import {
+  setupAuthenticatedUser,
+  createAndNavigateToConversation,
+} from './test-utils';
 
 test.describe('Cost Edge Cases', () => {
   test.beforeEach(async ({ page }) => {
@@ -13,7 +16,7 @@ test.describe('Cost Edge Cases', () => {
 
   test('displays zero cost correctly', async ({ page }) => {
     // Create a conversation
-    await createConversationViaUI(page, 'Zero cost test', 'Socrates');
+    await createAndNavigateToConversation(page, 'Zero cost test', ['Socrates']);
 
     // Check if cost meter exists
     const costMeter = page.getByTestId('cost-meter');
@@ -34,9 +37,13 @@ test.describe('Cost Edge Cases', () => {
     await expect(page.getByTestId('send-button')).toBeVisible();
   });
 
-  test('cost meter formats costs with 3 decimal precision', async ({ page }) => {
+  test('cost meter formats costs with 3 decimal precision', async ({
+    page,
+  }) => {
     // Create a conversation
-    await createConversationViaUI(page, 'Cost precision test', 'Aristotle');
+    await createAndNavigateToConversation(page, 'Cost precision test', [
+      'Aristotle',
+    ]);
 
     // Send a message to potentially generate cost
     const messageTextarea = page.getByTestId('message-textarea');
@@ -44,9 +51,9 @@ test.describe('Cost Edge Cases', () => {
     await page.getByTestId('send-button').click();
 
     // Wait for user message to appear
-    await expect(
-      page.locator('text=What is your view on ethics?')
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=What is your view on ethics?')).toBeVisible(
+      { timeout: 5000 }
+    );
 
     // Check cost meter
     const costMeter = page.getByTestId('cost-meter');
@@ -65,7 +72,7 @@ test.describe('Cost Edge Cases', () => {
 
   test('handles high cost values without overflow', async ({ page }) => {
     // Create a conversation
-    await createConversationViaUI(page, 'High cost test', 'Plato');
+    await createAndNavigateToConversation(page, 'High cost test', ['Plato']);
 
     // Note: We can't easily simulate a high cost without actually
     // generating many expensive LLM responses. This test validates
@@ -91,9 +98,14 @@ test.describe('Cost Edge Cases', () => {
       });
 
       // Wait for DOM update after evaluate - use expect.poll for element text
-      await expect.poll(async () => {
-        return await costMeter.textContent();
-      }, { timeout: 2000 }).toBeTruthy();
+      await expect
+        .poll(
+          async () => {
+            return await costMeter.textContent();
+          },
+          { timeout: 2000 }
+        )
+        .toBeTruthy();
 
       // Cost meter should still be visible and properly formatted
       const costText = await costMeter.textContent();
@@ -113,7 +125,9 @@ test.describe('Cost Edge Cases', () => {
     page,
   }) => {
     // Create a conversation
-    await createConversationViaUI(page, 'Cost accumulation test', 'Confucius');
+    await createAndNavigateToConversation(page, 'Cost accumulation test', [
+      'Confucius',
+    ]);
 
     const messageTextarea = page.getByTestId('message-textarea');
     const sendButton = page.getByTestId('send-button');
@@ -126,7 +140,9 @@ test.describe('Cost Edge Cases', () => {
     });
 
     // Wait for network to settle after sending message
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 5000 })
+      .catch(() => {});
 
     // Get cost after first message (if visible)
     const costMeter = page.getByTestId('cost-meter');
@@ -143,7 +159,9 @@ test.describe('Cost Edge Cases', () => {
       });
 
       // Wait for network to settle after sending message
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 5000 })
+        .catch(() => {});
 
       const costAfterSecond = await costMeter.textContent();
 

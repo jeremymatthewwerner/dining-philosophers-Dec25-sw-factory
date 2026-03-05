@@ -3797,3 +3797,93 @@ silence in a context where only DOM state matters.
 - Tests are now more deterministic — wait time is bounded by element appearance, not network silence
 - `networkidle` can mask slow network responses; element-specific waits surface regressions faster
 
+---
+
+## E2E Performance Optimizations - Round 2 (Issue #714, QA Agent Thursday 2026-03-05)
+
+**Date:** 2026-03-05
+**Focus:** e2e-performance — eliminate Claude API calls from test setup, fix waitForTimeout anti-pattern
+
+### Overview
+
+Continued optimization of E2E test performance following PR #692's networkidle removals.
+This round targets the biggest remaining bottleneck: tests using `createConversationViaUI`
+for test setup when not testing the conversation creation flow itself.
+
+`createConversationViaUI` goes through the UI modal and calls the Claude API to validate
+thinker names (~15s per call). `createAndNavigateToConversation` uses the API directly
+(bypassing Claude validation), then navigates in the sidebar — much faster.
+
+Also improved the `tab-visibility.spec.ts` stability check pattern, replacing
+`waitForTimeout(500)` inside an `expect.poll()` callback with a cleaner polling approach
+using `stableCount` tracking across poll iterations.
+
+### Files Modified
+
+#### `frontend/e2e/tab-visibility.spec.ts`
+
+Replaced `waitForTimeout(500)` inside `expect.poll()` callback with a poll-based stability
+tracker. The new pattern polls every 300ms and tracks consecutive equal-count iterations;
+passes when count is stable for 3 consecutive polls (~900ms). Eliminates the anti-pattern
+of using `waitForTimeout` inside a polling callback (inner+outer wait), while maintaining
+the same test intent: verify message count doesn't grow after tab is hidden.
+
+#### `frontend/e2e/chat.spec.ts` (5 replacements)
+
+- `can send a message in conversation` — setup only; API creation is faster
+- `pause/resume button toggles UI state` — testing button behavior, not creation flow
+- `can delete a conversation` — testing deletion behavior, not creation flow
+- `can switch between conversations` — 2 calls; testing switching, not creation flow
+- Removed the inter-creation `new-chat-button` stability wait (not needed for API creation)
+
+#### `frontend/e2e/export-edge-cases.spec.ts` (4 replacements)
+
+All 4 tests test export functionality, not conversation creation:
+- `can export empty conversation without errors`
+- `exports conversation with very long messages`
+- `exports conversation with special characters and unicode`
+- `can export in both HTML and Markdown formats`
+
+#### `frontend/e2e/cost-edge-cases.spec.ts` (4 replacements)
+
+All 4 tests test cost display, not conversation creation:
+- `displays zero cost correctly`
+- `cost meter formats costs with 3 decimal precision`
+- `handles high cost values without overflow`
+- `cost accumulates correctly across multiple messages`
+
+#### `frontend/e2e/keyboard-navigation.spec.ts` (1 replacement)
+
+- `Shift+Enter creates new line in message textarea` — testing keyboard behavior
+
+#### `frontend/e2e/concurrent-operations.spec.ts` (4 replacements)
+
+- `can switch between conversations rapidly without errors` — 3 calls; testing switching
+- `handles rapid message sending in same conversation` — 1 call; testing message behavior
+
+#### `frontend/e2e/network-errors.spec.ts` (2 replacements)
+
+- `handles WebSocket connection failure` — testing WS error handling
+- `reconnects WebSocket after temporary disconnection` — testing WS reconnection
+
+#### `frontend/e2e/mobile-header.spec.ts` (11 replacements)
+
+All tests test mobile header layout/behavior, not conversation creation:
+- `header stays visible during scroll on iPhone SE`
+- `all header controls are clickable on iPhone SE`
+- `header works correctly on iPhone 12 Pro`
+- `header works correctly on iPhone 14 Pro Max`
+- `header wraps controls appropriately on narrow viewport`
+- `header remains functional after orientation change`
+- `header controls do not overlap conversation content`
+- `all buttons meet minimum 44x44px touch target size`
+- `buttons have adequate spacing for touch (8px minimum)`
+- `pace slider is usable with finger on mobile`
+
+### Expected Impact
+
+- **~27 fewer Claude API thinker validation calls** across the E2E test suite
+- **Estimated savings: 7–8 minutes of CI time** (at ~15s per avoided Claude API call)
+- Tests are now faster AND more reliable (API creation doesn't depend on Claude response times)
+- Remaining `createConversationViaUI` calls are in intentionally skipped test blocks
+
