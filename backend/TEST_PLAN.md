@@ -1,3 +1,91 @@
+## Edge Cases - Saturday Sprint (Added 2026-03-07)
+
+**Focus**: Add tests for error paths and boundary conditions in low-coverage modules.
+
+### Analysis Results
+
+Coverage before: 80.45% (496 missed branches), coverage after: 82.03% (33 missed branches).
+Key improvements: `app/api/websocket.py` 47% → 66%, total tests: 687 → 734 passed.
+
+### Tests Added (test_edge_cases_mar2026.py)
+
+**File**: `tests/test_edge_cases_mar2026.py` (47 new tests)
+
+#### TestConversationRoomBroadcastEdgeCases
+1. `test_broadcast_removes_disconnected_client` - Verifies ConversationRoom.broadcast() removes clients that throw exceptions during send, simulating dropped connections.
+2. `test_broadcast_sets_inactive_when_all_disconnect` - Verifies room becomes inactive (is_active=False) when all connections fail during broadcast.
+3. `test_broadcast_empty_room_is_noop` - Validates broadcasting to a room with no connections doesn't raise.
+4. `test_add_connection_sets_active` - Tests ConversationRoom.add_connection() sets is_active=True.
+5. `test_remove_connection_sets_inactive_when_empty` - Tests removing last connection sets is_active=False.
+6. `test_remove_connection_stays_active_with_remaining_connections` - Tests room stays active when connections remain after one removal.
+
+#### TestConnectionManagerEdgeCases
+7. `test_set_speed_multiplier_no_room_is_noop` - Boundary: speed change for conversation without a room is a no-op.
+8. `test_set_speed_multiplier_clamps_below_minimum` - Boundary: speed < 0.5 gets clamped to 0.5.
+9. `test_set_speed_multiplier_clamps_above_maximum` - Boundary: speed > 6.0 gets clamped to 6.0.
+10. `test_get_speed_multiplier_nonexistent_room_returns_default` - Boundary: non-existent conversation returns 1.0 default.
+11. `test_send_thinker_typing_adds_to_typing_thinkers` - Tests typing set membership tracking.
+12. `test_send_thinker_stopped_typing_removes_from_typing_thinkers` - Tests typing set cleanup.
+13. `test_send_thinker_thinking_broadcasts_message` - Tests thinking content broadcast with correct type/sender_name/content.
+14. `test_send_research_started_broadcasts_to_room` - Tests research_started event includes thinker_name and timestamp.
+15. `test_send_research_complete_broadcasts_to_room` - Tests research_complete event includes thinker_name.
+16. `test_send_research_failed_with_error_message` - Tests research_failed event includes error content.
+17. `test_send_research_failed_without_error_message` - Boundary: research_failed with no error has None content.
+18. `test_send_cache_hit_broadcasts_to_room` - Tests cache_hit event includes thinker_name.
+19. `test_send_thinker_message_with_cost` - Tests thinker message broadcast includes cost.
+20. `test_send_thinker_message_without_cost` - Boundary: thinker message with None cost.
+
+#### TestSpendLimitExceededException
+21. `test_spend_limit_exceeded_attributes` - Verifies SpendLimitExceeded stores current_spend and spend_limit.
+22. `test_spend_limit_exceeded_message_format` - Verifies error message includes the dollar amounts.
+23. `test_spend_limit_exceeded_is_exception` - Verifies it's a proper Exception subclass.
+
+#### TestSaveThinkerMessageEdgeCases
+24. `test_save_message_raises_when_spend_limit_exceeded` - Error path: user at spend limit raises SpendLimitExceeded before saving message.
+25. `test_save_message_updates_user_spend` - Happy path: save_thinker_message increments user.total_spend.
+26. `test_save_message_no_conversation_still_saves` - Boundary: non-existent conversation creates message without spend tracking.
+
+#### TestKnowledgeResearchIsStale
+27. `test_is_stale_pending_returns_true` - PENDING status is always stale (needs research).
+28. `test_is_stale_failed_returns_true` - FAILED status is always stale (needs retry).
+29. `test_is_stale_in_progress_returns_true` - IN_PROGRESS status is always stale.
+30. `test_is_stale_complete_old_returns_true` - COMPLETE with 60-day-old timestamp is stale.
+31. `test_is_stale_complete_recent_returns_false` - COMPLETE with 1-day-old timestamp is fresh.
+
+#### TestKnowledgeResearchTriggerDeduplication
+32. `test_trigger_research_deduplicates_in_progress` - Boundary: trigger_research skips if task already running.
+33. `test_trigger_research_restarts_completed_task` - Boundary: trigger_research starts new task if previous is done.
+
+#### TestKnowledgeResearchFetchWikipedia
+34. `test_fetch_wikipedia_no_results_returns_none` - Error path: empty search results returns None.
+35. `test_fetch_wikipedia_http_error_returns_none` - Error path: HTTP error returns None gracefully.
+
+#### TestExtractMentionsEdgeCases
+36. `test_extract_mentions_empty_text` - Boundary: empty string returns empty list.
+37. `test_extract_mentions_no_mentions` - No @mentions returns empty list.
+38. `test_extract_mentions_quoted_name_with_spaces` - Handles @"Marie Curie" format.
+39. `test_extract_mentions_simple_name` - Handles @Socrates format.
+40. `test_extract_mentions_multiple_thinkers` - Multiple @mentions in one message.
+41. `test_extract_mentions_quoted_prevents_duplicate` - Quoted names don't appear twice.
+
+#### TestGetLanguageInstructionEdgeCases
+42. `test_english_returns_empty_string` - English (default) returns empty string (no instruction).
+43. `test_spanish_returns_instruction` - Spanish returns "Respond in Spanish".
+44. `test_french_returns_instruction` - French returns instruction with "French".
+45. `test_unknown_language_code_uses_code_as_name` - Unknown code "zh" uses the code as language name.
+46. `test_german_returns_instruction` - German returns instruction with "German".
+47. `test_hindi_returns_instruction` - Hindi returns instruction with "Hindi".
+
+### Coverage Impact
+- Coverage: 80.45% → 82.03%
+- websocket.py: 47% → 66% (+19%)
+- knowledge_research.py: 73% (unchanged - existing tests cover those branches)
+- thinker.py: 71% (unchanged - agent loop lines require async integration tests)
+- New tests: 47 added, 0 skipped
+- All 734 tests pass (verified 3x, stable)
+
+---
+
 ## Flaky Hunt - Tuesday Sprint (Added 2026-03-03)
 
 **Focus**: Run test suite 5x, identify flaky tests, and fix skipped tests with fixable bugs.
