@@ -2,6 +2,115 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.0 Coverage Sprint (Added 2026-03-09)
+
+**Focus**: Monday QA Coverage Sprint - targeting lowest-coverage modules
+**File**: `backend/tests/test_coverage_sprint_mar09.py`
+**Coverage Impact**: 82.37% -> **85.0%** (+2.63%)
+- `app/core/database.py`: 43% -> **100%** (all lines now covered)
+- `app/core/config.py`: 72% -> **100%** (sync_database_url property covered)
+- `app/core/auth.py`: 93% -> **100%** (expires_delta branch covered)
+- `app/main.py`: 60% -> **96%** (create_admin_user, lifespan, billing handler covered)
+
+### 0.0.1 Config sync_database_url Property (config.py lines 35-44)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestSyncDatabaseUrl`
+
+Tests the `sync_database_url` property which converts async driver URLs to sync equivalents for Alembic migrations.
+
+- `test_sqlite_aiosqlite_converts_to_sync` - sqlite+aiosqlite:// becomes sqlite:// for Alembic.
+- `test_postgresql_asyncpg_converts_to_sync` - postgresql+asyncpg:// converts to plain postgresql://.
+- `test_postgres_url_converts_to_postgresql` - postgres:// (Railway short form) becomes postgresql://.
+- `test_postgresql_sync_url_passes_through` - Already-sync postgresql:// passes through unchanged.
+- `test_sqlite_sync_url_passes_through` - Plain sqlite:// (no aiosqlite) passes through unchanged.
+- `test_in_memory_sqlite_aiosqlite_converts` - In-memory sqlite+aiosqlite:// converts to sqlite://.
+- `test_async_and_sync_urls_are_different_for_aiosqlite` - Verifies the two URL properties produce different results for aiosqlite URLs.
+
+### 0.0.2 Database Session Context Manager (database.py lines 43, 45-46)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestAsyncSessionContextManager`
+
+Tests the `async_session()` context manager used by background tasks and startup operations.
+
+- `test_async_session_yields_session` - Context manager yields a working AsyncSession instance.
+- `test_async_session_commits_on_success` - Session is committed when no exception occurs.
+- `test_async_session_rolls_back_on_exception` - Session is rolled back when an exception is raised inside the block.
+
+### 0.0.3 Database get_db Dependency (database.py lines 55-57)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestGetDb`
+
+Tests the `get_db()` async generator used as a FastAPI dependency.
+
+- `test_get_db_yields_session` - Generator yields a working AsyncSession.
+- `test_get_db_commits_on_success` - Session commits when the generator closes cleanly.
+- `test_get_db_rolls_back_on_exception` - Session rolls back when an exception is thrown into the generator.
+
+### 0.0.4 run_migrations Function (database.py lines 66-82)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestRunMigrations`
+
+Tests the synchronous Alembic migration runner called at startup.
+
+- `test_run_migrations_returns_false_when_no_alembic_ini` - Returns False and logs a warning when alembic.ini is absent.
+- `test_run_migrations_returns_true_when_migrations_succeed` - Returns True and calls alembic upgrade("head") on success.
+- `test_run_migrations_sets_script_location_and_url` - Configures both script_location and sqlalchemy.url options on the Alembic config object.
+
+### 0.0.5 init_db Function (database.py lines 92-109)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestInitDb`
+
+Tests the async database initialization function that runs at application startup.
+
+- `test_init_db_uses_run_migrations_when_alembic_ini_exists` - Calls run_migrations() when alembic.ini is found.
+- `test_init_db_falls_back_to_create_all_when_no_alembic_ini` - Falls back to Base.metadata.create_all when alembic.ini is absent.
+- `test_init_db_falls_back_to_create_all_when_migration_fails` - Falls back to create_all when run_migrations() raises an exception.
+
+### 0.0.6 close_db Function (database.py line 114)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestCloseDb`
+
+- `test_close_db_disposes_engine` - Calls engine.dispose() to release all database connections.
+
+### 0.0.7 create_admin_user Function (main.py lines 27-43)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestCreateAdminUser`
+
+Tests the startup function that creates the default admin user.
+
+- `test_create_admin_user_creates_when_not_exists` - Creates admin user with is_admin=True when one doesn't exist.
+- `test_create_admin_user_does_not_duplicate` - Does not create a second admin user when one already exists.
+
+### 0.0.8 Application Lifespan Handler (main.py lines 49-68)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestLifespan`
+
+Tests the FastAPI lifespan async context manager that handles startup and shutdown.
+
+- `test_lifespan_calls_init_db_and_create_admin` - Calls init_db() and create_admin_user() during startup.
+- `test_lifespan_calls_close_db_on_shutdown` - Calls close_db() during teardown.
+- `test_lifespan_raises_when_init_db_fails` - Propagates RuntimeError from init_db() so the app fails to start cleanly.
+
+### 0.0.9 BillingError Exception Handler (main.py lines 155-157)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestBillingErrorHandler`
+
+Tests the exception handler that converts BillingError to HTTP 503 responses.
+
+- `test_billing_error_handler_returns_503` - BillingError raised by any endpoint returns HTTP 503.
+- `test_billing_error_handler_response_structure` - Response is a JSON object with a non-empty 'detail' string.
+
+### 0.0.10 JWT expires_delta Branch (auth.py line 41)
+
+**File**: `backend/tests/test_coverage_sprint_mar09.py` - `TestAuthMissingLine`
+
+Tests the `if expires_delta:` branch in create_access_token() that was previously uncovered.
+
+- `test_create_access_token_with_custom_expires_delta` - Token created with custom timedelta is valid and decodable (covers line 41).
+- `test_create_access_token_short_expiry` - Short 30-second expiry still encodes/decodes correctly.
+- `test_create_access_token_without_expires_delta_uses_default` - Token without explicit expiry uses the configured default.
+- `test_decode_access_token_invalid_returns_none` - decode_access_token() returns None for an invalid/malformed JWT.
+
 ## 1.0 Regression Prevention (Added 2026-03-01)
 
 **Focus**: Sunday QA focus - regression prevention for recently fixed bugs and uncovered code paths
