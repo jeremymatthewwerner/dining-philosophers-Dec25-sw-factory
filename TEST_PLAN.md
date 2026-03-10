@@ -3887,3 +3887,39 @@ All tests test mobile header layout/behavior, not conversation creation:
 - Tests are now faster AND more reliable (API creation doesn't depend on Claude response times)
 - Remaining `createConversationViaUI` calls are in intentionally skipped test blocks
 
+---
+
+## 11.0 Flaky Test Hunt (Added 2026-03-10)
+
+**Focus**: Tuesday QA focus - identify and eliminate unawaited coroutine warnings that mask incorrect test behavior
+**Files modified**:
+- `backend/tests/test_thinker_service.py`
+- `backend/tests/test_edge_cases_mar2026.py`
+**Warning count**: 9 warnings → 6 warnings (eliminated 2 RuntimeWarnings about unawaited coroutines)
+
+### 11.1 Root Cause Analysis
+
+Two tests were identified as producing `RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited` on every run. While these tests PASSED, they were passing for the wrong reasons:
+
+#### `TestGetWikipediaImage::test_get_image_with_no_results`
+**File**: `backend/tests/test_thinker_service.py`
+
+**Bug**: `mock_response.json = AsyncMock(return_value={"query": {"search": []}})` was used, but `httpx.Response.json()` is a synchronous method. When the production code called `response.json()` synchronously, it received a coroutine object (not a dict). This caused `data.get(...)` to raise `AttributeError`, which was silently caught by the `except Exception: return None` handler. The test passed (returned `None`) but via the exception path, not the "no results" path.
+
+**Fix**: Changed to `mock_response = MagicMock()` with `mock_response.json.return_value = {"query": {"search": []}}`. Now the test correctly validates the "no results" code path (lines 160-161 of `thinker.py`).
+
+#### `TestKnowledgeResearchTriggerDeduplication::test_trigger_research_restarts_completed_task`
+**File**: `backend/tests/test_edge_cases_mar2026.py`
+
+**Bug**: `patch.object(service, "_research_thinker")` automatically detects that `_research_thinker` is a coroutine function (async def) and creates an `AsyncMock`. When `asyncio.create_task(self._research_thinker(name))` was called, the `AsyncMock` created a coroutine. Since `asyncio.create_task` was also patched (as a `MagicMock`), it received the coroutine but never scheduled/awaited it.
+
+**Fix**: Changed to `patch.object(service, "_research_thinker", new=MagicMock())` to explicitly prevent auto-AsyncMock behavior. This ensures calling `_research_thinker(name)` returns a regular `MagicMock()` (not a coroutine), which `asyncio.create_task` (also mocked) can handle without leaking.
+
+### 11.2 Remaining Warnings (SAWarning)
+
+5-6 `SAWarning` warnings remain about SQLAlchemy connections not properly checked in during `TestWebSocketEndpoint` and `TestWebSocketMessageTypes` tests. These are caused by using the synchronous `TestClient` for async WebSocket tests that create database connections internally. The connections are dropped by GC because async cleanup can't run in a sync test context. These warnings are:
+- Consistent (not flaky)
+- Non-fatal (connections are dropped, not leaked permanently)
+- Would require significant refactoring of websocket tests to use async clients
+- Tracked for future improvement
+
