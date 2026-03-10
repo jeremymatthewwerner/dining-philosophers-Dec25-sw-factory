@@ -687,8 +687,9 @@ class TestGetWikipediaImage:
             mock_client_class.return_value.__aenter__.return_value = mock_client
 
             # Mock search response with no results
-            mock_response = AsyncMock()
-            mock_response.json = AsyncMock(return_value={"query": {"search": []}})
+            # Note: httpx.Response.json() is synchronous, so use MagicMock not AsyncMock
+            mock_response = MagicMock()
+            mock_response.json.return_value = {"query": {"search": []}}
             mock_client.get = AsyncMock(return_value=mock_response)
 
             result = await service.get_wikipedia_image("NonexistentPerson123")

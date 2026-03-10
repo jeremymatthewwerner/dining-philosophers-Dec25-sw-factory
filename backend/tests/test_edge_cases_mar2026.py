@@ -556,7 +556,11 @@ class TestKnowledgeResearchTriggerDeduplication:
 
         with (
             patch("asyncio.create_task") as mock_create,
-            patch.object(service, "_research_thinker"),
+            # Use new=MagicMock() to prevent auto-AsyncMock behavior on async methods.
+            # Without this, patch.object auto-detects the coroutine function and creates
+            # an AsyncMock, which produces an unawaited coroutine when create_task is
+            # patched and doesn't actually schedule the coroutine.
+            patch.object(service, "_research_thinker", new=MagicMock()),
         ):
             mock_new_task = MagicMock()
             mock_create.return_value = mock_new_task
