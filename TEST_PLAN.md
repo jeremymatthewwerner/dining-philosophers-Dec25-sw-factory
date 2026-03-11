@@ -3923,3 +3923,115 @@ Two tests were identified as producing `RuntimeWarning: coroutine 'AsyncMockMixi
 - Would require significant refactoring of websocket tests to use async clients
 - Tracked for future improvement
 
+
+---
+
+## 12.0 Integration Gaps (Added 2026-03-11)
+
+**Focus**: Wednesday QA focus - untested API integration paths
+**File**: `backend/tests/test_integration_gaps_mar2026.py`
+**Tests Added**: 23 new integration tests across 8 test classes
+
+### 12.1 Feedback API - X-Forwarded-For Multiple IP Chain
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestFeedbackXForwardedForMultipleIPs`
+
+Tests the `get_client_ip` function when `X-Forwarded-For` contains multiple comma-separated IPs.
+
+Coverage: `app/api/feedback.py` line 46 - `x_forwarded_for.split(",")[0].strip()`
+
+- `test_submit_feedback_x_forwarded_for_with_ip_chain` - Comma-separated IP chain (client, proxy1, proxy2) correctly extracts the first IP as the client identity
+- `test_submit_feedback_x_forwarded_for_with_spaces_around_commas` - Spaces around commas in X-Forwarded-For are stripped correctly
+- `test_submit_feedback_rate_limit_respects_x_forwarded_for_ip` - Rate limiting uses the extracted first IP for identity (5 submissions from same client IP hits 429)
+
+### 12.2 Thinkers API - Mock Mode Parameters
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestThinkersApiMockModeParams`
+
+Tests the `/api/thinkers/suggest` endpoint in mock mode (no API key) with various parameters.
+
+Coverage: `app/api/thinkers.py` - `get_mock_suggestions` function with count/exclude/language params
+
+- `test_suggest_thinkers_with_exclude_list_in_mock_mode` - Exclude list parameter is accepted without error in mock mode; returns 3 suggestions with all required fields
+- `test_suggest_thinkers_with_count_1_limits_mock_results` - count=1 limits results to exactly 1 suggestion via `base_suggestions[:count]` slicing
+- `test_suggest_thinkers_with_language_param_in_mock_mode` - language parameter is accepted and passed through in mock mode
+- `test_suggest_thinkers_includes_image_url_when_wikipedia_returns_url` - When Wikipedia fetch returns a URL, profile includes that image_url
+- `test_suggest_thinkers_handles_wikipedia_exception` - When Wikipedia fetch throws, asyncio.gather catches as return_exception and returns None image (not a crash)
+
+### 12.3 Thinker Knowledge API - Status and Refresh Paths
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestThinkerKnowledgeIntegrationPaths`
+
+Tests knowledge status and refresh endpoints for new/unknown thinkers.
+
+Coverage: `app/api/thinkers.py` lines 261-274 (status endpoint), 290-299 (refresh endpoint)
+
+- `test_knowledge_status_returns_pending_for_unknown_thinker` - Status endpoint returns `pending` and `has_data=False` when no knowledge entry exists
+- `test_knowledge_status_returns_existing_entry_data` - Status endpoint returns existing entry data after GET /knowledge/{name} creates it
+- `test_knowledge_refresh_creates_entry_for_new_thinker` - Refresh endpoint creates new entry and calls `trigger_research` exactly once
+
+### 12.4 Auth API - Language Update Persistence
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestAuthLanguageUpdatePersistence`
+
+Tests the PATCH `/api/auth/language` endpoint end-to-end persistence.
+
+Coverage: `app/api/auth.py` lines 199-203
+
+- `test_language_update_persists_in_me_response` - Full round-trip: update language to 'es' → verify GET /me returns 'es'
+- `test_language_update_to_all_supported_values` - Each supported language code ('en', 'es', 'fr', 'de') can be set and is returned correctly
+- `test_language_update_requires_auth` - Unauthenticated request returns 401
+
+### 12.5 Admin API - Delete User Cascade
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestAdminDeleteUserCascade`
+
+Tests the DELETE `/api/admin/users/{user_id}` endpoint.
+
+Coverage: `app/api/admin.py` lines 105-118
+
+- `test_delete_user_cascades_to_sessions` - Deleting a user returns success message with username; user's token no longer resolves to valid session
+- `test_delete_nonexistent_user_returns_404` - Deleting non-existent user returns 404 with "not found" detail
+
+### 12.6 Sessions API - Full Integration
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestSessionsAPIIntegration`
+
+Tests the GET `/api/sessions/me` endpoint.
+
+Coverage: `app/api/sessions.py` lines 28-43, 51
+
+- `test_get_session_returns_session_info_with_user` - Valid token returns session with `id` and `created_at` fields
+- `test_get_session_with_invalid_token_format` - Malformed JWT returns 401
+
+### 12.7 Spend API - User With Sessions But No Conversations
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestSpendAPIIntegrationPaths`
+
+Tests the GET `/api/spend/{user_id}` endpoint for user with no conversations.
+
+Coverage: `app/api/spend.py` lines 33-41
+
+- `test_get_spend_user_with_session_but_no_conversations` - User with only registration session returns spend data with empty conversations list and total_spend=0.0
+
+### 12.8 Conversations API - Empty List
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestConversationsEmptyList`
+
+Tests the GET `/api/conversations` endpoint when no conversations exist.
+
+Coverage: `app/api/conversations.py` lines 76-105
+
+- `test_list_conversations_returns_empty_for_new_user` - New user with no conversations gets empty list
+- `test_list_conversations_after_deletion_returns_empty` - After creating and deleting a conversation, list returns empty
+
+### 12.9 Auth API - Login Response Completeness
+
+**File**: `backend/tests/test_integration_gaps_mar2026.py` - `TestAuthLoginResponseIntegration`
+
+Tests the POST `/api/auth/login` endpoint response completeness.
+
+Coverage: `app/api/auth.py` lines 148-171
+
+- `test_login_response_includes_language_preference` - Login response includes `language_preference` and all required user fields in TokenResponse
+- `test_login_creates_new_session_when_none_exists_and_returns_token` - When user has no sessions (deleted), login creates new session and returns working token (covers lines 151-155 branch)
