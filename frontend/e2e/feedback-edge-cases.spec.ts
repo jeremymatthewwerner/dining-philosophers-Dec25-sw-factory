@@ -232,8 +232,12 @@ test.describe('Feedback Modal Edge Cases', () => {
     const modalOverlay = page.locator('[data-testid="feedback-modal"]');
     await modalOverlay.click({ position: { x: 5, y: 5 } }); // Click top-left corner (overlay)
 
-    // Wait briefly for any animation
-    await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
+    // Wait briefly for any animation — use element-based check instead of networkidle
+    // (networkidle hangs on open WebSocket connections for up to the full timeout)
+    const modalElement = page.getByTestId('feedback-modal');
+    await modalElement
+      .waitFor({ state: 'hidden', timeout: 1000 })
+      .catch(() => {});
 
     const modalStillVisible = await page
       .getByTestId('feedback-modal')

@@ -139,12 +139,8 @@ test.describe('Cost Edge Cases', () => {
       timeout: 5000,
     });
 
-    // Wait for network to settle after sending message
-    await page
-      .waitForLoadState('networkidle', { timeout: 5000 })
-      .catch(() => {});
-
     // Get cost after first message (if visible)
+    // Note: no networkidle wait here — WebSocket keeps network active indefinitely
     const costMeter = page.getByTestId('cost-meter');
     const isVisible = await costMeter.isVisible().catch(() => false);
 
@@ -157,11 +153,6 @@ test.describe('Cost Edge Cases', () => {
       await expect(page.locator('text=Second question')).toBeVisible({
         timeout: 5000,
       });
-
-      // Wait for network to settle after sending message
-      await page
-        .waitForLoadState('networkidle', { timeout: 5000 })
-        .catch(() => {});
 
       const costAfterSecond = await costMeter.textContent();
 

@@ -211,8 +211,18 @@ test.describe('Settings Edge Cases', () => {
     });
     await changeButton.click();
 
-    // Should either trim whitespace automatically or show error - wait for network idle
-    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    // Should either trim whitespace automatically or show error
+    // Wait for response element (faster than networkidle which hangs on open WS connections)
+    const passwordSuccessSelector = page.locator(
+      'text=/password.*changed|changed.*successfully/i'
+    );
+    const passwordErrorSelector = page.locator(
+      'text=/incorrect|invalid|wrong|error|failed/i'
+    );
+    await Promise.race([
+      passwordSuccessSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+      passwordErrorSelector.waitFor({ timeout: 10000 }).catch(() => {}),
+    ]);
 
     // The form should handle this gracefully (either success or meaningful error)
     const formStillVisible = await page.locator('#currentPassword').isVisible();
