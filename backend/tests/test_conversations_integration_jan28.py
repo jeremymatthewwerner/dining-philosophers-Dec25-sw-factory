@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Message
-from tests.conftest import get_auth_headers
+from tests.conftest import create_thinker_input, get_auth_headers
 
 
 class TestListConversationsIntegration:
@@ -22,14 +22,7 @@ class TestListConversationsIntegration:
             "/api/conversations",
             json={
                 "topic": "Philosophy",
-                "thinkers": [
-                    {
-                        "name": "Socrates",
-                        "bio": "Ancient Greek philosopher",
-                        "positions": "Teacher",
-                        "style": "Socratic",
-                    }
-                ],
+                "thinkers": [create_thinker_input("Socrates", "Ancient Greek philosopher")],
             },
             headers=auth_headers,
         )
@@ -70,14 +63,7 @@ class TestListConversationsIntegration:
             "/api/conversations",
             json={
                 "topic": "Economics",
-                "thinkers": [
-                    {
-                        "name": "Adam Smith",
-                        "bio": "Economist",
-                        "positions": "Political economist",
-                        "style": "Classical",
-                    }
-                ],
+                "thinkers": [create_thinker_input("Adam Smith", "Economist")],
             },
             headers=auth_headers,
         )
@@ -127,14 +113,7 @@ class TestListConversationsIntegration:
             "/api/conversations",
             json={
                 "topic": "Free Thoughts",
-                "thinkers": [
-                    {
-                        "name": "Diogenes",
-                        "bio": "Cynic philosopher",
-                        "positions": "Philosopher",
-                        "style": "Cynical",
-                    }
-                ],
+                "thinkers": [create_thinker_input("Diogenes", "Cynic philosopher")],
             },
             headers=auth_headers,
         )
@@ -178,14 +157,7 @@ class TestGetConversationIntegration:
             "/api/conversations",
             json={
                 "topic": "Private thoughts",
-                "thinkers": [
-                    {
-                        "name": "Marcus Aurelius",
-                        "bio": "Roman emperor",
-                        "positions": "Emperor",
-                        "style": "Stoic",
-                    }
-                ],
+                "thinkers": [create_thinker_input("Marcus Aurelius", "Roman emperor")],
             },
             headers=auth_headers_1,
         )
@@ -213,14 +185,7 @@ class TestDeleteConversationIntegration:
             "/api/conversations",
             json={
                 "topic": "Ephemeral",
-                "thinkers": [
-                    {
-                        "name": "Heraclitus",
-                        "bio": "Greek philosopher",
-                        "positions": "Philosopher",
-                        "style": "Change-focused",
-                    }
-                ],
+                "thinkers": [create_thinker_input("Heraclitus", "Greek philosopher")],
             },
             headers=auth_headers,
         )
@@ -361,14 +326,7 @@ class TestAddThinkersRefreshBehavior:
             "/api/conversations",
             json={
                 "topic": "Identity",
-                "thinkers": [
-                    {
-                        "name": "Locke",
-                        "bio": "Empiricist",
-                        "positions": "Philosopher",
-                        "style": "Empirical",
-                    }
-                ],
+                "thinkers": [create_thinker_input("Locke", "Empiricist")],
             },
             headers=auth_headers,
         )
@@ -378,14 +336,7 @@ class TestAddThinkersRefreshBehavior:
         # Add new thinker
         response = await client.put(
             f"/api/conversations/{conversation_id}/thinkers",
-            json=[
-                {
-                    "name": "Hume",
-                    "bio": "Skeptic",
-                    "positions": "Philosopher",
-                    "style": "Skeptical",
-                }
-            ],
+            json=[create_thinker_input("Hume", "Skeptic")],
             headers=auth_headers,
         )
         assert response.status_code == 200
@@ -415,14 +366,7 @@ class TestAddThinkersRefreshBehavior:
             "/api/conversations",
             json={
                 "topic": "Plurality",
-                "thinkers": [
-                    {
-                        "name": "Plato",
-                        "bio": "Idealist",
-                        "positions": "Philosopher",
-                        "style": "Idealistic",
-                    }
-                ],
+                "thinkers": [create_thinker_input("Plato", "Idealist")],
             },
             headers=auth_headers,
         )
@@ -432,15 +376,7 @@ class TestAddThinkersRefreshBehavior:
         # Add 3 thinkers at once
         response = await client.put(
             f"/api/conversations/{conversation_id}/thinkers",
-            json=[
-                {
-                    "name": f"Thinker {i}",
-                    "bio": f"Bio {i}",
-                    "positions": "Philosopher",
-                    "style": "Analytical",
-                }
-                for i in range(3)
-            ],
+            json=[create_thinker_input(f"Thinker {i}", f"Bio {i}") for i in range(3)],
             headers=auth_headers,
         )
         assert response.status_code == 200

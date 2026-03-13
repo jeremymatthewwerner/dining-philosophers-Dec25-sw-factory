@@ -4034,4 +4034,70 @@ Tests the POST `/api/auth/login` endpoint response completeness.
 Coverage: `app/api/auth.py` lines 148-171
 
 - `test_login_response_includes_language_preference` - Login response includes `language_preference` and all required user fields in TokenResponse
+
+---
+
+## 13.0 Test Refactoring - Readability and Maintainability (Added 2026-03-13)
+
+**Focus**: Friday QA focus - improve test readability, reduce code duplication, better organization.
+**Files Refactored**: `backend/tests/test_thinker_service.py`, `backend/tests/test_conversations_integration_jan28.py`
+
+**No new tests added** - existing tests preserved with identical behavior. All 108 affected tests pass 3x without flakiness.
+
+### 13.1 ThinkerService Test Helpers (test_thinker_service.py)
+
+**Problem**: The `test_thinker_service.py` file (1596 lines) had several recurring patterns:
+1. Inline `from tests.conftest import ...` inside individual test methods (appeared 3 times)
+2. 4-line mock client setup pattern repeated 15+ times:
+   ```python
+   mock_client = AsyncMock()
+   mock_client.messages.create = AsyncMock(return_value=mock_response)
+   service._client = mock_client
+   ```
+3. 6-line service+mock client setup pattern repeated 10+ times
+
+**Solution**: Added two module-level helper functions:
+
+- `make_mock_client_with_response(response)` - Creates a mock Anthropic client that returns the
+  given response from `messages.create`. Reduces the 3-line mock client setup to a single line.
+
+- `make_service_with_mock_response(response_text)` - Creates a ThinkerService with a fully
+  configured mock client returning the given text. Reduces 6-line setup to a single line.
+
+**Inline imports removed**: Moved `create_mock_anthropic_response` and
+`create_mock_thinker_suggestion_json` from inline imports inside test methods to module-level
+imports at the top of the file.
+
+**Tests simplified** (no behavioral change):
+- `TestValidateThinker.test_validate_with_valid_response` - uses `make_service_with_mock_response()`
+- `TestValidateThinker.test_validate_with_invalid_response` - uses `make_service_with_mock_response()`
+- `TestGenerateResponse.test_generate_with_mock_response` - uses `make_service_with_mock_response()`
+- `TestGenerateUserPrompt.test_generate_user_prompt_with_mock_response` - uses `make_service_with_mock_response()`
+- `TestSuggestThinkersErrorHandling.test_suggest_handles_json_decode_error` - uses `make_service_with_mock_response()`
+- `TestSuggestThinkersErrorHandling.test_suggest_handles_empty_response` - uses `make_service_with_mock_response()`
+- `TestSuggestThinkersErrorHandling.test_suggest_handles_non_text_block` - uses `make_mock_client_with_response()`
+- `TestSuggestThinkersErrorHandling.test_suggest_strips_markdown_code_fences` - uses `make_mock_client_with_response()`
+- `TestSuggestThinkersErrorHandling.test_suggest_with_exclude_list` - uses `make_service_with_mock_response()` + `create_mock_thinker_suggestion_json()`
+- `TestValidateThinkerErrorHandling.test_validate_handles_non_text_block` - uses `make_mock_client_with_response()`
+- `TestValidateThinkerErrorHandling.test_validate_handles_json_decode_error` - uses `make_service_with_mock_response()`
+- `TestGenerateResponseErrorHandling.test_generate_response_handles_non_text_block` - uses `make_mock_client_with_response()`
+- `TestGenerateUserPromptErrorHandling.test_generate_user_prompt_handles_non_text_block` - uses `make_mock_client_with_response()`
+- `TestSuggestThinkers.test_suggest_with_mock_client` - uses `make_service_with_mock_response()`
+
+### 13.2 Conversation Integration Tests - create_thinker_input() (test_conversations_integration_jan28.py)
+
+**Problem**: `test_conversations_integration_jan28.py` defined inline thinker dicts in 8 tests
+instead of using the `create_thinker_input()` helper already available in `tests/conftest.py`.
+This created verbose 4-line blocks for simple thinker definitions.
+
+**Solution**: Updated import to include `create_thinker_input` and replaced 8 inline dicts with
+`create_thinker_input()` calls:
+
+- `TestListConversationsIntegration.test_list_conversations_message_count_accuracy` - Socrates thinker
+- `TestListConversationsIntegration.test_list_conversations_cost_aggregation` - Adam Smith thinker
+- `TestListConversationsIntegration.test_list_conversations_with_zero_cost_messages` - Diogenes thinker
+- `TestGetConversationIntegration.test_get_conversation_belongs_to_different_session` - Marcus Aurelius thinker
+- `TestDeleteConversationIntegration.test_delete_conversation_cascades_messages` - Heraclitus thinker
+- `TestAddThinkersRefreshBehavior.test_add_thinkers_refresh_sets_ids_and_timestamps` - Locke + Hume thinkers
+- `TestAddThinkersRefreshBehavior.test_add_multiple_thinkers_all_have_unique_ids` - Plato + list comprehension
 - `test_login_creates_new_session_when_none_exists_and_returns_token` - When user has no sessions (deleted), login creates new session and returns working token (covers lines 151-155 branch)
