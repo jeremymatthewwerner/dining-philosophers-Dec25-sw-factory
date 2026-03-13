@@ -10,6 +10,10 @@ from anthropic.types import TextBlock
 from app.exceptions import BillingError
 from app.models.message import SenderType
 from app.services.thinker import ThinkerService, extract_mentions, is_mentioned
+from tests.conftest import (
+    create_mock_anthropic_response,
+    create_mock_thinker_suggestion_json,
+)
 
 
 def make_mock_thinker(
@@ -74,6 +78,56 @@ def make_mock_api_request(
     mock_request.url = url
     mock_request.method = method
     return mock_request
+
+
+def make_mock_client_with_response(response: MagicMock) -> AsyncMock:
+    """Create a mock Anthropic client that returns the given response.
+
+    Reduces the 4-line setup pattern that appears 15+ times across tests:
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+    Args:
+        response: The MagicMock response to return from messages.create
+
+    Returns:
+        Configured AsyncMock client
+
+    Example:
+        >>> mock_response = create_mock_anthropic_response("Hello")
+        >>> service._client = make_mock_client_with_response(mock_response)
+    """
+    mock_client = AsyncMock()
+    mock_client.messages.create = AsyncMock(return_value=response)
+    return mock_client
+
+
+def make_service_with_mock_response(response_text: str) -> tuple[ThinkerService, AsyncMock]:
+    """Create a ThinkerService with a mock client returning the given text.
+
+    Reduces the recurring 6-line pattern of:
+        service = ThinkerService()
+        mock_response = create_mock_anthropic_response("text")
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        service._client = mock_client
+
+    Args:
+        response_text: Text for the mock Anthropic response
+
+    Returns:
+        Tuple of (ThinkerService, mock_client) for use in tests
+
+    Example:
+        >>> service, mock_client = make_service_with_mock_response('["result"]')
+        >>> result = await service.suggest_thinkers("philosophy", 1)
+    """
+    service = ThinkerService()
+    mock_response = create_mock_anthropic_response(response_text)
+    mock_client = make_mock_client_with_response(mock_response)
+    service._client = mock_client
+    return service, mock_client
 
 
 class TestThinkerService:
@@ -149,13 +203,6 @@ class TestSuggestThinkers:
 
     async def test_suggest_with_mock_client(self) -> None:
         """Test suggest_thinkers with mocked API response."""
-        from tests.conftest import (
-            create_mock_anthropic_response,
-            create_mock_thinker_suggestion_json,
-        )
-
-        service = ThinkerService()
-
         # Use helper to create thinker suggestion JSON
         json_text = create_mock_thinker_suggestion_json(
             name="Socrates",
@@ -164,11 +211,7 @@ class TestSuggestThinkers:
             positions="Socratic method",
             style="Questions everything",
         )
-        mock_response = create_mock_anthropic_response(json_text)
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service, _ = make_service_with_mock_response(json_text)
 
         result = await service.suggest_thinkers("philosophy", 1)
 
@@ -192,13 +235,7 @@ class TestValidateThinker:
 
     async def test_validate_with_valid_response(self) -> None:
         """Test validate_thinker with valid API response."""
-        service = ThinkerService()
-
-        mock_response = MagicMock()
-        mock_response.content = [
-            TextBlock(
-                type="text",
-                text="""{
+        valid_response_json = """{
                 "valid": true,
                 "profile": {
                     "name": "Socrates",
@@ -206,13 +243,8 @@ class TestValidateThinker:
                     "positions": "Socratic method",
                     "style": "Questions everything"
                 }
-            }""",
-            )
-        ]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+            }"""
+        service, _ = make_service_with_mock_response(valid_response_json)
 
         is_valid, profile = await service.validate_thinker("Socrates")
 
@@ -222,22 +254,11 @@ class TestValidateThinker:
 
     async def test_validate_with_invalid_response(self) -> None:
         """Test validate_thinker with invalid API response."""
-        service = ThinkerService()
-
-        mock_response = MagicMock()
-        mock_response.content = [
-            TextBlock(
-                type="text",
-                text="""{
+        invalid_response_json = """{
                 "valid": false,
                 "reason": "Not a real person"
-            }""",
-            )
-        ]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+            }"""
+        service, _ = make_service_with_mock_response(invalid_response_json)
 
         is_valid, profile = await service.validate_thinker("FakePerson123")
 
@@ -264,18 +285,8 @@ class TestGenerateResponse:
 
     async def test_generate_with_mock_response(self) -> None:
         """Test generate_response with mocked API response."""
-        from tests.conftest import create_mock_anthropic_response
-
-        service = ThinkerService()
-
-        # Use helper to create mock response
-        mock_response = create_mock_anthropic_response(
-            "I think therefore I am.", input_tokens=100, output_tokens=10
-        )
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        # Use helpers to create service with mock response
+        service, _ = make_service_with_mock_response("I think therefore I am.")
 
         # Use module-level helper instead of repeating 5-line thinker setup
         thinker = make_mock_thinker(
@@ -889,18 +900,9 @@ class TestGenerateUserPrompt:
 
     async def test_generate_user_prompt_with_mock_response(self) -> None:
         """Test generate_user_prompt with mocked API response."""
-        service = ThinkerService()
-
-        mock_response = MagicMock()
-        mock_response.content = [
-            TextBlock(type="text", text="Alice, I'm curious what you think about this.")
-        ]
-        mock_response.usage.input_tokens = 100
-        mock_response.usage.output_tokens = 15
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service, _ = make_service_with_mock_response(
+            "Alice, I'm curious what you think about this."
+        )
 
         # Use module-level helper instead of repeating 5-line thinker setup
         thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
@@ -920,20 +922,15 @@ class TestGenerateUserPrompt:
 
 
 class TestSuggestThinkersErrorHandling:
-    """Tests for error handling in suggest_thinkers."""
+    """Tests for error handling in suggest_thinkers.
+
+    Uses module-level make_service_with_mock_response() to reduce the
+    repeated 6-line service+client setup that appeared in every test.
+    """
 
     async def test_suggest_handles_json_decode_error(self) -> None:
         """Test that suggest_thinkers handles invalid JSON gracefully."""
-        from tests.conftest import create_mock_anthropic_response
-
-        service = ThinkerService()
-
-        # Use helper to create mock response with invalid JSON
-        mock_response = create_mock_anthropic_response("Invalid JSON {]")
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service, _ = make_service_with_mock_response("Invalid JSON {]")
 
         result = await service.suggest_thinkers("test", 1)
 
@@ -942,16 +939,7 @@ class TestSuggestThinkersErrorHandling:
 
     async def test_suggest_handles_empty_response(self) -> None:
         """Test that suggest_thinkers handles empty response."""
-        from tests.conftest import create_mock_anthropic_response
-
-        service = ThinkerService()
-
-        # Use helper to create mock response with empty text
-        mock_response = create_mock_anthropic_response("")
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service, _ = make_service_with_mock_response("")
 
         result = await service.suggest_thinkers("test", 1)
 
@@ -965,10 +953,7 @@ class TestSuggestThinkersErrorHandling:
         mock_non_text_block = MagicMock()
         mock_non_text_block.__class__.__name__ = "ThinkingBlock"
         mock_response.content = [mock_non_text_block]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service._client = make_mock_client_with_response(mock_response)
 
         result = await service.suggest_thinkers("test", 1)
 
@@ -991,10 +976,7 @@ class TestSuggestThinkersErrorHandling:
 
         mock_response = MagicMock()
         mock_response.content = [TextBlock(type="text", text=f"```json\n{json_data}\n```")]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service._client = make_mock_client_with_response(mock_response)
 
         result = await service.suggest_thinkers("test", 1)
 
@@ -1003,28 +985,14 @@ class TestSuggestThinkersErrorHandling:
 
     async def test_suggest_with_exclude_list(self) -> None:
         """Test that suggest_thinkers properly excludes specified thinkers."""
-        service = ThinkerService()
-
-        mock_response = MagicMock()
-        mock_response.content = [
-            TextBlock(
-                type="text",
-                text="""[{
-                    "name": "Plato",
-                    "reason": "Student of Socrates",
-                    "profile": {
-                        "name": "Plato",
-                        "bio": "Greek philosopher",
-                        "positions": "Theory of forms",
-                        "style": "Dialogues"
-                    }
-                }]""",
-            )
-        ]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        plato_json = create_mock_thinker_suggestion_json(
+            name="Plato",
+            reason="Student of Socrates",
+            bio="Greek philosopher",
+            positions="Theory of forms",
+            style="Dialogues",
+        )
+        service, _ = make_service_with_mock_response(plato_json)
 
         result = await service.suggest_thinkers("philosophy", 1, exclude=["Socrates", "Aristotle"])
 
@@ -1090,7 +1058,11 @@ class TestSuggestThinkersErrorHandling:
 
 
 class TestValidateThinkerErrorHandling:
-    """Tests for error handling in validate_thinker."""
+    """Tests for error handling in validate_thinker.
+
+    Uses make_service_with_mock_response() and make_mock_client_with_response()
+    to eliminate repeated 4-line service+client setup in each test.
+    """
 
     async def test_validate_handles_non_text_block(self) -> None:
         """Test that validate_thinker handles non-text response blocks."""
@@ -1100,10 +1072,7 @@ class TestValidateThinkerErrorHandling:
         mock_non_text_block = MagicMock()
         mock_non_text_block.__class__.__name__ = "ThinkingBlock"
         mock_response.content = [mock_non_text_block]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service._client = make_mock_client_with_response(mock_response)
 
         is_valid, profile = await service.validate_thinker("Test Person")
 
@@ -1112,14 +1081,7 @@ class TestValidateThinkerErrorHandling:
 
     async def test_validate_handles_json_decode_error(self) -> None:
         """Test that validate_thinker handles invalid JSON."""
-        service = ThinkerService()
-
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text="Invalid JSON {]")]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service, _ = make_service_with_mock_response("Invalid JSON {]")
 
         is_valid, profile = await service.validate_thinker("Test Person")
 
@@ -1227,10 +1189,7 @@ class TestGenerateResponseErrorHandling:
         mock_response.content = [mock_non_text_block]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 10
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service._client = make_mock_client_with_response(mock_response)
 
         # Use module-level helper instead of repeating 5-line thinker setup
         thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
@@ -1245,14 +1204,13 @@ class TestGenerateResponseErrorHandling:
 class TestGenerateUserPromptErrorHandling:
     """Tests for error handling in generate_user_prompt.
 
-    Uses module-level make_mock_thinker() helper to eliminate repeated
-    5-line thinker setup blocks in each test.
+    Uses module-level make_mock_thinker() and make_mock_client_with_response()
+    helpers to eliminate repeated setup boilerplate in each test.
     """
 
     async def test_generate_user_prompt_handles_exception(self) -> None:
         """Test that generate_user_prompt handles exceptions gracefully."""
         service = ThinkerService()
-
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(side_effect=Exception("Network error"))
         service._client = mock_client
@@ -1277,10 +1235,7 @@ class TestGenerateUserPromptErrorHandling:
         mock_response.content = [mock_non_text_block]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 10
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
-        service._client = mock_client
+        service._client = make_mock_client_with_response(mock_response)
 
         # Use module-level helper instead of repeating 5-line thinker setup
         thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
