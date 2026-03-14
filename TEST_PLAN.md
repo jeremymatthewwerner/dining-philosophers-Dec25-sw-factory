@@ -4101,3 +4101,125 @@ This created verbose 4-line blocks for simple thinker definitions.
 - `TestAddThinkersRefreshBehavior.test_add_thinkers_refresh_sets_ids_and_timestamps` - Locke + Hume thinkers
 - `TestAddThinkersRefreshBehavior.test_add_multiple_thinkers_all_have_unique_ids` - Plato + list comprehension
 - `test_login_creates_new_session_when_none_exists_and_returns_token` - When user has no sessions (deleted), login creates new session and returns working token (covers lines 151-155 branch)
+
+---
+
+## 14.0 Edge Case Analysis - Boundary Conditions (Added 2026-03-14)
+
+**Focus**: Saturday QA focus - add tests for error paths, boundary conditions, and unexpected inputs.
+**File**: `backend/tests/test_edge_cases_mar14_2026.py`
+**Tests Added**: 64 new tests covering 9 boundary/edge case areas.
+
+### 14.1 Spend Service Zero Limit Edge Cases (`TestSpendServiceZeroLimitEdgeCases`)
+
+Tests for `app/services/spend.py` - the `check_spend_limit` function handles zero spend_limit via special branch (`else 100`).
+
+- `test_check_spend_limit_zero_spend_limit_reports_100_percent` - When spend_limit=0, percentage_used=100 and is_over_limit=True (else branch in line 42)
+- `test_check_spend_limit_zero_spend_limit_remaining_is_zero` - When spend_limit=0, remaining=0.0
+- `test_check_spend_limit_very_small_spend` - Spend of 0.001 on 100.0 limit = 0.001% used (floating point precision)
+- `test_check_spend_limit_spend_just_under_85_percent` - 84.9% spend does NOT trigger is_near_limit (boundary below threshold)
+- `test_check_spend_limit_spend_at_exactly_85_percent` - 85.0% spend DOES trigger is_near_limit (boundary at threshold)
+
+### 14.2 Auth Schema Boundary Lengths (`TestAuthBoundaryLengths`)
+
+Tests for `app/schemas/auth.py` - all Pydantic field constraints for UserRegister schema.
+
+- `test_register_username_exactly_minimum_length` - Username with exactly 3 chars (min) is accepted
+- `test_register_username_exactly_maximum_length` - Username with exactly 50 chars (max) is accepted
+- `test_register_username_below_minimum_length` - Username with 2 chars is rejected (422)
+- `test_register_password_exactly_minimum_length` - Password with exactly 6 chars (min) is accepted
+- `test_register_password_below_minimum_length` - Password with 5 chars is rejected (422)
+- `test_register_display_name_exactly_minimum_length` - Display name with 1 char (min) is accepted
+- `test_register_display_name_at_maximum_length` - Display name with 100 chars (max) is accepted
+- `test_register_display_name_over_maximum_length` - Display name with 101 chars is rejected (422)
+- `test_register_password_at_maximum_length` - Password with 100 chars (max) is accepted
+- `test_register_password_over_maximum_length` - Password with 101 chars is rejected (422)
+
+### 14.3 JWT Token Edge Cases (`TestAuthJWTEdgeCases`)
+
+Tests for `app/api/auth.py` and `app/core/auth.py` - JWT validation paths.
+
+- `test_get_me_with_expired_token` - Token expired 1 hour ago returns 401
+- `test_get_me_with_completely_malformed_token` - Non-JWT string returns 401
+- `test_get_me_with_empty_bearer_token` - Empty bearer value returns 401
+- `test_get_me_with_token_for_nonexistent_user` - Valid JWT but user not in DB returns 401
+- `test_get_me_with_custom_expiry_token` - Token with custom positive expiry works correctly
+
+### 14.4 Sessions Token Edge Cases (`TestSessionsTokenEdgeCases`)
+
+Tests for `app/api/sessions.py` - token validation paths covering specific error branches.
+
+- `test_get_session_me_with_token_missing_session_id` - Token with sub but no session_id returns 401 (covers line 34: "Invalid token - no session")
+- `test_get_session_me_with_invalid_session_id` - Token with non-existent session_id returns 404 (covers line 41: "Session not found")
+- `test_conversations_with_token_missing_session_id` - Conversations endpoint rejects token without session_id
+
+### 14.5 Feedback Schema Boundary Conditions (`TestFeedbackSchemaEdgeCases`)
+
+Tests for `app/schemas/feedback.py` and `app/api/feedback.py` - field length boundaries and special paths.
+
+- `test_submit_feedback_message_at_exactly_minimum_length` - Message with exactly 10 chars (min) accepted
+- `test_submit_feedback_message_below_minimum_length` - Message with 9 chars rejected (422)
+- `test_submit_feedback_message_at_exactly_maximum_length` - Message with exactly 5000 chars (max) accepted
+- `test_submit_feedback_message_over_maximum_length` - Message with 5001 chars rejected (422)
+- `test_feedback_screenshot_at_exactly_max_size_is_accepted` - Screenshot at MAX_SCREENSHOT_SIZE passes schema
+- `test_feedback_screenshot_over_max_size_is_rejected` - Screenshot over MAX_SCREENSHOT_SIZE raises ValidationError
+- `test_feedback_screenshot_none_is_accepted` - screenshot_data=None is accepted (optional field)
+- `test_submit_feedback_without_request_client_ip` - Multi-hop X-Forwarded-For header (10.0.0.1, 172.16.0.1, ...) uses first IP
+- `test_submit_feedback_with_all_optional_fields_none` - All optional fields explicitly set to None
+- `test_submit_feedback_default_type_is_bug` - Missing feedback_type defaults to "bug"
+- `test_submit_feedback_email_at_max_length` - Email at exactly 255 chars (max) is accepted
+
+### 14.6 Conversation Thinker Boundary Edge Cases (`TestConversationThinkerBoundaryEdgeCases`)
+
+Tests for `app/api/conversations.py` and `app/schemas/conversation.py` - thinker count limits and color validation.
+
+- `test_create_conversation_with_exactly_5_thinkers` - Creating conversation with exactly 5 thinkers (max) succeeds
+- `test_create_conversation_with_6_thinkers_rejected` - Creating conversation with 6 thinkers rejected (422)
+- `test_add_thinkers_to_reach_exactly_5` - Adding thinkers to reach exactly 5 total succeeds
+- `test_add_thinkers_exceeding_5_limit_rejected` - Adding thinkers that would exceed 5 total rejected (400)
+- `test_thinker_name_at_exactly_max_length` - Thinker name at exactly 255 chars (max) accepted
+- `test_thinker_name_over_max_length_rejected` - Thinker name at 256 chars rejected (422)
+- `test_thinker_color_invalid_format_rejected` - Non-hex color like "blue" rejected (422)
+- `test_thinker_color_valid_uppercase_hex_accepted` - Uppercase hex color "#AABBCC" accepted and preserved
+
+### 14.7 Admin Spend Limit Schema Boundary (`TestAdminSpendLimitBoundary`)
+
+Tests for `app/api/admin.py` - UpdateSpendLimitRequest schema validation.
+
+- `test_update_spend_limit_to_very_small_positive` - spend_limit=0.01 (very small positive) accepted by schema (gt=0)
+- `test_update_spend_limit_zero_rejected_by_schema` - spend_limit=0.0 raises ValidationError (gt=0 constraint)
+- `test_update_spend_limit_negative_rejected_by_schema` - spend_limit=-5.0 raises ValidationError (gt=0 constraint)
+
+### 14.8 Password Change Boundary Cases (`TestPasswordChangeEdgeCases`)
+
+Tests for `app/api/auth.py` - ChangePasswordRequest schema boundaries.
+
+- `test_change_password_to_exactly_min_length` - New password with exactly 6 chars (min) accepted
+- `test_change_password_to_below_min_length_rejected` - New password with 5 chars rejected (422)
+- `test_change_password_to_max_length` - New password with exactly 100 chars (max) accepted
+- `test_change_password_empty_current_password_rejected` - Empty current_password rejected (422, min_length=1)
+- `test_change_password_with_special_characters` - Password with symbols, spaces, unicode accepted
+
+### 14.9 ThinkerSuggestRequest Schema Boundaries (`TestThinkerSuggestRequestBoundary`)
+
+Tests for `app/schemas/thinker.py` - ThinkerSuggestRequest field constraints.
+
+- `test_suggest_request_count_at_minimum` - count=1 (min, ge=1) accepted
+- `test_suggest_request_count_below_minimum_rejected` - count=0 raises ValidationError (ge=1)
+- `test_suggest_request_count_at_maximum` - count=5 (max, le=5) accepted
+- `test_suggest_request_count_over_maximum_rejected` - count=6 raises ValidationError (le=5)
+- `test_suggest_request_empty_topic_rejected` - Empty topic raises ValidationError (min_length=1)
+- `test_suggest_request_invalid_language_rejected` - Language "xx" raises ValidationError
+- `test_suggest_request_german_language_rejected` - Language "de" raises ValidationError (ThinkerSuggestRequest only allows en|es|fr, not de)
+- `test_suggest_request_default_values` - Defaults: count=3, language='en', exclude=[]
+- `test_suggest_request_exclude_list_populated` - exclude list accepts multiple thinker names
+
+### 14.10 Profile Update Boundary Cases (`TestProfileUpdateEdgeCases`)
+
+Tests for `app/api/auth.py` - PATCH /auth/profile and /auth/language endpoint boundaries.
+
+- `test_update_profile_display_name_exactly_min_length` - display_name with 1 char (min) accepted
+- `test_update_profile_display_name_empty_rejected` - Empty display_name rejected (422, min_length=1)
+- `test_update_profile_display_name_at_max_length` - display_name with 100 chars (max) accepted
+- `test_update_profile_display_name_over_max_length_rejected` - display_name with 101 chars rejected (422)
+- `test_update_language_all_valid_codes` - All 4 valid language codes (en, es, fr, de) accepted and persisted
