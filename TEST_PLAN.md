@@ -4223,3 +4223,70 @@ Tests for `app/api/auth.py` - PATCH /auth/profile and /auth/language endpoint bo
 - `test_update_profile_display_name_at_max_length` - display_name with 100 chars (max) accepted
 - `test_update_profile_display_name_over_max_length_rejected` - display_name with 101 chars rejected (422)
 - `test_update_language_all_valid_codes` - All 4 valid language codes (en, es, fr, de) accepted and persisted
+
+---
+
+## 15. Regression Prevention - Mar 15, 2026 (`test_regression_prevention_mar15_2026.py`)
+
+Sunday QA focus: regression prevention for recent features and bug fixes.
+
+### 15.1 Thinker Color Assignment (`TestThinkerColorAssignment`)
+
+Tests for `app/api/conversations.py` - color assignment logic in `add_thinkers_to_conversation`.
+
+- `test_add_thinkers_uses_provided_non_default_color` - Custom color (non-#6366f1) is preserved when adding thinker; not overridden by color cycling logic
+- `test_add_thinkers_replaces_default_color_with_available` - Default color #6366f1 is replaced with first available color when available colors exist
+- `test_add_thinkers_with_all_colors_used_keeps_default` - When all 5 colors are used, adding a 6th thinker is rejected (400 max 5 limit)
+
+### 15.2 Conversation List Cost Aggregation (`TestConversationListCostAggregation`)
+
+Tests for `app/api/conversations.py` - cost aggregation in `list_conversations`.
+
+- `test_conversation_list_total_cost_zero_when_no_messages` - New conversation with no messages has 0.0 total_cost
+- `test_conversation_list_returns_correct_thinker_count` - Conversation list includes all thinkers with correct count
+- `test_conversation_list_is_empty_for_new_session` - New user session returns empty conversation list (session isolation)
+
+### 15.3 Spend API Endpoints (`TestSpendAPIEndpoints`)
+
+Tests for `app/api/spend.py` - GET /api/spend/{user_id} admin-only endpoint.
+
+- `test_spend_api_requires_admin` - Non-admin user gets 403 (Admin access required)
+- `test_spend_api_returns_404_for_nonexistent_user` - Nonexistent user ID returns 404 (not 200 or 500)
+
+### 15.4 Auth Flows (`TestAuthFlows`)
+
+Tests for `app/api/auth.py` - critical authentication flow edge cases.
+
+- `test_login_creates_new_session_when_none_exists` - Login works and returns valid JWT token with /me verification
+- `test_change_password_allows_login_with_new_password` - After password change, new password can log in
+- `test_change_password_rejects_old_password_after_change` - After password change, old password is rejected with 401
+- `test_register_with_language_preference_persists` - language_preference set during registration persists in /me response
+- `test_register_response_includes_all_user_fields` - Registration response includes all required user fields (id, username, display_name, is_admin, total_spend, spend_limit, language_preference, created_at)
+- `test_logout_endpoint_returns_success` - Logout endpoint returns 200 with "Logged out" message
+- `test_logout_works_without_authentication` - Logout endpoint works without a valid auth token (JWT is stateless)
+
+### 15.5 Spend Service Edge Cases (`TestSpendServiceEdgeCases`)
+
+Tests for `app/services/spend.py` - boundary conditions in spend checking.
+
+- `test_check_spend_limit_returns_none_for_nonexistent_user` - check_spend_limit returns None for unknown user ID
+- `test_can_user_spend_returns_false_for_nonexistent_user` - can_user_spend returns False for unknown user (security default: deny)
+- `test_check_spend_limit_is_near_limit_at_exactly_85_percent` - is_near_limit is True at exactly 85% usage (boundary condition)
+- `test_check_spend_limit_is_over_limit_when_spend_equals_limit` - is_over_limit is True when total_spend equals spend_limit (not just exceeds)
+- `test_check_spend_limit_percentage_capped_at_100` - percentage_used is capped at 100% when spend exceeds limit (UI safety)
+
+### 15.6 Profile and Language Persistence (`TestProfileAndLanguagePersistence`)
+
+Tests for `app/api/auth.py` - PATCH /auth/profile and PATCH /auth/language persistence.
+
+- `test_profile_update_display_name_persists` - display_name update persists across subsequent /me requests (DB commit works)
+- `test_language_update_persists` - language_preference update persists across subsequent /me requests
+- `test_profile_and_language_updates_are_independent` - Updating profile doesn't reset language; updating language doesn't reset display_name
+
+### 15.7 Conversation API Regressions (`TestConversationAPIRegressions`)
+
+Tests for `app/api/conversations.py` - response formats and security boundaries.
+
+- `test_delete_conversation_returns_deleted_status` - Delete conversation returns {"status": "deleted"} (response format preserved)
+- `test_get_conversation_includes_thinkers_and_messages` - GET conversation response includes both thinkers and messages fields
+- `test_get_conversation_other_session_returns_404` - Cross-session access returns 404 (session isolation security boundary)
