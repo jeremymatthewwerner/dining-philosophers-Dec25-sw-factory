@@ -4290,3 +4290,114 @@ Tests for `app/api/conversations.py` - response formats and security boundaries.
 - `test_delete_conversation_returns_deleted_status` - Delete conversation returns {"status": "deleted"} (response format preserved)
 - `test_get_conversation_includes_thinkers_and_messages` - GET conversation response includes both thinkers and messages fields
 - `test_get_conversation_other_session_returns_404` - Cross-session access returns 404 (session isolation security boundary)
+
+---
+
+## 16.0 Coverage Sprint (Added 2026-03-16)
+
+**Focus**: Monday QA coverage sprint - targeting lowest-coverage modules
+**File**: `backend/tests/test_coverage_sprint_mar16_2026.py`
+**Coverage Impact**: 83% → 86% (+3%)
+- `app/core/config.py`: 72% → **100%** (sync_database_url property fully tested)
+- `app/core/database.py`: 43% → **95%** (async_session, get_db, run_migrations, init_db, close_db)
+- `app/main.py`: 60% → **79%** (create_admin_user, health DB error path)
+- `app/api/websocket.py`: 66% → **68%** (ConversationRoom, ConnectionManager methods, SpeedControl)
+
+### 16.1 Config sync_database_url Tests (`TestSyncDatabaseUrl`)
+
+**File**: `backend/tests/test_coverage_sprint_mar16_2026.py`
+
+Tests the `sync_database_url` property which converts async DB driver URLs to sync equivalents for Alembic migrations.
+
+- `test_sqlite_aiosqlite_converts_to_sync` - `sqlite+aiosqlite://` converts to `sqlite://`
+- `test_postgresql_asyncpg_converts_to_sync` - `postgresql+asyncpg://` converts to `postgresql://`
+- `test_postgres_shorthand_converts_to_postgresql` - `postgres://` (Railway) converts to `postgresql://`
+- `test_plain_postgresql_url_unchanged` - Plain `postgresql://` with no async prefix passes through unchanged
+- `test_memory_sqlite_converts_to_sync` - In-memory SQLite aiosqlite converts correctly
+- `test_default_database_url_has_correct_sync_form` - Default SQLite URL produces valid sync form
+
+### 16.2 Database Module Tests
+
+**File**: `backend/tests/test_coverage_sprint_mar16_2026.py`
+
+Tests for `app/core/database.py` - the database session management layer.
+
+#### `TestAsyncSessionContextManager`
+- `test_async_session_yields_session` - `async_session()` context manager yields a usable `AsyncSession`
+- `test_async_session_commits_on_success` - Session commits successfully after normal operations
+- `test_async_session_rolls_back_on_exception` - Session rolls back and re-raises on exception
+
+#### `TestGetDb`
+- `test_get_db_yields_session` - `get_db()` FastAPI dependency yields an `AsyncSession`
+
+#### `TestRunMigrations`
+- `test_run_migrations_returns_false_when_no_alembic_ini` - Returns `False` when alembic.ini is missing
+- `test_run_migrations_succeeds_with_valid_alembic_ini` - Calls `alembic command.upgrade` when ini exists
+
+#### `TestInitDb`
+- `test_init_db_uses_migrations_when_alembic_ini_exists` - Calls `run_migrations()` when alembic.ini present
+- `test_init_db_falls_back_to_create_all_when_migrations_fail` - Falls back to `Base.metadata.create_all` if migrations raise
+
+#### `TestCloseDb`
+- `test_close_db_disposes_engine` - Calls `engine.dispose()` to close all connections
+
+### 16.3 Main App Tests
+
+**File**: `backend/tests/test_coverage_sprint_mar16_2026.py`
+
+Tests for `app/main.py` startup functions and endpoint edge cases.
+
+#### `TestCreateAdminUser`
+- `test_creates_admin_user_when_not_exists` - Creates admin user with `db.add()` when no admin exists
+- `test_skips_creation_when_admin_already_exists` - Does not call `db.add()` when admin already present
+
+#### `TestHealthReadyDbError`
+- `test_health_ready_returns_503_on_db_error` - `/health/ready` returns 503 with `status: degraded` when DB check fails
+- `test_health_ready_returns_200_on_db_success` - `/health/ready` returns 200 with `status: ready` when DB check succeeds
+
+### 16.4 WebSocket Layer Tests
+
+**File**: `backend/tests/test_coverage_sprint_mar16_2026.py`
+
+Tests for `app/api/websocket.py` - WebSocket room management and connection handling.
+
+#### `TestConversationRoom`
+- `test_add_connection_sets_active` - Adding a WebSocket connection marks room as active
+- `test_remove_connection_deactivates_when_empty` - Removing last connection deactivates the room
+- `test_remove_nonexistent_connection_is_safe` - Removing an unknown connection does not raise
+- `test_broadcast_skips_failed_connections` - Connections that fail to send are removed from room
+- `test_broadcast_deactivates_when_all_connections_fail` - All connections failing deactivates room
+
+#### `TestConnectionManagerMethods`
+- `test_connect_creates_room_if_not_exists` - `connect()` creates new room and calls `websocket.accept()`
+- `test_disconnect_removes_connection` - `disconnect()` removes WebSocket from room, deactivates if empty
+- `test_disconnect_nonexistent_conversation_is_safe` - `disconnect()` on unknown conversation ID doesn't raise
+- `test_get_speed_multiplier_returns_default_for_unknown` - Returns 1.0 for conversations without a room
+- `test_get_speed_multiplier_returns_room_value` - Returns the room's actual speed_multiplier value
+- `test_set_speed_multiplier_clamps_to_minimum` - Values below 0.5 are clamped to 0.5
+- `test_set_speed_multiplier_clamps_to_maximum` - Values above 6.0 are clamped to 6.0
+- `test_set_speed_multiplier_broadcasts_speed_changed` - Broadcasts SPEED_CHANGED message with new multiplier
+- `test_set_speed_multiplier_noop_for_unknown_conversation` - No error if conversation room doesn't exist
+- `test_send_thinker_message_broadcasts_correctly` - Broadcasts MESSAGE with thinker name, content, cost
+- `test_send_thinker_typing_adds_to_typing_set` - Adds thinker to room's `typing_thinkers` set
+- `test_send_thinker_stopped_typing_removes_from_set` - Removes thinker from `typing_thinkers` set
+- `test_send_thinker_thinking_broadcasts_content` - Broadcasts THINKER_THINKING with content
+- `test_send_research_started_broadcasts_event` - Broadcasts RESEARCH_STARTED with thinker_name
+- `test_send_research_complete_broadcasts_event` - Broadcasts RESEARCH_COMPLETE with thinker_name
+- `test_send_research_failed_broadcasts_with_error` - Broadcasts RESEARCH_FAILED with error content
+- `test_send_cache_hit_broadcasts_event` - Broadcasts CACHE_HIT with thinker_name
+
+#### `TestWebSocketAuthentication`
+- `test_websocket_rejects_missing_token` - WebSocket closes when no token query param provided
+- `test_websocket_rejects_invalid_token` - WebSocket closes when token is not a valid JWT
+
+#### `TestSpendLimitExceeded`
+- `test_spend_limit_exceeded_message` - Exception message includes current and limit spend amounts
+- `test_save_thinker_message_raises_when_spend_limit_exceeded` - Raises when user.total_spend >= spend_limit
+
+#### `TestGetMessagesForConversation`
+- `test_get_messages_returns_empty_list_for_new_conversation` - Returns empty list for unknown conversation
+- `test_get_messages_returns_messages_in_order` - Returns messages ordered by `created_at`
+
+#### `TestWebSocketSetSpeed`
+- `test_set_speed_message_updates_multiplier` - SET_SPEED WebSocket message triggers SPEED_CHANGED broadcast
