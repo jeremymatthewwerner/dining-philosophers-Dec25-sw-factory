@@ -2,6 +2,64 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 0.7 E2E Performance Optimizations (Added 2026-03-12)
+
+**Focus**: Thursday QA focus - E2E test performance optimization
+**File**: `frontend/e2e/` (4 files modified)
+
+### Summary of Changes
+
+Eliminated `waitForLoadState('networkidle')` calls that were always timing out at their maximum
+because WebSocket connections keep the network in a permanently non-idle state. These calls used
+`catch(() => {})`, meaning they silently waited the full timeout on every test run.
+
+**Root Cause**: `waitForLoadState('networkidle')` waits for ALL network connections to go idle.
+Open WebSocket connections are never idle, so these calls always block for their full timeout.
+
+**Estimated CI time savings: ~30s per test run**
+
+### Optimizations Applied
+
+**`frontend/e2e/cost-edge-cases.spec.ts`** - `cost accumulates correctly across multiple messages`
+
+1. **Removed `waitForLoadState('networkidle', { timeout: 5000 })` after first message send**
+   - **Why**: The preceding `expect(text=First question).toBeVisible()` already confirms the message
+     is in the DOM. There is no UI element to wait for before reading the cost meter — added comment.
+   - **Savings**: ~5s per run
+
+2. **Removed `waitForLoadState('networkidle', { timeout: 5000 })` after second message send**
+   - **Why**: Same as above — message visibility already confirmed. WebSocket is live.
+   - **Savings**: ~5s per run
+
+**`frontend/e2e/settings-edge-cases.spec.ts`** - `should handle password fields with whitespace`
+
+3. **Replaced `waitForLoadState('networkidle', { timeout: 10000 })` with element-based Promise.race**
+   - **Changed to**: `Promise.race([passwordSuccessSelector.waitFor(), passwordErrorSelector.waitFor()])`
+   - **Why**: The test is waiting for the password change API to respond. Using specific success/error
+     locators gives immediate feedback when the response arrives rather than waiting up to 10s.
+   - **Savings**: up to ~10s per run (resolves as soon as API responds)
+
+**`frontend/e2e/feedback-edge-cases.spec.ts`** - `should close modal when clicking outside overlay`
+
+4. **Replaced `waitForLoadState('networkidle', { timeout: 2000 })` with `waitFor({ state: 'hidden' })`**
+   - **Changed to**: `modalElement.waitFor({ state: 'hidden', timeout: 1000 }).catch(() => {})`
+   - **Why**: The test is checking whether the modal closes. Using `waitFor({ state: 'hidden' })`
+     resolves immediately when the modal hides, or gives up after 1s. No network activity involved.
+   - **Savings**: ~2s per run (previous always timed out at 2s since no network requests are made)
+
+**`frontend/e2e/network-errors.spec.ts`** - WebSocket tests
+
+5. **Replaced `waitForLoadState('networkidle', { timeout: 5000 })` in WS failure test**
+   - **Changed to**: `Promise.race([messageLocator.waitFor(), errorLocator.waitFor()])`
+   - **Why**: After aborting WS routes and sending a message, we want to check the app state.
+     Element-based check resolves immediately when message or error appears.
+   - **Savings**: ~5s per run
+
+6. **Removed `waitForLoadState('networkidle', { timeout: 3000 })` in WS reconnection test**
+   - **Why**: `page.route()` interception takes effect synchronously. No wait is needed between
+     setting the route and unrouting — the route is active immediately.
+   - **Savings**: ~3s per run
+
 ## 1.0 Regression Prevention (Added 2026-03-01)
 
 **Focus**: Sunday QA focus - regression prevention for recently fixed bugs and uncovered code paths

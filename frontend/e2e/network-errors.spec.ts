@@ -186,10 +186,14 @@ test.describe('WebSocket Error Recovery', () => {
     // Message might appear locally but won't be sent to server
     // App should handle this gracefully without crashing
 
-    // Wait for network idle or any error indicators
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
-      // Continue even if network doesn't idle
-    });
+    // Check for graceful state: either message appeared locally or an error is shown
+    // Don't use networkidle — WS abort keeps network in non-idle state indefinitely
+    const messageLocator = page.locator('text=Test message during WS failure');
+    const errorLocator = page.locator('text=/error|failed|offline/i');
+    await Promise.race([
+      messageLocator.waitFor({ state: 'visible', timeout: 5000 }),
+      errorLocator.waitFor({ state: 'visible', timeout: 5000 }),
+    ]).catch(() => {});
 
     // Page should still be functional (not crashed)
     await expect(page.getByTestId('chat-area')).toBeVisible();
@@ -215,16 +219,12 @@ test.describe('WebSocket Error Recovery', () => {
     });
 
     // Block WebSocket temporarily
+    // page.route() takes effect immediately — no wait needed before unrouting
     await page.route('**/ws/**', (route) => {
       route.abort('failed');
     });
 
-    // Wait briefly for the block to take effect
-    await page
-      .waitForLoadState('networkidle', { timeout: 3000 })
-      .catch(() => {});
-
-    // Unblock WebSocket
+    // Unblock WebSocket immediately (route interception is synchronous)
     await page.unroute('**/ws/**');
 
     // Try sending another message after reconnection
