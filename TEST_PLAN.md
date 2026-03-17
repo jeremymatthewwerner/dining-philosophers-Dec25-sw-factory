@@ -2,6 +2,135 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.1 Flaky Test Hunt (Added 2026-03-17)
+
+**Focus**: Tuesday QA focus - identify and harden tests against flakiness
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py`
+**Coverage Impact**: 85.05% -> 85.39% (+0.34%)
+
+**Flakiness Risks Identified and Addressed:**
+
+1. Global singleton state in WebSocket tests - `thinker_service` and `ConnectionManager` are
+   global singletons. Tests that pause/resume conversations leave state that could affect other
+   tests if conversation IDs overlap or test order changes.
+2. `random.seed(None)` pattern - Resets to truly random seed; while current tests pass,
+   this pattern prevents reproducibility. Fixed seeds ensure deterministic CI behavior.
+3. SQLAlchemy connection leak warnings - WebSocket tests using sync `TestClient` with async
+   database code cause connection pool warnings (SAWarning).
+4. Mock type mismatches - Using `MagicMock` for async methods or `AsyncMock` for sync methods
+   can cause intermittent failures or silent incorrect assertions.
+
+### 1.1.1 ThinkerService State Isolation (8 tests)
+
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py` - `TestThinkerServiceStateIsolation`
+
+Tests that `ThinkerService._paused_conversations` state is isolated per conversation ID and
+does not bleed between tests sharing the global singleton.
+
+- `test_pause_state_isolated_between_conversations` - Pausing conv-a does not affect conv-b.
+  Guards against test state bleed when using the global `thinker_service` singleton.
+- `test_resume_does_not_affect_other_conversations` - Resuming conv-a leaves conv-b paused.
+  Verifies `resume_conversation` is targeted, not a global clear.
+- `test_paused_conversations_set_does_not_grow_unbounded` - After resuming 10 conversations,
+  the set returns to size 0. Guards against memory leak from accumulated pause state.
+- `test_resume_non_paused_conversation_is_safe` - Resuming never-paused conversation does not
+  raise. Validates `set.discard()` (safe) is used, not `set.remove()` (raises KeyError).
+- `test_is_paused_returns_false_for_unknown_conversation` - New conversations default to unpaused.
+  Critical for the "resumed message on connect" WebSocket behavior.
+- `test_idle_pause_state_isolated_between_conversations` - Idle-pausing conv-a does not affect
+  conv-b's idle or regular pause state. Tests both flag sets simultaneously.
+- `test_manual_pause_not_cleared_by_idle_resume` - Critical regression guard: `resume_from_idle`
+  must NOT clear manual pause state. Prevents user confusion with manual pause.
+- `test_idle_pause_cleared_by_idle_resume` - `resume_from_idle` correctly clears idle pause state.
+
+### 1.1.2 ConnectionManager State Isolation (5 tests)
+
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py` - `TestConnectionManagerStateIsolation`
+
+Tests that the global `ConnectionManager` singleton's room state is isolated per conversation
+and handles edge cases safely.
+
+- `test_new_manager_starts_with_empty_rooms` - Fresh manager has empty rooms dict.
+- `test_conversation_not_active_when_no_connections` - `is_conversation_active` returns False
+  for unknown conversation (no KeyError).
+- `test_speed_multiplier_returns_default_for_unknown_conversation` - Returns 1.0 (not KeyError)
+  for conversations not in rooms dict.
+- `test_set_speed_multiplier_ignored_for_unknown_conversation` - Setting speed for unknown conv
+  does not raise (async, silently ignored if room doesn't exist).
+- `test_rooms_from_different_conversations_are_independent` - Speed multiplier state is per-room;
+  setting 2.0 on conv-a and 0.5 on conv-b results in different values per room.
+
+### 1.1.3 Deterministic Random Behavior (4 tests)
+
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py` - `TestDeterministicRandomBehavior`
+
+Tests that random-dependent functions produce valid, bounded results across explicit seed ranges,
+preventing CI flakiness from non-deterministic random state.
+
+- `test_split_bubbles_short_text_always_single_with_fixed_seeds` - Text under 60 chars always
+  returns 1 bubble across seeds 0-49. Uses fixed seeds for reproducibility (replaces seed(None)).
+- `test_split_bubbles_very_long_text_always_non_empty` - Very long text always returns at least
+  1 bubble across seeds 0-19. Guards against edge case returning empty list.
+- `test_split_bubbles_content_preserved_across_random_seeds` - Joining bubbles contains all
+  words from original text. Validates content integrity is not random-seed-dependent.
+- `test_choose_response_style_always_returns_valid_values` - Returns (str, positive_int <= 500)
+  across seeds 0-49. Prevents silent failures from invalid style/token combinations.
+
+### 1.1.4 Active Tasks Cleanup (4 tests)
+
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py` - `TestActiveTasksCleanup`
+
+Tests that `ThinkerService._active_tasks` is properly cleaned up, preventing resource leaks
+across tests or production usage.
+
+- `test_stop_conversation_removes_tasks_from_dict` - After stopping, conversation is removed
+  from `_active_tasks` dict and task is cancelled.
+- `test_stop_multiple_thinker_tasks` - Stopping a conversation with 3 thinkers cancels all 3
+  tasks and removes the entire conversation entry.
+- `test_stop_nonexistent_conversation_is_safe` - Stopping a never-started conversation does not
+  raise KeyError and does not add a spurious entry.
+- `test_active_tasks_dict_does_not_accumulate_stopped_conversations` - After stopping 5
+  conversations, dict returns to size 0. Guards against unbounded growth.
+
+### 1.1.5 WebSocket Global State Non-Interference (3 tests)
+
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py` - `TestWebSocketGlobalStateNonInterference`
+
+Documents and validates the naming convention for WebSocket test conversation IDs, ensuring
+state-changing tests use unique IDs that won't conflict.
+
+- `test_websocket_test_conversation_ids_are_unique` - Validates that all conversation IDs used
+  in test_websocket.py that change state (pause/resume) are unique. Fails if new tests reuse
+  state-changing IDs.
+- `test_pause_state_test_uses_unique_conversation_id` - The 3 state-changing WebSocket tests
+  use distinct IDs: "pause-test", "pause-reconnect-test", "unpause-test".
+- `test_connection_manager_typing_thinkers_isolated_per_room` - Typing thinker state added to
+  one room's `typing_thinkers` set does not appear in another room.
+
+### 1.1.6 Knowledge Service Mock Consistency (2 tests)
+
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py` - `TestKnowledgeServiceMockingConsistency`
+
+Tests that `patch()` context managers properly restore state after each block, preventing
+mock state from bleeding between tests.
+
+- `test_knowledge_service_mock_does_not_leak_between_tests` - After `with patch()` block exits,
+  `trigger_research` is no longer a `MagicMock`. Validates the patch restores original method.
+- `test_mock_trigger_research_records_calls_independently` - Two separate `patch()` blocks have
+  independent call counts. Second mock sees only 1 call, not 3 total from both blocks.
+
+### 1.1.7 Async Mock Consistency (2 tests)
+
+**File**: `backend/tests/test_flaky_hunt_mar17_2026.py` - `TestAsyncMockConsistency`
+
+Tests the correct mock types for async vs sync methods, preventing common flakiness patterns.
+
+- `test_anthropic_client_mock_is_async_awaitable` - `AsyncMock` for Anthropic `messages.create`
+  is properly awaitable. Using `MagicMock` instead would cause `TypeError: object is not awaitable`.
+- `test_httpx_response_json_is_sync_not_async` - `httpx.Response.json()` is synchronous; using
+  `MagicMock` (not `AsyncMock`) returns dict directly. Using `AsyncMock` would silently return
+  a coroutine instead of data, causing assertions to pass incorrectly.
+
 ## 1.0 Regression Prevention (Added 2026-03-01)
 
 **Focus**: Sunday QA focus - regression prevention for recently fixed bugs and uncovered code paths
