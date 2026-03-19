@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser } from './test-utils';
+import { setupAuthenticatedUser, createAndNavigateToConversation } from './test-utils';
 
 test.describe('Topic Input Validation', () => {
   test.beforeEach(async ({ page }) => {
@@ -90,26 +90,8 @@ test.describe('Message Input Validation', () => {
   });
 
   test('prevents sending empty message', async ({ page }) => {
-    // Create a conversation first
-    await page.getByTestId('new-chat-button').click();
-    await page.getByTestId('topic-input').fill('Quick test chat');
-    await page.getByTestId('next-button').click();
-
-    await expect(
-      page.locator('h2', { hasText: 'Select Thinkers' })
-    ).toBeVisible({ timeout: 30000 });
-
-    // Add a custom thinker
-    const customInput = page.getByTestId('custom-thinker-input');
-    await customInput.fill('Socrates');
-    await page.getByTestId('add-custom-thinker').click();
-    await expect(page.getByTestId('selected-thinker')).toBeVisible({
-      timeout: 15000,
-    });
-
-    // Create conversation
-    await page.getByTestId('create-button').click();
-    await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
+    // Create a conversation via API (faster than UI modal flow)
+    await createAndNavigateToConversation(page, 'Quick test chat', ['Socrates']);
 
     // Get message input and send button
     const messageTextarea = page.getByTestId('message-textarea');
@@ -137,24 +119,8 @@ test.describe('Message Input Validation', () => {
   });
 
   test('handles very long message input', async ({ page }) => {
-    // Create a conversation
-    await page.getByTestId('new-chat-button').click();
-    await page.getByTestId('topic-input').fill('Long message test');
-    await page.getByTestId('next-button').click();
-
-    await expect(
-      page.locator('h2', { hasText: 'Select Thinkers' })
-    ).toBeVisible({ timeout: 30000 });
-
-    const customInput = page.getByTestId('custom-thinker-input');
-    await customInput.fill('Aristotle');
-    await page.getByTestId('add-custom-thinker').click();
-    await expect(page.getByTestId('selected-thinker')).toBeVisible({
-      timeout: 15000,
-    });
-
-    await page.getByTestId('create-button').click();
-    await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
+    // Create a conversation via API (faster than UI modal flow)
+    await createAndNavigateToConversation(page, 'Long message test', ['Aristotle']);
 
     // Type a very long message (5000 characters)
     const longMessage = 'This is a very long philosophical question. '.repeat(100);
@@ -173,24 +139,8 @@ test.describe('Message Input Validation', () => {
   });
 
   test('handles special characters in messages', async ({ page }) => {
-    // Create a conversation
-    await page.getByTestId('new-chat-button').click();
-    await page.getByTestId('topic-input').fill('Special chars test');
-    await page.getByTestId('next-button').click();
-
-    await expect(
-      page.locator('h2', { hasText: 'Select Thinkers' })
-    ).toBeVisible({ timeout: 30000 });
-
-    const customInput = page.getByTestId('custom-thinker-input');
-    await customInput.fill('Confucius');
-    await page.getByTestId('add-custom-thinker').click();
-    await expect(page.getByTestId('selected-thinker')).toBeVisible({
-      timeout: 15000,
-    });
-
-    await page.getByTestId('create-button').click();
-    await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
+    // Create a conversation via API (faster than UI modal flow)
+    await createAndNavigateToConversation(page, 'Special chars test', ['Confucius']);
 
     // Send message with special characters, emojis, and unicode
     const specialMessage = 'What is 仁 (rén)? 🤔 How about "virtue" & <morality>?';
@@ -270,24 +220,8 @@ test.describe('Rapid-Fire Actions', () => {
   });
 
   test('handles rapid message sending', async ({ page }) => {
-    // Create a conversation
-    await page.getByTestId('new-chat-button').click();
-    await page.getByTestId('topic-input').fill('Rapid messages');
-    await page.getByTestId('next-button').click();
-
-    await expect(
-      page.locator('h2', { hasText: 'Select Thinkers' })
-    ).toBeVisible({ timeout: 30000 });
-
-    const customInput = page.getByTestId('custom-thinker-input');
-    await customInput.fill('Plato');
-    await page.getByTestId('add-custom-thinker').click();
-    await expect(page.getByTestId('selected-thinker')).toBeVisible({
-      timeout: 15000,
-    });
-
-    await page.getByTestId('create-button').click();
-    await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
+    // Create a conversation via API (faster than UI modal flow)
+    await createAndNavigateToConversation(page, 'Rapid messages', ['Plato']);
 
     // Send 3 messages with proper waits
     const messageTextarea = page.getByTestId('message-textarea');
@@ -398,7 +332,7 @@ test.describe('Custom Thinker Validation', () => {
         expect(page.getByTestId('selected-thinker')).toHaveCount(1, {
           timeout: 2000,
         }),
-        page.waitForLoadState('networkidle'),
+        page.waitForLoadState('networkidle', { timeout: 5000 }),
       ]).catch(() => {
         // Expected - empty input should not add thinker
       });

@@ -4530,3 +4530,60 @@ Tests for `app/api/websocket.py` - WebSocket room management and connection hand
 
 #### `TestWebSocketSetSpeed`
 - `test_set_speed_message_updates_multiplier` - SET_SPEED WebSocket message triggers SPEED_CHANGED broadcast
+
+## 17. E2E Performance Optimization (Added 2026-03-19)
+
+**Focus**: Thursday QA focus - optimize E2E test speed and reduce setup overhead
+**Files Modified**: `frontend/e2e/form-validation.spec.ts`, `frontend/e2e/test-fixtures.ts` (new)
+**Coverage Impact**: No coverage change (structural improvement)
+
+### 17.1 Form Validation Tests - API Creation Optimization
+
+**Problem**: 4 tests in `Message Input Validation` and `Rapid-Fire Actions` were using the full
+UI modal flow (topic input → thinker selection → Claude API validation → conversation create)
+as setup for tests that only test *message sending* behavior. Each setup took 15-30s due to
+Claude API validation.
+
+**Fix**: Converted to use `createAndNavigateToConversation()` API helper which skips the UI
+modal and creates conversations directly via REST API (< 2s vs 15-30s).
+
+**Tests optimized** (4 tests in `frontend/e2e/form-validation.spec.ts`):
+- `prevents sending empty message` - now uses API creation
+- `handles very long message input` - now uses API creation
+- `handles special characters in messages` - now uses API creation
+- `handles rapid message sending` - now uses API creation
+
+**Estimated time savings**: ~60-80s total setup time removed from test suite per run.
+
+### 17.2 Fix Unbounded waitForLoadState
+
+**File**: `frontend/e2e/form-validation.spec.ts` (line ~401)
+
+Added missing timeout to `page.waitForLoadState('networkidle')` call used inside a
+`Promise.race`. Without timeout, this could theoretically hang indefinitely if network
+never becomes idle (e.g., WebSocket keeping connection open).
+
+**Fix**: Added `{ timeout: 5000 }` to bound the wait.
+
+### 17.3 Playwright Test Fixtures (New File)
+
+**File**: `frontend/e2e/test-fixtures.ts`
+
+Added reusable Playwright fixtures to reduce boilerplate and standardize setup patterns:
+
+- `testWithAuth` - Provides `authenticatedPage` fixture with authenticated user ready
+- `test` (default export) - Provides `conversationPage` fixture with authenticated user
+  AND a conversation already open (via API creation, not UI flow)
+
+**How to use**:
+```typescript
+import { test, expect } from './test-fixtures';
+
+test('my chat test', async ({ conversationPage }) => {
+  // conversationPage already has auth + open conversation
+  await conversationPage.getByTestId('message-textarea').fill('Hello');
+});
+```
+
+**Performance benefit**: Both fixtures use API calls (not UI modal flow) for setup,
+saving 15-30s compared to navigating the conversation creation modal per test.
