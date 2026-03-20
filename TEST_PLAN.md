@@ -2,6 +2,52 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.2 Test Refactoring (Added 2026-03-20)
+
+**Focus**: Friday QA focus - improve test readability, reduce duplication
+**Coverage Impact**: 85.84% -> 85.84% (refactoring only, no coverage change)
+
+**Duplication Eliminated:**
+
+### 1.2.1 Backend: Removed Duplicate Fixtures from `test_cleanup_test_users.py`
+
+**File**: `backend/tests/test_cleanup_test_users.py`
+
+Removed ~50 lines of boilerplate (`engine`, `session`, `client` fixtures) that
+duplicated the fixtures already available from `conftest.py`. Test functions now
+use `db_session` from conftest instead of the local `session` alias.
+
+- All 8 existing tests continue to pass unchanged after fixture consolidation
+- `create_test_user()` local helper retained (specific to this test file)
+
+### 1.2.2 Backend: Removed Duplicate `client` Fixture from `test_thinker_knowledge_integration.py`
+
+**File**: `backend/tests/test_thinker_knowledge_integration.py`
+
+Removed ~30 lines of boilerplate (the `client` fixture with `override_get_db`)
+that was identical to the `client` fixture already in `conftest.py`. The file
+now inherits `engine`, `async_session`, and `client` from conftest.
+
+- All 13 existing tests continue to pass unchanged after fixture consolidation
+
+### 1.2.3 Frontend: Extracted `mockConversationThinkers` to Shared `test-utils.tsx`
+
+**Files**:
+- `frontend/src/test-utils.tsx` - Added `mockConversationThinkers` constant
+- `frontend/src/__tests__/components/MentionAutocomplete.test.tsx` - Now imports from test-utils
+- `frontend/src/__tests__/components/MessageInput.test.tsx` - Now imports from test-utils
+
+The 30-line `ConversationThinker[]` array (Socrates, Plato, Friedrich Nietzsche)
+was duplicated identically in both test files. Extracted to `test-utils.tsx` as
+the exported `mockConversationThinkers` constant.
+
+The constant covers these test scenarios:
+- Single-word name (Socrates): basic filtering and selection
+- Short single-word name (Plato): navigation and click selection
+- Multi-word name (Friedrich Nietzsche): tests that filtering works on both first and last names
+
+- All 46 existing tests in both files continue to pass after the consolidation
+
 ## 1.1 Flaky Test Hunt (Added 2026-03-17)
 
 **Focus**: Tuesday QA focus - identify and harden tests against flakiness

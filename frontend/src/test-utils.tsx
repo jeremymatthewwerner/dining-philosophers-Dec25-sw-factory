@@ -8,6 +8,7 @@
 import React from 'react';
 import { render as rtlRender, RenderOptions } from '@testing-library/react';
 import { AuthProvider, LanguageProvider, ThemeProvider } from '@/contexts';
+import type { ConversationThinker } from '@/types';
 
 /**
  * Custom render function that wraps components with necessary providers.
@@ -244,6 +245,44 @@ export function createNewChatModalProps(
     ...overrides,
   };
 }
+
+/**
+ * Shared mock ConversationThinker array for @mention tests.
+ *
+ * Eliminates identical 30-line definitions duplicated in both
+ * MentionAutocomplete.test.tsx and MessageInput.test.tsx.
+ * Contains Socrates, Plato, and Friedrich Nietzsche to test
+ * filtering, multi-word name handling, and navigation wrapping.
+ */
+export const mockConversationThinkers: ConversationThinker[] = [
+  {
+    id: '1',
+    name: 'Socrates',
+    bio: 'Greek philosopher',
+    positions: 'Knowledge is virtue',
+    style: 'Questioning',
+    color: '#3B82F6',
+    image_url: null,
+  },
+  {
+    id: '2',
+    name: 'Plato',
+    bio: 'Greek philosopher',
+    positions: 'Theory of Forms',
+    style: 'Dialogic',
+    color: '#10B981',
+    image_url: null,
+  },
+  {
+    id: '3',
+    name: 'Friedrich Nietzsche',
+    bio: 'German philosopher',
+    positions: 'Will to power',
+    style: 'Aphoristic',
+    color: '#EF4444',
+    image_url: null,
+  },
+];
 
 /**
  * Create a mock Thinker object for testing.

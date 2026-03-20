@@ -1,42 +1,15 @@
-import { render, screen } from '@/test-utils';
+import { render, screen, mockConversationThinkers } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import {
   MentionAutocomplete,
   filterThinkers,
 } from '@/components/MentionAutocomplete';
-import type { ConversationThinker } from '@/types';
 
 const user = userEvent.setup();
 
-const mockThinkers: ConversationThinker[] = [
-  {
-    id: '1',
-    name: 'Socrates',
-    bio: 'Greek philosopher',
-    positions: 'Knowledge is virtue',
-    style: 'Questioning',
-    color: '#3B82F6',
-    image_url: null,
-  },
-  {
-    id: '2',
-    name: 'Plato',
-    bio: 'Greek philosopher',
-    positions: 'Theory of Forms',
-    style: 'Dialogic',
-    color: '#10B981',
-    image_url: null,
-  },
-  {
-    id: '3',
-    name: 'Friedrich Nietzsche',
-    bio: 'German philosopher',
-    positions: 'Will to power',
-    style: 'Aphoristic',
-    color: '#EF4444',
-    image_url: null,
-  },
-];
+// Use shared mockConversationThinkers from test-utils to avoid
+// duplicating the 30-line thinker array in both this file and MessageInput.test.tsx
+const mockThinkers = mockConversationThinkers;
 
 describe('filterThinkers', () => {
   it('returns all thinkers when query is empty', () => {
