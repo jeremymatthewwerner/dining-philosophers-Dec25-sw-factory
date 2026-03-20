@@ -4,54 +4,21 @@ Tests the full knowledge research lifecycle:
 1. GET /knowledge/{name} - Fetch cached knowledge
 2. GET /knowledge/{name}/status - Check research status
 3. POST /knowledge/{name}/refresh - Force refresh research
+
+Fixtures (engine, async_session, client) are inherited from conftest.py,
+eliminating ~30 lines of boilerplate that was previously duplicated here.
 """
 
 import typing
-from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-)
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.main import app
 from app.models import ThinkerKnowledge
 from app.models.thinker_knowledge import ResearchStatus
-
-
-@pytest.fixture
-async def client(engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
-    """Create a test client with database override."""
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        async with async_session() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-
-    app.dependency_overrides[get_db] = override_get_db
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        yield client
-
-    app.dependency_overrides.clear()
 
 
 @pytest.fixture

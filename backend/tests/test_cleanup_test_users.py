@@ -1,66 +1,15 @@
-"""Tests for the test user cleanup endpoint."""
+"""Tests for the test user cleanup endpoint.
 
-from collections.abc import AsyncGenerator
+Fixtures (engine, db_session, client) are inherited from conftest.py,
+eliminating ~50 lines of boilerplate that was duplicated here.
+"""
+
 from unittest.mock import patch
 
-import pytest
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.main import app
-from app.models import Base, User
-
-
-@pytest.fixture
-async def engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite engine for testing."""
-    test_engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        future=True,
-    )
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield test_engine
-    await test_engine.dispose()
-
-
-@pytest.fixture
-async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a database session for testing."""
-    async_session_maker = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    async with async_session_maker() as session:
-        yield session
-
-
-@pytest.fixture
-async def client(engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
-    """Create a test client with database override."""
-    async_session_maker = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        async with async_session_maker() as session:
-            yield session
-
-    app.dependency_overrides[get_db] = override_get_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+from app.models import User
 
 
 async def create_test_user(
@@ -98,12 +47,14 @@ async def test_cleanup_with_invalid_secret(client: AsyncClient) -> None:
         assert "invalid" in response.json()["detail"].lower()
 
 
-async def test_cleanup_deletes_smoketest_users(client: AsyncClient, session: AsyncSession) -> None:
+async def test_cleanup_deletes_smoketest_users(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Test cleanup deletes users with smoketest_ prefix."""
     # Create test users
-    await create_test_user(session, "smoketest_123456")
-    await create_test_user(session, "smoketest_789")
-    await create_test_user(session, "real_user")  # Should not be deleted
+    await create_test_user(db_session, "smoketest_123456")
+    await create_test_user(db_session, "smoketest_789")
+    await create_test_user(db_session, "real_user")  # Should not be deleted
 
     with patch("app.api.test_helpers.get_settings") as mock_settings:
         mock_settings.return_value.test_cleanup_secret = "test-secret"
@@ -118,12 +69,12 @@ async def test_cleanup_deletes_smoketest_users(client: AsyncClient, session: Asy
         assert "real_user" not in data["deleted_users"]
 
 
-async def test_cleanup_deletes_canary_users(client: AsyncClient, session: AsyncSession) -> None:
+async def test_cleanup_deletes_canary_users(client: AsyncClient, db_session: AsyncSession) -> None:
     """Test cleanup deletes users with canary_ prefix."""
     # Create test users
-    await create_test_user(session, "canary_1704412800_12345")
-    await create_test_user(session, "canary_1704412900")
-    await create_test_user(session, "real_user")  # Should not be deleted
+    await create_test_user(db_session, "canary_1704412800_12345")
+    await create_test_user(db_session, "canary_1704412900")
+    await create_test_user(db_session, "real_user")  # Should not be deleted
 
     with patch("app.api.test_helpers.get_settings") as mock_settings:
         mock_settings.return_value.test_cleanup_secret = "test-secret"
@@ -137,12 +88,14 @@ async def test_cleanup_deletes_canary_users(client: AsyncClient, session: AsyncS
         assert "canary_1704412900" in data["deleted_users"]
 
 
-async def test_cleanup_deletes_testuser_users(client: AsyncClient, session: AsyncSession) -> None:
+async def test_cleanup_deletes_testuser_users(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Test cleanup deletes users with testuser_ prefix (E2E test users)."""
     # Create test users following the E2E pattern: testuser_{timestamp}_{random}
-    await create_test_user(session, "testuser_1704412800_abc123")
-    await create_test_user(session, "testuser_1704412900_xyz456")
-    await create_test_user(session, "real_user")  # Should not be deleted
+    await create_test_user(db_session, "testuser_1704412800_abc123")
+    await create_test_user(db_session, "testuser_1704412900_xyz456")
+    await create_test_user(db_session, "real_user")  # Should not be deleted
 
     with patch("app.api.test_helpers.get_settings") as mock_settings:
         mock_settings.return_value.test_cleanup_secret = "test-secret"
@@ -157,13 +110,15 @@ async def test_cleanup_deletes_testuser_users(client: AsyncClient, session: Asyn
         assert "real_user" not in data["deleted_users"]
 
 
-async def test_cleanup_deletes_mixed_test_users(client: AsyncClient, session: AsyncSession) -> None:
+async def test_cleanup_deletes_mixed_test_users(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Test cleanup deletes smoketest_, canary_, and testuser_ users."""
     # Create test users
-    await create_test_user(session, "smoketest_abc")
-    await create_test_user(session, "canary_xyz")
-    await create_test_user(session, "testuser_123_def")
-    await create_test_user(session, "regular_user")
+    await create_test_user(db_session, "smoketest_abc")
+    await create_test_user(db_session, "canary_xyz")
+    await create_test_user(db_session, "testuser_123_def")
+    await create_test_user(db_session, "regular_user")
 
     with patch("app.api.test_helpers.get_settings") as mock_settings:
         mock_settings.return_value.test_cleanup_secret = "test-secret"
@@ -175,11 +130,11 @@ async def test_cleanup_deletes_mixed_test_users(client: AsyncClient, session: As
         assert data["deleted_count"] == 3
 
 
-async def test_cleanup_no_test_users(client: AsyncClient, session: AsyncSession) -> None:
+async def test_cleanup_no_test_users(client: AsyncClient, db_session: AsyncSession) -> None:
     """Test cleanup returns zero when no test users exist."""
     # Create only regular users
-    await create_test_user(session, "regular_user1")
-    await create_test_user(session, "regular_user2")
+    await create_test_user(db_session, "regular_user1")
+    await create_test_user(db_session, "regular_user2")
 
     with patch("app.api.test_helpers.get_settings") as mock_settings:
         mock_settings.return_value.test_cleanup_secret = "test-secret"

@@ -1,40 +1,19 @@
-import { fireEvent, render, screen, waitFor } from '@/test-utils';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  mockConversationThinkers,
+} from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { MessageInput } from '@/components/MessageInput';
-import type { ConversationThinker } from '@/types';
 
 // Mock userEvent setup
 const user = userEvent.setup();
 
-const mockThinkers: ConversationThinker[] = [
-  {
-    id: '1',
-    name: 'Socrates',
-    bio: 'Greek philosopher',
-    positions: 'Knowledge is virtue',
-    style: 'Questioning',
-    color: '#3B82F6',
-    image_url: null,
-  },
-  {
-    id: '2',
-    name: 'Plato',
-    bio: 'Greek philosopher',
-    positions: 'Theory of Forms',
-    style: 'Dialogic',
-    color: '#10B981',
-    image_url: null,
-  },
-  {
-    id: '3',
-    name: 'Friedrich Nietzsche',
-    bio: 'German philosopher',
-    positions: 'Will to power',
-    style: 'Aphoristic',
-    color: '#EF4444',
-    image_url: null,
-  },
-];
+// Use shared mockConversationThinkers from test-utils to avoid
+// duplicating the 30-line thinker array in both this file and MentionAutocomplete.test.tsx
+const mockThinkers = mockConversationThinkers;
 
 describe('MessageInput', () => {
   // Shared mock for onSend - avoids repeating `const onSend = jest.fn()` in every test
