@@ -4633,3 +4633,157 @@ test('my chat test', async ({ conversationPage }) => {
 
 **Performance benefit**: Both fixtures use API calls (not UI modal flow) for setup,
 saving 15-30s compared to navigating the conversation creation modal per test.
+
+## 18. Edge Case Analysis (Added 2026-03-21)
+
+**Focus**: Saturday QA focus - error paths, boundary conditions, and unexpected inputs
+**File**: `backend/tests/test_edge_cases_mar21_2026.py`
+**Tests Added**: 63 new tests
+
+### 18.1 Auth Registration - Boundary Conditions
+
+**Class**: `TestAuthRegistrationBoundaryConditions`
+
+Tests exact min/max boundary conditions for user registration schema validation:
+
+- `test_register_username_minimum_length_3` - Username with exactly 3 chars (min_length) is accepted
+- `test_register_username_too_short_2_chars_rejected` - Username with 2 chars rejected (below min_length=3)
+- `test_register_username_maximum_length_50` - Username with exactly 50 chars (max_length) accepted
+- `test_register_username_too_long_51_chars_rejected` - Username with 51 chars rejected (above max_length=50)
+- `test_register_password_minimum_length_6` - Password with exactly 6 chars (min_length) accepted
+- `test_register_password_too_short_5_chars_rejected` - Password with 5 chars rejected (below min_length=6)
+- `test_register_password_maximum_length_100` - Password with exactly 100 chars (max_length) accepted
+- `test_register_password_too_long_101_chars_rejected` - Password with 101 chars rejected (above max_length=100)
+- `test_register_display_name_minimum_length_1` - Display name with exactly 1 char (min_length) accepted
+- `test_register_display_name_maximum_length_100` - Display name with exactly 100 chars (max_length) accepted
+- `test_register_display_name_too_long_101_chars_rejected` - Display name with 101 chars rejected
+
+### 18.2 Auth Language Validation
+
+**Class**: `TestAuthLanguageValidation`
+
+Tests language preference validation boundaries:
+
+- `test_register_all_valid_language_codes_accepted` - All valid codes (en, es, fr, de) accepted in registration
+- `test_register_invalid_language_code_rejected` - Unsupported language code 'zh' rejected (422)
+- `test_update_language_invalid_code_rejected` - PATCH /api/auth/language with 'it' (Italian) rejected
+- `test_update_language_valid_code_succeeds` - Switching from 'en' to 'fr' succeeds
+
+### 18.3 Conversation Thinker Count Boundaries
+
+**Class**: `TestConversationThinkerCountBoundaries`
+
+Tests exact thinker count limits:
+
+- `test_create_conversation_with_exactly_1_thinker_minimum` - 1 thinker (min_length=1) accepted
+- `test_create_conversation_with_0_thinkers_rejected` - Empty thinkers list rejected (422)
+- `test_create_conversation_with_exactly_5_thinkers_maximum` - 5 thinkers (max_length=5) accepted
+- `test_create_conversation_with_6_thinkers_rejected` - 6 thinkers rejected (422, above max_length)
+- `test_add_thinker_to_conversation_at_exactly_5_is_rejected` - Adding 6th thinker to full conversation returns 400
+- `test_get_conversation_wrong_session_returns_404` - Cross-session conversation access returns 404
+- `test_delete_conversation_wrong_session_returns_404` - Cross-session conversation deletion returns 404
+
+### 18.4 Feedback Schema Boundary Conditions
+
+**Class**: `TestFeedbackSchemaBoundaryConditions`
+
+Tests feedback schema validation using direct Pydantic model instantiation:
+
+- `test_feedback_message_exactly_10_chars_is_valid` - Message at exactly min_length=10 is valid
+- `test_feedback_message_9_chars_is_invalid` - Message with 9 chars raises ValidationError (below min)
+- `test_feedback_message_exactly_5000_chars_is_valid` - Message at exactly max_length=5000 is valid
+- `test_feedback_message_5001_chars_is_invalid` - Message with 5001 chars raises ValidationError (above max)
+- `test_feedback_screenshot_at_exactly_max_size_is_valid` - Screenshot at exactly MAX_SCREENSHOT_SIZE is valid
+- `test_feedback_screenshot_one_byte_over_max_size_is_invalid` - Screenshot 1 byte over MAX raises ValidationError
+- `test_feedback_all_optional_fields_can_be_none` - All optional fields can be None simultaneously
+- `test_feedback_all_feedback_type_values_are_valid` - All enum values (bug/feature/other) are valid
+
+### 18.5 Thinker Schema Color Validation
+
+**Class**: `TestThinkerSchemaColorValidation`
+
+Tests thinker hex color field validation via API:
+
+- `test_create_conversation_with_valid_hex_color` - Valid 6-digit uppercase hex color accepted
+- `test_create_conversation_with_invalid_hex_color_rejected` - 'red' (non-hex format) rejected (422)
+- `test_create_conversation_with_5_digit_hex_color_rejected` - 5-digit hex ('#12345') rejected (422)
+- `test_create_conversation_with_7_digit_hex_color_rejected` - 7-digit hex ('#1234567') rejected (422)
+
+### 18.6 Special Characters and Unicode
+
+**Class**: `TestSpecialCharactersAndUnicode`
+
+Tests handling of unicode and special characters in user-facing fields:
+
+- `test_topic_with_unicode_characters_accepted` - CJK, accented chars, emoji in topic accepted
+- `test_message_with_emoji_accepted` - Emoji (🌍, 🤔, 💭) in message content stored correctly
+- `test_message_with_special_sql_chars_accepted` - SQL injection-like content stored as plain text
+- `test_display_name_with_unicode_accepted` - Display names with German/Japanese chars accepted
+
+### 18.7 DevOps API Authentication Edge Cases
+
+**Class**: `TestDevopsAPIAuthenticationEdgeCases`
+
+Tests DevOps API auth header validation edge cases:
+
+- `test_devops_health_without_secret_header_returns_403_or_503` - Missing header returns 403 or 503
+- `test_devops_stats_with_wrong_secret_returns_403_or_503` - Wrong secret value returns 403 or 503
+- `test_devops_cleanup_stale_sessions_without_auth_returns_403_or_503` - DELETE without auth blocked
+- `test_devops_cleanup_orphans_dry_run_without_auth_returns_403_or_503` - Even dry_run requires auth
+
+### 18.8 Spend Service Edge Cases
+
+**Class**: `TestSpendServiceEdgeCases`
+
+Tests spend service boundary conditions via direct service calls:
+
+- `test_check_spend_limit_user_not_found_returns_none` - Non-existent user ID returns None
+- `test_get_user_spend_data_user_not_found_returns_none` - Non-existent user data returns None
+- `test_check_spend_limit_exactly_at_limit` - total_spend == spend_limit → is_over_limit=True
+- `test_check_spend_limit_just_below_limit` - total_spend < spend_limit → is_over_limit=False
+- `test_check_spend_limit_near_limit_threshold_85_percent` - At exactly 85% → is_near_limit=True
+- `test_check_spend_limit_just_below_near_limit_threshold` - At 84% → is_near_limit=False
+
+### 18.9 Admin API Boundary Conditions
+
+**Class**: `TestAdminAPIBoundaryConditions`
+
+Tests admin endpoint access control:
+
+- `test_update_spend_limit_zero_or_negative_rejected` - Non-admin user gets 403 from spend-limit endpoint
+- `test_admin_list_users_requires_admin_role` - Regular user cannot list users (403)
+- `test_admin_delete_user_requires_admin_role` - Regular user cannot delete users (403)
+
+### 18.10 Change Password Boundary Conditions
+
+**Class**: `TestChangePasswordBoundaryConditions`
+
+Tests password change validation edge cases:
+
+- `test_change_password_new_password_minimum_length_6` - New password with 6 chars (minimum) accepted
+- `test_change_password_new_password_too_short_rejected` - New password with 5 chars rejected (422)
+- `test_change_password_wrong_current_password_rejected` - Wrong current password returns 400
+- `test_change_password_empty_current_password_rejected` - Empty current_password rejected (422, below min_length=1)
+
+### 18.11 Profile Update Boundary Conditions
+
+**Class**: `TestProfileUpdateBoundaryConditions`
+
+Tests profile update endpoint edge cases:
+
+- `test_update_profile_display_name_empty_string_rejected` - Empty display_name rejected (422, below min_length=1)
+- `test_update_profile_display_name_whitespace_only_accepted` - Single space (length=1) passes min_length=1
+- `test_update_profile_requires_auth` - Unauthenticated update returns 401
+
+### 18.12 Thinker Suggest Request Boundaries
+
+**Class**: `TestThinkerSuggestRequestBoundaries`
+
+Tests thinker suggest request count and language validation:
+
+- `test_suggest_thinkers_count_minimum_1` - count=1 (minimum, ge=1) is accepted
+- `test_suggest_thinkers_count_0_rejected` - count=0 rejected (422, below ge=1)
+- `test_suggest_thinkers_count_maximum_5` - count=5 (maximum, le=5) is accepted
+- `test_suggest_thinkers_count_6_rejected` - count=6 rejected (422, above le=5)
+- `test_suggest_thinkers_invalid_language_rejected` - 'de' not valid for thinker suggest (422)
+  Note: Thinker suggest allows en/es/fr (NOT de), unlike auth which allows en/es/fr/de
