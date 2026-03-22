@@ -960,6 +960,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cleanup old factory-health issues
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WITH_WORKFLOW_ACCESS }}
+        run: |
+          echo "Cleaning up factory-health issues older than 7 days..."
+
+          # Calculate threshold (7 days ago)
+          THRESHOLD=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+
+          # Find open factory-health issues older than 7 days
+          OLD_ISSUES=$(gh issue list \
+            --repo ${{ github.repository }} \
+            --label "factory-health" \
+            --state open \
+            --json number,title,createdAt | \
+            jq --arg threshold "$THRESHOLD" \
+            '[.[] | select(.createdAt < $threshold) | .number]' 2>/dev/null || echo "[]")
+
+          COUNT=$(echo "$OLD_ISSUES" | jq 'length')
+          echo "Found $COUNT old factory-health issues to close"
+
+          # Close each old issue
+          if [ "$COUNT" -gt 0 ]; then
+            echo "$OLD_ISSUES" | jq -r '.[]' | while read -r ISSUE_NUM; do
+              echo "Closing old factory-health issue #$ISSUE_NUM..."
+              gh issue close "$ISSUE_NUM" \
+                --repo ${{ github.repository }} \
+                --comment "Auto-closed: This factory health report is older than 7 days. A new report has been created." || true
+            done
+            echo "Cleanup complete: closed $COUNT old issues"
+          fi
+
       - name: Gather metrics
         id: metrics
         env:
