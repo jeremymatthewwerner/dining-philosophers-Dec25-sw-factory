@@ -2,6 +2,142 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.3 Regression Prevention (Added 2026-03-22)
+
+**Focus**: Sunday QA focus - add regression prevention tests for recent bug fixes and features
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py`
+**Coverage Impact**: 85.13% -> 86.22% (+1.09%)
+
+**Regression Targets:**
+1. fix(thinker) #533: Linear speed multiplier scaling (was exponential ^1.5)
+2. feat(backend) #483: Idle timeout auto-pause feature (idle pause/resume methods)
+3. feat(i18n) #567/570: Hindi language support for thinker messages
+4. fix(i18n) #341/336: French/Spanish/German i18n language support
+
+### 1.3.1 TestLinearSpeedMultiplierScaling (4 tests)
+
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py` - `TestLinearSpeedMultiplierScaling`
+
+Regression guard for fix #533 which changed exponential scaling (speed^1.5) to linear (speed).
+At 6x speed: exponential gave 14.7x multiplier (min_interval 220s), linear gives 6.0x (90s).
+
+- `test_linear_scaling_1x_gives_1x_multiplier` - At 1x speed, both linear and exponential give 1.0.
+  Verifies there is no regression for 1x speed (baseline case).
+- `test_linear_scaling_6x_gives_6x_not_14_7x` - At 6x speed, linear=6.0 but exponential=14.7.
+  Core regression: min_interval with linear=90s, exponential=220s. The fix is critical.
+- `test_linear_scaling_2x_gives_2x` - At 2x speed, linear=2.0 vs exponential=2.83.
+  Linear is more intuitive: 2x slider = 2x slower.
+- `test_linear_scaling_4x_gives_4x` - At 4x speed, linear=4.0 vs exponential=8.0.
+  At 4x: min_interval with linear=60s, exponential=120s (double what user expects).
+
+### 1.3.2 TestExtractThinkingDisplayI18n (8 tests)
+
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py` - `TestExtractThinkingDisplayI18n`
+
+Tests the `_extract_thinking_display` method which transforms LLM reasoning into thinker internal
+monologue style using language-specific replacements. Regression guard for i18n additions.
+
+- `test_empty_text_returns_empty_string` - Empty thinking text returns `""` immediately.
+- `test_short_text_below_80_chars_returns_empty` - Text < 80 chars returns `""` (avoids truncated snippets).
+- `test_text_exactly_80_chars_is_not_empty` - Text at exactly 80 chars IS displayed (boundary condition:
+  code checks `len < 80`, so 80 chars passes).
+- `test_english_replaces_i_should_with_perhaps` - English branch applies "I should " -> "Perhaps I should ".
+  Core transformation to make thinking sound like internal monologue.
+- `test_german_language_code_applied` - 'de' language code applies German replacements without crash.
+- `test_hindi_language_code_applied` - 'hi' language code applies Hindi replacements without crash.
+  Regression: Hindi added in PR #567/570.
+- `test_unknown_language_falls_back_to_english` - Unknown language code ('zh') hits English else-branch.
+  Verified by checking 'zh' and 'en' produce identical output.
+- `test_french_language_code_applied` - 'fr' applies French replacements without crash.
+  Regression: French added in PR #336/341.
+- `test_spanish_language_code_applied` - 'es' applies Spanish replacements without crash.
+
+### 1.3.3 TestShouldRespondProbabilityLogic (6 tests)
+
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py` - `TestShouldRespondProbabilityLogic`
+
+Tests `_should_respond` method which controls when thinkers participate in conversations.
+Critical UX logic - @mentions must be reliably answered, thinkers must not spam own replies.
+
+- `test_returns_false_when_no_messages` - Returns False for empty message list. Guards against
+  thinkers responding before any messages exist.
+- `test_returns_false_when_no_new_messages` - Returns False when last_response_count == len(messages).
+  Prevents repeated responses to the same state.
+- `test_at_mention_gives_very_high_probability` - With @Socrates mention, expects 25+/30 True.
+  Verifies 0.98 probability branch for @mentions (critical UX feature).
+- `test_low_probability_when_thinker_sent_last_message` - When thinker's own message is last,
+  probability drops to 0.05. Expects 20+/30 False. Prevents self-reply spam.
+- `test_new_messages_increase_base_probability` - Verifies formula:
+  `min(0.25 + (count * 0.12), 0.7)` produces correct values and caps at 0.7.
+- `test_consecutive_silence_increases_probability` - With consecutive_silence=5, expects 20+/30 True.
+  Verifies +0.5 bonus (5 * 0.1) ensures thinkers eventually respond after silence.
+
+### 1.3.4 TestShouldPromptUser (5 tests)
+
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py` - `TestShouldPromptUser`
+
+Tests `_should_prompt_user` which invites user to participate after many thinker-only messages.
+Threshold and probability scale with speed multiplier.
+
+- `test_returns_false_with_fewer_than_5_messages` - For 0-4 messages, always returns False.
+  Needs enough context before prompting user.
+- `test_threshold_at_1x_speed_is_8` - At 1x speed: threshold = max(4, int(8 / 1^0.3)) = 8.
+  Prompts after ~8 thinker messages without user participation.
+- `test_threshold_at_6x_speed_is_lower` - At 6x speed: threshold lower than 1x but >= 4.
+  More contemplative pace = invite user more frequently.
+- `test_prompt_probability_scales_with_speed` - probability = 0.15 * speed^0.3.
+  At 6x > at 1x. Higher speed = more likely to invite user.
+- `test_returns_false_when_messages_since_user_below_threshold` - Returns False when user
+  spoke recently (messages_since_user < threshold).
+
+### 1.3.5 TestCountMessagesSinceUser (5 tests)
+
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py` - `TestCountMessagesSinceUser`
+
+Tests `_count_messages_since_user` which counts thinker messages since user last spoke.
+Used by `_should_prompt_user` to detect if user participation is needed.
+
+- `test_returns_zero_when_last_message_is_from_user` - Returns 0 when most recent message is user's.
+  User just spoke, no thinker messages since then.
+- `test_returns_correct_count_of_thinker_messages` - Returns 3 for 3 thinker messages after user.
+  Core logic: count from end until hitting a user message.
+- `test_returns_full_count_when_no_user_messages` - Returns len(messages) when no user ever spoke.
+  All messages count toward total when there's no user baseline.
+- `test_handles_enum_sender_type` - Works with enum sender_type (hasattr(.value) pattern).
+  Production SQLAlchemy models use enum types, not raw strings.
+- `test_empty_messages_returns_zero` - Returns 0 for empty list.
+
+### 1.3.6 TestHindiI18nSupport (4 tests)
+
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py` - `TestHindiI18nSupport`
+
+Regression tests for Hindi language support added in PRs #567/570. Verifies the Hindi
+language branch ('hi') exists in `_extract_thinking_display` and does not crash.
+
+- `test_hindi_thinking_display_does_not_crash` - Hindi text (>80 chars) through 'hi' code completes
+  without exception. Regression: missing 'hi' branch would silently apply English replacements.
+- `test_hindi_vs_english_produce_different_transforms` - English text through 'en' and 'hi' codes
+  both complete without crashing (different branches, same stability requirement).
+- `test_hindi_replacement_token_structure` - Multiple Hindi texts through 'hi' code all produce
+  string output without error.
+- `test_all_supported_languages_do_not_crash` - All 5 supported language codes ('en', 'de', 'es',
+  'fr', 'hi') process without error. Guards against accidental removal of any language branch.
+
+### 1.3.7 TestIsMentioned (6 tests)
+
+**File**: `backend/tests/test_regression_prevention_mar22_2026.py` - `TestIsMentioned`
+
+Tests the `is_mentioned` utility function that detects @mentions in text.
+Critical for @mention response behavior (98% probability trigger).
+
+- `test_at_mention_full_name_returns_true` - @Socrates matches thinker "Socrates".
+- `test_at_mention_first_name_matches_multi_word_thinker` - @Marie matches "Marie Curie".
+  First-name shorthand feature.
+- `test_no_at_mention_returns_false` - Name without @ is not an @mention.
+- `test_different_thinker_mentioned_returns_false` - @Plato does not match "Socrates".
+- `test_empty_text_returns_false` - Empty text has no mentions.
+- `test_case_insensitive_match` - @socrates (lowercase) matches "Socrates" (capitalized).
+
 ## 1.2 Test Refactoring (Added 2026-03-20)
 
 **Focus**: Friday QA focus - improve test readability, reduce duplication
