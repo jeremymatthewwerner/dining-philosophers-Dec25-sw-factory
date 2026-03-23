@@ -2,6 +2,220 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.3 Coverage Sprint (Added 2026-03-23)
+
+**Focus**: Monday QA focus - coverage sprint, bringing lowest-coverage modules up by 15%+
+**Coverage Impact**: 78.92% -> 85.91% (+6.99%)
+
+### New Test Files Added
+
+#### `frontend/src/__tests__/app/settings.test.tsx`
+
+**What it validates**: Full coverage of the Settings page component (`src/app/settings/page.tsx`) which was at 0% coverage.
+
+Tests added (33 tests):
+
+**Authentication states:**
+- Renders loading state when auth is loading
+- Redirects to login when user is null and not loading
+- Renders null when user is null and not loading
+- Renders settings page when user is authenticated
+
+**Page navigation:**
+- Navigates back to chat when back button is clicked
+
+**Display name section:**
+- Renders profile section with display name field
+- Initializes display name from user data
+- Shows error when submitting empty display name
+- Shows error when display name exceeds 100 characters (using fireEvent.change to bypass browser maxLength)
+- Calls updateDisplayName and shows success message
+- Shows error message when updateDisplayName fails with Error
+- Shows fallback error message when updateDisplayName fails with non-Error
+- Disables button and shows "Updating..." while updating
+
+**Language section:**
+- Renders language section
+- Calls setLocale when language is changed
+- Shows current locale as selected
+
+**Theme section:**
+- Renders theme section
+- Calls setTheme when theme is changed
+- Shows current theme as selected
+
+**Feedback info section:**
+- Renders feedback contact section
+- Loads saved feedback info on mount
+- Calls saveFeedbackInfo and shows success on form submit
+- Calls clearFeedbackInfo and clears fields
+
+**Change password section:**
+- Renders password change section heading and form fields
+- Shows error when current password is empty
+- Shows error when new password is empty
+- Shows error when new password is too short (< 6 chars)
+- Shows error when passwords do not match
+- Calls changePassword and shows success message
+- Clears password fields on successful change
+- Shows error message when changePassword fails with Error
+- Shows fallback error when changePassword fails with non-Error
+- Disables button and shows "Changing..." while changing password
+
+---
+
+#### `frontend/src/__tests__/lib/version.test.ts`
+
+**What it validates**: Coverage for `src/lib/version.ts` (was 0%).
+
+Tests added (6 tests):
+- APP_VERSION exports as a string
+- APP_VERSION defaults to '0.1.0' when env vars are not set
+- APP_VERSION uses NEXT_PUBLIC_APP_VERSION when set
+- BUILD_TIMESTAMP exports as a numeric string (> year 2020)
+- checkForUpdate returns false (placeholder implementation)
+- checkForUpdate returns false multiple times (concurrent calls)
+
+---
+
+#### `frontend/src/__tests__/contexts/ThemeContext.test.tsx`
+
+**What it validates**: Improved coverage for `src/contexts/ThemeContext.tsx` (84.15% -> 98.01%).
+
+Tests added (16 tests):
+
+**useTheme outside provider:**
+- Throws error when used outside ThemeProvider
+
+**Default state:**
+- Provides default theme of 'system'
+- Provides resolvedTheme based on system preference (light by default)
+
+**setTheme:**
+- Updates theme to 'light'
+- Updates theme to 'dark'
+- Persists theme to localStorage via setItem call
+- Applies dark class to document root when dark theme is set
+- Applies light class to document root when light theme is set
+- Removes theme classes from root when system theme is set
+
+**resolvedTheme:**
+- Returns light when theme is 'light'
+- Returns dark when theme is 'dark'
+- Returns dark when theme is 'system' and system prefers dark (matchMedia mock)
+
+**localStorage persistence:**
+- Reads saved theme from localStorage on mount (mock returns 'dark')
+- Saves theme preference to localStorage when setTheme is called
+- Ignores invalid localStorage value and defaults to 'system'
+
+**ThemeProvider:**
+- Renders children correctly
+
+---
+
+#### `frontend/src/__tests__/contexts/LanguageContext.test.tsx`
+
+**What it validates**: Improved coverage for `src/contexts/LanguageContext.tsx` (79.06% -> 100%).
+
+Tests added (14 tests):
+
+**useLanguage outside provider:**
+- Throws error when used outside LanguageProvider
+
+**Default state:**
+- Defaults to English locale when no user
+- Provides English translations by default
+
+**setLocale:**
+- Changes locale to Spanish
+- Changes locale to French
+- Does not change locale for unsupported locale (no-op)
+- Calls updateLanguage API when user is authenticated
+- Does not call updateLanguage API when user is not authenticated
+- Keeps UI updated even when API call fails (error handling)
+
+**interpolate function:**
+- Interpolates single variable
+- Interpolates multiple variables
+- Leaves unknown variables as-is (returns `{variableName}`)
+- Interpolates numeric variables
+
+**LanguageProvider:**
+- Renders children correctly
+
+---
+
+#### `frontend/src/__tests__/contexts/AuthContext.test.tsx`
+
+**What it validates**: Improved coverage for `src/contexts/AuthContext.tsx` (77.04% -> 100%).
+
+Tests added (17 tests):
+
+**useAuth outside provider:**
+- Throws error when used outside AuthProvider
+
+**Initial loading state:**
+- Starts with isLoading true
+- Sets isLoading to false after auth check resolves
+- Sets user when getCurrentUser returns a user
+- Sets user to null when getCurrentUser returns null
+- Initializes from localStorage if stored user exists
+
+**isAuthenticated:**
+- Is false when user is null
+- Is true when user is set
+
+**login:**
+- Calls api.login and sets user
+- Propagates errors from api.login
+
+**register:**
+- Calls api.register with default language 'en' and sets user
+- Passes language preference to api.register
+
+**logout:**
+- Calls api.logout and clears user
+
+**refreshUser:**
+- Calls getCurrentUser and updates user
+- Does not update user if getCurrentUser returns null
+
+**updateDisplayName:**
+- Calls api.updateProfile and updates user
+
+**AuthProvider:**
+- Renders children correctly
+
+---
+
+### Enhanced Test Coverage in Existing Files
+
+#### `frontend/src/__tests__/components/TypingIndicator.test.tsx`
+
+Added 7 new tests covering the "thinking content" display mode (lines 31-71, was 64.65% -> 100%):
+
+- Shows individual thinker rows when thinkingContent Map is provided
+- Shows "is thinking" text when thinker has no thinking content (empty string)
+- Shows thinking content for multiple thinkers
+- Falls back to simple format when thinkingContent is an empty Map
+- Falls back to simple format when thinkingContent is undefined
+- Renders animated dots in thinking content mode
+
+#### `frontend/src/__tests__/components/CostMeter.test.tsx`
+
+Added 7 new tests covering the animation effect (lines 24-40, was 77.33% -> 100%):
+
+- Displays yellow color for medium costs (0.01-0.10)
+- Displays orange color for high costs (>0.10)
+- Animates cost change over time (using fake timers)
+- Reaches target cost after full animation completes (20 steps x 20ms)
+- Clears interval when cost update is complete
+- Does not animate when totalCost equals displayCost (no re-render)
+- Unmounts cleanly (tests interval cleanup)
+
+---
+
 ## 1.2 Test Refactoring (Added 2026-03-20)
 
 **Focus**: Friday QA focus - improve test readability, reduce duplication
