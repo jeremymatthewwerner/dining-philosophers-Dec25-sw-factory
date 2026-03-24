@@ -3,7 +3,7 @@
 import gc
 from collections.abc import AsyncGenerator, Generator
 from typing import TYPE_CHECKING, Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from anthropic.types import TextBlock
@@ -36,6 +36,25 @@ def cleanup_gc() -> Generator[None, None, None]:
     """Force garbage collection after each test to clean up dangling connections."""
     yield
     gc.collect()
+
+
+@pytest.fixture(autouse=True)
+def mock_knowledge_service_trigger() -> Generator[MagicMock, None, None]:
+    """Mock knowledge_service.trigger_research globally for all tests.
+
+    Without this, creating a conversation triggers a real asyncio background
+    task that makes HTTP requests to Wikipedia. This causes the event loop to
+    hang while waiting for the HTTP task to complete, making any test that
+    calls POST /api/conversations hang indefinitely.
+
+    Tests that need to verify trigger_research behavior can override this
+    fixture or use their own patch decorator.
+    """
+    with patch(
+        "app.services.knowledge_research.knowledge_service.trigger_research"
+    ) as mock_trigger:
+        mock_trigger.return_value = None
+        yield mock_trigger
 
 
 @pytest.fixture

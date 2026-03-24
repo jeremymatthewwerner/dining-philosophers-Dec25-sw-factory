@@ -2,6 +2,52 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.4 Flaky Test Hunt (Added 2026-03-24)
+
+**Focus**: Tuesday QA focus - run tests 5x, identify and fix flaky tests
+**Coverage Impact**: No coverage change (stability fix)
+
+### Root Cause Fixed: Background HTTP Tasks Hanging Tests
+
+**Problem**: Any test that created a conversation via `POST /api/conversations` would hang
+indefinitely. The `create_conversation` endpoint calls
+`knowledge_service.trigger_research(thinker_data.name)` which spawns a real `asyncio.Task`
+that makes HTTP requests to Wikipedia. Tests that didn't mock this call left active background
+tasks in the event loop, preventing the loop from exiting cleanly after the test.
+
+**Affected tests (previously hanging indefinitely)**:
+- `tests/test_api.py::TestConversationAPI` (13 tests)
+- `tests/test_conversations_flaky_hunt.py` (6 tests)
+- And all tests in ~30 other test files that create conversations
+
+**Fix**: Added `mock_knowledge_service_trigger` autouse fixture in `tests/conftest.py` that
+automatically patches `app.services.knowledge_research.knowledge_service.trigger_research`
+to a no-op `MagicMock` for every test. This prevents real background HTTP tasks from running
+during tests. Tests that explicitly need to verify `trigger_research` behavior can use their
+own nested `patch()` context manager, which takes precedence over the autouse fixture while
+active.
+
+### Changes Made
+
+#### `tests/conftest.py` - New autouse fixture
+- `mock_knowledge_service_trigger` - Autouse fixture that patches `trigger_research` to a
+  `MagicMock` for all tests. Prevents background Wikipedia HTTP requests that caused hangs.
+  Yields the mock so tests can inspect call counts if needed.
+
+#### `tests/test_flaky_hunt_mar17_2026.py` - Updated test for new reality
+- `test_knowledge_service_mock_does_not_leak_between_tests` - Updated to verify that after
+  a nested `with patch(...)` context exits, the outer autouse fixture's mock is restored
+  (not the original unpatched method). The test now correctly validates nested patch cleanup
+  in the presence of the global autouse fixture.
+
+### Previously Known Pattern (working tests)
+Tests in `test_conversations_coverage_sprint.py`, `test_thinker_knowledge_integration.py`
+and others already used `@patch("app.services.knowledge_research.knowledge_service.trigger_research")`
+decorators. The autouse fixture provides this automatically so all tests benefit without
+requiring per-test annotations.
+
+---
+
 ## 1.3 Coverage Sprint (Added 2026-03-23)
 
 **Focus**: Monday QA focus - coverage sprint, bringing lowest-coverage modules up by 15%+
