@@ -531,26 +531,37 @@ class TestKnowledgeServiceMockingConsistency:
     ) -> None:
         """Test that patching knowledge_service in one test doesn't affect another.
 
-        This validates the patch context manager properly restores the original
-        after the 'with' block, preventing mocked state from bleeding across tests.
-        Verifies that after the patch exits, the method is no longer a MagicMock.
-        """
-        from unittest.mock import MagicMock
+        This validates the patch context manager properly restores to the outer
+        fixture mock after the inner 'with' block, preventing nested mock state
+        from bleeding. The conftest autouse fixture provides the outer mock that
+        keeps trigger_research safe during all tests.
 
+        With the autouse fixture in place, after the inner patch exits, the method
+        reverts to the outer fixture's MagicMock (not the inner nested mock).
+        We verify the inner mock is no longer active by checking call counts.
+        """
         from app.services.knowledge_research import knowledge_service
 
+        inner_mock_id = None
         with patch(
             "app.services.knowledge_research.knowledge_service.trigger_research"
-        ) as mock_trigger:
-            mock_trigger.return_value = None
-            # Inside the patch: trigger_research is the mock
+        ) as inner_mock:
+            inner_mock.return_value = None
+            inner_mock_id = id(inner_mock)
+            # Inside the nested patch: trigger_research is the inner mock
             assert isinstance(knowledge_service.trigger_research, MagicMock)
+            assert id(knowledge_service.trigger_research) == inner_mock_id
 
-        # After the patch: trigger_research is restored (no longer a MagicMock)
-        # Bound methods create new objects on each access, so we check type not identity
-        assert not isinstance(knowledge_service.trigger_research, MagicMock), (
-            "After patch context exits, trigger_research should be the real method, "
-            "not a MagicMock. Mock leaked out of context manager."
+        # After the inner patch exits, the outer autouse fixture's mock is restored.
+        # The inner mock is no longer the active one - verifiable by identity.
+        # The conftest autouse fixture keeps trigger_research mocked to prevent
+        # real background HTTP tasks from running during tests.
+        assert isinstance(knowledge_service.trigger_research, MagicMock), (
+            "trigger_research should remain mocked by the conftest autouse fixture"
+        )
+        assert id(knowledge_service.trigger_research) != inner_mock_id, (
+            "After inner patch exits, the inner mock should no longer be active. "
+            "The outer autouse fixture's mock should be restored."
         )
 
     async def test_mock_trigger_research_records_calls_independently(self) -> None:
