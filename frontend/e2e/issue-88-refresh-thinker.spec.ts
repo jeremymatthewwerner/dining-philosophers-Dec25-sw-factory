@@ -11,6 +11,8 @@ import { test, expect } from '@playwright/test';
 import { setupAuthenticatedUser } from './test-utils';
 
 test.describe('Issue #88: Refresh thinker suggestion fails', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });

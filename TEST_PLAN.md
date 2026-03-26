@@ -2,6 +2,93 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.5 E2E Performance Optimization (Added 2026-03-26)
+
+**Focus**: Thursday QA focus - optimize E2E test speed and parallelism
+**Coverage Impact**: No coverage change (performance improvement)
+
+### Performance Analysis Summary
+
+**Before optimization:**
+- `waitForTimeout()` calls: 0 (already eliminated in previous sessions)
+- `test.describe.configure({ mode: 'parallel' })` uses: 0
+- File-level parallelism: enabled (`fullyParallel: true`)
+- Workers in CI: 4
+- Standalone `waitForLoadState('networkidle')` calls used as sole wait: 2
+
+**After optimization:**
+- `test.describe.configure({ mode: 'parallel' })` uses: 20+ describe blocks across 17 files
+- Standalone `waitForLoadState('networkidle')` sole waits: 0
+- `persistence.spec.ts`: converted from UI modal to API-based conversation creation
+
+### Changes Made
+
+#### Within-file parallelism (`test.describe.configure({ mode: 'parallel' })`)
+
+Added parallel mode to the following describe blocks, enabling tests within each block
+to run concurrently rather than sequentially:
+
+- `frontend/e2e/homepage.spec.ts` - 3 describe blocks: `Homepage`, `Login Page`, `Register Page`
+- `frontend/e2e/admin.spec.ts` - 2 describe blocks: `Admin Panel`, `Admin Link Visibility`
+- `frontend/e2e/new-conversation.spec.ts` - 2 describe blocks: `New Conversation Flow`, `Thinker Suggestions`
+- `frontend/e2e/network-errors.spec.ts` - 4 describe blocks: `Network Error Recovery`, `WebSocket Error Recovery`, `API Error Messages`, `Rate Limiting & Throttling`
+- `frontend/e2e/form-validation.spec.ts` - 4 describe blocks: `Topic Input Validation`, `Message Input Validation`, `Rapid-Fire Actions`, `Custom Thinker Validation`
+- `frontend/e2e/chat.spec.ts` - 1 describe block: `Chat Functionality`
+- `frontend/e2e/settings.spec.ts` - 1 top-level describe block: `Settings Page`
+- `frontend/e2e/settings-edge-cases.spec.ts` - 1 describe block: `Settings Edge Cases`
+- `frontend/e2e/tab-visibility.spec.ts` - 1 describe block: `Tab Visibility Handling`
+- `frontend/e2e/session-management.spec.ts` - 1 describe block: `Session Management`
+- `frontend/e2e/export-edge-cases.spec.ts` - 1 describe block: `Export Edge Cases`
+- `frontend/e2e/feedback-edge-cases.spec.ts` - 1 describe block: `Feedback Modal Edge Cases`
+- `frontend/e2e/cost-edge-cases.spec.ts` - 1 describe block: `Cost Edge Cases`
+- `frontend/e2e/keyboard-navigation.spec.ts` - 1 describe block: `Keyboard Navigation`
+- `frontend/e2e/scrolling-text.spec.ts` - 2 describe blocks: `ScrollingText - Conversation List`, `ScrollingText - Flex Layout Timing`
+- `frontend/e2e/mobile-header.spec.ts` - 1 describe block: `Mobile Header Behavior`
+- `frontend/e2e/thinker-selection-edge.spec.ts` - 1 describe block: `Thinker Selection Edge Cases`
+- `frontend/e2e/issue-88-refresh-thinker.spec.ts` - 1 describe block: `Issue #88: Refresh thinker suggestion fails`
+
+#### API-based conversation setup in `persistence.spec.ts`
+
+Replaced the slow UI modal flow (topic input + thinker selection + create button click,
+requiring ~15s for suggestions API call) with `createConversationViaAPI()`. The test now
+validates that conversations created via API appear in the sidebar and persist across
+page reloads, without exercising the creation modal flow.
+
+**Before**: Used `new-chat-button` → `topic-input` → `next-button` → wait for suggestions → `add-custom-thinker` → `create-button`
+**After**: Direct API call via `createConversationViaAPI()` then `page.goto('/')` to verify
+
+#### Removed standalone `waitForLoadState('networkidle')` waits in `network-errors.spec.ts`
+
+Two `waitForLoadState('networkidle')` calls that served as the sole wait mechanism were
+replaced with element-driven alternatives:
+
+1. **`handles WebSocket connection failure`**: Removed the `networkidle` wait after sending a
+   message with blocked WebSocket. The assertion `expect(chat-area).toBeVisible()` that follows
+   is sufficient to verify the app didn't crash.
+
+2. **`reconnects WebSocket after temporary disconnection`**: Removed the `networkidle` wait
+   after blocking the WebSocket. The route intercept is synchronous and takes effect immediately;
+   the wait added up to 3s of unnecessary delay.
+
+#### Replaced lone `waitForLoadState('networkidle')` in `settings-edge-cases.spec.ts`
+
+The `should handle password fields with whitespace` test used `waitForLoadState('networkidle')`
+as its only wait. Replaced with `expect(#currentPassword).toBeVisible({ timeout: 10000 })` which
+is element-driven and more specific.
+
+### Performance Impact
+
+The `test.describe.configure({ mode: 'parallel' })` changes allow Playwright to schedule tests
+within each describe block concurrently when workers are available. With 4 CI workers and
+`fullyParallel: true` already enabled at the file level, this provides additional concurrency
+at the describe-block level within each file.
+
+Estimated time savings per CI run: 10-20% reduction by enabling more concurrent test execution
+within individual test files, especially for test files with multiple describe blocks containing
+3-5 tests each.
+
+---
+
 ## 1.4 Flaky Test Hunt (Added 2026-03-24)
 
 **Focus**: Tuesday QA focus - run tests 5x, identify and fix flaky tests

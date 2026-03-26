@@ -4,46 +4,39 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser } from './test-utils';
+import {
+  setupAuthenticatedUser,
+  createConversationViaAPI,
+} from './test-utils';
 
 test.describe('Persistence', () => {
   test('conversations persist across page reload', async ({ page }) => {
     await setupAuthenticatedUser(page);
 
-    // Create a conversation
-    await page.getByTestId('new-chat-button').click();
-    await page.getByTestId('topic-input').fill('Test persistence topic');
-    await page.getByTestId('next-button').click();
+    // Create a conversation via API (faster than UI modal flow)
+    await createConversationViaAPI(page, 'Test persistence topic', [
+      'Aristotle',
+    ]);
 
-    await expect(
-      page.locator('h2', { hasText: 'Select Thinkers' })
-    ).toBeVisible({ timeout: 30000 });
+    // Reload to pick up the newly created conversation
+    await page.goto('/');
 
-    // Add a custom thinker (more reliable than waiting for suggestions)
-    const customInput = page.getByTestId('custom-thinker-input');
-    await customInput.scrollIntoViewIfNeeded();
-    await customInput.fill('Aristotle');
-    const addButton = page.getByTestId('add-custom-thinker');
-    await addButton.scrollIntoViewIfNeeded();
-    await addButton.click({ force: true });
-    await expect(page.getByTestId('selected-thinker')).toBeVisible({
-      timeout: 15000,
-    });
-
-    // Create conversation
-    const createButton = page.getByTestId('create-button');
-    await createButton.scrollIntoViewIfNeeded();
-    await createButton.click();
-    await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
-
-    // Verify conversation appears in sidebar
+    // Conversation should be visible in sidebar
     const conversationItem = page.getByTestId('conversation-item');
-    await expect(conversationItem).toBeVisible();
+    await expect(conversationItem).toBeVisible({ timeout: 10000 });
+    // Use .last() because ScrollingText renders hidden measurement span first, visible span second
+    await expect(
+      page.locator('text=Test persistence topic').last()
+    ).toBeVisible();
+
+    // Click on the conversation to enter it
+    await conversationItem.click();
+    await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 10000 });
 
     // Reload the page
     await page.reload();
 
-    // Conversation should still be there
+    // Conversation should still be there after reload
     await expect(page.getByTestId('conversation-item')).toBeVisible({
       timeout: 10000,
     });

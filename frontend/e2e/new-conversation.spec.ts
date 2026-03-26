@@ -7,6 +7,8 @@ import { test, expect } from '@playwright/test';
 import { setupAuthenticatedUser } from './test-utils';
 
 test.describe('New Conversation Flow', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -145,6 +147,8 @@ test.describe('New Conversation Flow', () => {
 });
 
 test.describe('Thinker Suggestions', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });

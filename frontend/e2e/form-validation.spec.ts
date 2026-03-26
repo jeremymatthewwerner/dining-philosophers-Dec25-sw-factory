@@ -7,6 +7,8 @@ import { test, expect } from '@playwright/test';
 import { setupAuthenticatedUser, createAndNavigateToConversation } from './test-utils';
 
 test.describe('Topic Input Validation', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -85,6 +87,8 @@ test.describe('Topic Input Validation', () => {
 });
 
 test.describe('Message Input Validation', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -158,6 +162,8 @@ test.describe('Message Input Validation', () => {
 });
 
 test.describe('Rapid-Fire Actions', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -255,6 +261,8 @@ test.describe('Rapid-Fire Actions', () => {
 });
 
 test.describe('Custom Thinker Validation', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });

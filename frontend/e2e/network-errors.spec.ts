@@ -10,6 +10,8 @@ import {
 } from './test-utils';
 
 test.describe('Network Error Recovery', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -160,6 +162,8 @@ test.describe('Network Error Recovery', () => {
 });
 
 test.describe('WebSocket Error Recovery', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -186,13 +190,9 @@ test.describe('WebSocket Error Recovery', () => {
     // Message might appear locally but won't be sent to server
     // App should handle this gracefully without crashing
 
-    // Wait for network idle or any error indicators
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
-      // Continue even if network doesn't idle
-    });
-
     // Page should still be functional (not crashed)
-    await expect(page.getByTestId('chat-area')).toBeVisible();
+    // Wait for the chat area to confirm no crash occurred
+    await expect(page.getByTestId('chat-area')).toBeVisible({ timeout: 5000 });
   });
 
   test('reconnects WebSocket after temporary disconnection', async ({
@@ -219,12 +219,7 @@ test.describe('WebSocket Error Recovery', () => {
       route.abort('failed');
     });
 
-    // Wait briefly for the block to take effect
-    await page
-      .waitForLoadState('networkidle', { timeout: 3000 })
-      .catch(() => {});
-
-    // Unblock WebSocket
+    // Unblock WebSocket immediately - the route intercept is synchronous
     await page.unroute('**/ws/**');
 
     // Try sending another message after reconnection
@@ -239,6 +234,8 @@ test.describe('WebSocket Error Recovery', () => {
 });
 
 test.describe('API Error Messages', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -354,6 +351,8 @@ test.describe('API Error Messages', () => {
 });
 
 test.describe('Rate Limiting & Throttling', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
