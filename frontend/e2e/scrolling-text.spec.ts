@@ -17,6 +17,8 @@ import {
 } from './test-utils';
 
 test.describe('ScrollingText - Conversation List', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
@@ -213,6 +215,8 @@ test.describe('ScrollingText - Conversation List', () => {
 });
 
 test.describe('ScrollingText - Flex Layout Timing', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   /**
    * This test specifically targets the bug from issue #344:
    * In flex layouts, container width isn't finalized immediately on mount,

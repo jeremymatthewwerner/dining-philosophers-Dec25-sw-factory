@@ -9,6 +9,8 @@ import { setupAuthenticatedUser, registerUser } from './test-utils';
 const API_BASE = 'http://localhost:8000';
 
 test.describe('Admin Panel', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('non-admin users cannot access admin page', async ({ page }) => {
     await setupAuthenticatedUser(page);
 
@@ -38,6 +40,8 @@ test.describe('Admin Panel', () => {
 });
 
 test.describe('Admin Link Visibility', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('admin link is not visible for regular users', async ({ page }) => {
     await setupAuthenticatedUser(page);
 

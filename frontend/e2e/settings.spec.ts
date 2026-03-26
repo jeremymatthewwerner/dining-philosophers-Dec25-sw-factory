@@ -9,6 +9,8 @@ import { setupAuthenticatedUser, loginUser } from './test-utils';
 const API_BASE = 'http://localhost:8000';
 
 test.describe('Settings Page', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('should navigate to settings page from sidebar', async ({ page }) => {
     await setupAuthenticatedUser(page);
 

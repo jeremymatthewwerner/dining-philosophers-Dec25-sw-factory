@@ -7,6 +7,8 @@ import { test, expect } from '@playwright/test';
 import { setupAuthenticatedUser, createAndNavigateToConversation } from './test-utils';
 
 test.describe('Session Management', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });

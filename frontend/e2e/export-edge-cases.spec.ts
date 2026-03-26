@@ -10,6 +10,8 @@ import {
 } from './test-utils';
 
 test.describe('Export Edge Cases', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });

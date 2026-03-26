@@ -7,6 +7,8 @@ import { test, expect } from '@playwright/test';
 import { setupAuthenticatedUser, resetPageState } from './test-utils';
 
 test.describe('Homepage', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     // Set up authenticated user before each test
     await setupAuthenticatedUser(page);
@@ -57,6 +59,8 @@ test.describe('Homepage', () => {
 });
 
 test.describe('Login Page', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('shows login form when not authenticated', async ({ page }) => {
     // Clear any existing auth
     await page.goto('/');
@@ -81,6 +85,8 @@ test.describe('Login Page', () => {
 });
 
 test.describe('Register Page', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('shows register form', async ({ page }) => {
     await page.goto('/register');
 
