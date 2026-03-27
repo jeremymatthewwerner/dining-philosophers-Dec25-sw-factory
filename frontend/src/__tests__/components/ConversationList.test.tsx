@@ -1,23 +1,13 @@
-import { fireEvent, render, screen } from '@/test-utils';
+import {
+  fireEvent,
+  render,
+  screen,
+  createConversationSummary,
+} from '@/test-utils';
 import { ConversationList } from '@/components/ConversationList';
-import type { ConversationSummary } from '@/types';
 
-const createConversation = (
-  id: string,
-  topic: string
-): ConversationSummary => ({
-  id,
-  topic,
-  thinker_names: ['Socrates', 'Plato'],
-  thinkers: [
-    { name: 'Socrates', image_url: null },
-    { name: 'Plato', image_url: null },
-  ],
-  message_count: 10,
-  total_cost: 0.05,
-  created_at: '2024-01-15T10:00:00Z',
-  updated_at: new Date().toISOString(),
-});
+// Use createConversationSummary from test-utils to eliminate the local helper
+// that previously duplicated the ConversationSummary factory pattern.
 
 describe('ConversationList', () => {
   it('renders empty state when no conversations', () => {
@@ -34,8 +24,8 @@ describe('ConversationList', () => {
 
   it('renders conversation items', () => {
     const conversations = [
-      createConversation('1', 'Philosophy'),
-      createConversation('2', 'Science'),
+      createConversationSummary({ id: '1', topic: 'Philosophy' }),
+      createConversationSummary({ id: '2', topic: 'Science' }),
     ];
     render(
       <ConversationList
@@ -52,7 +42,18 @@ describe('ConversationList', () => {
   });
 
   it('shows thinker avatars', () => {
-    const conversations = [createConversation('1', 'Philosophy')];
+    // Override thinkers to have two specific entries with known names
+    const conversations = [
+      createConversationSummary({
+        id: '1',
+        topic: 'Philosophy',
+        thinker_names: ['Socrates', 'Plato'],
+        thinkers: [
+          { name: 'Socrates', image_url: null },
+          { name: 'Plato', image_url: null },
+        ],
+      }),
+    ];
     render(
       <ConversationList
         conversations={conversations}
@@ -67,7 +68,13 @@ describe('ConversationList', () => {
   });
 
   it('shows message count', () => {
-    const conversations = [createConversation('1', 'Philosophy')];
+    const conversations = [
+      createConversationSummary({
+        id: '1',
+        topic: 'Philosophy',
+        message_count: 10,
+      }),
+    ];
     render(
       <ConversationList
         conversations={conversations}
@@ -80,7 +87,13 @@ describe('ConversationList', () => {
   });
 
   it('shows total cost', () => {
-    const conversations = [createConversation('1', 'Philosophy')];
+    const conversations = [
+      createConversationSummary({
+        id: '1',
+        topic: 'Philosophy',
+        total_cost: 0.05,
+      }),
+    ];
     render(
       <ConversationList
         conversations={conversations}
@@ -94,7 +107,9 @@ describe('ConversationList', () => {
 
   it('calls onSelect when conversation is clicked', () => {
     const onSelect = jest.fn();
-    const conversations = [createConversation('1', 'Philosophy')];
+    const conversations = [
+      createConversationSummary({ id: '1', topic: 'Philosophy' }),
+    ];
     render(
       <ConversationList
         conversations={conversations}
@@ -110,8 +125,8 @@ describe('ConversationList', () => {
 
   it('highlights selected conversation', () => {
     const conversations = [
-      createConversation('1', 'Philosophy'),
-      createConversation('2', 'Science'),
+      createConversationSummary({ id: '1', topic: 'Philosophy' }),
+      createConversationSummary({ id: '2', topic: 'Science' }),
     ];
     render(
       <ConversationList
@@ -128,7 +143,9 @@ describe('ConversationList', () => {
 
   it('calls onDelete when delete button is clicked', () => {
     const onDelete = jest.fn();
-    const conversations = [createConversation('1', 'Philosophy')];
+    const conversations = [
+      createConversationSummary({ id: '1', topic: 'Philosophy' }),
+    ];
     render(
       <ConversationList
         conversations={conversations}

@@ -6,11 +6,14 @@ Saturday QA focus: Edge case analysis - test error paths and boundary conditions
 
 from fastapi import status
 from httpx import AsyncClient
-from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import User
-from tests.conftest import get_auth_headers, register_and_get_token
+from tests.conftest import (
+    create_admin_headers,
+    create_admin_user,
+    get_auth_headers,
+    register_and_get_token,
+)
 
 
 class TestAdminEdgeCases:
@@ -23,30 +26,14 @@ class TestAdminEdgeCases:
 
         Edge case: Boundary validation - negative values
         """
-        # Create admin user
-        admin_data = await register_and_get_token(
-            client, username="admin_negative", password="adminpass"
+        # Create admin and regular user using shared helpers
+        admin_headers = await create_admin_headers(
+            client, db_session, "admin_negative", "adminpass"
         )
-        # Promote to admin
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
-
-        # Create regular user
         regular_data = await register_and_get_token(
             client, username="regular_user_negative", password="testpass123"
         )
         regular_user_id = regular_data["user"]["id"]
-
-        # Login as admin to get proper token
-        login_response = await client.post(
-            "/api/auth/login",
-            json={"username": "admin_negative", "password": "adminpass"},
-        )
-        assert login_response.status_code == 200
-        admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # Try to set negative spend limit
         response = await client.patch(
@@ -65,29 +52,11 @@ class TestAdminEdgeCases:
 
         Edge case: Boundary validation - zero value
         """
-        # Create admin user
-        admin_data = await register_and_get_token(
-            client, username="admin_zero", password="adminpass"
-        )
-        # Promote to admin
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
-
-        # Create regular user
+        admin_headers = await create_admin_headers(client, db_session, "admin_zero", "adminpass")
         regular_data = await register_and_get_token(
             client, username="regular_user_zero", password="testpass123"
         )
         regular_user_id = regular_data["user"]["id"]
-
-        # Login as admin
-        login_response = await client.post(
-            "/api/auth/login",
-            json={"username": "admin_zero", "password": "adminpass"},
-        )
-        admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # Try to set zero spend limit
         response = await client.patch(
@@ -106,28 +75,11 @@ class TestAdminEdgeCases:
 
         Edge case: Upper boundary - very large numbers
         """
-        # Create admin user
-        admin_data = await register_and_get_token(
-            client, username="admin_large", password="adminpass"
-        )
-        # Promote to admin
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
-
+        admin_headers = await create_admin_headers(client, db_session, "admin_large", "adminpass")
         regular_data = await register_and_get_token(
             client, username="regular_user_large", password="testpass123"
         )
         regular_user_id = regular_data["user"]["id"]
-
-        # Login as admin
-        login_response = await client.post(
-            "/api/auth/login",
-            json={"username": "admin_large", "password": "adminpass"},
-        )
-        admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # Set extremely large spend limit ($10M)
         large_limit = 10_000_000.00
@@ -149,23 +101,9 @@ class TestAdminEdgeCases:
 
         Edge case: Empty result set
         """
-        # Create admin user
-        admin_data = await register_and_get_token(
-            client, username="only_admin", password="adminpass"
-        )
-        # Promote to admin
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
-
-        # Login as admin
-        login_response = await client.post(
-            "/api/auth/login",
-            json={"username": "only_admin", "password": "adminpass"},
-        )
-        admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        # Use create_admin_user to get both the data and auth headers
+        admin_data = await create_admin_user(client, db_session, "only_admin", "adminpass")
+        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
 
         # List users
         response = await client.get("/api/admin/users", headers=admin_headers)
@@ -188,28 +126,16 @@ class TestAdminEdgeCases:
 
         Edge case: Self-referential operation prevention
         """
-        # Create admin user
-        admin_data = await register_and_get_token(
-            client, username="admin_self_delete", password="adminpass"
-        )
-        # Promote to admin
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
+        admin_data = await create_admin_user(client, db_session, "admin_self_delete", "adminpass")
+        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
 
-        # Login as admin
-        login_response = await client.post(
-            "/api/auth/login",
-            json={"username": "admin_self_delete", "password": "adminpass"},
-        )
-        admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        # We need the original user ID - re-fetch it since create_admin_user
+        # registers and then logs in again (so data has the same user id)
+        # The user's id is in admin_data["user"]["id"]
+        admin_user_id = admin_data["user"]["id"]
 
         # Try to delete own account
-        response = await client.delete(
-            f"/api/admin/users/{admin_data['user']['id']}", headers=admin_headers
-        )
+        response = await client.delete(f"/api/admin/users/{admin_user_id}", headers=admin_headers)
 
         # Should be rejected with 400
         assert response.status_code == status.HTTP_400_BAD_REQUEST
