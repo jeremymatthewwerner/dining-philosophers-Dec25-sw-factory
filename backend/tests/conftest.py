@@ -711,3 +711,84 @@ def assert_validation_error(response: Any, expected_detail_substring: str | None
         >>> assert_validation_error(response, "Invalid language")
     """
     assert_error_response(response, 422, expected_detail_substring)
+
+
+async def create_admin_user(
+    client: "AsyncClient",
+    db_session: AsyncSession,
+    username: str = "adminuser",
+    password: str = "adminpass123",
+) -> Any:
+    """Create an admin user and return auth data.
+
+    Reduces duplication of the admin user creation pattern that appears 5+ times
+    in test_edge_cases_admin_auth_feedback.py and test_api.py:
+        1. Register a regular user
+        2. Promote to admin via direct database update
+
+    The require_admin dependency in the API fetches is_admin from the DB at
+    request time (not from the JWT), so no re-login is needed after DB update.
+
+    Args:
+        client: AsyncClient for making requests
+        db_session: Database session for direct DB operations
+        username: Admin username (default: "adminuser")
+        password: Admin password (default: "adminpass123")
+
+    Returns:
+        Auth response dict with access_token and user info (from registration)
+
+    Example:
+        >>> admin_data = await create_admin_user(client, db_session)
+        >>> admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+    """
+    from sqlalchemy import update
+
+    from app.models import User
+
+    # Register as regular user
+    data = await register_and_get_token(client, username, password)
+
+    # Promote to admin directly in the DB
+    # (require_admin reads is_admin from DB at request time, no re-login needed)
+    await db_session.execute(
+        update(User).where(User.id == data["user"]["id"]).values(is_admin=True)
+    )
+    await db_session.commit()
+
+    return data
+
+
+async def create_admin_headers(
+    client: "AsyncClient",
+    db_session: AsyncSession,
+    username: str = "adminuser",
+    password: str = "adminpass123",
+) -> dict[str, str]:
+    """Create an admin user and return Authorization headers.
+
+    Convenience wrapper around create_admin_user that returns just the
+    headers dict, for tests that only need to make authenticated admin requests.
+
+    Eliminates the repeated 2-step pattern:
+        admin_data = await create_admin_user(client, db_session, "user", "pass")
+        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+
+    This pattern appeared 5+ times in test_edge_cases_admin_auth_feedback.py
+    (once per test method). Using this helper reduces each from ~8 lines to 1.
+
+    Args:
+        client: AsyncClient for making requests
+        db_session: Database session for direct DB operations
+        username: Admin username (default: "adminuser")
+        password: Admin password (default: "adminpass123")
+
+    Returns:
+        Dictionary with Authorization header for admin user
+
+    Example:
+        >>> headers = await create_admin_headers(client, db_session, "myadmin", "pass123")
+        >>> response = await client.get("/api/admin/users", headers=headers)
+    """
+    admin_data = await create_admin_user(client, db_session, username, password)
+    return {"Authorization": f"Bearer {admin_data['access_token']}"}

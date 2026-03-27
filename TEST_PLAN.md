@@ -2,6 +2,80 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.6 Test Refactoring (Added 2026-03-27)
+
+**Focus**: Friday QA focus - improve readability and reduce duplication
+**Coverage Impact**: No coverage change (refactoring only)
+
+### Changes Made
+
+#### Backend: New shared helpers in `backend/tests/conftest.py`
+
+Added two new helper functions to reduce the admin user creation pattern that was
+duplicated 5+ times in `test_edge_cases_admin_auth_feedback.py` and `test_api.py`.
+
+**`create_admin_user(client, db_session, username, password)`**
+- Registers a user, then promotes them to admin via direct DB update
+- Returns auth data dict with access_token and user info
+- Replaces 8-line repeated block: register + DB update + (optional re-login)
+- File: `backend/tests/conftest.py`
+- Used by: `test_edge_cases_admin_auth_feedback.py`, `test_api.py`
+
+**`create_admin_headers(client, db_session, username, password)`**
+- Wrapper around `create_admin_user` that returns just the Authorization headers dict
+- Reduces 2-step pattern to 1 line for tests that only need to make admin requests
+- File: `backend/tests/conftest.py`
+- Used by: `test_edge_cases_admin_auth_feedback.py`
+
+#### Backend: Removed local `create_admin_user` from `test_api.py`
+
+The local `create_admin_user` helper function in `test_api.py` duplicated the conftest pattern.
+It has been removed and all callers updated to use `create_admin_user` from `tests.conftest`.
+Import updated: `from tests.conftest import create_admin_user, get_auth_headers, register_and_get_token`
+
+#### Backend: Refactored `test_edge_cases_admin_auth_feedback.py`
+
+Replaced 5 repeated blocks of admin user creation (each ~8 lines) with calls to the new
+`create_admin_headers` and `create_admin_user` helpers from conftest.py.
+
+**Before** (each test had):
+```python
+admin_data = await register_and_get_token(client, username="admin_X", password="adminpass")
+await db_session.execute(update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True))
+await db_session.commit()
+login_response = await client.post("/api/auth/login", json={...})
+admin_token = login_response.json()["access_token"]
+admin_headers = {"Authorization": f"Bearer {admin_token}"}
+```
+
+**After**:
+```python
+admin_headers = await create_admin_headers(client, db_session, "admin_X", "adminpass")
+```
+
+Removed imports: `from sqlalchemy import update`, `from app.models import User`
+
+#### Frontend: Refactored `ConversationList.test.tsx`
+
+Replaced local `createConversation` factory function (typed as `ConversationSummary`) with
+`createConversationSummary` from `@/test-utils`. This eliminates a 15-line local factory
+that duplicated the shared test utility pattern.
+
+**Before**: Local `createConversation(id, topic)` returning a hardcoded ConversationSummary
+**After**: `createConversationSummary({ id, topic, ...overrides })` from test-utils
+
+This aligns with the existing pattern used in `Sidebar.test.tsx` which already uses
+`createConversationSummary` from test-utils.
+
+### Files Changed
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `backend/tests/conftest.py` | Enhancement | Added `create_admin_user` and `create_admin_headers` helpers |
+| `backend/tests/test_api.py` | Refactor | Removed local `create_admin_user`, use conftest version |
+| `backend/tests/test_edge_cases_admin_auth_feedback.py` | Refactor | Use `create_admin_headers` instead of repeated 8-line blocks |
+| `frontend/src/__tests__/components/ConversationList.test.tsx` | Refactor | Use `createConversationSummary` from test-utils |
+
 ## 1.5 E2E Performance Optimization (Added 2026-03-26)
 
 **Focus**: Thursday QA focus - optimize E2E test speed and parallelism

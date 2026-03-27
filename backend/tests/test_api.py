@@ -1,12 +1,10 @@
 """Tests for API endpoints."""
 
-from typing import Any
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import get_auth_headers, register_and_get_token
+from tests.conftest import create_admin_user, get_auth_headers, register_and_get_token
 
 
 class TestAuthAPI:
@@ -891,27 +889,6 @@ class TestThinkerAPI:
         assert response.status_code == 503
         data = response.json()
         assert "API credit limit reached" in data["detail"]
-
-
-async def create_admin_user(
-    client: AsyncClient,
-    db_session: AsyncSession,
-) -> Any:
-    """Helper to create an admin user for testing."""
-    from sqlalchemy import update
-
-    from app.models import User
-
-    # Register a regular user first
-    data = await register_and_get_token(client, "adminuser", "adminpass123")
-
-    # Make them an admin directly in the database
-    await db_session.execute(
-        update(User).where(User.id == data["user"]["id"]).values(is_admin=True)
-    )
-    await db_session.commit()
-
-    return data
 
 
 class TestAdminAPI:
