@@ -2,6 +2,86 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.7 Regression Prevention (Added 2026-03-29)
+
+**Focus**: Sunday QA focus - regression prevention for recent bug fixes
+**File**: `backend/tests/test_regression_prevention_mar29_2026.py`
+**Tests Added**: 23 new tests across 5 test classes
+
+### TestKnowledgeServiceGlobalMockBehavior (4 tests)
+
+Validates the fix from PR #783 — the global autouse mock for `knowledge_service.trigger_research`
+that prevents tests from hanging when creating conversations.
+
+- `test_create_conversation_calls_trigger_research_per_thinker` — Verifies trigger_research
+  called exactly once per thinker in `create_conversation`. Guards against the call being
+  moved outside the thinker loop or removed entirely.
+- `test_mock_call_count_starts_fresh_each_test` — Verifies the autouse fixture creates a
+  fresh mock per test (function scope), so call counts don't accumulate across tests.
+- `test_add_thinkers_endpoint_also_triggers_research` — Verifies PUT `/thinkers` also calls
+  trigger_research for each new thinker, covering both conversation creation paths.
+- `test_single_thinker_conversation_triggers_research_once` — Verifies exactly 1 call for
+  a 1-thinker conversation (not 0 or 2+).
+
+### TestKnowledgeResearchDeduplication (3 tests)
+
+Validates the `_active_tasks` deduplication in `KnowledgeResearchService.trigger_research`.
+
+- `test_trigger_research_skips_if_task_already_running` — Verifies no new `asyncio.Task` is
+  created when an in-progress task exists for the same thinker name.
+- `test_trigger_research_starts_new_task_after_previous_completes` — Verifies a new task
+  IS created after the previous one completes (`task.done() == True`).
+- `test_trigger_research_starts_task_for_new_thinker` — Verifies first call for an unknown
+  thinker always creates a new task.
+
+### TestKnowledgeResearchIsStale (6 tests)
+
+Validates `KnowledgeResearchService.is_stale()` boundary conditions.
+
+- `test_is_stale_returns_true_for_failed_status` — FAILED knowledge always stale (never served
+  from cache, always retried).
+- `test_is_stale_returns_true_for_in_progress_status` — IN_PROGRESS knowledge is stale (handles
+  crashed/stuck research tasks).
+- `test_is_stale_returns_true_for_pending_status` — PENDING knowledge is stale (ensures orphaned
+  entries get researched).
+- `test_is_stale_returns_false_for_recent_complete` — Recent COMPLETE knowledge is not stale
+  (cache hit for fresh data).
+- `test_is_stale_returns_true_for_old_complete` — COMPLETE knowledge > 30 days old is stale
+  (periodic refresh enforced).
+- `test_is_stale_boundary_at_exactly_30_days` — Exactly 30 days + 1 second is stale (no
+  off-by-one error at the threshold boundary).
+
+### TestConversationSessionIsolation (4 tests)
+
+Validates cross-session access control. All conversation endpoints must filter by session_id
+to prevent users from accessing each other's data.
+
+- `test_user_b_cannot_read_user_a_conversation` — GET returns 404 for another user's conversation.
+- `test_user_b_cannot_delete_user_a_conversation` — DELETE returns 404 for another user's
+  conversation; original conversation still accessible by owner.
+- `test_user_b_cannot_send_message_to_user_a_conversation` — POST /messages returns 404
+  for another user's conversation.
+- `test_user_b_cannot_add_thinkers_to_user_a_conversation` — PUT /thinkers returns 404
+  for another user's conversation.
+
+### TestThinkerServiceIdlePausedState (6 tests)
+
+Validates the dual-set pattern in `ThinkerService` for distinguishing idle pauses from manual
+pauses. The `_idle_paused_conversations` set enables `resume_from_idle` to correctly skip
+manually-paused conversations.
+
+- `test_pause_for_idle_adds_to_both_sets` — `pause_for_idle` adds to BOTH `_paused` and
+  `_idle_paused` sets (streaming stops AND idle flag is set).
+- `test_resume_from_idle_clears_both_sets` — `resume_from_idle` clears BOTH sets.
+- `test_resume_from_idle_does_not_resume_manually_paused_conversation` — KEY invariant:
+  `pause_conversation` (manual) + `resume_from_idle` leaves conversation still paused.
+- `test_idle_pause_does_not_affect_other_conversation` — Pausing conversation A idle does not
+  affect conversation B.
+- `test_is_idle_paused_false_for_manually_paused` — `pause_conversation` does NOT set idle
+  flag (auto-resume won't trigger for manual pauses).
+- `test_resume_from_idle_on_unknown_conversation_is_noop` — Uses `set.discard()` (not
+  `remove()`), so calling on unknown conversation raises no error.
+
 ## 1.6 Test Refactoring (Added 2026-03-27)
 
 **Focus**: Friday QA focus - improve readability and reduce duplication
