@@ -5134,3 +5134,91 @@ test('my chat test', async ({ conversationPage }) => {
 
 **Performance benefit**: Both fixtures use API calls (not UI modal flow) for setup,
 saving 15-30s compared to navigating the conversation creation modal per test.
+
+## 18. Integration Gaps - March 25, 2026
+
+**Focus**: Wednesday QA focus - find and test untested API integration paths
+**File**: `backend/tests/test_integration_gaps_mar25_2026.py`
+**Coverage Impact**: Significant improvements in thinkers, auth, sessions, and spend APIs
+
+### Coverage Improvements
+
+| Module | Before | After | Change |
+|--------|--------|-------|--------|
+| app/api/thinkers.py | 59% | 96% | +37% |
+| app/api/auth.py | 79% | 90% | +11% |
+| app/api/sessions.py | 88% | 100% | +12% |
+| app/api/spend.py | 88% | 100% | +12% |
+
+### 18.1 Thinkers API - Suggest Endpoint with API Key
+
+**Class**: `TestSuggestThinkersWithApiKey`
+Tests the `POST /api/thinkers/suggest` endpoint when an Anthropic API key is configured.
+
+- `test_suggest_thinkers_returns_503_on_quota_error` - When the AI service raises a quota `ThinkerAPIError`, the endpoint returns 503 Service Unavailable
+- `test_suggest_thinkers_returns_502_on_non_quota_api_error` - When the AI service raises a non-quota `ThinkerAPIError`, the endpoint returns 502 Bad Gateway
+- `test_suggest_thinkers_falls_back_to_mock_when_api_returns_empty` - When the thinker service returns an empty list, the endpoint falls back to mock suggestions
+- `test_suggest_thinkers_returns_api_results_when_api_succeeds` - When the thinker service returns suggestions, they are returned directly to the client
+
+### 18.2 Thinkers API - Validate Endpoint with API Key
+
+**Class**: `TestValidateThinkerWithApiKey`
+Tests the `POST /api/thinkers/validate` endpoint when API key is configured and thinker is not in mock list.
+
+- `test_validate_thinker_with_api_key_valid_result` - Service returns (True, profile) → endpoint returns valid=True with profile
+- `test_validate_thinker_with_api_key_invalid_result` - Service returns (False, None) → endpoint returns valid=False with error message
+- `test_validate_thinker_returns_503_on_quota_error` - Quota ThinkerAPIError → 503 Service Unavailable
+- `test_validate_thinker_returns_502_on_non_quota_api_error` - Non-quota ThinkerAPIError → 502 Bad Gateway
+- `test_validate_thinker_with_api_key_and_language` - Language parameter is forwarded to the thinker service
+
+### 18.3 Thinkers API - Validate Edge Cases
+
+**Class**: `TestValidateThinkerEdgeCases`
+
+- `test_validate_thinker_returns_invalid_when_is_valid_true_but_no_profile` - When service returns (True, None), endpoint returns valid=False since profile is required
+- `test_validate_mock_thinker_triggers_knowledge_research` - Validating a known mock thinker triggers background knowledge research
+
+### 18.4 Auth API - Profile Update Endpoint
+
+**Class**: `TestUpdateProfile`
+Tests the `PATCH /api/auth/profile` endpoint.
+
+- `test_update_profile_sets_display_name` - Sets the user's display name when authenticated
+- `test_update_profile_persists_across_me_request` - Profile change is visible in subsequent GET /api/auth/me
+- `test_update_profile_requires_authentication` - Returns 401 without auth token
+- `test_update_profile_returns_all_user_fields` - Response includes all UserResponse fields (id, username, display_name, is_admin, total_spend, spend_limit, language_preference, created_at)
+
+### 18.5 Auth API - Change Password Endpoint
+
+**Class**: `TestChangePassword`
+Tests the `POST /api/auth/change-password` endpoint.
+
+- `test_change_password_success` - Changes password when correct current password is provided
+- `test_change_password_fails_with_wrong_current_password` - Returns 400 when current password is incorrect
+- `test_change_password_requires_authentication` - Returns 401 without auth token
+- `test_change_password_allows_login_with_new_password` - After password change, the new password works for login
+
+### 18.6 Auth API - Logout Endpoint
+
+**Class**: `TestLogout`
+Tests the `POST /api/auth/logout` endpoint.
+
+- `test_logout_returns_success_message` - Returns a success message with "logged out" text
+- `test_logout_works_without_authentication` - Succeeds even without auth token (JWT logout is client-side)
+- `test_logout_works_with_valid_token` - Succeeds when called with a valid auth token
+
+### 18.7 Sessions API - Error Paths
+
+**Class**: `TestSessionsErrorPaths`
+Tests error paths in `get_session_from_token` dependency used by sessions and conversation endpoints.
+
+- `test_get_session_fails_when_token_has_no_session_id` - JWT token without session_id field returns 401 on GET /api/sessions/me
+- `test_get_session_fails_when_session_not_in_db` - Token referencing nonexistent session_id returns 404 Session not found
+- `test_get_session_also_fails_for_conversations_with_no_session_id` - Same 401 behavior on GET /api/conversations (shares the dependency)
+
+### 18.8 Spend API - 404 Path
+
+**Class**: `TestSpendEndpointNotFound`
+Tests the 404 error path in `GET /api/spend/{user_id}`.
+
+- `test_spend_endpoint_404_with_proper_admin` - GET /api/spend/{user_id} returns 404 when the requested user_id does not exist in the database
