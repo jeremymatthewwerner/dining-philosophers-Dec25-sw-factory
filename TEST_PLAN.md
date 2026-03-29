@@ -5134,3 +5134,118 @@ test('my chat test', async ({ conversationPage }) => {
 
 **Performance benefit**: Both fixtures use API calls (not UI modal flow) for setup,
 saving 15-30s compared to navigating the conversation creation modal per test.
+
+## 18. Edge Case Analysis - Saturday Sprint (Added 2026-03-28)
+
+**Focus**: Saturday QA focus - error paths, boundary conditions, and edge cases
+**Files Added**:
+- `backend/tests/test_edge_cases_mar28_2026.py` (28 new backend tests)
+- `frontend/src/__tests__/lib/api-edge-cases.test.ts` (22 new frontend tests)
+**Coverage Impact**:
+- Backend: 84.79% → 86.26% (+1.47%)
+- Frontend api.ts: 76.9% → 99.55% (+22.65%)
+- knowledge_research.py: 68% → 93% (+25%)
+
+### 18.1 Knowledge Research Service - _research_thinker Error Paths
+
+**File**: `backend/tests/test_edge_cases_mar28_2026.py`
+
+#### `TestResearchThinkerErrorHandling`
+- `test_research_thinker_exception_updates_status_to_failed` - When exception occurs during research, knowledge entry is marked FAILED with error message (covers lines 125-167)
+- `test_research_thinker_completes_successfully_with_wikipedia_data` - When Wikipedia returns data, knowledge entry is marked COMPLETE with data stored
+- `test_research_thinker_with_no_wikipedia_data_still_completes` - When Wikipedia returns None (no page found), knowledge entry is still marked COMPLETE with empty research_data
+
+### 18.2 Knowledge Research Service - _fetch_wikipedia_sections
+
+**File**: `backend/tests/test_edge_cases_mar28_2026.py`
+
+#### `TestFetchWikipediaSections`
+- `test_fetch_wikipedia_sections_returns_matching_sections` - Sections with titles matching the interesting_sections list are stored in the result dict (covers lines 292-312)
+- `test_fetch_wikipedia_sections_returns_none_when_no_matching_sections` - Returns None when no sections match (footnotes, references, see also don't match)
+- `test_fetch_wikipedia_sections_returns_none_on_exception` - Returns None gracefully when HTTP exception occurs (covers lines 316-318)
+- `test_fetch_wikipedia_sections_returns_none_for_empty_sections` - Returns None for pages with no sections
+- `test_fetch_wikipedia_sections_partial_match_in_title` - Case-insensitive substring matching: "Early life and philosophy" matches "philosophy" in interesting list
+
+### 18.3 Auth Registration Boundary Conditions
+
+**File**: `backend/tests/test_edge_cases_mar28_2026.py`
+
+#### `TestAuthRegistrationEdgeCases`
+- `test_register_with_numbers_and_underscores_in_username` - Username with numbers and underscores is valid (schema only enforces length, not character restrictions)
+- `test_register_with_unsupported_language_code_fails` - Unsupported language code (e.g., "ja") fails Pydantic validation with 422
+- `test_register_with_all_supported_languages` - All 4 supported languages (en, es, fr, de) are accepted during registration
+- `test_register_with_hyphen_in_username_succeeds` - Hyphen in username is valid (no character restriction in schema)
+- `test_update_language_to_unsupported_code_fails` - PATCH /auth/language rejects unsupported language codes with 422
+- `test_update_profile_with_exactly_max_length_display_name` - Display name at exactly 100 chars (max) is accepted
+- `test_update_profile_over_max_length_display_name_fails` - Display name at 101 chars (over max) fails with 422
+
+### 18.4 Conversation Message Edge Cases
+
+**File**: `backend/tests/test_edge_cases_mar28_2026.py`
+
+#### `TestConversationMessageEdgeCases`
+- `test_send_message_with_unicode_emoji_content` - Message with emoji, CJK, and Cyrillic characters is stored and retrieved correctly
+- `test_send_message_with_special_characters` - Message with quotes, ampersands, angle brackets stored intact without escaping issues
+- `test_create_conversation_with_unicode_topic` - Conversation topic with mixed-script unicode is accepted and stored correctly
+- `test_send_message_to_other_users_conversation_returns_404` - Cannot send message to another user's conversation (session-based authorization boundary)
+- `test_send_empty_message_fails_validation` - Empty string message fails validation with 422 (min_length=1 in MessageCreate schema)
+
+### 18.5 Feedback Endpoint Edge Cases
+
+**File**: `backend/tests/test_edge_cases_mar28_2026.py`
+
+#### `TestFeedbackEdgeCases`
+- `test_submit_feedback_message_at_exact_minimum_length` - Message with exactly 10 characters (minimum) is accepted
+- `test_submit_feedback_message_one_below_minimum_fails` - Message with 9 characters (below minimum) fails validation with 422
+- `test_submit_feedback_rate_limit_boundary_fifth_submission_succeeds` - The 5th submission (at boundary) succeeds, the 6th is blocked with 429
+- `test_submit_feedback_with_screenshot_and_filename` - Both screenshot_data and screenshot_filename fields together are accepted
+
+### 18.6 Knowledge Research Integration Tests
+
+**File**: `backend/tests/test_edge_cases_mar28_2026.py`
+
+#### `TestKnowledgeResearchServiceIntegration`
+- `test_get_or_create_knowledge_idempotent` - Calling get_or_create_knowledge twice for same thinker returns the same DB entry ID
+- `test_get_knowledge_returns_none_for_unknown_thinker` - Returns None for thinker not in database
+- `test_is_stale_failed_entry_is_always_stale` - FAILED research status is always considered stale (will be retried)
+- `test_trigger_research_for_completed_task_starts_new_task` - After a completed task, trigger_research creates a new task (re-research allowed)
+
+### 18.7 Frontend api.ts Edge Cases
+
+**File**: `frontend/src/__tests__/lib/api-edge-cases.test.ts`
+
+#### Token Management
+- `setAccessToken with null removes token from localStorage` - Calling setAccessToken(null) removes the token
+- `getStoredUser returns null when localStorage has invalid JSON` - Malformed JSON in localStorage returns null (no crash)
+- `getStoredUser returns null when no user in localStorage` - Empty localStorage returns null
+- `clearAuth removes both token and user from localStorage` - Both keys are removed on clearAuth()
+
+#### 401 Unauthorized Handling
+- `clears auth when 401 response is received` - 401 response triggers clearAuth() and sets window.location.href to /login
+- `does not redirect if already on login page when 401 occurs` - No redirect if pathname includes /login (avoids redirect loops)
+
+#### Request Timeout and Cancellation
+- `throws timeout error when request takes too long` - AbortError from timeout produces timeout error message
+- `throws "Request cancelled" when aborted via external signal` - When external AbortSignal is already aborted, throws "Request cancelled" (not timeout message)
+
+#### Auth API Additional Coverage
+- `getCurrentUser clears auth and returns null on API error` - Failed /auth/me returns null and clears auth
+- `updateLanguage stores updated user in localStorage` - Updated user from response stored in localStorage
+- `updateProfile stores updated user in localStorage` - Updated user from response stored in localStorage
+- `changePassword sends correct request format` - Sends {current_password, new_password} to /auth/change-password
+- `logout still clears auth even when API call fails` - finally block in logout() ensures clearAuth() is always called
+
+#### Admin API Coverage
+- `getAdminUsers fetches from admin users endpoint` - Hits /api/admin/users with auth header
+- `deleteUser sends DELETE request to admin endpoint` - DELETE to /api/admin/users/{userId}
+- `updateUserSpendLimit sends PATCH with correct body` - PATCH to /api/admin/users/{userId}/spend-limit with {spend_limit}
+
+#### submitFeedback Unauthenticated API
+- `submits feedback successfully without authentication` - No Authorization header sent (public endpoint)
+- `throws network error with user-friendly message on fetch failure` - TypeError "Failed to fetch" → user-friendly connection message
+- `throws API error when server returns non-ok response` - Non-ok response throws with detail message
+- `throws generic error when server returns error without parseable body` - Unparseable error body → "Unknown error"
+- `submits feedback with all optional fields` - All fields (email, name, username, user_agent, screenshot) sent correctly
+
+#### Error Handling
+- `throws generic error for non-abort non-detail error` - Generic errors propagate unchanged
