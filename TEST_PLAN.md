@@ -2,6 +2,139 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.8 Coverage Sprint (Added 2026-03-30)
+
+**Focus**: Monday QA coverage sprint — increase coverage of thinker service language paths,
+knowledge research service, and start_conversation_agents method.
+**File**: `backend/tests/test_coverage_sprint_mar30_2026.py`
+**Tests Added**: 64 new tests across 11 test classes
+**Coverage Impact**: knowledge_research.py 62% → 89% (+27%), thinker.py 68% → 74% (+6%)
+
+### TestGetLanguageInstruction (6 tests)
+
+Validates the `_get_language_instruction` helper in `thinker.py` for all supported languages.
+
+- `test_english_returns_empty_string` — English returns empty string (no instruction needed).
+- `test_spanish_returns_spanish_instruction` — Spanish ('es') returns "Respond in Spanish" instruction.
+- `test_french_returns_french_instruction` — French ('fr') returns "Respond in French" instruction.
+- `test_german_returns_german_instruction` — German ('de') returns "Respond in German" instruction.
+- `test_hindi_returns_hindi_instruction` — Hindi ('hi') returns "Respond in Hindi" instruction.
+- `test_unknown_language_code_uses_code_as_name` — Unknown language code falls back to using the code itself.
+
+### TestClientProperty (2 tests)
+
+Validates the `ThinkerService.client` property lazy initialization.
+
+- `test_client_is_created_when_api_key_present` — AsyncAnthropic is instantiated when API key is set.
+- `test_client_cached_after_first_access` — Pre-set `_client` is returned without re-creation.
+
+### TestExtractThinkingDisplayMultilingual (11 tests)
+
+Validates multilingual text replacement and starter logic in `_extract_thinking_display`.
+
+- `test_german_replacements_applied` — German text replacements run for 'de' language.
+- `test_spanish_replacements_applied` — Spanish text replacements run for 'es' language.
+- `test_french_replacements_applied` — French text replacements run for 'fr' language.
+- `test_hindi_replacements_applied` — Hindi text replacements run for 'hi' language.
+- `test_english_default_replacements_applied` — English replacements applied by default.
+- `test_text_with_i_think_stripped` — "I think " is stripped from beginning of displayed text.
+- `test_german_starters_added_when_no_existing_prefix` — German contemplative starters added.
+- `test_spanish_starters_added` — Spanish contemplative starters added when appropriate.
+- `test_french_starters_added` — French contemplative starters added when appropriate.
+- `test_hindi_starters_added` — Hindi contemplative starters added when appropriate.
+- `test_text_not_ending_with_punctuation_gets_ellipsis` — Truncated text gets "..." appended.
+
+### TestStartConversationAgents (3 tests)
+
+Validates `ThinkerService.start_conversation_agents` task creation behavior.
+
+- `test_start_creates_tasks_for_each_thinker` — An asyncio Task is created per thinker.
+- `test_start_stops_existing_agents_first` — Pre-existing agents are stopped before starting new ones.
+- `test_start_with_empty_thinkers_list` — Empty thinker list creates empty task dict (no error).
+
+### TestIdlePauseResume (4 tests)
+
+Validates idle-specific pause/resume methods in ThinkerService.
+
+- `test_pause_for_idle_marks_both_sets` — `pause_for_idle` adds to both paused and idle-paused sets.
+- `test_resume_from_idle_clears_both_sets` — `resume_from_idle` clears both sets on success.
+- `test_resume_from_idle_does_nothing_if_not_idle_paused` — Manually paused conversations NOT resumed.
+- `test_resume_from_idle_does_nothing_for_unknown_conversation` — No-op for unknown conversations.
+
+### TestGetLastUserMessageTimestamp (5 tests)
+
+Validates `_get_last_user_message_timestamp` in ThinkerService.
+
+- `test_returns_timestamp_of_last_user_message` — Returns correct timestamp from mixed history.
+- `test_returns_zero_when_no_user_messages` — Returns 0.0 when no user messages exist.
+- `test_returns_zero_for_empty_messages` — Returns 0.0 for empty message list.
+- `test_returns_most_recent_user_message_timestamp` — Returns LAST user message when multiple exist.
+- `test_handles_sender_type_enum_value` — Handles sender_type with .value attribute (enum style).
+
+### TestShouldRespondEdgeCases (3 tests)
+
+Additional edge cases for `_should_respond` probability logic.
+
+- `test_consecutive_silence_increases_probability` — Long silence boosts response probability.
+- `test_not_mentioned_can_stay_silent` — 15% silence chance produces some silent results.
+- `test_addressed_by_name_increases_probability` — Name mention without @ also increases probability.
+
+### TestSuggestThinkersWithLanguage (2 tests)
+
+Validates language parameter routing through suggest_thinkers API calls.
+
+- `test_suggest_with_spanish_language` — Spanish language instruction appears in API prompt.
+- `test_suggest_parallel_with_language` — Language parameter passed through parallel batch calls.
+
+### TestValidateThinkerWithLanguage (1 test)
+
+Validates language parameter routing in validate_thinker.
+
+- `test_validate_with_non_english_language` — Non-English language instruction in API prompt.
+
+### TestKnowledgeResearchServiceCoverage (16 tests)
+
+Comprehensive coverage for `KnowledgeResearchService` — database operations, HTTP fetching,
+background research execution, and cache management.
+
+- `test_is_stale_returns_true_for_pending_status` — PENDING is always stale.
+- `test_is_stale_returns_true_for_in_progress_status` — IN_PROGRESS is always stale.
+- `test_is_stale_returns_true_for_failed_status` — FAILED is always stale.
+- `test_is_stale_returns_false_for_recently_completed` — Recent COMPLETE is not stale.
+- `test_is_stale_returns_true_for_old_completed` — COMPLETE > 30 days old is stale.
+- `test_get_knowledge_returns_none_when_not_found` — Returns None for unknown thinker.
+- `test_get_or_create_creates_new_entry` — Creates PENDING entry when thinker not found.
+- `test_get_or_create_returns_existing_entry` — Returns same entry on second call.
+- `test_trigger_research_deduplicates` — No new task when one is already running.
+- `test_trigger_research_restarts_completed_task` — New task started after previous completes.
+- `test_refresh_stale_knowledge_triggers_research_for_old_entries` — Old entries queued.
+- `test_refresh_stale_knowledge_skips_recent_entries` — Fresh entries skipped.
+- `test_fetch_wikipedia_data_returns_none_on_exception` — Returns None on network error.
+- `test_fetch_wikipedia_data_returns_none_when_no_results` — Returns None for no results.
+- `test_fetch_wikipedia_data_returns_data_with_thumbnail` — Result includes image_url.
+- `test_fetch_wikipedia_data_returns_data_without_thumbnail` — Result excludes image_url.
+- `test_fetch_wikipedia_data_skips_page_minus_one` — Wikipedia's "not found" page ID skipped.
+- `test_fetch_wikipedia_sections_returns_none_on_exception` — Returns None on error.
+- `test_fetch_wikipedia_sections_returns_none_for_no_interesting_sections` — Returns None.
+- `test_fetch_wikipedia_sections_returns_dict_for_interesting_sections` — Returns section dict.
+- `test_research_thinker_updates_status_to_complete` — Background research marks COMPLETE.
+
+### TestSplitResponseIntoBubblesAdditional (4 tests)
+
+Additional edge cases for `_split_response_into_bubbles`.
+
+- `test_text_exactly_60_chars_stays_single_bubble` — Boundary case: text at 60 chars stays single.
+- `test_text_250_to_300_chars_may_stay_single` — Medium text can stay single (25% strategy).
+- `test_no_empty_bubbles_in_output` — Output never contains empty string bubbles.
+- `test_force_split_for_very_long_single_sentence` — Very long single sentence is force-split.
+
+### TestSuggestSingleBatchDeduplication (2 tests)
+
+Validates deduplication and error propagation in parallel suggest_thinkers batches.
+
+- `test_parallel_suggestions_deduplicate_by_name` — Same thinker from two batches deduped.
+- `test_all_parallel_batches_fail_raises_api_error` — Quota error from all batches propagated.
+
 ## 1.7 Regression Prevention (Added 2026-03-29)
 
 **Focus**: Sunday QA focus - regression prevention for recent bug fixes
