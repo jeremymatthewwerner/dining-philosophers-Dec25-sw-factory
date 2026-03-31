@@ -5267,3 +5267,58 @@ test('my chat test', async ({ conversationPage }) => {
 
 **Performance benefit**: Both fixtures use API calls (not UI modal flow) for setup,
 saving 15-30s compared to navigating the conversation creation modal per test.
+
+## 18. Flaky Test Hunt - Mar 31, 2026 (`test_main.py`)
+
+**Focus**: Tuesday QA focus - identify and fix hanging/flaky tests
+**Files Modified**: `backend/tests/test_main.py`
+**Coverage Impact**: No coverage change (stability fix)
+
+### 18.1 Background: Hanging Test Discovery
+
+Ran all test files individually to identify tests that block the suite. Found that
+`tests/test_main.py` caused the entire test suite to hang when run together.
+
+### 18.2 Root Cause
+
+**Test**: `tests/test_main.py::test_health_ready_endpoint`
+**Symptom**: Test hangs indefinitely (required `kill -9` to terminate)
+**Root cause**: `test_main.py` defined its own `client` fixture:
+
+```python
+@pytest.fixture
+async def client() -> AsyncGenerator[AsyncClient, None]:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+```
+
+This fixture did NOT override `get_db` with a test database. The `/health/ready` endpoint
+calls `get_db` and executes `await db.execute(text("SELECT 1"))`. In the test environment,
+this tries to connect to the real PostgreSQL database (which doesn't exist), causing the
+connection to hang indefinitely on the TCP connection attempt.
+
+By contrast:
+- `test_health_check` (no DB call) - passes immediately
+- `test_version_endpoint` (no DB call) - passes immediately
+- `test_health_ready_endpoint` (DB call via `get_db`) - hangs indefinitely
+
+The `conftest.py` `client` fixture correctly solves this by overriding `get_db` with an
+in-memory SQLite session.
+
+### 18.3 Fix Applied
+
+**File**: `backend/tests/test_main.py`
+
+Removed the local `client` fixture from `test_main.py` entirely. The tests now use the
+shared `client` fixture from `conftest.py`, which injects an in-memory SQLite test database.
+
+**Before** (broken): own client fixture, no DB override, health/ready hangs
+**After** (fixed): uses conftest client fixture with proper in-memory SQLite injection
+
+### 18.4 Test Stability Verification
+
+Confirmed all 3 tests pass stably across 3 consecutive runs:
+- `test_health_check` - passes (0.6s)
+- `test_health_ready_endpoint` - passes (0.6s, previously hung indefinitely)
+- `test_version_endpoint` - passes (0.6s)
