@@ -11,6 +11,8 @@ import {
 } from './test-utils';
 
 test.describe('Concurrent Operations', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('can switch between conversations rapidly without errors', async ({
     page,
   }) => {
