@@ -2,6 +2,44 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.9 E2E Performance Optimization (Added 2026-04-02)
+
+**Focus**: Thursday QA focus - optimize E2E test speed and parallelism
+**Coverage Impact**: No coverage change (performance improvement)
+
+### Performance Analysis Summary
+
+**Before optimization:**
+- `waitForTimeout()` calls: 0 (already eliminated in previous sessions) ✅
+- Files missing `test.describe.configure({ mode: 'parallel' })`: 1 active test file
+  (`concurrent-operations.spec.ts`)
+- Other skipped files missing parallel: `mention-badge-alignment.spec.ts`,
+  `conversation-deletion-edge.spec.ts`, `persistence.spec.ts`, `mobile-ios.spec.ts`
+- Playwright config: `fullyParallel: true`, 4 CI workers ✅
+
+**After optimization:**
+- `concurrent-operations.spec.ts`: added `test.describe.configure({ mode: 'parallel' })`
+- All active test files now have within-file parallelism configured ✅
+
+### Changes Made
+
+#### Within-file parallelism added to `concurrent-operations.spec.ts`
+
+The `concurrent-operations.spec.ts` file had 3 independent tests, each calling
+`setupAuthenticatedUser()` independently, with no shared state between them.
+Adding `test.describe.configure({ mode: 'parallel' })` allows these 3 tests to run
+concurrently across workers rather than sequentially:
+
+- `can switch between conversations rapidly without errors` — Rapid conversation switching
+- `handles rapid conversation creation` — Concurrent API-based conversation creation
+- `handles rapid message sending in same conversation` — 5 rapid messages in sequence
+
+**File**: `frontend/e2e/concurrent-operations.spec.ts`
+
+**Why these tests are safe to parallelize**: Each test creates its own independent user
+via `setupAuthenticatedUser()`, creating completely isolated browser contexts with separate
+authentication tokens and distinct conversation sets. No shared state between tests.
+
 ## 1.8 Coverage Sprint (Added 2026-03-30)
 
 **Focus**: Monday QA coverage sprint — increase coverage of thinker service language paths,
