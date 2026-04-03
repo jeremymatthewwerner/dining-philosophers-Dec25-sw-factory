@@ -69,8 +69,29 @@ const mockUsers = [
   },
 ];
 
+// Admin page manages its own auth via mocked context, so plain rtlRender (no
+// provider wrappers) is correct here. The wrapper is intentionally minimal.
 function render(ui: React.ReactElement) {
   return rtlRender(ui);
+}
+
+/**
+ * Renders the AdminPage and waits for the admin panel header to appear.
+ *
+ * Eliminates the 10-occurrence pattern of:
+ *   render(<AdminPage />);
+ *   await waitFor(() => {
+ *     expect(screen.getByText('Admin Panel')).toBeInTheDocument();
+ *   });
+ *
+ * Tests that only need the page loaded (not specific interactions) use this
+ * helper so setup intent is clear and the repeated assertion is not noisy.
+ */
+async function renderAdminPage() {
+  render(<AdminPage />);
+  await waitFor(() => {
+    expect(screen.getByText('Admin Panel')).toBeInTheDocument();
+  });
 }
 
 describe('AdminPage', () => {
@@ -89,11 +110,7 @@ describe('AdminPage', () => {
   });
 
   it('renders the admin page with users table', async () => {
-    render(<AdminPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-    });
+    await renderAdminPage();
 
     expect(screen.getByText('alice')).toBeInTheDocument();
     expect(screen.getByText('bob')).toBeInTheDocument();
@@ -102,11 +119,7 @@ describe('AdminPage', () => {
 
   describe('Column Sorting', () => {
     it('displays sort indicators on column headers', async () => {
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       // Username column should have active sort indicator (default sorted column)
       const usernameHeader = screen.getByRole('columnheader', {
@@ -120,11 +133,7 @@ describe('AdminPage', () => {
     });
 
     it('sorts by username in ascending order by default', async () => {
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const rows = screen.getAllByRole('row').slice(1); // Skip header row
       const usernames = rows.map((row) => {
@@ -140,11 +149,7 @@ describe('AdminPage', () => {
 
     it('toggles sort direction when clicking the same column', async () => {
       const user = userEvent.setup();
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const usernameHeader = screen.getByRole('columnheader', {
         name: /username/i,
@@ -170,11 +175,7 @@ describe('AdminPage', () => {
 
     it('sorts by conversations column (numeric)', async () => {
       const user = userEvent.setup();
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const conversationsHeader = screen.getByRole('columnheader', {
         name: /conversations/i,
@@ -196,11 +197,7 @@ describe('AdminPage', () => {
 
     it('sorts by total spend column (numeric)', async () => {
       const user = userEvent.setup();
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const spendHeader = screen.getByRole('columnheader', {
         name: /total spend/i,
@@ -222,11 +219,7 @@ describe('AdminPage', () => {
 
     it('sorts by spend limit column (numeric)', async () => {
       const user = userEvent.setup();
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const spendLimitHeader = screen.getByRole('columnheader', {
         name: /spend limit/i,
@@ -249,11 +242,7 @@ describe('AdminPage', () => {
 
     it('sorts by role column (admin first when ascending)', async () => {
       const user = userEvent.setup();
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const roleHeader = screen.getByRole('columnheader', { name: /role/i });
 
@@ -273,11 +262,7 @@ describe('AdminPage', () => {
 
     it('sorts by joined date column', async () => {
       const user = userEvent.setup();
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const joinedHeader = screen.getByRole('columnheader', {
         name: /joined/i,
@@ -300,11 +285,7 @@ describe('AdminPage', () => {
 
     it('resets to ascending when switching to a new column', async () => {
       const user = userEvent.setup();
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const usernameHeader = screen.getByRole('columnheader', {
         name: /username/i,
@@ -324,11 +305,7 @@ describe('AdminPage', () => {
     });
 
     it('actions column is not sortable', async () => {
-      render(<AdminPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
-      });
+      await renderAdminPage();
 
       const actionsHeader = screen.getByRole('columnheader', {
         name: /actions/i,

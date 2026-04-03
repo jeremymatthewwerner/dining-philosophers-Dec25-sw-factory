@@ -488,3 +488,35 @@ export function setupWebSocketScenario(
     },
   };
 }
+
+/**
+ * Create default options for useWebSocket hook testing.
+ *
+ * Reduces the repeated boilerplate of constructing options objects for
+ * useWebSocket tests. The conversationId 'conv-123' appears in 27+
+ * renderHook calls in useWebSocket.test.tsx. This factory provides
+ * a consistent default that can be partially overridden.
+ *
+ * @param overrides - Optional partial overrides for default options
+ * @returns UseWebSocket options with sensible defaults
+ *
+ * @example
+ *   const { result } = renderHook(() =>
+ *     useWebSocket(createWebSocketOptions({ onMessage: mockHandler }))
+ *   );
+ */
+export function createWebSocketOptions(
+  overrides: {
+    conversationId?: string | null;
+    onMessage?: (message: Record<string, unknown>) => void;
+    onThinkerTyping?: (name: string) => void;
+    onThinkerThinking?: (name: string, content: string) => void;
+    onThinkerStoppedTyping?: (name: string) => void;
+    onError?: (error: string) => void;
+  } = {}
+) {
+  return {
+    conversationId: TEST_CONVERSATION_ID,
+    ...overrides,
+  };
+}

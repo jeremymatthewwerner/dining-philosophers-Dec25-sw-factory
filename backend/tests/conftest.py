@@ -376,6 +376,85 @@ def create_thinker_input(
     }
 
 
+def make_simple_thinker_list(
+    name: str = "Thinker",
+    bio: str = "Bio",
+    positions: str = "Positions",
+    style: str = "Style",
+) -> list[dict[str, Any]]:
+    """Create a single-thinker list for conversation creation in tests.
+
+    Reduces duplication of the identical inline pattern that appears 9+ times
+    in test_api.py where conversations are created with a minimal placeholder
+    thinker (name="Thinker", bio="Bio", positions="Positions", style="Style").
+
+    Instead of repeating:
+        "thinkers": [{"name": "Thinker", "bio": "Bio",
+                      "positions": "Positions", "style": "Style"}]
+
+    Tests can use:
+        "thinkers": make_simple_thinker_list()
+
+    Args:
+        name: Thinker name (default: "Thinker")
+        bio: Bio string (default: "Bio")
+        positions: Positions string (default: "Positions")
+        style: Style string (default: "Style")
+
+    Returns:
+        List containing a single thinker dict with the given values
+
+    Example:
+        >>> response = await client.post("/api/conversations",
+        ...     json={"topic": "test", "thinkers": make_simple_thinker_list()})
+    """
+    return [{"name": name, "bio": bio, "positions": positions, "style": style}]
+
+
+async def create_conversation_with_thinker(
+    client: "AsyncClient",
+    headers: dict[str, str],
+    topic: str = "Test Topic",
+    thinker_name: str = "Thinker",
+) -> str:
+    """Create a conversation with a single placeholder thinker, return its ID.
+
+    Reduces duplication of the create-conversation-then-extract-id pattern
+    that appears 10+ times in test_api.py with minimal variation.
+
+    Instead of:
+        conv_response = await client.post("/api/conversations", headers=headers,
+            json={"topic": topic, "thinkers": [{"name": "Thinker", ...}]})
+        conv_id = conv_response.json()["id"]
+
+    Tests can use:
+        conv_id = await create_conversation_with_thinker(client, headers, topic)
+
+    Args:
+        client: AsyncClient for making requests
+        headers: Auth headers
+        topic: Conversation topic (default: "Test Topic")
+        thinker_name: Name for the single thinker (default: "Thinker")
+
+    Returns:
+        The conversation ID string
+
+    Example:
+        >>> headers = await get_auth_headers(client, "user", "pass")
+        >>> conv_id = await create_conversation_with_thinker(client, headers, "My topic")
+    """
+    response = await client.post(
+        "/api/conversations",
+        headers=headers,
+        json={
+            "topic": topic,
+            "thinkers": make_simple_thinker_list(thinker_name),
+        },
+    )
+    assert response.status_code == 200, f"Failed to create conversation: {response.text}"
+    return str(response.json()["id"])
+
+
 # ThinkerService test helpers
 def create_mock_anthropic_response(
     text: str,

@@ -4,7 +4,13 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import create_admin_user, get_auth_headers, register_and_get_token
+from tests.conftest import (
+    create_admin_user,
+    create_conversation_with_thinker,
+    get_auth_headers,
+    make_simple_thinker_list,
+    register_and_get_token,
+)
 
 
 class TestAuthAPI:
@@ -335,22 +341,12 @@ class TestConversationAPI:
         """Test listing conversations for a session."""
         headers = await get_auth_headers(client, "listuser", "password123")
 
-        # Create conversations
+        # Create conversations using the helper to avoid repeating inline thinker dicts
         for topic in ["Topic 1", "Topic 2"]:
             await client.post(
                 "/api/conversations",
                 headers=headers,
-                json={
-                    "topic": topic,
-                    "thinkers": [
-                        {
-                            "name": "Thinker",
-                            "bio": "Bio",
-                            "positions": "Positions",
-                            "style": "Style",
-                        },
-                    ],
-                },
+                json={"topic": topic, "thinkers": make_simple_thinker_list()},
             )
 
         # List conversations
@@ -363,23 +359,8 @@ class TestConversationAPI:
         """Test getting a conversation with messages."""
         headers = await get_auth_headers(client, "getuser", "password123")
 
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers,
-            json={
-                "topic": "Test topic",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        # Create conversation using helper, then verify retrieval
+        conv_id = await create_conversation_with_thinker(client, headers, "Test topic")
 
         # Get conversation
         response = await client.get(
@@ -404,23 +385,7 @@ class TestConversationAPI:
     async def test_send_message(self, client: AsyncClient) -> None:
         """Test sending a user message."""
         headers = await get_auth_headers(client, "msguser", "password123")
-
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers,
-            json={
-                "topic": "Test",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        conv_id = await create_conversation_with_thinker(client, headers, "Test")
 
         # Send message
         response = await client.post(
@@ -436,24 +401,7 @@ class TestConversationAPI:
     async def test_delete_conversation(self, client: AsyncClient) -> None:
         """Test deleting a conversation."""
         headers = await get_auth_headers(client, "deleteuser", "password123")
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers,
-            json={
-                "topic": "To be deleted",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        conv_id = await create_conversation_with_thinker(client, headers, "To be deleted")
 
         # Delete conversation
         response = await client.delete(
@@ -473,21 +421,14 @@ class TestConversationAPI:
         """Test color assignment with max thinkers and custom colors."""
         headers = await get_auth_headers(client, "coloruser", "password123")
 
-        # Test with 5 thinkers (max allowed, uses all 5 colors)
+        # Test with 5 thinkers (max allowed, uses all 5 colors).
+        # Use make_simple_thinker_list to build each entry, varying only the name.
         response = await client.post(
             "/api/conversations",
             headers=headers,
             json={
                 "topic": "Many thinkers",
-                "thinkers": [
-                    {
-                        "name": f"Thinker{i}",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    }
-                    for i in range(5)
-                ],
+                "thinkers": [make_simple_thinker_list(f"Thinker{i}")[0] for i in range(5)],
             },
         )
         assert response.status_code == 200
@@ -501,21 +442,14 @@ class TestConversationAPI:
 
         # Test custom color is preserved (not default #6366f1)
         custom_color = "#ff0000"
+        custom_thinker = {
+            **make_simple_thinker_list("CustomColorThinker")[0],
+            "color": custom_color,
+        }
         response = await client.post(
             "/api/conversations",
             headers=headers,
-            json={
-                "topic": "Custom color test",
-                "thinkers": [
-                    {
-                        "name": "CustomColorThinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                        "color": custom_color,
-                    },
-                ],
-            },
+            json={"topic": "Custom color test", "thinkers": [custom_thinker]},
         )
         assert response.status_code == 200
         data = response.json()
@@ -524,24 +458,7 @@ class TestConversationAPI:
     async def test_conversation_deletion_with_messages(self, client: AsyncClient) -> None:
         """Test that deleting a conversation cascades to delete messages."""
         headers = await get_auth_headers(client, "cascadeuser", "password123")
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers,
-            json={
-                "topic": "Test cascade delete",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        conv_id = await create_conversation_with_thinker(client, headers, "Test cascade delete")
 
         # Send messages
         for i in range(3):
@@ -576,22 +493,7 @@ class TestConversationAPI:
         """Test that users cannot access other users' conversations."""
         # User A creates conversation
         headers_a = await get_auth_headers(client, "usera", "password123")
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers_a,
-            json={
-                "topic": "User A's conversation",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        conv_id = await create_conversation_with_thinker(client, headers_a, "User A's conversation")
 
         # User B tries to access User A's conversation
         headers_b = await get_auth_headers(client, "userb", "password123")
@@ -658,24 +560,7 @@ class TestConversationAPI:
     ) -> None:
         """Test that list endpoint includes message_count and total_cost fields."""
         headers = await get_auth_headers(client, "costcountuser", "password123")
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers,
-            json={
-                "topic": "Cost tracking test",
-                "thinkers": [
-                    {
-                        "name": "Thinker1",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        conv_id = await create_conversation_with_thinker(client, headers, "Cost tracking test")
 
         # Send user message
         await client.post(
@@ -706,24 +591,7 @@ class TestConversationAPI:
         # get_auth_headers helper registers user with display_name = username.title()
         # So "displaynameuser" will have display_name "Displaynameuser"
         headers = await get_auth_headers(client, "displaynameuser", "password123")
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers,
-            json={
-                "topic": "Display name test",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        conv_id = await create_conversation_with_thinker(client, headers, "Display name test")
 
         # Send message
         response = await client.post(
@@ -744,24 +612,7 @@ class TestConversationAPI:
         # In practice, the helper ensures display_name is set, but let's verify
         # the endpoint properly reads from session.user.display_name or .username
         headers = await get_auth_headers(client, "fallbackuser", "password123")
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers=headers,
-            json={
-                "topic": "Sender name test",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
-        conv_id = conv_response.json()["id"]
+        conv_id = await create_conversation_with_thinker(client, headers, "Sender name test")
 
         # Send message
         response = await client.post(
@@ -1131,22 +982,8 @@ class TestSpendAPI:
         user_id = user_data["user"]["id"]
         user_headers = {"Authorization": f"Bearer {user_data['access_token']}"}
 
-        # Create a conversation
-        await client.post(
-            "/api/conversations",
-            headers=user_headers,
-            json={
-                "topic": "Test topic for spend",
-                "thinkers": [
-                    {
-                        "name": "Thinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                    },
-                ],
-            },
-        )
+        # Create a conversation using helper to avoid repeating inline thinker dict
+        await create_conversation_with_thinker(client, user_headers, "Test topic for spend")
 
         # Get spend data
         response = await client.get(f"/api/spend/{user_id}", headers=admin_headers)
