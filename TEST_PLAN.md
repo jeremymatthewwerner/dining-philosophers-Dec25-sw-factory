@@ -2,6 +2,76 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.10 Test Refactoring (Added 2026-04-03)
+
+**Focus**: Friday QA focus - improve test readability and reduce duplication
+**Coverage Impact**: No new coverage (structural improvement)
+**Files Changed**: `backend/tests/conftest.py`, `backend/tests/test_api.py`,
+`frontend/src/__tests__/app/admin.test.tsx`, `frontend/src/test-utils.tsx`
+
+### New Backend Helpers Added to `conftest.py`
+
+#### `make_simple_thinker_list()`
+
+Creates a single-element thinker list for conversation creation tests.
+
+- **Purpose**: Eliminates 9+ occurrences of the identical 4-line inline thinker dict
+  (`"name": "Thinker", "bio": "Bio", "positions": "Positions", "style": "Style"`) in
+  `test_api.py`.
+- **Usage**: `"thinkers": make_simple_thinker_list()` in any `POST /api/conversations` call
+  where the thinker's specific values are not relevant to the test.
+- **Parametrizable**: Accepts `name`, `bio`, `positions`, `style` args for customization.
+
+#### `create_conversation_with_thinker()`
+
+Creates a conversation with a single placeholder thinker and returns the conversation ID.
+
+- **Purpose**: Reduces the repeated 6-line pattern (POST conversation, assert 200, extract ID)
+  that appeared in 9+ test methods across `TestConversationAPI` and `TestSpendAPI`.
+- **Usage**: `conv_id = await create_conversation_with_thinker(client, headers, "topic")`
+- **Returns**: Conversation ID string ready for use in subsequent API calls.
+- **Tests using this helper**:
+  - `TestConversationAPI.test_get_conversation` — retrieves a conversation by ID
+  - `TestConversationAPI.test_send_message` — posts a message to a conversation
+  - `TestConversationAPI.test_delete_conversation` — deletes and verifies deletion
+  - `TestConversationAPI.test_conversation_deletion_with_messages` — cascade delete
+  - `TestConversationAPI.test_unauthorized_conversation_access` — cross-user access control
+  - `TestConversationAPI.test_list_conversations_with_message_counts_and_costs` — list fields
+  - `TestConversationAPI.test_send_message_uses_display_name` — sender name logic
+  - `TestConversationAPI.test_send_message_falls_back_to_username` — sender fallback
+  - `TestSpendAPI.test_get_spend_with_conversations` — spend data per-user
+
+### Frontend Test Improvements
+
+#### `renderAdminPage()` in `admin.test.tsx`
+
+Extracts the 10-occurrence pattern of `render(<AdminPage />) + waitFor('Admin Panel')` into
+a single async helper function.
+
+- **Purpose**: Removes 30+ repeated lines across `TestAdminPage` sorting tests.
+- **Impact**: Every Column Sorting test reduced from 5 lines of setup to 1 line.
+- **Tests using this helper** (10 total):
+  - `renders the admin page with users table`
+  - `displays sort indicators on column headers`
+  - `sorts by username in ascending order by default`
+  - `toggles sort direction when clicking the same column`
+  - `sorts by conversations column (numeric)`
+  - `sorts by total spend column (numeric)`
+  - `sorts by spend limit column (numeric)`
+  - `sorts by role column (admin first when ascending)`
+  - `sorts by joined date column`
+  - `resets to ascending when switching to a new column`
+  - `actions column is not sortable`
+
+#### `createWebSocketOptions()` in `test-utils.tsx`
+
+Creates default options for `useWebSocket` hook testing.
+
+- **Purpose**: Provides a factory for `UseWebSocketOptions` with sensible defaults, reducing
+  boilerplate in tests that only need to override 1-2 options out of 6.
+- **Default**: `{ conversationId: 'conv-123' }` — matching the most common test case.
+- **Parametrizable**: All 6 hook options can be overridden via the `overrides` parameter.
+
 ## 1.9 E2E Performance Optimization (Added 2026-04-02)
 
 **Focus**: Thursday QA focus - optimize E2E test speed and parallelism
