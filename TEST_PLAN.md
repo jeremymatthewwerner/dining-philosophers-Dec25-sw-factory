@@ -2,6 +2,106 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.11 Edge Case Analysis (Added 2026-04-04)
+
+**Focus**: Saturday QA focus - error paths and boundary conditions
+**Coverage Impact**: +64 new tests across auth, conversations, thinkers, sessions, admin, and feedback APIs
+**File**: `backend/tests/test_edge_cases_apr4_2026.py`
+
+### Auth API Edge Cases (`TestAuthEdgeCases` - 15 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_get_me_with_malformed_token` | 401 for non-JWT garbage string | Malformed token handling |
+| `test_get_me_with_expired_token` | 401 for expired JWT | Token expiry security path |
+| `test_register_username_at_min_length` | 200 for 3-char username | min_length=3 boundary (inclusive) |
+| `test_register_username_below_min_length` | 422 for 2-char username | min_length=3 boundary (exclusive) |
+| `test_register_password_at_min_length` | 200 for 6-char password | min_length=6 boundary (inclusive) |
+| `test_register_password_below_min_length` | 422 for 5-char password | min_length=6 boundary (exclusive) |
+| `test_register_invalid_language_preference` | 422 for unsupported language | Only en\|es\|fr\|de allowed |
+| `test_login_wrong_password` | 401 with generic error message | No credential enumeration |
+| `test_login_nonexistent_user` | 401 with same error as wrong pw | No user enumeration |
+| `test_change_password_wrong_current_password` | 400 with specific error | Current password verification |
+| `test_change_password_new_too_short` | 422 for short new password | min_length=6 on new password |
+| `test_update_language_invalid_code` | 422 for 'zh' language | Only en\|es\|fr\|de allowed |
+| `test_update_profile_empty_display_name_rejected` | 422 for empty string | min_length=1 on display name |
+| `test_update_profile_display_name_at_max_length` | 200 for exactly 100 chars | max_length=100 boundary (inclusive) |
+| `test_update_profile_display_name_exceeds_max_length` | 422 for 101 chars | max_length=100 boundary (exclusive) |
+
+### Conversations API Edge Cases (`TestConversationEdgeCases` - 17 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_create_conversation_empty_topic_rejected` | 422 for empty string topic | min_length=1 on topic |
+| `test_create_conversation_no_thinkers_rejected` | 422 for empty thinkers list | min_length=1 on thinkers list |
+| `test_create_conversation_too_many_thinkers_rejected` | 422 for 6 thinkers | max_length=5 on thinkers list |
+| `test_create_conversation_with_exactly_5_thinkers` | 200 for exactly 5 thinkers | max_length=5 boundary (inclusive) |
+| `test_get_conversation_other_users_conv_returns_404` | 404 for cross-user access | Security - 404 not 403 to hide existence |
+| `test_delete_conversation_other_users_conv_returns_404` | 404 for cross-user delete | Security - cross-user modification |
+| `test_get_conversation_nonexistent_id_returns_404` | 404 for unknown conv ID | Error path for missing resource |
+| `test_send_message_empty_content_rejected` | 422 for empty message | min_length=1 on message content |
+| `test_send_message_to_nonexistent_conversation` | 404 for unknown conv | Error path for message to missing conv |
+| `test_add_thinkers_exceeds_max_limit` | 400 with detail message | Cannot exceed 5 total thinkers |
+| `test_add_thinkers_to_nonexistent_conversation` | 404 for unknown conv | Error path for add_thinkers |
+| `test_add_thinkers_to_other_users_conversation` | 404 for cross-user add | Security - cross-user thinker add |
+| `test_add_thinkers_with_invalid_color_rejected` | 422 for non-hex color | color must match ^#[0-9a-fA-F]{6}$ |
+| `test_conversation_list_empty_for_new_user` | 200 with empty list | Boundary: 0 conversations |
+| `test_conversations_unauthenticated_returns_401` | 401 without auth header | All conv endpoints require auth |
+| `test_thinker_name_at_max_length` | 200 for exactly 255-char name | max_length=255 boundary (inclusive) |
+| `test_thinker_name_exceeds_max_length` | 422 for 256-char name | max_length=255 boundary (exclusive) |
+
+### Thinkers API Edge Cases (`TestThinkersApiEdgeCases` - 15 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_suggest_thinkers_quota_error_returns_503` | 503 for quota ThinkerAPIError | is_quota_error=True -> 503 |
+| `test_suggest_thinkers_api_error_returns_502` | 502 for general ThinkerAPIError | is_quota_error=False -> 502 |
+| `test_suggest_thinkers_count_at_min` | 200 with count=1, returns 1 result | ge=1 boundary (inclusive) |
+| `test_suggest_thinkers_count_at_max` | 200 with count=5, returns 5 results | le=5 boundary (inclusive) |
+| `test_suggest_thinkers_count_exceeds_max_rejected` | 422 for count=6 | le=5 boundary (exclusive) |
+| `test_suggest_thinkers_count_zero_rejected` | 422 for count=0 | ge=1 boundary (exclusive) |
+| `test_suggest_thinkers_empty_topic_rejected` | 422 for empty topic | min_length=1 on topic |
+| `test_suggest_thinkers_invalid_language_rejected` | 422 for 'de' language | Only en\|es\|fr allowed |
+| `test_validate_thinker_quota_error_returns_503` | 503 for quota error in validate | is_quota_error=True -> 503 |
+| `test_validate_thinker_api_error_returns_502` | 502 for general error in validate | is_quota_error=False -> 502 |
+| `test_validate_thinker_empty_name_rejected` | 422 for empty name | min_length=1 on name |
+| `test_validate_thinker_no_api_key_unknown_name` | valid=False for unknown thinker | No API key -> only mocks recognized |
+| `test_get_knowledge_for_unknown_thinker_creates_pending_entry` | 200 with status field | Unknown thinker triggers knowledge creation |
+| `test_get_knowledge_status_for_unknown_thinker` | 200 with pending status | status endpoint for new thinker |
+| `test_refresh_knowledge_creates_entry_if_missing` | 200 for new thinker | Refresh creates entry if missing |
+
+### Sessions API Edge Cases (`TestSessionsEdgeCases` - 3 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_get_session_with_token_missing_session_id` | 401 with "no session" detail | JWT valid but lacks session_id |
+| `test_get_session_with_nonexistent_session_id` | 404 with "Session not found" | Valid JWT but deleted/missing session |
+| `test_get_current_session_authenticated` | 200 with session data | Happy path for /api/sessions/me |
+
+### Admin API Edge Cases (`TestAdminEdgeCases` - 5 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_admin_delete_self_rejected` | 400 "Cannot delete your own account" | Self-deletion prevention |
+| `test_admin_delete_nonexistent_user` | 404 "User not found" | Delete unknown user |
+| `test_admin_update_spend_limit_nonexistent_user` | 404 "User not found" | Update limit for unknown user |
+| `test_non_admin_user_cannot_access_admin_endpoints` | 403 "Admin access required" | Auth but not admin |
+| `test_unauthenticated_user_cannot_access_admin_endpoints` | 401 Unauthorized | No auth at all |
+
+### Feedback API Edge Cases (`TestFeedbackEdgeCases` - 9 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_submit_feedback_message_at_exact_min_length` | 201 for exactly 10-char message | min_length=10 boundary (inclusive) |
+| `test_submit_feedback_message_at_max_length` | 201 for exactly 5000-char message | max_length=5000 boundary (inclusive) |
+| `test_submit_feedback_message_exceeds_max_length` | 422 for 5001-char message | max_length=5000 boundary (exclusive) |
+| `test_submit_feedback_via_x_forwarded_for` | 201 with X-Forwarded-For header | Proxy header used for rate limiting |
+| `test_get_pending_feedback_limit_at_min` | 200 for limit=1 | ge=1 boundary (inclusive) |
+| `test_get_pending_feedback_limit_at_max` | 200 for limit=50 | le=50 boundary (inclusive) |
+| `test_get_pending_feedback_limit_exceeds_max` | 422 for limit=51 | le=50 boundary (exclusive) |
+| `test_mark_processed_not_configured_returns_503` | 503 when secret not set | Service unavailable when not configured |
+| `test_submit_feedback_with_forwarded_for_chain` | 201 with multi-proxy chain | First IP in chain used for rate limiting |
+
 ## 1.10 Test Refactoring (Added 2026-04-03)
 
 **Focus**: Friday QA focus - improve test readability and reduce duplication
