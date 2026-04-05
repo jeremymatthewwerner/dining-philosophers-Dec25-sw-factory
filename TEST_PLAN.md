@@ -2,6 +2,86 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.12 Regression Prevention (Added 2026-04-05)
+
+**Focus**: Sunday QA focus - regression prevention for recent bug fixes and uncovered critical paths
+**Coverage Impact**: +28 new tests covering send_message, knowledge research service, BillingError handler, conversation cost/count, and color assignment
+**File**: `backend/tests/test_regression_prevention_apr5_2026.py`
+
+### Send Message Regression Tests (`TestSendMessageRegression` - 7 tests)
+
+Previously the send_message endpoint (conversations.py lines 247-268) was completely uncovered.
+These tests prevent regressions in the core user interaction flow.
+
+| Test | Validates | Regression Risk |
+|------|-----------|-----------------|
+| `test_send_message_creates_message_and_returns_it` | 200 with message fields including conversation_id, content, sender_type | Core message creation path never tested |
+| `test_send_message_returns_404_for_unknown_conversation` | 404 for non-existent conversation ID | Error path for message to missing conv |
+| `test_send_message_returns_404_for_cross_session_access` | 404 when user B tries user A's conversation | Security: cross-user isolation |
+| `test_send_message_uses_display_name_as_sender_name` | sender_name = display_name when set | Display name used in real-time chat |
+| `test_send_message_falls_back_to_username` | sender_name = username when display_name is None | Username fallback for users without display name |
+| `test_send_message_auto_resumes_idle_paused_conversation` | resume_from_idle called + RESUMED broadcast for idle-paused conv | Auto-resume on user return to chat |
+| `test_send_message_does_not_resume_non_idle_conversation` | Message created for active conv without resume | No spurious resume for active conversations |
+
+### Conversation Color Assignment Tests (`TestConversationColorAssignment` - 3 tests)
+
+Color assignment logic in conversations.py (lines 46-61, 188-198) was never tested.
+
+| Test | Validates | Regression Risk |
+|------|-----------|-----------------|
+| `test_create_conversation_assigns_cycling_colors` | 3 thinkers get 3 unique colors from palette | Color cycling prevents visual confusion |
+| `test_create_conversation_respects_custom_color` | Non-default color preserved | Custom colors should not be overridden |
+| `test_add_thinkers_avoids_existing_colors` | New thinker gets color not used by existing thinkers | Color uniqueness in mixed add/create flows |
+
+### Knowledge Research Service Tests (`TestKnowledgeResearchServiceMethods` - 9 tests)
+
+KnowledgeResearchService had 15% coverage. These test the core DB-layer methods.
+
+| Test | Validates | Regression Risk |
+|------|-----------|-----------------|
+| `test_get_knowledge_returns_none_for_unknown_thinker` | None returned for thinker not in DB | Cache miss behavior |
+| `test_get_or_create_knowledge_creates_pending_entry` | New PENDING entry created with empty research_data | Entry creation for new thinkers |
+| `test_get_or_create_knowledge_returns_existing_entry` | Same entry returned on second call (no duplicate) | Deduplication of knowledge entries |
+| `test_is_stale_returns_true_for_failed_status` | FAILED status -> is_stale=True | Failed research needs retry |
+| `test_is_stale_returns_true_for_in_progress_status` | IN_PROGRESS -> is_stale=True | Non-complete always stale |
+| `test_is_stale_returns_true_for_pending_status` | PENDING -> is_stale=True | Non-complete always stale |
+| `test_is_stale_returns_false_for_recent_complete_knowledge` | COMPLETE + 10 days old -> is_stale=False | Fresh cache should not refresh |
+| `test_is_stale_returns_true_for_old_complete_knowledge` | COMPLETE + 31 days old -> is_stale=True | Stale cache threshold (30 days) |
+| `test_get_knowledge_after_create` | get_knowledge finds entry after get_or_create | Full get-create-get lifecycle |
+
+### Thinker Knowledge Endpoint Tests (`TestThinkerKnowledgeEndpoints` - 3 tests)
+
+Additional coverage for /api/thinkers/knowledge endpoints.
+
+| Test | Validates | Regression Risk |
+|------|-----------|-----------------|
+| `test_knowledge_status_endpoint_returns_pending_for_unknown` | PENDING status for thinker with no knowledge entry | Status endpoint for new thinkers |
+| `test_knowledge_endpoint_triggers_research_for_new_thinker` | Knowledge created and research triggered for new thinker | Research trigger on first knowledge request |
+| `test_knowledge_refresh_endpoint_triggers_research` | Refresh endpoint creates entry and triggers research | Force-refresh flow |
+
+### BillingError Handler Tests (`TestMainAppBillingError` - 2 tests)
+
+The BillingError exception handler in main.py (lines 79-106) was completely uncovered.
+BillingErrors occur when API quota is exceeded in production.
+
+| Test | Validates | Regression Risk |
+|------|-----------|-----------------|
+| `test_billing_error_returns_503` | BillingError exception -> 503 Service Unavailable | Billing errors must not 500 or leak details |
+| `test_billing_error_response_includes_user_message` | Response body has user-friendly "temporarily unavailable" message | User-facing error message quality |
+
+### Conversation List Cost/Count Tests (`TestConversationListCost` - 4 tests)
+
+The cost/count calculation in list_conversations (lines 87-104) was uncovered.
+
+| Test | Validates | Regression Risk |
+|------|-----------|-----------------|
+| `test_list_conversations_includes_zero_cost_and_count` | New conversation shows message_count=0, total_cost=0.0 | Zero-cost baseline for new conversations |
+| `test_list_conversations_reflects_message_count_after_send` | message_count=1 after sending one message | Count reflects actual messages |
+| `test_list_conversations_empty_for_new_session` | Empty list for new user with no conversations | Empty state handling |
+| `test_list_conversations_only_shows_own_conversations` | User B's list doesn't include User A's conversation | Session isolation in list view |
+
+---
+
 ## 1.11 Edge Case Analysis (Added 2026-04-04)
 
 **Focus**: Saturday QA focus - error paths and boundary conditions
