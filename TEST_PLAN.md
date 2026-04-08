@@ -2,6 +2,75 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.12 Integration Gap Tests (Added 2026-04-08)
+
+**Focus**: Wednesday QA focus - untested API endpoints and integration gaps
+**Coverage Impact**: +28 new tests, significant improvements in admin.py (0%->100%), conversations.py (68%->96%), auth.py (88%->96%), test_helpers.py (36%->81%)
+**File**: `backend/tests/test_integration_gaps_apr8_2026.py`
+
+### Add Thinkers to Conversation Integration (`TestAddThinkersToConversationIntegration` - 4 tests)
+
+| Test | Validates | Coverage |
+|------|-----------|----------|
+| `test_add_thinkers_to_existing_conversation_success` | PUT /api/conversations/{id}/thinkers happy path | conversations.py lines 162-220 |
+| `test_add_multiple_thinkers_in_one_request` | Batch add of 2+ thinkers at once | conversations.py lines 192-218 |
+| `test_add_thinker_assigns_available_color` | Color deduplication when adding thinkers | conversations.py lines 188-198 |
+| `test_add_thinkers_up_to_max_limit` | Can add exactly 5 total thinkers (boundary) | conversations.py lines 178-184 |
+
+### Send Message Integration (`TestSendMessageIntegration` - 3 tests)
+
+| Test | Validates | Coverage |
+|------|-----------|----------|
+| `test_send_message_creates_message_in_conversation` | POST /api/conversations/{id}/messages happy path | conversations.py lines 256-268 |
+| `test_send_message_auto_resume_path` | Auto-resume triggered when conversation is idle-paused | conversations.py lines 246-254 |
+| `test_send_message_uses_display_name` | sender_name uses user's display_name, not username | conversations.py lines 256-259 |
+
+### Admin Spend Limit Integration (`TestAdminSpendLimitIntegration` - 4 tests)
+
+| Test | Validates | Coverage |
+|------|-----------|----------|
+| `test_update_spend_limit_success` | PATCH /api/admin/users/{id}/spend-limit happy path | admin.py lines 78-93 |
+| `test_update_spend_limit_not_found` | 404 when user doesn't exist | admin.py lines 81-85 |
+| `test_update_spend_limit_requires_admin` | 403 for non-admin user | admin.py auth dependency |
+| `test_update_spend_limit_invalid_value` | 422 for spend_limit=0 (gt=0 constraint) | admin.py validation |
+
+### Admin Delete User Integration (`TestAdminDeleteUserIntegration` - 3 tests)
+
+| Test | Validates | Coverage |
+|------|-----------|----------|
+| `test_delete_user_success` | DELETE /api/admin/users/{id} happy path | admin.py lines 108-125 |
+| `test_delete_user_cannot_delete_self` | 400 when admin tries to delete own account | admin.py lines 104-109 |
+| `test_delete_user_requires_admin` | 403 for non-admin user | admin.py auth dependency |
+
+### Auth Endpoints Integration (`TestAuthEndpointsIntegration` - 6 tests)
+
+| Test | Validates | Coverage |
+|------|-----------|----------|
+| `test_update_profile_success` | PATCH /api/auth/profile happy path, updates display_name | auth.py lines 215-235 |
+| `test_update_profile_persists_change` | Profile change visible in /me after update | auth.py lines 221-235 |
+| `test_update_language_success` | PATCH /api/auth/language happy path | auth.py lines 192-212 |
+| `test_update_language_persists_change` | Language change visible in /me after update | auth.py lines 199-212 |
+| `test_logout_endpoint_returns_success` | POST /api/auth/logout returns success message | auth.py lines 262-269 |
+| `test_login_creates_new_session_when_none_exists` | Login creates session when user has none | auth.py lines 151-155 |
+
+### Cleanup Test Users Integration (`TestCleanupTestUsersIntegration` - 6 tests)
+
+| Test | Validates | Coverage |
+|------|-----------|----------|
+| `test_cleanup_test_users_with_valid_secret` | DELETE /api/test/cleanup-test-users happy path | test_helpers.py lines 201-236 |
+| `test_cleanup_test_users_with_invalid_secret` | 403 for wrong secret | test_helpers.py lines 210-215 |
+| `test_cleanup_test_users_secret_not_configured` | 403 when secret not configured | test_helpers.py lines 203-208 |
+| `test_cleanup_test_users_no_matches_returns_zero` | Returns 0 when no test users exist | test_helpers.py lines 225-226 |
+| `test_cleanup_test_users_canary_prefix` | canary_ prefix users are deleted | test_helpers.py lines 219-223 |
+| `test_cleanup_test_users_spares_regular_users` | Regular users are not deleted | test_helpers.py lines 219-223 |
+
+### Conversation List Integration (`TestConversationListIntegration` - 2 tests)
+
+| Test | Validates | Coverage |
+|------|-----------|----------|
+| `test_list_conversations_includes_message_count` | GET /api/conversations includes message_count=0 and total_cost=0 | conversations.py lines 88-104 |
+| `test_list_conversations_returns_correct_count` | List returns all conversations for session with correct structure | conversations.py lines 76-105 |
+
 ## 1.11 Edge Case Analysis (Added 2026-04-04)
 
 **Focus**: Saturday QA focus - error paths and boundary conditions
