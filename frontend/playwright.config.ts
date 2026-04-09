@@ -21,7 +21,7 @@ export default defineConfig({
         ]
     : 'html',
   /* Increase timeout for tests using real API calls */
-  timeout: process.env.CI ? 90000 : 90000,
+  timeout: 90000,
   /* Default assertion timeout for expect() calls - keeps individual assertions bounded */
   expect: { timeout: 10000 },
   use: {

@@ -24,6 +24,8 @@ import {
 // The underlying CSS fix is in place (verticalAlign: 'text-bottom' in Message.tsx:97)
 // but the E2E test approach needs refinement
 test.describe.skip('Regression: @mention badge alignment (Issue #494)', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });
