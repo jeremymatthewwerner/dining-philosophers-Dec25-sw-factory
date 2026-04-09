@@ -5599,3 +5599,72 @@ Confirmed all 3 tests pass stably across 3 consecutive runs:
 - `test_health_check` - passes (0.6s)
 - `test_health_ready_endpoint` - passes (0.6s, previously hung indefinitely)
 - `test_version_endpoint` - passes (0.6s)
+
+## 19. Integration Gaps: April 2026 (Added 2026-04-01)
+
+**Focus**: Wednesday QA integration-gaps sprint — cover untested integration paths identified in coverage analysis.
+**File**: `backend/tests/test_integration_gaps_apr2026.py`
+**Tests Added**: 32 new tests across 6 test classes
+**Coverage Impact**: Total 86.94% → 88.22% (+1.28%), `app/main.py` 79% → 100%, `app/api/websocket.py` branches fixed, `app/services/thinker.py` 75% → 77%
+
+### 19.1 TestConnectionManagerBranchCoverage (7 tests)
+
+Validates ConnectionManager branch coverage for missing branches in `app/api/websocket.py`.
+
+- `test_send_thinker_typing_conversation_not_in_rooms` — `send_thinker_typing` when conversation has no room is a no-op (branch 189→191).
+- `test_send_thinker_stopped_typing_conversation_not_in_rooms` — `send_thinker_stopped_typing` when no room skips typing set removal (branch 212→214).
+- `test_set_speed_multiplier_conversation_not_in_rooms` — `set_speed_multiplier` when no room silently does nothing (line 149).
+- `test_connect_to_existing_room_adds_connection` — `connect()` reuses an existing room instead of creating new one (branch 125→127).
+- `test_broadcast_to_conversation_no_room_is_noop` — `broadcast_to_conversation` with missing room is a no-op.
+- `test_send_thinker_typing_adds_to_typing_set_when_room_exists` — Thinker is added to `typing_thinkers` when room exists.
+- `test_send_thinker_stopped_typing_removes_from_typing_set` — Thinker is removed from `typing_thinkers` when room exists.
+
+### 19.2 TestWebSocketAuthFailures (5 tests)
+
+Validates authentication rejection and SET_SPEED message handling in WebSocket endpoint.
+
+- `test_websocket_no_token_rejected` — Connection without token is rejected.
+- `test_websocket_invalid_token_rejected` — Connection with malformed JWT is rejected.
+- `test_websocket_token_without_session_id_rejected` — Connection with token missing session_id is rejected.
+- `test_websocket_set_speed_message` — SET_SPEED message triggers SPEED_CHANGED broadcast with correct multiplier.
+- `test_websocket_set_speed_clamped_to_valid_range` — Speed above max is clamped to 6.0.
+
+### 19.3 TestThinkerServiceSplitBubbles (4 tests)
+
+Validates `_split_response_into_bubbles` including the force-split code path.
+
+- `test_force_split_long_single_sentence` — Text >300 chars exercises force-split logic at midpoint (lines 763–774).
+- `test_force_split_long_text_with_sentence_boundaries` — Force split finds sentence boundary after midpoint.
+- `test_short_text_not_force_split` — Short text (<300 chars) is not force-split.
+- `test_text_with_transition_words_splits_correctly` — Transition words (e.g., "However,") trigger new bubble.
+
+### 19.4 TestThinkerServiceExtractThinkingDisplay (9 tests)
+
+Validates `_extract_thinking_display` edge cases and multi-language support.
+
+- `test_empty_text_returns_empty_string` — Empty input returns empty string.
+- `test_short_text_under_80_returns_empty` — Text < 80 chars returns empty (wait for more content).
+- `test_long_text_over_200_chars_extracts_last_200` — Text >200 chars extracts from the last ~200 characters (lines 801–808).
+- `test_sentence_boundary_found_in_truncated_text` — Sentence boundary detection in truncated text.
+- `test_word_boundary_truncation_for_readability` — Text doesn't end mid-word (lines 816–820).
+- `test_german_language_replacements` — German text gets German-specific monologue replacements (lines 824–836).
+- `test_spanish_language_replacements` — Spanish text gets Spanish-specific replacements (lines 837–848).
+- `test_french_language_replacements` — French text gets French-specific replacements (lines 850–862).
+- `test_english_language_replacements_applied` — English phrases replaced with contemplative alternatives.
+
+### 19.5 TestThinkerServiceGetSenderLabel (5 tests)
+
+Validates `generate_response_with_streaming_thinking` including the `get_sender_label` nested function.
+
+- `test_generate_response_returns_empty_when_no_client` — Returns ("", 0.0) when Anthropic client is None.
+- `test_generate_response_with_user_messages_exercises_sender_label` — User messages with enum-style sender_type identified correctly (lines 540–543).
+- `test_get_sender_label_user_without_value_attr` — Plain string "user" sender_type handled via `sender == 'user'` path.
+- `test_initial_message_instruction_added_for_first_message` — Empty messages list triggers `is_initial_message=True` instruction (lines 557–563).
+- `test_non_initial_message_skips_instruction` — Multiple messages skip the initial message instruction.
+
+### 19.6 TestMainLifespan (2 tests)
+
+Validates the FastAPI application lifespan handler (`app/main.py` lines 46–68).
+
+- `test_lifespan_startup_calls_init_and_create_admin` — Startup calls `init_db()` and `create_admin_user()`, shutdown calls `close_db()`.
+- `test_lifespan_startup_failure_propagates_exception` — Database init failure propagates exception through lifespan (lines 63–65).
