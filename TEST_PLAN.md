@@ -5599,3 +5599,136 @@ Confirmed all 3 tests pass stably across 3 consecutive runs:
 - `test_health_check` - passes (0.6s)
 - `test_health_ready_endpoint` - passes (0.6s, previously hung indefinitely)
 - `test_version_endpoint` - passes (0.6s)
+
+---
+
+## 19. Coverage Sprint - Apr 6, 2026 (`test_coverage_sprint_apr6_2026.py`)
+
+**Focus**: Monday QA focus - bring lowest-coverage modules up by 15%+
+**Files Added**: `backend/tests/test_coverage_sprint_apr6_2026.py` (53 tests)
+**Coverage Impact**:
+- `app/api/thinkers.py`: **19% → 90%** (+71 percentage points)
+- `app/services/thinker.py`: **68% → 73%** (+5 percentage points)
+
+### 19.1 `TestGetLanguageInstruction` (6 tests)
+
+Tests for the `_get_language_instruction` module-level function in `thinker.py`.
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_english_returns_empty_string` | English returns empty string | No extra instruction for default language |
+| `test_spanish_returns_instruction` | Spanish returns "Respond in Spanish" instruction | Non-English language instruction format |
+| `test_french_returns_instruction` | French instruction contains "French" | Language name mapping |
+| `test_german_returns_instruction` | German instruction contains "German" | Language name mapping |
+| `test_hindi_returns_instruction` | Hindi instruction contains "Hindi" | Language name mapping |
+| `test_unknown_language_uses_code` | Unknown code "ja" used verbatim | Fallback for unmapped language codes |
+
+### 19.2 `TestExtractThinkingDisplayLanguages` (11 tests)
+
+Tests for `_extract_thinking_display` with non-English language codes (lines 824-942 of `thinker.py`).
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_german_language_path` | German replacement logic runs without error | de language branch |
+| `test_german_path_with_long_text` | Long German text truncated to ≤260 chars | Truncation + German replacements |
+| `test_spanish_language_path` | Spanish replacement logic runs without error | es language branch |
+| `test_spanish_path_with_long_text` | Long Spanish text truncated correctly | Truncation + Spanish replacements |
+| `test_french_language_path` | French replacement logic runs without error | fr language branch |
+| `test_french_path_with_long_text` | Long French text truncated correctly | Truncation + French replacements |
+| `test_hindi_language_path` | Short Hindi text returns empty (too short) | hi language branch, short text |
+| `test_hindi_path_with_sufficient_text` | Longer Hindi text processed without error | hi language branch, sufficient text |
+| `test_english_path_with_replacements` | English replacement triggers (I should, The user) | Replacement substitution logic |
+| `test_extract_thinking_display_no_existing_starter` | No double prefix added for "hmm..." text | Starter prefix deduplication |
+| `test_extract_thinking_displays_ellipsis_for_truncated` | Truncated text is well-formed | Ellipsis addition logic |
+
+### 19.3 `TestChooseResponseStyleAdditional` (4 tests)
+
+Additional tests for `_choose_response_style` to cover previously untested distribution branches.
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_not_addressed_and_not_just_spoke` | Variety of token counts when not addressed | Not-addressed distribution (lines 497-517) |
+| `test_just_spoke_follow_up` | Follow-up branch (roll < 0.4) produces 50-token responses | just_spoke + low roll path |
+| `test_at_mentioned_overrides_own_message` | @mention path even when thinker just spoke | @mention override logic |
+| `test_addressed_by_name_in_recent_messages` | Name-addressed path produces ≥30 token responses | was_addressed branch |
+
+### 19.4 `TestGenerateResponseWithMockClient` (9 tests)
+
+Tests for `generate_response` (non-streaming fallback), covering lines 970-1060 of `thinker.py`.
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_generate_response_returns_text_and_cost` | Returns text and positive cost | Happy path |
+| `test_generate_response_with_messages_context` | Conversation history built from messages | Multi-message context |
+| `test_generate_response_initial_message_instruction` | Initial message instruction added when no messages | Empty messages = "DO NOT INTRODUCE YOURSELF" |
+| `test_generate_response_with_language` | Language parameter adds instruction to prompt | Spanish instruction in prompt |
+| `test_generate_response_non_text_block_returns_empty` | Non-TextBlock response returns ("", 0.0) | Unexpected response block type |
+| `test_generate_response_api_error_raises_thinker_api_error` | APIError converted to ThinkerAPIError | API error propagation |
+| `test_generate_response_general_exception_raises_thinker_api_error` | RuntimeError converted to ThinkerAPIError | Unexpected exception handling |
+| `test_generate_response_without_client_returns_empty` | Returns ("", 0.0) when client is None | No API key configured |
+| `test_generate_response_with_enum_sender_type` | Handles enum sender_type objects | SenderType enum in message |
+
+### 19.5 `TestStartConversationAgents` (3 tests)
+
+Tests for `start_conversation_agents` (lines 1062-1095 of `thinker.py`).
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_start_creates_tasks_for_each_thinker` | One task created per thinker in _active_tasks | Happy path: 2 thinkers |
+| `test_start_stops_existing_tasks_first` | Existing tasks replaced when restarting | Conversation restart scenario |
+| `test_start_with_language_parameter` | Language parameter accepted without error | Non-English language support |
+
+### 19.6 `TestThinkerKnowledgeEndpoints` (5 tests)
+
+Tests for the thinker knowledge API endpoints (`/api/thinkers/knowledge/{name}`).
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_get_knowledge_for_new_thinker` | 200 response with name, triggers research | New thinker creates entry |
+| `test_get_knowledge_status_for_unknown_thinker` | Status endpoint returns PENDING + has_data=False | Unknown thinker status |
+| `test_get_knowledge_status_for_existing_thinker` | Status after creation returns valid data | Existing thinker status |
+| `test_refresh_thinker_knowledge` | Refresh endpoint triggers research with correct name | Knowledge refresh flow |
+| `test_refresh_thinker_knowledge_for_existing_entry` | Refresh works on existing entries | Idempotent refresh |
+
+### 19.7 `TestThinkerAPIWithAPIKey` (6 tests)
+
+Tests for suggest/validate endpoints when Anthropic API key is configured (real API path).
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_suggest_with_api_key_returns_suggestions` | Returns AI suggestions when API key set | Real API path (not mock fallback) |
+| `test_suggest_falls_back_to_mock_on_empty_response` | Falls back to mock when API returns empty | Empty API response fallback |
+| `test_suggest_non_quota_api_error_returns_502` | Non-quota ThinkerAPIError → 502 status | Service unavailable path |
+| `test_validate_with_api_key_valid_thinker` | Returns valid=True + profile for known thinker | Valid thinker via API |
+| `test_validate_with_api_key_invalid_thinker` | Returns valid=False + error for unknown | Invalid thinker via API |
+| `test_validate_non_quota_api_error_returns_502` | Connection error → 502 status | Non-quota error path |
+
+### 19.8 `TestGetMockSuggestions` (3 tests)
+
+Tests for the `get_mock_suggestions` helper function in `api/thinkers.py`.
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_mock_suggestions_returns_count_items` | Returns exactly count=1 item | Count=1 boundary |
+| `test_mock_suggestions_with_max_count` | Returns 5 items with real image URLs | Count=5 with image population |
+| `test_mock_suggestions_with_image_exception` | Exception from image fetch → image_url=None | Image fetch failure handling |
+
+### 19.9 `TestSuggestSingleBatchEdgeCases` (3 tests)
+
+Tests for `_suggest_single_batch` covering prompt construction branches.
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_suggest_single_batch_with_perspective_hint` | Perspective hint included in prompt | Parallel batch perspective injection |
+| `test_suggest_single_batch_with_exclude_list` | Exclusion list included in prompt | Exclude previously suggested thinkers |
+| `test_suggest_single_batch_with_language` | Language instruction included for non-English | French language instruction in prompt |
+
+### 19.10 `TestShouldRespondAdditional` (3 tests)
+
+Additional tests for `_should_respond` covering edge cases in probability logic.
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_should_respond_addressed_but_at_mentioned_another` | @mentioning another thinker doesn't give 98% prob | At-mention specificity |
+| `test_should_respond_consecutive_silence_increases_probability` | Higher consecutive_silence → more responses | Silence-boosted probability |
+| `test_should_respond_addressed_without_at_mention` | Named without @ gets >50% response rate | was_addressed probability boost |
