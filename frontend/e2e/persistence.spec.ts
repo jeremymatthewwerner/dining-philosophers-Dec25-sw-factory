@@ -10,6 +10,8 @@ import {
 } from './test-utils';
 
 test.describe('Persistence', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('conversations persist across page reload', async ({ page }) => {
     await setupAuthenticatedUser(page);
 

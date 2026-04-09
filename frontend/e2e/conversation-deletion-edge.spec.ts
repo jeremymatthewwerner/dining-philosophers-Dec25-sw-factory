@@ -9,6 +9,8 @@ import { setupAuthenticatedUser, createConversationViaUI } from './test-utils';
 // SKIP ENTIRE SUITE: All tests require Claude API to create conversations, too slow for CI
 // Run manually with: npx playwright test conversation-deletion-edge.spec.ts
 test.describe.skip('Conversation Deletion Edge Cases', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
   });

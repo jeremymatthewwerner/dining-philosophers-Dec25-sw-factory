@@ -241,6 +241,73 @@ Creates default options for `useWebSocket` hook testing.
 - **Default**: `{ conversationId: 'conv-123' }` — matching the most common test case.
 - **Parametrizable**: All 6 hook options can be overridden via the `overrides` parameter.
 
+## 1.10 E2E Performance Optimization (Added 2026-04-09)
+
+**Focus**: Thursday QA focus - optimize E2E test speed and parallelism
+**Coverage Impact**: No coverage change (performance improvement)
+
+### Performance Analysis Summary
+
+**Before optimization:**
+- `waitForTimeout()` calls: 0 (already eliminated in previous sessions) ✅
+- Playwright config: `fullyParallel: true`, 4 CI workers ✅
+- Files missing `test.describe.configure({ mode: 'parallel' })`: 4 files
+  - `persistence.spec.ts` (active, 1 test)
+  - `mobile-ios.spec.ts` (WebKit-only, 9 describes, each needs separate configure)
+  - `conversation-deletion-edge.spec.ts` (skipped suite)
+  - `mention-badge-alignment.spec.ts` (skipped suite)
+- `playwright.config.ts`: redundant ternary `process.env.CI ? 90000 : 90000` for timeout
+
+**After optimization:**
+- All 23 E2E spec files now have `test.describe.configure({ mode: 'parallel' })` ✅
+- `playwright.config.ts` timeout simplified from `process.env.CI ? 90000 : 90000` to `90000`
+
+### Changes Made
+
+#### Within-file parallelism added to `persistence.spec.ts`
+
+Added `test.describe.configure({ mode: 'parallel' })` to the `Persistence` describe block.
+The single test (`conversations persist across page reload`) uses its own authenticated session
+via `setupAuthenticatedUser`, so there is no shared state risk.
+
+#### Within-file parallelism added to `mobile-ios.spec.ts`
+
+Added `test.describe.configure({ mode: 'parallel' })` to all 9 top-level describe blocks:
+- `iOS Safari - Header Visibility` (3 tests)
+- `iOS Safari - Sidebar Toggle` (2 tests)
+- `iOS Safari - Sticky Positioning` (2 tests)
+- `iOS Safari - Orientation Changes` (2 tests)
+- `iOS Safari - iPad Specific Tests` (2 tests)
+- `iOS Safari - Touch Interactions` (2 tests)
+- `iOS Safari - Viewport and Safe Areas` (2 tests)
+- `iOS Safari - Screenshot on Failure` (1 test)
+- `iOS Safari - Regression Tests` (2 tests)
+
+All tests use `createConversationViaUI()` with independent `page` fixtures, so no shared
+state between tests within each group. Tests are already WebKit-only (skipped in CI on
+Chromium), but when run locally with WebKit they will benefit from parallelism.
+
+#### Within-file parallelism added to skipped suites
+
+Added `test.describe.configure({ mode: 'parallel' })` inside the skipped describe blocks
+in `conversation-deletion-edge.spec.ts` and `mention-badge-alignment.spec.ts`. These suites
+are currently skipped because they require live Claude API calls, but the parallelism
+config is in place so when they are eventually re-enabled, tests will run in parallel.
+
+#### Simplified `playwright.config.ts` timeout
+
+Removed redundant ternary expression: `process.env.CI ? 90000 : 90000` → `90000`.
+Both branches were identical, making the ternary dead code. Simplified to a plain value.
+
+### Performance Metrics
+
+| Metric | Before | After |
+|--------|--------|-------|
+| `waitForTimeout()` calls | 0 | 0 |
+| Spec files with parallel mode | 19/23 | 23/23 |
+| Skipped files with parallel mode | 1/4 | 4/4 |
+| Config redundancy | 1 dead ternary | 0 |
+
 ## 1.9 E2E Performance Optimization (Added 2026-04-02)
 
 **Focus**: Thursday QA focus - optimize E2E test speed and parallelism

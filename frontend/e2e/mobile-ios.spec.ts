@@ -25,6 +25,8 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test.describe('iOS Safari - Header Visibility', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('header visible after chat selection on iPhone 13', async ({ page }) => {
     // Create conversation via UI
     await createConversationViaUI(page, 'iOS header test', 'Socrates');
@@ -144,6 +146,8 @@ test.describe('iOS Safari - Header Visibility', () => {
 });
 
 test.describe('iOS Safari - Sidebar Toggle', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('sidebar opens and closes correctly on iPhone 13', async ({ page }) => {
     await createConversationViaUI(page, 'Sidebar test', 'Confucius');
 
@@ -220,6 +224,8 @@ test.describe('iOS Safari - Sidebar Toggle', () => {
 });
 
 test.describe('iOS Safari - Sticky Positioning', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('sticky header maintains position during scroll on iPhone 13', async ({
     page,
   }) => {
@@ -320,6 +326,8 @@ test.describe('iOS Safari - Sticky Positioning', () => {
 });
 
 test.describe('iOS Safari - Orientation Changes', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('header adapts to portrait to landscape orientation change', async ({
     page,
   }) => {
@@ -382,6 +390,8 @@ test.describe('iOS Safari - Orientation Changes', () => {
 });
 
 test.describe('iOS Safari - iPad Specific Tests', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('header displays correctly on iPad Pro', async ({ page }) => {
     // iPad Pro has larger viewport, may show different layout
     await createConversationViaUI(page, 'iPad test', 'Epictetus');
@@ -427,6 +437,8 @@ test.describe('iOS Safari - iPad Specific Tests', () => {
 });
 
 test.describe('iOS Safari - Touch Interactions', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('touch targets meet iOS 44x44pt minimum on iPhone 13', async ({
     page,
   }) => {
@@ -478,6 +490,8 @@ test.describe('iOS Safari - Touch Interactions', () => {
 });
 
 test.describe('iOS Safari - Viewport and Safe Areas', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('viewport meta tag configured correctly', async ({ page }) => {
     await page.goto('/');
 
@@ -517,6 +531,8 @@ test.describe('iOS Safari - Viewport and Safe Areas', () => {
 });
 
 test.describe('iOS Safari - Screenshot on Failure', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('captures screenshot on test failure (iPhone 13)', async ({
     page,
   }, testInfo) => {
@@ -536,6 +552,8 @@ test.describe('iOS Safari - Screenshot on Failure', () => {
 });
 
 test.describe('iOS Safari - Regression Tests', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   test('no WebKit transform on header (Issue #215)', async ({ page }) => {
     // Regression test for iOS header visibility bug
     await createConversationViaUI(page, 'Transform regression', 'Nietzsche');
