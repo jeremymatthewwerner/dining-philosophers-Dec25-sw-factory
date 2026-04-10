@@ -2,6 +2,96 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.13 Test Refactoring (Added 2026-04-10)
+
+**Focus**: Friday QA focus - improve test readability and reduce duplication
+**Coverage Impact**: +48 frontend tests (525 total up from 477), 15 backend test calls simplified using `get_auth_headers` helper
+**Files**:
+- `frontend/src/__tests__/components/ThinkerAvatar.test.tsx` (new)
+- `frontend/src/__tests__/components/Message.test.tsx` (improved)
+- `frontend/src/__tests__/components/index.test.ts` (new)
+- `frontend/src/__tests__/hooks/index.test.ts` (new)
+- `backend/tests/test_regression_prevention_mar15_2026.py` (refactored)
+
+### ThinkerAvatar Component Tests (`ThinkerAvatar.test.tsx` - 14 new tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `renders initials for a two-word name` | "Alan Turing" → "AT" | Two initials from first+last |
+| `shows first initial only for a single-word name` | "Socrates" → "S" | Single-word name |
+| `shows first and last initial for multi-word name` | "Marie Curie Sklodowska" → "MS" | Three-word: first+last only |
+| `shows ? for empty name` | "" → "?" | Empty string edge case |
+| `initials are uppercase` | "alan turing" → "AT" | Case normalization |
+| `renders an image when imageUrl is provided` | src attribute present | Image happy path |
+| `falls back to initials when image errors` | Image error → initials shown | Image fallback |
+| `renders initials when imageUrl is null` | null → initials | Null imageUrl |
+| `renders initials when imageUrl is undefined` | undefined → initials | Undefined imageUrl |
+| `renders xs size` | w-4 h-4 CSS classes | XS size variant |
+| `renders sm size` | w-6 h-6 CSS classes | SM size variant |
+| `renders md size (default)` | w-8 h-8 CSS classes | Default size |
+| `renders lg size` | w-10 h-10 CSS classes | LG size variant |
+| `uses custom color when provided` | backgroundColor matches custom color | Custom color override |
+| `derives a consistent color from name` | Same name → same color on re-render | Deterministic hash |
+| `does not apply background style when showing image` | No backgroundColor when image visible | Image vs initials state |
+
+### Message Component Tests (`Message.test.tsx` - 9 new tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `renders thinker avatar alongside thinker message` | ThinkerAvatar shown for thinker messages | Thinker avatar integration |
+| `does not show thinker avatar for user messages` | No avatar for user sender type | User message display |
+| `renders plain text when no thinkers provided` | Content unchanged with empty allThinkers | No mention context |
+| `highlights a thinker mention in message content` | Mention span rendered for matched name | Single mention |
+| `handles message with no mentions` | Non-matching content rendered as-is | No match case |
+| `highlights multiple different thinkers` | Both Plato and Aristotle highlighted | Multiple mentions |
+| `matches partial name (first name only)` | "Karl" matches "Karl Marx" | Partial name matching |
+| `renders user message with thinker mentions` | User messages show mention highlights | User + mentions |
+| `renders plain text when allThinkers is empty array` | Empty array produces no highlights | Empty array guard |
+
+### Components Barrel Export Tests (`components/index.test.ts` - 19 new tests)
+
+| Test | Validates |
+|------|-----------|
+| `exports ChatArea` | ChatArea function exported from barrel |
+| `exports ConversationList` | ConversationList exported |
+| `exports CostMeter` | CostMeter exported |
+| `exports ErrorBanner` | ErrorBanner exported |
+| `exports FeedbackModal` | FeedbackModal exported |
+| `exports MentionAutocomplete` | MentionAutocomplete exported |
+| `exports filterThinkers utility` | filterThinkers utility from MentionAutocomplete |
+| `exports Message` | Message exported |
+| `exports MessageInput` | MessageInput exported |
+| `exports MessageList` | MessageList exported |
+| `exports NewChatModal` | NewChatModal exported |
+| `exports ResizeDivider` | ResizeDivider exported |
+| `exports Sidebar` | Sidebar exported |
+| `exports SpendLimitBanner` | SpendLimitBanner exported |
+| `exports StatusLine` | StatusLine exported |
+| `exports ThinkerAvatar` | ThinkerAvatar exported |
+| `exports ThinkerSelector` | ThinkerSelector exported |
+| `exports TypingIndicator` | TypingIndicator exported |
+| `exports BuildInfo` | BuildInfo exported |
+
+### Hooks Barrel Export Tests (`hooks/index.test.ts` - 1 new test)
+
+| Test | Validates |
+|------|-----------|
+| `exports useWebSocket hook` | useWebSocket exported from barrel file |
+
+### Backend Refactoring: `test_regression_prevention_mar15_2026.py`
+
+Reduced code duplication by replacing the 2-line pattern:
+```python
+data = await register_and_get_token(client, username="X", password="Y")
+headers = {"Authorization": f"Bearer {data['access_token']}"}
+```
+with the single-line:
+```python
+headers = await get_auth_headers(client, "X", "Y")
+```
+Applied across **15 test methods** in the file, reducing each from 2 lines to 1.
+Exception: kept `register_and_get_token` where `data["user"]["id"]` is also needed.
+
 ## 1.12 Integration Gap Tests (Added 2026-04-08)
 
 **Focus**: Wednesday QA focus - untested API endpoints and integration gaps

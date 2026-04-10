@@ -44,7 +44,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import register_and_get_token
+from tests.conftest import get_auth_headers, register_and_get_token
 
 
 class TestThinkerColorAssignment:
@@ -68,8 +68,7 @@ class TestThinkerColorAssignment:
         only replaces color when it equals the default '#6366f1'. If a custom
         color is provided (e.g., '#ec4899'), it should be kept as-is.
         """
-        data = await register_and_get_token(client, username="colortest1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "colortest1", "testpass123")
 
         # Create conversation with 1 thinker using default color
         conv_response = await client.post(
@@ -124,8 +123,7 @@ class TestThinkerColorAssignment:
         with default color '#6366f1' AND available colors exist (not all used),
         the default color is replaced with the first available color.
         """
-        data = await register_and_get_token(client, username="colortest2", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "colortest2", "testpass123")
 
         # Create conversation - this will use color cycling for the 1 thinker
         with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
@@ -187,8 +185,7 @@ class TestThinkerColorAssignment:
         `if color == '#6366f1' and available_colors:` evaluates to False,
         so the color is not replaced. The default color stays.
         """
-        data = await register_and_get_token(client, username="colortest3", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "colortest3", "testpass123")
 
         # Create conversation with exactly 5 thinkers (uses all 5 colors)
         all_colors = ["#6366f1", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6"]
@@ -256,8 +253,7 @@ class TestConversationListCostAggregation:
         Regression test: list_conversations correctly handles empty messages list
         (sum of empty iterable = 0.0).
         """
-        data = await register_and_get_token(client, username="costtest1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "costtest1", "testpass123")
 
         with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
             await client.post(
@@ -292,8 +288,7 @@ class TestConversationListCostAggregation:
         thinkers field populated. Prevents regression where thinkers are not
         loaded in the list view.
         """
-        data = await register_and_get_token(client, username="costtest2", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "costtest2", "testpass123")
 
         with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
             await client.post(
@@ -333,8 +328,7 @@ class TestConversationListCostAggregation:
         Regression test: list_conversations filters by session_id, so a new
         user with no conversations gets an empty list (not all conversations).
         """
-        data = await register_and_get_token(client, username="emptylist1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "emptylist1", "testpass123")
 
         list_response = await client.get("/api/conversations", headers=headers)
         assert list_response.status_code == 200
@@ -480,8 +474,7 @@ class TestAuthFlows:
         successful change. Without this, changed password would be rejected.
         Critical regression would be: hash update doesn't persist.
         """
-        data = await register_and_get_token(client, username="pwchange1", password="oldpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "pwchange1", "oldpass123")
 
         # Change password
         change_response = await client.post(
@@ -511,8 +504,7 @@ class TestAuthFlows:
         actually update the hash, the old password would still work. This test
         prevents that regression by verifying the old password is rejected.
         """
-        data = await register_and_get_token(client, username="pwchange2", password="oldpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "pwchange2", "oldpass123")
 
         # Change password
         change_response = await client.post(
@@ -614,8 +606,7 @@ class TestAuthFlows:
         {"message": "Logged out successfully"}. Since JWT is stateless,
         this is just a convenience endpoint that must always return 200.
         """
-        data = await register_and_get_token(client, username="logouttest1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "logouttest1", "testpass123")
 
         logout_response = await client.post("/api/auth/logout", headers=headers)
         assert logout_response.status_code == 200
@@ -794,10 +785,7 @@ class TestProfileAndLanguagePersistence:
         sets user.display_name, commits, and refreshes. If commit is missing,
         the change won't persist.
         """
-        data = await register_and_get_token(
-            client, username="profilepersist1", password="testpass123"
-        )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "profilepersist1", "testpass123")
 
         # Update display name
         update_response = await client.patch(
@@ -822,8 +810,7 @@ class TestProfileAndLanguagePersistence:
         sets user.language_preference, commits, and refreshes. Prevents
         regression where language change is in-memory only.
         """
-        data = await register_and_get_token(client, username="langpersist1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "langpersist1", "testpass123")
 
         # Update language to French
         update_response = await client.patch(
@@ -847,8 +834,7 @@ class TestProfileAndLanguagePersistence:
         Regression test: Both endpoints update the user object and commit.
         Ensures one update doesn't accidentally overwrite the other's field.
         """
-        data = await register_and_get_token(client, username="indeptest1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "indeptest1", "testpass123")
 
         # Set language to German
         await client.patch(
@@ -891,8 +877,7 @@ class TestConversationAPIRegressions:
         Regression test: conversations.py lines 149-151 - delete_conversation
         returns {"status": "deleted"}. Ensures the response format is preserved.
         """
-        data = await register_and_get_token(client, username="deltest1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "deltest1", "testpass123")
 
         with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
             conv_response = await client.post(
@@ -930,8 +915,7 @@ class TestConversationAPIRegressions:
         selectinload for both thinkers and messages. If either is removed from
         the query, the response would be missing data.
         """
-        data = await register_and_get_token(client, username="gettest1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = await get_auth_headers(client, "gettest1", "testpass123")
 
         with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
             conv_response = await client.post(
@@ -974,8 +958,7 @@ class TestConversationAPIRegressions:
         This tests the security boundary: cross-session access returns 404 (not 200).
         """
         # User 1 creates a conversation
-        data1 = await register_and_get_token(client, username="crosssess1", password="testpass123")
-        headers1 = {"Authorization": f"Bearer {data1['access_token']}"}
+        headers1 = await get_auth_headers(client, "crosssess1", "testpass123")
 
         with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
             conv_response = await client.post(
@@ -996,8 +979,7 @@ class TestConversationAPIRegressions:
         conv_id = conv_response.json()["id"]
 
         # User 2 tries to access User 1's conversation
-        data2 = await register_and_get_token(client, username="crosssess2", password="testpass123")
-        headers2 = {"Authorization": f"Bearer {data2['access_token']}"}
+        headers2 = await get_auth_headers(client, "crosssess2", "testpass123")
 
         get_response = await client.get(
             f"/api/conversations/{conv_id}",
