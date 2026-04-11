@@ -2,6 +2,141 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.14 Edge Case Analysis (Added 2026-04-11)
+
+**Focus**: Saturday QA focus - error paths and boundary conditions
+**Coverage Impact**: 86.94% → 87.13% (83 new tests)
+**Files**:
+- `backend/tests/test_edge_cases_apr11_2026.py` (new - 83 tests)
+
+### ConversationRoom Boundary Conditions (`TestConversationRoomBoundaryConditions` - 7 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_room_starts_inactive_with_no_connections` | New room has is_active=False | Clean initial state |
+| `test_add_connection_activates_room` | add_connection sets is_active=True | Activation transition |
+| `test_remove_last_connection_deactivates_room` | Removing only connection deactivates room | Deactivation transition |
+| `test_remove_one_of_two_connections_stays_active` | Room stays active with 1/2 connections left | Partial removal |
+| `test_remove_nonexistent_connection_is_safe` | discard() on non-member doesn't raise | Set discard safety |
+| `test_broadcast_cleans_up_disconnected_clients` | Failed send removes client from room | Client cleanup on error |
+| `test_broadcast_all_disconnected_deactivates_room` | All clients failing deactivates room | Full disconnect |
+
+### ConnectionManager Edge Cases (`TestConnectionManagerEdgeCases` - 8 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_get_speed_for_nonexistent_room_returns_default` | Returns 1.0 for unknown conversation | Missing room guard |
+| `test_set_speed_for_nonexistent_room_is_noop` | No crash when room doesn't exist | Silent noop |
+| `test_set_speed_clamps_below_minimum` | Values below 0.5 are clamped to 0.5 | Min boundary |
+| `test_set_speed_clamps_above_maximum` | Values above 6.0 are clamped to 6.0 | Max boundary |
+| `test_set_speed_exact_boundary_values` | 0.5 and 6.0 are accepted exactly | At-boundary acceptance |
+| `test_disconnect_nonexistent_room_is_safe` | disconnect() safe with unknown conversation | Missing room guard |
+| `test_is_conversation_active_nonexistent_room` | Returns False for unknown conversation | Missing room guard |
+| `test_broadcast_to_nonexistent_conversation_is_noop` | broadcast silent for unknown conversation | Race condition safety |
+
+### extract_mentions / is_mentioned Edge Cases (`TestMentionEdgeCases` - 12 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_extract_mentions_empty_string` | Empty string → empty list | Empty input |
+| `test_extract_mentions_no_at_signs` | No @ symbols → no mentions | No false positives |
+| `test_extract_mentions_quoted_multiword` | @"Marie Curie" → "Marie Curie" | Quoted multi-word name |
+| `test_extract_mentions_simple_at_sign` | @Socrates → ["Socrates"] | Standard @ mention |
+| `test_extract_mentions_multiple_at_signs` | Multiple @mentions all extracted | Multi-mention text |
+| `test_extract_mentions_at_sign_in_email_format` | Email-like pattern still matches word after @ | Regex behavior |
+| `test_is_mentioned_exact_name` | @Socrates matches "Socrates" | Exact full name |
+| `test_is_mentioned_first_name_matches_full_name` | @Marie matches "Marie Curie" | First name match |
+| `test_is_mentioned_no_mention_of_thinker` | Name without @ returns False | No false positives |
+| `test_is_mentioned_empty_text` | Empty text returns False | Boundary condition |
+| `test_is_mentioned_empty_thinker_name` | Empty thinker name doesn't crash | Defensive check |
+| `test_is_mentioned_quoted_full_name` | @"Marie Curie" matches "Marie Curie" | Quoted format |
+
+### _split_response_into_bubbles Edge Cases (`TestSplitResponseIntoBubbles` - 7 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_empty_string_returns_empty_list` | Empty input → empty list | Empty input guard |
+| `test_whitespace_only_returns_no_meaningful_bubbles` | Whitespace → no meaningful content | Whitespace handling |
+| `test_very_short_text_stays_single_bubble` | Text <60 chars always single bubble | Short text guard |
+| `test_text_at_59_chars_stays_single_bubble` | 59 chars (below 60) never splits | Boundary condition |
+| `test_very_long_text_is_split_into_multiple_bubbles` | Text >300 chars splits into bubbles | Long text splitting |
+| `test_transition_word_triggers_new_bubble` | "However," etc start new bubble | Transition words |
+| `test_no_empty_bubbles_in_output` | Output contains no empty strings | Filter clause |
+
+### _extract_thinking_display Edge Cases (`TestExtractThinkingDisplay` - 9 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_empty_string_returns_empty` | Empty input → empty output | Empty guard |
+| `test_short_text_under_80_chars_returns_empty` | <80 chars → empty (too short to show) | Length threshold |
+| `test_text_at_79_chars_returns_empty` | 79 chars below threshold | Boundary: below |
+| `test_text_at_80_chars_may_return_something` | 80 chars at threshold | Boundary: at |
+| `test_english_language_replacements` | English replacements transform tokens | English branch |
+| `test_german_language_branch` | German (de) replacements work | German branch |
+| `test_spanish_language_branch` | Spanish (es) replacements work | Spanish branch |
+| `test_french_language_branch` | French (fr) replacements work | French branch |
+| `test_hindi_language_branch` | Hindi (hi) replacements work | Hindi branch |
+| `test_unknown_language_falls_back_to_english` | Unknown code falls back to English | Unknown language guard |
+
+### Timestamp/Count Utility Method Edge Cases (20 tests)
+
+| Test Class | Test | Validates | Edge Case |
+|------------|------|-----------|-----------|
+| `TestGetLastUserMessageTimestamp` | `test_empty_messages_returns_zero` | Empty list → 0.0 | No messages |
+| `TestGetLastUserMessageTimestamp` | `test_only_thinker_messages_returns_zero` | No user → 0.0 | No user messages |
+| `TestGetLastUserMessageTimestamp` | `test_user_message_returns_its_timestamp` | User msg → timestamp | Standard case |
+| `TestGetLastUserMessageTimestamp` | `test_returns_last_user_message_timestamp` | Most recent user message wins | Multiple users |
+| `TestGetLastUserMessageTimestamp` | `test_sender_type_as_enum_value_is_handled` | Enum sender_type handled | Enum compat |
+| `TestCountMessagesSinceUser` | `test_empty_messages_returns_zero` | Empty list → 0 | Boundary |
+| `TestCountMessagesSinceUser` | `test_only_thinker_messages_counts_all` | No user → count all | No user messages |
+| `TestCountMessagesSinceUser` | `test_user_last_returns_zero` | User as last msg → 0 | User just spoke |
+| `TestCountMessagesSinceUser` | `test_two_thinker_messages_after_user` | 2 thinker msgs → 2 | Standard counting |
+| `TestGetUserNameFromMessages` | `test_empty_messages_returns_none` | Empty list → None | Boundary |
+| `TestGetUserNameFromMessages` | `test_no_user_messages_returns_none` | No user msgs → None | No user messages |
+| `TestGetUserNameFromMessages` | `test_user_with_name_returns_name` | User name extracted | Standard case |
+| `TestGetUserNameFromMessages` | `test_returns_last_user_name` | Most recent user wins | Multiple users |
+| `TestShouldPromptUser` | `test_fewer_than_5_messages_returns_false` | <5 msgs → False always | Early return |
+| `TestShouldPromptUser` | `test_exactly_5_messages_may_return_false` | 5 msgs below threshold | Threshold check |
+| `TestShouldPromptUser` | `test_below_threshold_returns_false` | Below threshold → False | Threshold boundary |
+
+### KnowledgeResearchService Edge Cases (10 tests)
+
+| Test Class | Test | Validates | Edge Case |
+|------------|------|-----------|-----------|
+| `TestKnowledgeResearchIsStale` | `test_pending_status_is_stale` | PENDING → always stale | Non-complete status |
+| `TestKnowledgeResearchIsStale` | `test_in_progress_status_is_stale` | IN_PROGRESS → stale | Non-complete status |
+| `TestKnowledgeResearchIsStale` | `test_failed_status_is_stale` | FAILED → stale (retry) | Error status |
+| `TestKnowledgeResearchIsStale` | `test_complete_fresh_knowledge_is_not_stale` | Recent COMPLETE → fresh | Happy path |
+| `TestKnowledgeResearchIsStale` | `test_complete_old_knowledge_is_stale` | Old COMPLETE → stale | Cache expiry |
+| `TestKnowledgeResearchIsStale` | `test_complete_at_exactly_staleness_boundary` | Exactly at boundary | Boundary condition |
+| `TestKnowledgeResearchGetOrCreate` | `test_get_existing_knowledge_returns_it` | Existing entry returned | Cache hit |
+| `TestKnowledgeResearchGetOrCreate` | `test_create_new_knowledge_when_not_found` | New PENDING entry created | Cache miss |
+| `TestKnowledgeResearchRefreshStale` | `test_no_stale_entries_returns_zero` | Empty result → 0 | Boundary |
+| `TestKnowledgeResearchRefreshStale` | `test_stale_entries_triggers_research_for_each` | Each stale entry queued | Multi-entry refresh |
+| `TestKnowledgeResearchTriggerDeduplication` | `test_trigger_research_deduplicates_active_tasks` | Active task prevents duplicate | Deduplication |
+| `TestKnowledgeResearchTriggerDeduplication` | `test_trigger_research_starts_new_task_after_done` | Done task can be replaced | Task replacement |
+
+### WebSocket Auth Edge Cases (`TestWebSocketAuthEdgeCases` - 4 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_websocket_no_token_closes_with_4001` | Missing token → rejected | No auth |
+| `test_websocket_invalid_token_closes_with_4001` | Garbage token → rejected | Invalid auth |
+| `test_websocket_token_missing_session_id_closes_with_4001` | Token without session_id → rejected | Missing claim |
+| `test_websocket_set_speed_message_dispatched` | SET_SPEED dispatched, SPEED_CHANGED broadcast | Speed control path |
+
+### ThinkerService State Machine (`TestThinkerServiceStateMachine` - 7 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_pause_and_resume_conversation` | Pause/resume toggle works | Basic lifecycle |
+| `test_idle_pause_sets_both_paused_and_idle_flags` | pause_for_idle sets both flags | Idle-pause flag |
+| `test_resume_from_idle_clears_both_flags` | resume_from_idle clears both flags | Idle-resume |
+| `test_resume_from_idle_noop_if_not_idle_paused` | Manual pause not cleared by idle-resume | Flag isolation |
+| `test_resume_from_idle_noop_if_not_paused_at_all` | Safe to idle-resume when not paused | Defensive guard |
+| `test_multiple_conversations_paused_independently` | Pause state isolated per conversation | State isolation |
+| `test_stop_conversation_agents_for_nonexistent_conv_is_safe` | stop agents safe for unknown conv | Missing conv guard |
+
 ## 1.13 Test Refactoring (Added 2026-04-10)
 
 **Focus**: Friday QA focus - improve test readability and reduce duplication
