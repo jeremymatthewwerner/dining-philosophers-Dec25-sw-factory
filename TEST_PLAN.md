@@ -5756,3 +5756,81 @@ Confirmed all 3 tests pass stably across 3 consecutive runs:
 - `test_health_check` - passes (0.6s)
 - `test_health_ready_endpoint` - passes (0.6s, previously hung indefinitely)
 - `test_version_endpoint` - passes (0.6s)
+
+## 19. Regression Prevention - Apr 12, 2026 (`test_regression_prevention_apr12_2026.py`)
+
+**Focus**: Sunday QA - regression prevention
+**Files Modified**: `backend/tests/test_regression_prevention_apr12_2026.py` (NEW)
+**Coverage Impact**: +34 tests, covers previously untested behavioral contracts
+
+### 19.1 Test Classes and Rationale
+
+#### TestWebSocketTokenWithoutSessionId (3 tests)
+Guards against the WebSocket auth path at lines 364-367 in `websocket.py`:
+- `test_websocket_rejects_token_without_session_id`: Valid JWT with `sub` but no `session_id` → rejected with close code 4001
+- `test_websocket_accepts_token_with_valid_session_id`: Token with both fields → accepted
+- `test_websocket_rejects_empty_session_id_in_token`: Token with `session_id: ""` (falsy) → rejected
+
+Root cause: Only missing-token and invalid-token paths were previously tested. The third branch (valid JWT, no session_id) was uncovered, leaving a potential security bypass undetected.
+
+#### TestExtractThinkingDisplayLanguageReplacements (7 tests)
+Guards language-specific text transformations in `_extract_thinking_display`:
+- German ("de") replacements: `"Ich sollte "` → `"Vielleicht sollte ich "`
+- French ("fr") replacements: `"Je devrais "` → `"Peut-être que je devrais "`
+- Spanish ("es") replacements: `"Debería "` → `"Quizás debería "`
+- Hindi ("hi") replacements: `"मुझे चाहिए "` → `"शायद मुझे चाहिए "`
+- German/French don't use English starters
+- English default still applies correct replacements
+
+Root cause: Each language has a distinct replacement dict and starter list. If a language branch is accidentally removed, thinking display falls through to English replacements.
+
+#### TestCountMessagesSinceUser (5 tests)
+Guards `_count_messages_since_user` reverse-scan logic:
+- All thinker messages → returns total count (loop never breaks)
+- User message at end → returns 0 immediately
+- Mixed history → counts only thinker messages after last user message
+- Empty list → 0
+- Single user message → 0
+
+Root cause: Used by `_should_prompt_user` to decide whether to invite participation. Wrong counting causes either never-prompt or always-prompt behavior.
+
+#### TestConnectionManagerSpeedMultiplierDefaults (5 tests)
+Guards ConnectionManager speed multiplier behavior:
+- Unknown conversation → returns 1.0 (safe default)
+- Speed 0.1 → clamped to 0.5 (prevents infinite response loop)
+- Speed 7.0 → clamped to 6.0 (prevents 25-minute freeze)
+- Speed 2.0 → stored exactly (no rounding)
+- Boundary values 0.5, 6.0 → accepted unchanged
+
+Root cause: Speed multiplier controls `min_interval = 15.0 * speed_mult`. Default or clamping bugs would make thinkers either silent forever or spamming.
+
+#### TestHealthReadyEndpointDatabaseInjection (2 tests)
+Guards against regression from PR #804 fix:
+- `/health/ready` completes quickly with conftest client (no hanging)
+- `/health` doesn't require DB at all
+
+Root cause: PR #804 fixed an indefinite hang caused by test_main.py having its own client fixture without DB override. These tests confirm the shared fixture is used correctly.
+
+#### TestGetLanguageInstructionIntegration (7 tests)
+Guards `_get_language_instruction` for all supported languages:
+- English ("en") → empty string (no special instruction needed)
+- Spanish, French, German, Hindi → non-empty with language name
+- Unknown code ("xx") → fallback instruction with code itself (no crash)
+- All entries in `LANGUAGE_NAMES` produce instructions
+
+Root cause: PR #570 added Hindi precisely because it was missing from LANGUAGE_NAMES. This catch-all test prevents similar omissions for future language additions.
+
+#### TestSplitResponseIntoBubblesEdgeCases (5 tests)
+Guards edge cases in `_split_response_into_bubbles`:
+- Short text (<60 chars) always returns single bubble (no random splitting)
+- Empty string → `[]`, whitespace → well-defined behavior
+- Force-split path (lines 767-773): text >300 chars with 1 bubble gets sentence-boundary split
+- No-boundary text >300 chars stays as 1 bubble (correct: no mid-word cut)
+- All returned bubbles are non-empty strings
+
+Root cause: The force-split safety net is critical for LLM responses that form one very long "sentence". Without it, a 500-word paragraph appears as a single message bubble.
+
+### 19.2 Stability Verification
+
+All 34 tests pass consistently across 3 consecutive runs (no flakiness detected).
+Total run time: ~2.0s per run.
