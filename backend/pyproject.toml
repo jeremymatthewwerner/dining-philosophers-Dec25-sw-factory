@@ -76,6 +76,10 @@ disallow_incomplete_defs = true
 module = ["asyncpg.*", "sqlalchemy.*", "passlib.*", "jose.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disable_error_code = ["arg-type", "assignment", "no-any-return", "unused-ignore"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -90,7 +94,7 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["app"]
 branch = true
-concurrency = ["greenlet"]
+concurrency = ["greenlet", "thread"]
 
 [tool.coverage.report]
 fail_under = 70

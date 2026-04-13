@@ -1057,3 +1057,72 @@ These will be added in future QA iterations with proper API mocking.
 - `assert_success_response()` / `assert_error_response()` helpers from conftest.py
 - Direct database setup via SQLAlchemy models for complex test scenarios
 
+## Coverage Sprint - WebSocket Module (Issue #830, QA Agent Monday 2026-04-13)
+
+**Focus**: Bring `app/api/websocket.py` from 68% to 83%+ coverage (target: 15%+ improvement).
+
+**Root cause discovered**: `concurrency = ["greenlet"]` in `pyproject.toml` was dropping Python's
+default thread tracking. Starlette's `TestClient` runs the ASGI app in a background thread, so
+the existing WebSocket tests weren't being tracked by coverage.py — even though they exercised
+the code correctly.
+
+**Fix applied**: Changed `concurrency = ["greenlet", "thread"]` to restore thread tracking.
+
+**Result**: `websocket.py` 68% → **97%** (+29 points), total backend 87.24% → **90.60%** (+3.36 points).
+
+**File**: `tests/test_websocket_coverage_sprint_apr13_2026.py` (38 new tests)
+
+### TestConnectionManagerBranches (17 tests)
+1. `test_connect_to_existing_room` - Covers branch 125→127: connect() when room already in dict
+2. `test_send_thinker_typing_with_existing_room` - Covers branch 189→191: typing_thinkers.add() when room exists
+3. `test_send_thinker_stopped_typing_with_existing_room` - Covers branch 212→214: typing_thinkers.discard() when room exists
+4. `test_send_thinker_typing_without_room` - No-op path when room doesn't exist for typing
+5. `test_send_thinker_stopped_typing_without_room` - No-op path when room doesn't exist for stop-typing
+6. `test_disconnect_nonexistent_conversation` - Disconnect from non-existent conversation is safe
+7. `test_broadcast_nonexistent_conversation` - Broadcast to non-existent conversation is no-op
+8. `test_get_speed_multiplier_nonexistent_room` - Returns 1.0 default when room missing
+9. `test_get_speed_multiplier_existing_room` - Returns actual room speed_multiplier value
+10. `test_set_speed_multiplier_clamps_to_minimum` - Speed below 0.5 gets clamped to 0.5; broadcasts speed_changed
+11. `test_set_speed_multiplier_clamps_to_maximum` - Speed above 6.0 gets clamped to 6.0
+12. `test_set_speed_multiplier_accepts_valid_range` - Mid-range value passes through unchanged
+13. `test_set_speed_multiplier_nonexistent_room` - No-op when room missing (no crash)
+14. `test_send_thinker_message_broadcasts_correctly` - Full message with sender, content, cost, message_id
+15. `test_send_thinker_message_without_cost` - Cost=None is serialized as null
+16. `test_send_thinker_thinking_broadcasts_correctly` - THINKER_THINKING type with thinking content
+17. `test_send_research_events_all_types` - All four research events (started, complete, failed, cache_hit)
+
+### TestConversationRoom (5 tests)
+18. `test_broadcast_removes_disconnected_clients` - Dead connections cleaned up during broadcast
+19. `test_broadcast_all_dead_deactivates_room` - Room marked inactive when all connections die
+20. `test_remove_last_connection_deactivates_room` - is_active becomes False on last removal
+21. `test_remove_nonexistent_connection_is_safe` - discard() on absent connection doesn't crash
+22. `test_add_connection_marks_room_active` - is_active becomes True on first add
+
+### TestSpendLimitExceeded (3 tests)
+23. `test_exception_message_format` - "$X.XX / $Y.YY" format in error message
+24. `test_exception_stores_values` - current_spend and spend_limit stored as attributes
+25. `test_exception_is_exception` - Proper Exception subclass, can be raised/caught
+
+### TestGetMessagesForConversation (2 tests)
+26. `test_returns_empty_for_unknown_conversation` - Empty list when no messages exist
+27. `test_returns_messages_for_conversation` - Returns messages ordered by created_at
+
+### TestWebSocketEndpointLogic (11 tests — direct async tests with MockWebSocket)
+28. `test_endpoint_no_token_closes_with_4001` - Missing token: close(4001, "Authentication required")
+29. `test_endpoint_invalid_token_closes_with_4001` - Unparseable JWT: close(4001, "Invalid token")
+30. `test_endpoint_token_without_session_id_closes_with_4001` - JWT without session_id: close(4001)
+31. `test_endpoint_valid_token_connects_and_disconnects` - Full connect flow: accepted, user_joined+resumed sent, stop_agents called on disconnect
+32. `test_endpoint_sends_paused_when_conversation_is_paused` - PAUSED sent (not RESUMED) when thinker_service.is_paused=True
+33. `test_endpoint_handles_pause_message` - pause message: thinker_service.pause_conversation called, paused broadcast
+34. `test_endpoint_handles_resume_message` - resume message: thinker_service.resume_conversation called, resumed broadcast
+35. `test_endpoint_handles_set_speed_message` - set_speed message: speed_changed broadcast sent
+36. `test_endpoint_handles_invalid_json_message` - Invalid JSON: error message with "Invalid JSON" content
+37. `test_endpoint_handles_user_message` - user_message: broadcast with sender_type="user" and content
+38. `test_endpoint_handles_typing_start_and_stop` - typing_start/stop signals processed without crash
+
+**Technical patterns demonstrated**:
+- `MockWebSocket` class for direct async endpoint testing without a thread
+- Patching imports-inside-functions at source module: `patch("app.services.thinker.thinker_service")`
+- Helper `_make_mock_setup()` to reduce test boilerplate for the endpoint tests
+- Coverage config fix: `concurrency = ["greenlet", "thread"]` in `pyproject.toml`
+
