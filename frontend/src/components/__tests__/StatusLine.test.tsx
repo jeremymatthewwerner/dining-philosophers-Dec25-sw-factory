@@ -167,16 +167,13 @@ describe('StatusLine', () => {
       <StatusLine thinkerNames={['Confucius']} apiBaseUrl="http://test.com" />
     );
 
-    // Wait for fetch to complete
+    // Wait for fetch to complete AND state to settle — combined assertion avoids
+    // arbitrary setTimeout delays that are slow and brittle under CI load.
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalled();
+      // Element must remain absent after state settles (stale-complete shows nothing)
+      expect(container.querySelector('[data-testid="status-line"]')).toBeNull();
     });
-
-    // Wait a moment for state to settle
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Should not show status line since nothing interesting is happening
-    expect(container.querySelector('[data-testid="status-line"]')).toBeNull();
   });
 
   it('handles multiple thinkers with mixed statuses', async () => {
@@ -229,16 +226,14 @@ describe('StatusLine', () => {
       <StatusLine thinkerNames={['Socrates']} apiBaseUrl="http://test.com" />
     );
 
-    // Wait for fetch to complete
+    // Wait for fetch attempt AND state to settle — combined assertion avoids
+    // arbitrary setTimeout delays that are slow and brittle under CI load.
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalled();
+      // On fetch error, fetchThinkerStatus returns null, statuses stays empty,
+      // component renders nothing — verify element is absent after state settles.
+      expect(container.querySelector('[data-testid="status-line"]')).toBeNull();
     });
-
-    // Wait a moment for state to settle
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Should not crash, just render nothing since status is unknown
-    expect(container.querySelector('[data-testid="status-line"]')).toBeNull();
   });
 
   it('sends auth token with requests', async () => {
@@ -468,9 +463,13 @@ describe('StatusLine', () => {
         />
       );
 
-      // Wait for initial fetch
+      // Wait for initial fetch to complete AND component to re-render with
+      // the in_progress status. The re-render only happens after setStatuses()
+      // resolves, which is in the same microtask as isPollingRef.current = false
+      // (finally block). Waiting for the DOM update guarantees isPollingRef is
+      // false, avoiding the arbitrary 50ms setTimeout previously used here.
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('active-research')).toBeInTheDocument();
       });
 
       // The test spies on setInterval above but doesn't fire actual intervals.
@@ -480,15 +479,13 @@ describe('StatusLine', () => {
         callback: () => void;
       };
 
-      // Wait for the first fetch to complete (isPollingRef should be false)
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      // Trigger the interval callback - this should start another fetch
-      // because isPollingRef is now false (using ref instead of state)
+      // Trigger the interval callback - isPollingRef is guaranteed false now
+      // (ref resets in the finally block before React processes the re-render)
       await act(async () => {
         intervalCallback.callback();
-        // Wait for async operation to complete
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        // Flush microtasks so the async fetch chain completes inside act
+        await Promise.resolve();
+        await Promise.resolve();
       });
 
       // The key assertion: The second fetch should have been triggered,

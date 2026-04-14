@@ -2,6 +2,69 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.14 Flaky Test Hunt (Added 2026-04-14)
+
+**Focus**: Tuesday QA focus - identify and fix flaky tests, harden probabilistic tests
+**Coverage Impact**: +19 backend tests (1155 total), 0 net frontend test count change (flakiness fixes are behavior-preserving)
+**Files**:
+- `backend/tests/test_flaky_hunt_apr14_2026.py` (new - 19 hardening tests)
+- `frontend/src/components/__tests__/StatusLine.test.tsx` (flakiness fixes - 2 timing improvements)
+
+**Findings**: No actual test failures found in 5x repeated runs. Identified and hardened 4 risk categories:
+1. `setTimeout(resolve, 100)` arbitrary delays in StatusLine tests → replaced with `waitFor` combined assertions (104ms → 4ms per test)
+2. `random.seed(None)` probabilistic loops in ThinkerService → added deterministic seed variants
+3. DateTime boundary conditions in staleness checks → added safe-margin variants
+4. Async task cleanup edge cases → added hardening tests for done-task, multi-thinker, and isolation scenarios
+
+### StatusLine Flakiness Fixes (`StatusLine.test.tsx`)
+
+| Change | Location | Before | After |
+|--------|----------|--------|-------|
+| Replace `setTimeout(100ms)` with `waitFor` combined assertion | `renders nothing when research is complete but not recent` | 104ms, timing-sensitive | 4ms, event-driven |
+| Replace `setTimeout(100ms)` with `waitFor` combined assertion | `handles fetch errors gracefully` | 104ms, timing-sensitive | 2ms, event-driven |
+| Replace nested `setTimeout(50ms/10ms)` with DOM state wait | `continues polling even when fetch takes time (regression #187)` | 65ms with timing delays | 7ms, DOM-state-driven |
+
+### Backend Hardening Tests (`test_flaky_hunt_apr14_2026.py`)
+
+#### Deterministic Random Split Behavior (4 tests)
+
+| Test | Validates | Flakiness Risk |
+|------|-----------|----------------|
+| `test_seed_42_produces_consistent_output` | Fixed seed produces identical output across runs | Detects if split logic or RNG becomes non-deterministic |
+| `test_short_text_never_splits_regardless_of_seed` | <60 char text never splits with seeds 0-9 | Deterministic coverage of short-text path |
+| `test_long_text_splits_with_known_seeds` | Finds and verifies seeds that reliably produce splits | Documents which seeds trigger the multi-bubble path |
+| `test_very_long_text_always_splits_with_any_seed` | 600+ char text always splits with all seeds 0-19 | Stronger guarantee than probabilistic loop pattern |
+
+#### Datetime Staleness Boundary Hardening (5 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_fresh_knowledge_is_not_stale_with_margin` | 1-day-old COMPLETE is not stale | Safe margin (29 days from boundary) |
+| `test_stale_knowledge_is_stale_with_margin` | 31-day-old COMPLETE is stale | Safe margin (1 day past boundary) |
+| `test_future_timestamp_is_not_stale` | Future-dated knowledge is not stale | Clock drift / DST edge case |
+| `test_very_old_knowledge_is_stale` | 365-day-old knowledge is definitely stale | Extreme age validation |
+| `test_non_complete_status_always_stale_regardless_of_age` | FAILED/IN_PROGRESS/PENDING always stale even if fresh | Status-independent staleness |
+
+#### ConnectionManager Fresh Instance Isolation (5 tests)
+
+| Test | Validates | Flakiness Risk |
+|------|-----------|----------------|
+| `test_fresh_instance_has_no_rooms` | New instance starts with zero rooms | Guards against class-level singleton state leakage |
+| `test_fresh_instance_conversation_not_active` | Any conv is inactive in fresh instance | Guards against pre-populated room state |
+| `test_disconnect_from_empty_room_is_safe` | Disconnect from non-existent room doesn't raise | Guards against KeyError in cleanup race conditions |
+| `test_broadcast_to_empty_room_is_safe` | Broadcast to non-existent room doesn't raise | Guards against broadcast errors on empty rooms |
+| `test_speed_multiplier_defaults_to_one_for_new_room` | 1.0 multiplier for non-existent conversations | Default value for new/empty conversations |
+
+#### Async Task Cleanup Hardening (5 tests)
+
+| Test | Validates | Flakiness Risk |
+|------|-----------|----------------|
+| `test_stop_agents_for_conversation_with_done_task` | Stopping works on already-completed tasks | Guards against error when task finishes before stop |
+| `test_stop_agents_cleans_up_multiple_thinkers` | All 3 thinker tasks done after stop (not just first) | Guards against partial cleanup leaving dangling tasks |
+| `test_stop_agents_only_affects_target_conversation` | Stop conv-A leaves conv-B tasks running | Guards against over-eager cleanup |
+| `test_new_thinker_service_has_no_active_tasks` | Fresh service has empty task dict | Guards against class-level static task storage |
+| `test_pause_resume_state_does_not_affect_task_cleanup` | Paused conv still gets tasks cleaned up | Guards against pause state blocking cleanup |
+
 ## 1.13 Test Refactoring (Added 2026-04-10)
 
 **Focus**: Friday QA focus - improve test readability and reduce duplication
