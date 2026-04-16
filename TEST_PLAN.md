@@ -5897,3 +5897,43 @@ Root cause: The force-split safety net is critical for LLM responses that form o
 
 All 34 tests pass consistently across 3 consecutive runs (no flakiness detected).
 Total run time: ~2.0s per run.
+
+## 20. E2E Performance Optimization - Apr 16, 2026 (`e2e/performance.spec.ts`)
+
+**Focus:** Thursday e2e-performance — replace `networkidle` anti-patterns, parallelize sequential API calls, add performance assertion tests.
+
+### 20.1 Optimization Changes
+
+**`e2e/network-errors.spec.ts`** — Replaced 3 `waitForLoadState('networkidle')` calls inside `Promise.race` with direct element-based waits. `networkidle` can block for 2-5s waiting for all network activity to cease; element-based waits resolve as soon as the relevant UI updates, which is always faster. Changes:
+- Timeout fallback: now waits for `addButton.toBeEnabled()` instead of `networkidle`
+- Offline test: now waits for `createButton.toBeEnabled()` instead of `networkidle`
+- Auth 401 test: removed `networkidle` from Promise.race; login/error locators are sufficient
+
+**`e2e/scrolling-text.spec.ts`** — Parallelized 3 sequential `createConversationViaAPI` calls into a single `Promise.all`. Each call was independent (different topics, same page context) but ran one-after-another. With `Promise.all` they execute concurrently, saving ~2s of setup time.
+
+### 20.2 New Tests (`e2e/performance.spec.ts`)
+
+**Page Load Performance** (4 tests)
+- `login page loads within 3 seconds` — measures time from `page.goto('/login')` to `#username` visible. Login page is static; must be fast.
+- `register page loads within 3 seconds` — same pattern for `/register`.
+- `authenticated homepage loads within 5 seconds` — measures full auth setup + new-chat-button visibility.
+- `sidebar renders within 5 seconds on authenticated load` — measures sidebar render separately from homepage load.
+
+**Interaction Performance** (3 tests)
+- `conversation list renders within 5 seconds after creating conversation` — creates conversation via API, navigates home, measures sidebar update.
+- `navigating to settings page completes within 3 seconds` — client-side navigation, should be near-instant.
+- `new conversation modal opens within 2 seconds` — click-to-modal-visible; critical UI interaction.
+
+**API Response Performance** (3 tests)
+- `auth/me endpoint responds within 3 seconds` — validates authenticated user lookup is not slow.
+- `conversations list endpoint responds within 3 seconds` — validates conversation fetch is not slow.
+- `health endpoint responds within 2 seconds` — validates health check is always fast.
+
+### 20.3 Anti-Pattern Count
+
+| Metric | Before | After |
+|--------|--------|-------|
+| `waitForTimeout()` calls | 0 (was already clean) | 0 |
+| `waitForLoadState('networkidle')` in Promise.race | 3 | 0 |
+| Sequential API calls in loops | 1 (scrolling-text) | 0 |
+| Performance assertion tests | 0 | 10 |

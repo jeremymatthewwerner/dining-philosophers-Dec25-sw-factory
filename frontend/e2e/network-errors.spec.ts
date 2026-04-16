@@ -93,10 +93,10 @@ test.describe('Network Error Recovery', () => {
     // Wait for error message or verify thinker was not added
     const errorLocator = page.locator('text=/timeout|error|failed/i');
 
-    // Wait for either error to appear or loading to finish (max 10s)
+    // Wait for either error to appear or add button to re-enable (API call complete)
     await Promise.race([
       errorLocator.waitFor({ state: 'visible', timeout: 10000 }),
-      page.waitForLoadState('networkidle', { timeout: 10000 }),
+      expect(addButton).toBeEnabled({ timeout: 10000 }).catch(() => {}),
     ]).catch(() => {
       // Continue to verification
     });
@@ -145,7 +145,8 @@ test.describe('Network Error Recovery', () => {
 
     await Promise.race([
       errorLocator.waitFor({ state: 'visible', timeout: 5000 }),
-      page.waitForLoadState('networkidle', { timeout: 5000 }),
+      // If no error, wait for create button to re-enable (request resolved)
+      expect(createButtonLocator).toBeEnabled({ timeout: 5000 }).catch(() => {}),
     ]).catch(() => {
       // Continue to verification
     });
@@ -308,9 +309,8 @@ test.describe('API Error Messages', () => {
     await Promise.race([
       loginLocator.waitFor({ state: 'visible', timeout: 5000 }),
       authErrorLocator.waitFor({ state: 'visible', timeout: 5000 }),
-      page.waitForLoadState('networkidle', { timeout: 5000 }),
     ]).catch(() => {
-      // Continue to verification
+      // Continue to verification — at least one indicator should appear
     });
 
     // Check for login page, auth error, or empty state
