@@ -190,9 +190,8 @@ test.describe('ScrollingText - Conversation List', () => {
       'Third extended conversation subject dealing with epistemology and knowledge theory',
     ];
 
-    for (const topic of topics) {
-      await createConversationViaAPI(page, topic);
-    }
+    // Create all conversations in parallel via API for faster test execution
+    await Promise.all(topics.map((topic) => createConversationViaAPI(page, topic)));
 
     // Reload to see all conversations
     await page.reload();
