@@ -47,6 +47,36 @@ const getMeasurementSpan = (container: HTMLElement): HTMLElement => {
   return measureSpan as HTMLElement;
 };
 
+// Helper to set DOM width properties simulating truncated text
+const setTruncatedDimensions = (
+  container: HTMLElement,
+  measureSpan: HTMLElement,
+  clientWidth = 50,
+  scrollWidth = 200
+) => {
+  Object.defineProperty(container, 'clientWidth', {
+    value: clientWidth,
+    configurable: true,
+  });
+  Object.defineProperty(measureSpan, 'scrollWidth', {
+    value: scrollWidth,
+    configurable: true,
+  });
+};
+
+// Helper to simulate text truncation by mocking DOM width properties and firing resize
+const mockTruncation = (
+  container: HTMLElement,
+  measureSpan: HTMLElement,
+  clientWidth = 50,
+  scrollWidth = 200
+) => {
+  setTruncatedDimensions(container, measureSpan, clientWidth, scrollWidth);
+  act(() => {
+    window.dispatchEvent(new Event('resize'));
+  });
+};
+
 describe('ScrollingText', () => {
   it('renders text content', () => {
     render(<ScrollingText text="Hello World" />);
@@ -74,15 +104,8 @@ describe('ScrollingText', () => {
     const container = visibleSpan.parentElement!;
     const measureSpan = getMeasurementSpan(container);
 
-    // Mock the refs to simulate truncation
-    Object.defineProperty(container, 'clientWidth', { value: 50 });
-    // Mock the measurement span's scrollWidth (not the visible span)
-    Object.defineProperty(measureSpan, 'scrollWidth', { value: 100 });
-
-    // Trigger resize to check truncation
-    act(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
+    // Simulate truncation: container narrower than text
+    mockTruncation(container, measureSpan, 50, 100);
 
     // Title should be set when truncated
     expect(container).toHaveAttribute(
@@ -127,13 +150,8 @@ describe('ScrollingText', () => {
     const container = visibleSpan.parentElement!;
     const measureSpan = getMeasurementSpan(container);
 
-    // Mock truncation on measurement span
-    Object.defineProperty(container, 'clientWidth', { value: 50 });
-    Object.defineProperty(measureSpan, 'scrollWidth', { value: 100 });
-
-    act(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
+    // Simulate truncation: container narrower than text
+    mockTruncation(container, measureSpan, 50, 100);
 
     // Custom title should be shown when truncated
     expect(container).toHaveAttribute('title', 'Custom title');
@@ -201,20 +219,8 @@ describe('ScrollingText animation behavior', () => {
     const container = visibleSpan.parentElement!;
     const measureSpan = getMeasurementSpan(container);
 
-    // Mock truncation on measurement span
-    Object.defineProperty(container, 'clientWidth', {
-      value: 50,
-      configurable: true,
-    });
-    Object.defineProperty(measureSpan, 'scrollWidth', {
-      value: 200,
-      configurable: true,
-    });
-
-    // Trigger truncation check
-    act(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
+    // Simulate truncation then hover
+    mockTruncation(container, measureSpan);
 
     // Hover
     act(() => {
@@ -239,19 +245,7 @@ describe('ScrollingText animation behavior', () => {
     const container = visibleSpan.parentElement!;
     const measureSpan = getMeasurementSpan(container);
 
-    // Mock truncation on measurement span
-    Object.defineProperty(container, 'clientWidth', {
-      value: 30,
-      configurable: true,
-    });
-    Object.defineProperty(measureSpan, 'scrollWidth', {
-      value: 150,
-      configurable: true,
-    });
-
-    act(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
+    mockTruncation(container, measureSpan, 30, 150);
 
     act(() => {
       fireEvent.mouseEnter(container);
@@ -292,19 +286,7 @@ describe('ScrollingText animation behavior', () => {
     const container = visibleSpan.parentElement!;
     const measureSpan = getMeasurementSpan(container);
 
-    // Mock truncation on measurement span
-    Object.defineProperty(container, 'clientWidth', {
-      value: 30,
-      configurable: true,
-    });
-    Object.defineProperty(measureSpan, 'scrollWidth', {
-      value: 150,
-      configurable: true,
-    });
-
-    act(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
+    mockTruncation(container, measureSpan, 30, 150);
 
     act(() => {
       fireEvent.mouseEnter(container);
@@ -373,15 +355,8 @@ describe('ScrollingText ResizeObserver behavior', () => {
     // Initially not truncated (no title)
     expect(container).not.toHaveAttribute('title');
 
-    // Now mock truncation on measurement span
-    Object.defineProperty(container, 'clientWidth', {
-      value: 50,
-      configurable: true,
-    });
-    Object.defineProperty(measureSpan, 'scrollWidth', {
-      value: 200,
-      configurable: true,
-    });
+    // Set truncation dimensions before triggering ResizeObserver callback
+    setTruncatedDimensions(container, measureSpan);
 
     // Simulate ResizeObserver callback (container resized)
     act(() => {
