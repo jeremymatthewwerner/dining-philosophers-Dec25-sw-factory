@@ -1,3 +1,56 @@
+## Regression Prevention - Sunday Sprint (Added 2026-03-08)
+
+**Focus**: Regression prevention tests for critical code paths that prevent previously-seen bugs.
+
+### Analysis Results
+
+Coverage before: 82.37% (496 missed branches). Key targets: `app/api/websocket.py` 66%,
+`app/services/thinker.py` 71%. Tests added: 22 new tests in `test_regression_prevention_mar8_2026.py`.
+
+### Tests Added (test_regression_prevention_mar8_2026.py)
+
+**File**: `tests/test_regression_prevention_mar8_2026.py` (22 new tests)
+
+#### TestWebSocketAuthRejection
+1. `test_no_token_closes_with_4001` - WebSocket without token is rejected with code 4001 and "Authentication required" reason (websocket.py line 355-357).
+2. `test_invalid_token_closes_with_4001` - Invalid/non-parseable token triggers close with code 4001 and "Invalid token" reason (websocket.py lines 359-362).
+3. `test_token_without_session_id_closes_with_4001` - Valid JWT lacking session_id triggers close with "Invalid token - no session" (websocket.py lines 364-367). Prevents admin tokens from opening WebSocket connections.
+
+#### TestSplitResponseIntoBubbles
+4. `test_very_long_text_gets_force_split` - Text >300 chars that would become one bubble is force-split at sentence boundary near midpoint (thinker.py lines 766-774).
+5. `test_force_split_produces_multiple_bubbles_from_one_sentence` - Long text with a period mid-sentence gets split, verifying no empty bubbles are produced.
+6. `test_short_text_stays_as_single_bubble` - Text <60 chars is never split (thinker.py line 704-705 early return).
+
+#### TestCountMessagesSinceUser
+7. `test_all_thinker_messages_returns_full_count` - When no user message exists, count equals all messages (thinker.py line 1436 - loop completes without break).
+8. `test_stops_counting_at_last_user_message` - Count stops when hitting the most recent user message in reversed iteration.
+9. `test_empty_messages_returns_zero` - Empty message list boundary condition.
+
+#### TestShouldPromptUser
+10. `test_returns_false_when_fewer_than_5_messages` - Early return when < 5 messages in history (thinker.py line 1456-1457).
+11. `test_returns_false_when_below_threshold` - Returns False when messages_since_user < threshold at 1x speed (thinker.py line 1465).
+12. `test_zero_speed_returns_false_threshold_check` - Returns False when user is the last message (messages_since_user = 0).
+
+#### TestExtractThinkingDisplayLanguages
+13. `test_german_language_applies_german_replacements` - German language code triggers German replacement table and starters (thinker.py lines 824-836, 895-906).
+14. `test_spanish_language_applies_spanish_replacements` - Spanish language code triggers Spanish replacement table (thinker.py lines 837-849, 907-918).
+15. `test_french_language_applies_french_replacements` - French language code triggers French replacement table and starters (thinker.py lines 919-930).
+16. `test_hindi_language_applies_hindi_replacements` - Hindi language code triggers Hindi replacement table and starters (thinker.py lines 931-942).
+
+#### TestStartConversationAgentsReplacement
+17. `test_start_agents_stops_existing_tasks_first` - When conversation already has active agents, stop_conversation_agents is called before starting new ones (thinker.py lines 1078-1081). Prevents memory leaks from zombie tasks.
+18. `test_start_agents_creates_tasks_for_each_thinker` - Verifies one asyncio Task is created per thinker and stored by thinker.id (thinker.py lines 1082-1095).
+
+#### TestSuggestSingleBatchNoClient
+19. `test_suggest_single_batch_no_client_returns_empty` - Returns [] immediately when no Anthropic client configured (thinker.py line 271-272). Prevents AttributeError when service is used without API key.
+
+#### TestGetUserNameFromMessages
+20. `test_returns_none_when_no_user_messages` - Returns None when all messages are from thinkers (thinker.py line 1419).
+21. `test_returns_last_user_sender_name` - Returns sender_name from most recent user message in reversed iteration.
+22. `test_handles_sender_type_enum` - Handles SenderType enum object (sender.value == "user") as well as plain strings.
+
+---
+
 ## Edge Cases - Saturday Sprint (Added 2026-03-07)
 
 **Focus**: Add tests for error paths and boundary conditions in low-coverage modules.
