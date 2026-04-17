@@ -26,6 +26,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import create_access_token
 from app.exceptions import ThinkerAPIError
 from tests.conftest import (
+    assert_error_response,
+    assert_forbidden,
+    assert_not_found,
+    assert_unauthorized,
     create_admin_headers,
     create_conversation_with_thinker,
     get_auth_headers,
@@ -843,8 +847,7 @@ class TestSessionsEdgeCases:
 
         # Try to access conversations (which uses get_session_from_token)
         response = await client.get("/api/conversations", headers=headers)
-        assert response.status_code == 401
-        assert "no session" in response.json()["detail"]
+        assert_unauthorized(response, "no session")
 
     async def test_get_session_with_nonexistent_session_id(self, client: AsyncClient) -> None:
         """Test that a JWT with a session_id that doesn't exist in DB returns 404.
@@ -856,8 +859,7 @@ class TestSessionsEdgeCases:
         )
         headers = {"Authorization": f"Bearer {token}"}
         response = await client.get("/api/conversations", headers=headers)
-        assert response.status_code == 404
-        assert "Session not found" in response.json()["detail"]
+        assert_not_found(response, "Session not found")
 
     async def test_get_current_session_authenticated(self, client: AsyncClient) -> None:
         """Test that an authenticated user can retrieve their session.
@@ -902,8 +904,7 @@ class TestAdminEdgeCases:
             f"/api/admin/users/{admin_user_id}",
             headers=admin_headers,
         )
-        assert response.status_code == 400
-        assert "Cannot delete your own account" in response.json()["detail"]
+        assert_error_response(response, 400, "Cannot delete your own account")
 
     async def test_admin_delete_nonexistent_user(
         self, client: AsyncClient, db_session: AsyncSession
@@ -919,8 +920,7 @@ class TestAdminEdgeCases:
             "/api/admin/users/nonexistent-user-xyz",
             headers=admin_headers,
         )
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
+        assert_not_found(response, "User not found")
 
     async def test_admin_update_spend_limit_nonexistent_user(
         self, client: AsyncClient, db_session: AsyncSession
@@ -937,8 +937,7 @@ class TestAdminEdgeCases:
             headers=admin_headers,
             json={"spend_limit": 100.0},
         )
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
+        assert_not_found(response, "User not found")
 
     async def test_non_admin_user_cannot_access_admin_endpoints(self, client: AsyncClient) -> None:
         """Test that a regular authenticated user cannot access admin endpoints.
@@ -948,8 +947,7 @@ class TestAdminEdgeCases:
         # Regular user (not admin)
         headers = await get_auth_headers(client, "nonadmin_try", "password123")
         response = await client.get("/api/admin/users", headers=headers)
-        assert response.status_code == 403
-        assert "Admin access required" in response.json()["detail"]
+        assert_forbidden(response, "Admin access required")
 
     async def test_unauthenticated_user_cannot_access_admin_endpoints(
         self, client: AsyncClient

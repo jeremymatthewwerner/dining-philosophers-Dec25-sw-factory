@@ -12,7 +12,7 @@ These tests target uncovered error paths and edge cases:
 
 from httpx import AsyncClient
 
-from tests.conftest import create_thinker_input, get_auth_headers
+from tests.conftest import assert_not_found, create_thinker_input, get_auth_headers
 
 
 class TestConversationErrorPaths:
@@ -24,9 +24,7 @@ class TestConversationErrorPaths:
 
         fake_id = "00000000-0000-0000-0000-000000000000"
         response = await client.get(f"/api/conversations/{fake_id}", headers=headers)
-
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        assert_not_found(response, "not found")
 
     async def test_delete_nonexistent_conversation_returns_404(self, client: AsyncClient) -> None:
         """Test deleting a conversation that doesn't exist returns 404."""
@@ -34,9 +32,7 @@ class TestConversationErrorPaths:
 
         fake_id = "00000000-0000-0000-0000-000000000000"
         response = await client.delete(f"/api/conversations/{fake_id}", headers=headers)
-
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        assert_not_found(response, "not found")
 
     async def test_add_thinkers_to_nonexistent_conversation_returns_404(
         self, client: AsyncClient
@@ -50,9 +46,7 @@ class TestConversationErrorPaths:
             headers=headers,
             json=[create_thinker_input("Aristotle", "Greek")],
         )
-
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        assert_not_found(response, "not found")
 
     async def test_add_thinkers_exceeding_max_limit_returns_400(self, client: AsyncClient) -> None:
         """Test adding thinkers beyond the 5 thinker limit returns 400."""

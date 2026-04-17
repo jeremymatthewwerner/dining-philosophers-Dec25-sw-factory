@@ -5937,3 +5937,50 @@ Total run time: ~2.0s per run.
 | `waitForLoadState('networkidle')` in Promise.race | 3 | 0 |
 | Sequential API calls in loops | 1 (scrolling-text) | 0 |
 | Performance assertion tests | 0 | 10 |
+
+## 21. Test Refactoring - Apr 17, 2026 (Friday QA)
+
+**Focus:** Improve test readability and reduce duplication by applying shared helpers.
+
+### 21.1 Frontend: api.test.ts (`src/__tests__/lib/api.test.ts`)
+
+**Refactoring:** Applied `createMockFetchResponse` and `setupAuthToken` helpers from `test-utils.tsx` throughout the test file.
+
+- **Before:** 15 instances of verbose inline fetch mock: `{ ok: true, json: () => Promise.resolve(data) }`
+- **After:** `createMockFetchResponse(data)` — single-line, intent-revealing helper call
+- **Before:** 7 instances of `(localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123')`
+- **After:** `setupAuthToken()` — named helper that communicates intent
+
+Affected tests (all 16 tests in file):
+- Auth API: register, login, logout, getCurrentUser, no-token edge cases
+- Session API: get session success/failure/no-token
+- Conversation API: list, get, create, delete
+- Message API: send message
+- Thinker API: suggest, validate
+- Error Handling: detail error, status-only error
+
+### 21.2 Frontend: ScrollingText.test.tsx (`src/components/__tests__/ScrollingText.test.tsx`)
+
+**Refactoring:** Extracted repeated DOM dimension mocking into two helpers.
+
+- `setTruncatedDimensions(container, measureSpan, clientWidth?, scrollWidth?)` — sets `clientWidth` and `scrollWidth` via `Object.defineProperty`
+- `mockTruncation(container, measureSpan, clientWidth?, scrollWidth?)` — wraps `setTruncatedDimensions` + fires `window.resize`
+
+5 instances of the 3-5 line verbose pattern were replaced with single-line helper calls.
+
+### 21.3 Backend: test_conversations_flaky_hunt.py
+
+**Refactoring:** Added `assert_not_found` import from conftest and replaced 3 two-line assertion pairs with the single-line helper.
+
+- Pattern replaced: `assert response.status_code == 404` + `assert "not found" in response.json()["detail"].lower()`
+- Replacement: `assert_not_found(response, "not found")`
+
+### 21.4 Backend: test_edge_cases_apr4_2026.py
+
+**Refactoring:** Added assertion helpers (`assert_error_response`, `assert_forbidden`, `assert_not_found`, `assert_unauthorized`) from conftest. Replaced 6 two-line status+detail assertion pairs with single-line helper calls:
+
+- `assert_unauthorized(response, "no session")` — session missing from JWT
+- `assert_not_found(response, "Session not found")` — nonexistent session ID
+- `assert_not_found(response, "User not found")` ×2 — admin delete/update nonexistent user
+- `assert_forbidden(response, "Admin access required")` — non-admin accessing admin endpoint
+- `assert_error_response(response, 400, "Cannot delete your own account")` — admin self-delete prevention

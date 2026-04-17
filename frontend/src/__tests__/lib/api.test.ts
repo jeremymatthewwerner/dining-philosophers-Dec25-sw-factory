@@ -1,3 +1,5 @@
+import { createMockFetchResponse, setupAuthToken } from '@/test-utils';
+
 // Isolate tests with jest.resetModules
 let api: typeof import('@/lib/api');
 
@@ -25,10 +27,9 @@ describe('API Client', () => {
           created_at: '2024-01-15T10:00:00Z',
         },
       };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockResponse)
+      );
 
       const response = await api.register(
         'testuser',
@@ -58,10 +59,9 @@ describe('API Client', () => {
           created_at: '2024-01-15T10:00:00Z',
         },
       };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockResponse)
+      );
 
       const response = await api.login('testuser', 'password123');
 
@@ -73,11 +73,10 @@ describe('API Client', () => {
     });
 
     it('logs out and clears auth data', async () => {
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ message: 'Logged out' }),
-      });
+      setupAuthToken();
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse({ message: 'Logged out' })
+      );
 
       await api.logout();
 
@@ -93,11 +92,10 @@ describe('API Client', () => {
         total_spend: 0,
         created_at: '2024-01-15T10:00:00Z',
       };
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockUser),
-      });
+      setupAuthToken();
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockUser)
+      );
 
       const user = await api.getCurrentUser();
 
@@ -128,11 +126,10 @@ describe('API Client', () => {
         id: 'session-123',
         created_at: '2024-01-15T10:00:00Z',
       };
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockSession),
-      });
+      setupAuthToken();
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockSession)
+      );
 
       const session = await api.getSession();
 
@@ -157,11 +154,10 @@ describe('API Client', () => {
     });
 
     it('returns null when session fetch fails', async () => {
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ detail: 'Not found' }),
-      });
+      setupAuthToken();
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse({ detail: 'Not found' }, false)
+      );
 
       const session = await api.getSession();
 
@@ -171,7 +167,7 @@ describe('API Client', () => {
 
   describe('Conversation API', () => {
     beforeEach(() => {
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
+      setupAuthToken();
     });
 
     it('gets all conversations', async () => {
@@ -198,10 +194,9 @@ describe('API Client', () => {
           total_cost: 0.123,
         },
       ];
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockBackendResponse),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockBackendResponse)
+      );
 
       const conversations = await api.getConversations();
 
@@ -237,10 +232,9 @@ describe('API Client', () => {
         thinkers: [],
         messages: [],
       };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockConversation),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockConversation)
+      );
 
       const conversation = await api.getConversation('conv-1');
 
@@ -254,10 +248,9 @@ describe('API Client', () => {
         thinkers: [{ name: 'Einstein' }],
         messages: [],
       };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockConversation),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockConversation)
+      );
 
       const conversation = await api.createConversation({
         topic: 'Science',
@@ -292,10 +285,9 @@ describe('API Client', () => {
     });
 
     it('deletes a conversation', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse({ success: true })
+      );
 
       await api.deleteConversation('conv-1');
 
@@ -308,7 +300,7 @@ describe('API Client', () => {
 
   describe('Message API', () => {
     beforeEach(() => {
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
+      setupAuthToken();
     });
 
     it('sends a message', async () => {
@@ -317,10 +309,9 @@ describe('API Client', () => {
         content: 'Hello',
         sender_type: 'user',
       };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockMessage),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockMessage)
+      );
 
       const message = await api.sendMessage('conv-1', 'Hello');
 
@@ -337,17 +328,16 @@ describe('API Client', () => {
 
   describe('Thinker API', () => {
     beforeEach(() => {
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
+      setupAuthToken();
     });
 
     it('suggests thinkers for a topic', async () => {
       const mockSuggestions = [
         { name: 'Socrates', reason: 'Great philosopher', profile: {} },
       ];
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockSuggestions),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockSuggestions)
+      );
 
       const suggestions = await api.suggestThinkers('philosophy', 3);
 
@@ -367,19 +357,18 @@ describe('API Client', () => {
     });
 
     it('validates a thinker name', async () => {
-      const mockResponse = {
+      const mockValidation = {
         valid: true,
         name: 'Socrates',
         profile: { name: 'Socrates', bio: 'Philosopher' },
       };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockValidation)
+      );
 
       const response = await api.validateThinker('Socrates');
 
-      expect(response).toEqual(mockResponse);
+      expect(response).toEqual(mockValidation);
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/thinkers/validate'),
         expect.objectContaining({
@@ -392,14 +381,13 @@ describe('API Client', () => {
 
   describe('Error Handling', () => {
     beforeEach(() => {
-      (localStorage.getItem as jest.Mock).mockReturnValue('jwt-token-123');
+      setupAuthToken();
     });
 
     it('throws error with detail from response', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ detail: 'Not authorized' }),
-      });
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse({ detail: 'Not authorized' }, false)
+      );
 
       await expect(api.getConversations()).rejects.toThrow('Not authorized');
     });
