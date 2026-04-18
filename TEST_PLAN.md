@@ -2,6 +2,198 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.15 Edge Case Analysis (Added 2026-04-18)
+
+**Focus**: Saturday QA focus - error paths and boundary conditions
+**Coverage Impact**: +95 backend tests (1250 total), +27 frontend tests (552 total)
+**Files**:
+- `backend/tests/test_edge_cases_apr18_2026.py` (new - 95 tests)
+- `frontend/src/__tests__/lib/api-edge-cases.test.ts` (new - 27 tests)
+
+### Backend Edge Cases (`test_edge_cases_apr18_2026.py`)
+
+#### extract_mentions / is_mentioned (12 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_empty_string_returns_empty` | Empty string produces no mentions | Boundary: zero-length input |
+| `test_no_mentions_returns_empty` | Plain text without @ produces no mentions | Normal no-op case |
+| `test_single_word_mention` | `@Socrates` extracted correctly | Single-word @mention |
+| `test_quoted_multi_word_mention` | `@"Marie Curie"` extracts full name | Multi-word quoted mention |
+| `test_quoted_mention_not_duplicated_as_simple` | Quoted mention not duplicated as simple | Deduplication between patterns |
+| `test_multiple_mentions` | Multiple @mentions in one string | Comma-separated mentions |
+| `test_is_mentioned_exact_match` | Exact name match returns true | Direct match |
+| `test_is_mentioned_first_name_match` | First name match (`@Marie` matches `Marie Curie`) | Partial name matching |
+| `test_is_mentioned_quoted_full_name` | Quoted full name recognized | Quoted format matching |
+| `test_is_mentioned_not_in_text` | Absent thinker returns false | Negative case |
+| `test_is_mentioned_empty_thinker_name` | Empty thinker name never matches | Empty name boundary |
+| `test_is_mentioned_empty_text` | Empty text never matches | Empty text boundary |
+
+#### ThinkerService._extract_thinking_display Language Paths (13 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_empty_text_returns_empty` | Empty input → empty output | Boundary: zero length |
+| `test_short_text_below_80_chars_returns_empty` | <80 char text suppressed | Minimum display threshold |
+| `test_exactly_80_chars_returns_empty` | Exactly 80 chars handled | Boundary: threshold value |
+| `test_english_replacement_i_should` | "I should" → "Perhaps I should" | English replacements |
+| `test_german_language_path` | German `language='de'` branch fires | Multilingual: German |
+| `test_spanish_language_path` | Spanish `language='es'` branch fires | Multilingual: Spanish |
+| `test_french_language_path` | French `language='fr'` branch fires | Multilingual: French |
+| `test_hindi_language_path` | Hindi `language='hi'` branch fires | Multilingual: Hindi |
+| `test_unknown_language_falls_back_to_english` | Unknown language code → English default | Fallback path |
+| `test_long_text_is_truncated_to_200_chars` | 540-char text truncated before display | Truncation logic |
+| `test_text_starting_lowercase_cleaned` | Lowercase-starting truncated text cleaned | Cleanup after truncation |
+| `test_ellipsis_added_when_text_does_not_end_with_punctuation` | Non-punctuated text gets `...` | Truncation indicator |
+
+#### ThinkerService._split_response_into_bubbles (9 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_empty_string_returns_empty_list` | Empty string → empty list | Boundary: zero length |
+| `test_whitespace_only_returns_no_content_bubbles` | Whitespace-only → no meaningful bubbles | Whitespace boundary |
+| `test_short_text_stays_as_single_bubble` | <60 chars never split | Short text boundary |
+| `test_exactly_59_chars_is_single_bubble` | 59 chars exactly stays single | Off-by-one boundary |
+| `test_transition_word_but_starts_new_bubble` | "But" starts new bubble | Transition word splitting |
+| `test_transition_word_however_starts_new_bubble` | "However," triggers split | Transition word set coverage |
+| `test_very_long_text_force_splits_at_sentence_boundary` | >300 char single-bubble force-splits | Force-split fallback |
+| `test_result_contains_no_empty_strings` | Bubble list has no empty strings | Output cleanliness |
+| `test_all_transition_words_covered` | All 9 transition words trigger splits | Complete transition word set |
+
+#### ThinkerService._should_prompt_user (5 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_fewer_than_5_messages_never_prompts` | <5 messages disables prompting | Minimum message threshold |
+| `test_exactly_5_messages_can_prompt` | 5 messages enables threshold check | Boundary: 5 messages |
+| `test_threshold_scales_with_speed` | Higher speed lowers prompt threshold | Dynamic threshold behavior |
+| `test_does_not_prompt_when_random_exceeds_probability` | Random gate prevents over-prompting | Probabilistic gate |
+| `test_empty_messages_never_prompts` | Empty list → no prompt | Boundary: zero messages |
+
+#### ThinkerService Message Helper Methods (14 tests across 3 classes)
+
+| Test | Method | Validates | Edge Case |
+|------|--------|-----------|-----------|
+| `test_returns_none_for_empty_messages` | `_get_user_name_from_messages` | Empty list → None | Boundary |
+| `test_returns_none_when_no_user_messages` | `_get_user_name_from_messages` | All-thinker messages → None | No user msgs |
+| `test_returns_user_name_from_plain_string_sender_type` | `_get_user_name_from_messages` | String sender_type works | Plain string type |
+| `test_returns_user_name_from_enum_sender_type` | `_get_user_name_from_messages` | Enum sender_type works | Enum type |
+| `test_returns_most_recent_user_name` | `_get_user_name_from_messages` | Most recent user name returned | Ordering |
+| `test_skips_user_msg_with_no_sender_name` | `_get_user_name_from_messages` | None sender_name skipped | Null sender_name |
+| `test_empty_messages_returns_zero` | `_get_last_user_message_timestamp` | Empty → 0.0 | Boundary |
+| `test_no_user_messages_returns_zero` | `_get_last_user_message_timestamp` | No user msgs → 0.0 | No user msgs |
+| `test_returns_timestamp_for_user_message` | `_get_last_user_message_timestamp` | Timestamp extracted correctly | Happy path |
+| `test_enum_sender_type_recognized_as_user` | `_get_last_user_message_timestamp` | Enum user type recognized | Enum type |
+| `test_empty_messages_returns_zero` | `_count_messages_since_user` | Empty → 0 | Boundary |
+| `test_all_thinker_messages_counts_all` | `_count_messages_since_user` | All thinker → full count | No user stop |
+| `test_user_message_at_end_stops_count` | `_count_messages_since_user` | Trailing user stops at 0 | Stop behavior |
+| `test_thinker_messages_after_last_user` | `_count_messages_since_user` | 3 thinker after user → 3 | Normal case |
+
+#### Pause/Idle State Management (9 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `test_fresh_service_not_paused` | New service has no paused convs | Initial state |
+| `test_pause_conversation` | Pausing sets is_paused | Basic pause |
+| `test_resume_conversation` | Resuming clears is_paused | Basic resume |
+| `test_idle_pause_sets_is_paused` | Idle pause sets both flags | Combined flag state |
+| `test_resume_from_idle_clears_idle_pause` | `resume_from_idle` clears both flags | Full idle recovery |
+| `test_resume_conversation_does_not_clear_idle_flag` | `resume_conversation` leaves idle flag | Flag independence |
+| `test_multiple_conversations_independent_pause_state` | Different convs have independent state | State isolation |
+| `test_pause_unknown_conversation_does_not_raise` | Pausing unknown conv is safe | Safe unknown conv handling |
+| `test_resume_never_paused_conv_does_not_raise` | Resuming unpaused conv is safe | Safe discard operation |
+
+#### API Endpoint Boundary Tests (33 tests across 5 classes)
+
+**Auth API (10 tests)**: username min/max length, empty inputs, password length, empty display name, duplicate username, wrong password, nonexistent user login.
+
+**Conversation API (7 tests)**: empty topic, zero thinkers, max-length topic, empty message, nonexistent conversation, unauthenticated access, delete nonexistent.
+
+**Thinker API (4 tests)**: empty topic, zero count, count over max (>5), empty thinker name.
+
+**Admin API (3 tests)**: non-admin access (403), unauthenticated access (401), delete nonexistent user (403).
+
+**Feedback API (8 tests)**: empty message (422), too-short message (<10 chars), invalid type, missing message field, valid submission (201), special characters/unicode, max-length (5000), over max-length (5001).
+
+### Frontend API Edge Cases (`api-edge-cases.test.ts`)
+
+#### fetchWithAuth Error Handling (3 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `throws timeout error when request times out` | AbortError without signal → timeout message | Timeout error path |
+| `throws cancellation error when aborted by external signal` | External AbortController → cancellation | Signal abort path |
+| `propagates non-abort errors unchanged` | Network errors pass through unchanged | Error propagation |
+
+#### 401 Unauthorized Handling (2 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `clears auth token on 401 response` | 401 → localStorage.removeItem called | Auth cleanup on expiry |
+| `throws error with detail message from 401 response` | 401 error detail propagated | Error message accuracy |
+
+#### getCurrentUser Error Path (2 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `clears auth and returns null when fetch fails` | Failed fetch clears auth | Error recovery |
+| `returns null immediately when no token stored` | No token → null without fetch | Short-circuit |
+
+#### updateLanguage (2 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `updates language preference and stores user` | PATCH sent, user stored | Happy path |
+| `throws on failed language update` | API error propagated | Error path |
+
+#### updateProfile (2 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `updates display name and stores updated user` | PATCH sent, user stored | Happy path |
+| `throws on failed profile update` | API error propagated | Error path |
+
+#### Admin API (4 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `getAdminUsers fetches all users` | GET /api/admin/users | Happy path |
+| `deleteUser deletes a specific user` | DELETE with user ID | DELETE request |
+| `updateUserSpendLimit updates spend limit` | PATCH spend-limit endpoint | Spend limit update |
+| `throws on admin endpoint error` | 403 error propagated | Auth error path |
+
+#### submitFeedback Network Error Paths (5 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `converts "Failed to fetch" to user-friendly message` | TypeError converted to friendly error | Network disconnection |
+| `throws API error detail from non-ok response` | HTTP error with detail | Server error |
+| `throws generic HTTP error when detail missing` | Error fallback when JSON parse fails | Unparseable error |
+| `succeeds and returns response on valid submission` | 201 response handled | Happy path |
+| `passes optional fields to the submission` | email/name/username included | Optional field forwarding |
+
+#### getStoredUser (3 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `returns null when no user stored` | Missing localStorage → null | No stored user |
+| `returns null when stored JSON is invalid` | Invalid JSON → null (no throw) | Corrupted storage |
+| `returns parsed user when valid JSON stored` | Valid JSON → typed object | Happy path |
+
+#### changePassword (2 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `sends current and new password to the endpoint` | Both passwords included in body | Happy path |
+| `throws on wrong current password` | 400 error propagated | Wrong password |
+
+#### suggestThinkers Edge Cases (2 tests)
+
+| Test | Validates | Edge Case |
+|------|-----------|-----------|
+| `sends exclude list and language correctly` | Exclude list and language params sent | Non-default params |
+| `uses default values when not specified` | count=3, exclude=[], language='en' | Default values |
+
 ## 1.14 Flaky Test Hunt (Added 2026-04-14)
 
 **Focus**: Tuesday QA focus - identify and fix flaky tests, harden probabilistic tests
