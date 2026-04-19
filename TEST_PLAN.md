@@ -2,6 +2,118 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.15 Regression Prevention (Added 2026-04-19)
+
+**Focus**: Sunday QA focus - add regression prevention tests for recently-touched code paths
+**Coverage Impact**: +33 backend tests (1197 total)
+**Files**:
+- `backend/tests/test_regression_prevention_apr19_2026.py` (new - 33 regression tests)
+
+**Coverage Areas** (from coverage analysis: websocket.py 68%, thinker.py 76%, main.py 79%):
+
+### TestFeedbackIPHashing (7 tests)
+
+Regression tests for `hash_ip()` and `get_client_ip()` in `feedback.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_hash_ip_produces_sha256_hex` | hash_ip uses SHA-256 algorithm producing 64-char hex |
+| `test_hash_ip_is_deterministic` | Same IP always produces same hash (required for rate limiting) |
+| `test_hash_ip_differentiates_ips` | Different IPs produce different hashes |
+| `test_get_client_ip_uses_x_forwarded_for_first` | X-Forwarded-For header takes priority over direct client IP |
+| `test_get_client_ip_falls_back_to_client_host` | Falls back to request.client.host when no proxy header |
+| `test_get_client_ip_returns_unknown_when_no_client` | Returns "unknown" when request.client is None (Unix sockets) |
+| `test_get_client_ip_strips_whitespace_from_forwarded_for` | Strips spaces from X-Forwarded-For chain entries |
+
+### TestFeedbackSecretValidation (6 tests)
+
+Regression tests for feedback processor secret validation in `feedback.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_get_pending_feedback_returns_503_when_secret_not_configured` | 503 when feedback_processor_secret is empty |
+| `test_get_pending_feedback_returns_403_for_wrong_secret` | 403 when incorrect secret provided to pending endpoint |
+| `test_mark_processed_returns_503_when_secret_not_configured` | 503 when secret not configured on mark-processed endpoint |
+| `test_mark_processed_returns_403_for_wrong_secret` | 403 for wrong secret on mark-processed endpoint |
+| `test_mark_processed_returns_404_for_unknown_id` | 404 when feedback_id doesn't exist in DB |
+| `test_mark_processed_succeeds_for_existing_feedback` | Happy path: updates status to REVIEWED and stores github_issue_url |
+
+### TestAuthChangePassword (3 tests)
+
+Regression tests for the change-password endpoint in `auth.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_change_password_fails_with_wrong_current_password` | 400 when current_password is incorrect |
+| `test_change_password_succeeds_with_correct_current_password` | New password works for login, old password rejected |
+| `test_change_password_requires_authentication` | 401 without auth token |
+
+### TestAuthLogout (2 tests)
+
+Regression tests for the logout endpoint in `auth.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_logout_returns_200_with_message` | Logout returns 200 with confirmation message |
+| `test_logout_works_without_auth_token` | Logout works without authentication (JWT is client-side) |
+
+### TestThinkerKnowledgeStatusEndpoint (2 tests)
+
+Regression tests for `GET /api/thinkers/knowledge/{name}/status` in `thinkers.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_knowledge_status_returns_pending_for_unknown_thinker` | Returns PENDING/has_data=False when no knowledge in DB |
+| `test_knowledge_status_returns_correct_status_for_existing_knowledge` | Returns actual status from DB record |
+
+### TestThinkerKnowledgeRefreshEndpoint (2 tests)
+
+Regression tests for `POST /api/thinkers/knowledge/{name}/refresh` in `thinkers.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_refresh_endpoint_triggers_research` | Always calls trigger_research even for existing knowledge |
+| `test_refresh_creates_knowledge_for_new_thinker` | Uses get_or_create_knowledge for new thinkers |
+
+### TestConversationColorCycling (3 tests)
+
+Regression tests for thinker color assignment in `conversations.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_create_conversation_assigns_different_colors_to_thinkers` | 5 thinkers get 5 distinct colors via cycle |
+| `test_add_thinkers_avoids_duplicate_colors` | New thinkers skip colors already in use |
+| `test_add_thinkers_respects_max_limit_of_5` | 400 error when adding thinkers would exceed 5 total |
+
+### TestThinkerSuggestFallback (3 tests)
+
+Regression tests for mock fallback behavior in `thinkers.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_suggest_uses_mock_when_no_api_key` | Returns 3 mock suggestions without API key |
+| `test_validate_uses_mock_for_known_thinkers_without_api_key` | Known thinkers validated from mock data |
+| `test_validate_rejects_unknown_thinker_without_api_key` | Unknown thinkers rejected in no-API-key mode |
+
+### TestCreateAdminUserFunction (2 tests)
+
+Regression tests for `create_admin_user()` startup function in `main.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_create_admin_user_creates_user_when_none_exists` | Creates admin user with is_admin=True on first run |
+| `test_create_admin_user_skips_when_admin_already_exists` | Idempotent: skips creation if admin already in DB |
+
+### TestKnowledgeResearchErrorHandling (3 tests)
+
+Regression tests for error handling in `knowledge_research.py`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_research_thinker_marks_failed_on_wikipedia_exception` | Marks entry as FAILED when Wikipedia fetch raises exception |
+| `test_trigger_research_does_not_start_duplicate_task` | Deduplicates: no new task if existing task is still running |
+| `test_trigger_research_starts_task_when_previous_completed` | Allows re-trigger when previous task is done |
+
 ## 1.14 Flaky Test Hunt (Added 2026-04-14)
 
 **Focus**: Tuesday QA focus - identify and fix flaky tests, harden probabilistic tests
