@@ -401,5 +401,362 @@ describe('API Client', () => {
 
       await expect(api.getConversations()).rejects.toThrow('Unknown error');
     });
+
+    it('clears auth on 401 response', async () => {
+      setupAuthToken();
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: 'Unauthorized' }),
+      });
+
+      await expect(api.getConversations()).rejects.toThrow();
+      expect(localStorage.removeItem).toHaveBeenCalledWith('access_token');
+    });
+
+    it('handles 401 response without crashing when window is available', async () => {
+      setupAuthToken();
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ detail: 'Session expired' }),
+      });
+
+      await expect(api.getConversations()).rejects.toThrow('Session expired');
+    });
+
+    it('throws timeout error when request takes too long', async () => {
+      setupAuthToken();
+
+      (global.fetch as jest.Mock).mockImplementationOnce(
+        (_url: string, options: RequestInit) => {
+          return new Promise((_resolve, reject) => {
+            if (options.signal) {
+              options.signal.addEventListener('abort', () => {
+                const err = new Error('The operation was aborted');
+                err.name = 'AbortError';
+                reject(err);
+              });
+            }
+          });
+        }
+      );
+
+      await expect(api.getConversation('conv-1')).rejects.toThrow(/timeout/i);
+    }, 35000);
+
+    it('throws cancellation error when external signal aborts request', async () => {
+      setupAuthToken();
+      const controller = new AbortController();
+
+      (global.fetch as jest.Mock).mockImplementationOnce(
+        (_url: string, options: RequestInit) => {
+          return new Promise((_resolve, reject) => {
+            if (options.signal) {
+              options.signal.addEventListener('abort', () => {
+                const err = new Error('The operation was aborted');
+                err.name = 'AbortError';
+                reject(err);
+              });
+            }
+          });
+        }
+      );
+
+      const promise = api.suggestThinkers(
+        'philosophy',
+        3,
+        [],
+        'en',
+        controller.signal
+      );
+      controller.abort();
+
+      await expect(promise).rejects.toThrow(/cancelled|timeout/i);
+    });
+  });
+
+  describe('Token Management', () => {
+    it('setAccessToken removes token from localStorage when called with null', () => {
+      api.setAccessToken(null);
+
+      expect(localStorage.removeItem).toHaveBeenCalledWith('access_token');
+    });
+
+    it('getStoredUser returns parsed user from localStorage', () => {
+      const mockUser = {
+        id: 'user-123',
+        username: 'testuser',
+        display_name: 'Test User',
+        is_admin: false,
+        total_spend: 0,
+        created_at: '2024-01-15T10:00:00Z',
+      };
+      (localStorage.getItem as jest.Mock).mockReturnValue(
+        JSON.stringify(mockUser)
+      );
+
+      const user = api.getStoredUser();
+
+      expect(user).toEqual(mockUser);
+    });
+
+    it('getStoredUser returns null when localStorage has invalid JSON', () => {
+      (localStorage.getItem as jest.Mock).mockReturnValue('invalid json {{{');
+
+      const user = api.getStoredUser();
+
+      expect(user).toBeNull();
+    });
+
+    it('getStoredUser returns null when no user in localStorage', () => {
+      (localStorage.getItem as jest.Mock).mockReturnValue(null);
+
+      const user = api.getStoredUser();
+
+      expect(user).toBeNull();
+    });
+
+    it('setStoredUser removes user from localStorage when called with null', () => {
+      api.setStoredUser(null);
+
+      expect(localStorage.removeItem).toHaveBeenCalledWith('user');
+    });
+  });
+
+  describe('Auth API - Profile Updates', () => {
+    beforeEach(() => {
+      setupAuthToken();
+    });
+
+    it('updates language preference and stores updated user', async () => {
+      const mockUser = {
+        id: 'user-123',
+        username: 'testuser',
+        display_name: 'Test User',
+        is_admin: false,
+        total_spend: 0,
+        created_at: '2024-01-15T10:00:00Z',
+        language_preference: 'es',
+      };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockUser)
+      );
+
+      const user = await api.updateLanguage('es');
+
+      expect(user).toEqual(mockUser);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/language'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ language_preference: 'es' }),
+        })
+      );
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        'user',
+        JSON.stringify(mockUser)
+      );
+    });
+
+    it('updates display name and stores updated user', async () => {
+      const mockUser = {
+        id: 'user-123',
+        username: 'testuser',
+        display_name: 'New Display Name',
+        is_admin: false,
+        total_spend: 0,
+        created_at: '2024-01-15T10:00:00Z',
+      };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockUser)
+      );
+
+      const user = await api.updateProfile('New Display Name');
+
+      expect(user).toEqual(mockUser);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/profile'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ display_name: 'New Display Name' }),
+        })
+      );
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        'user',
+        JSON.stringify(mockUser)
+      );
+    });
+
+    it('changes password successfully', async () => {
+      const mockResponse = { message: 'Password changed successfully' };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockResponse)
+      );
+
+      const result = await api.changePassword('oldpassword', 'newpassword');
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/change-password'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            current_password: 'oldpassword',
+            new_password: 'newpassword',
+          }),
+        })
+      );
+    });
+
+    it('clears auth when getCurrentUser fetch fails', async () => {
+      setupAuthToken();
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse({ detail: 'Server error' }, false)
+      );
+
+      const user = await api.getCurrentUser();
+
+      expect(user).toBeNull();
+      expect(localStorage.removeItem).toHaveBeenCalledWith('access_token');
+    });
+  });
+
+  describe('Admin API', () => {
+    beforeEach(() => {
+      setupAuthToken();
+    });
+
+    it('gets all admin users', async () => {
+      const mockUsers = [
+        {
+          id: 'user-1',
+          username: 'alice',
+          display_name: 'Alice',
+          is_admin: false,
+          total_spend: 1.5,
+          created_at: '2024-01-01T00:00:00Z',
+          conversation_count: 3,
+          message_count: 12,
+        },
+      ];
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockUsers)
+      );
+
+      const users = await api.getAdminUsers();
+
+      expect(users).toEqual(mockUsers);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/admin/users'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer jwt-token-123',
+          }),
+        })
+      );
+    });
+
+    it('deletes a user by id', async () => {
+      const mockResponse = { message: 'User deleted successfully' };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockResponse)
+      );
+
+      const result = await api.deleteUser('user-to-delete');
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/admin/users/user-to-delete'),
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+
+    it('updates user spend limit', async () => {
+      const mockResponse = {
+        user_id: 'user-123',
+        spend_limit: 25.0,
+        message: 'Spend limit updated',
+      };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockResponse)
+      );
+
+      const result = await api.updateUserSpendLimit('user-123', 25.0);
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/admin/users/user-123/spend-limit'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ spend_limit: 25.0 }),
+        })
+      );
+    });
+  });
+
+  describe('Feedback API', () => {
+    it('submits feedback successfully', async () => {
+      const mockResponse = { id: 'feedback-123', message: 'Feedback received' };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createMockFetchResponse(mockResponse)
+      );
+
+      const result = await api.submitFeedback({
+        feedback_type: 'bug',
+        message: 'Something is broken',
+        email: 'user@example.com',
+      });
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/feedback'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+          }),
+          body: JSON.stringify({
+            feedback_type: 'bug',
+            message: 'Something is broken',
+            email: 'user@example.com',
+          }),
+        })
+      );
+    });
+
+    it('throws error with detail when feedback submission fails', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        json: () => Promise.resolve({ detail: 'Validation error' }),
+      });
+
+      await expect(
+        api.submitFeedback({ feedback_type: 'bug', message: '' })
+      ).rejects.toThrow('Validation error');
+    });
+
+    it('throws user-friendly message on network failure', async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce(
+        new TypeError('Failed to fetch')
+      );
+
+      await expect(
+        api.submitFeedback({ feedback_type: 'feature', message: 'New idea' })
+      ).rejects.toThrow(/unable to connect/i);
+    });
+
+    it('rethrows non-network errors from submitFeedback', async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce(
+        new Error('Some other error')
+      );
+
+      await expect(
+        api.submitFeedback({ feedback_type: 'other', message: 'Test' })
+      ).rejects.toThrow('Some other error');
+    });
   });
 });

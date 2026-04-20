@@ -6096,3 +6096,105 @@ Affected tests (all 16 tests in file):
 - `assert_not_found(response, "User not found")` ×2 — admin delete/update nonexistent user
 - `assert_forbidden(response, "Admin access required")` — non-admin accessing admin endpoint
 - `assert_error_response(response, 400, "Cannot delete your own account")` — admin self-delete prevention
+
+
+## 22. Coverage Sprint - Apr 20, 2026 (Monday QA)
+
+**Focus:** Increase coverage in the lowest-coverage modules by 15%+.
+
+### 22.1 Frontend: api.ts (`src/__tests__/lib/api.test.ts`)
+
+**Impact:** 76.9% → 100% statements (+23.1 points)
+
+New tests added (23 additional tests):
+
+**Token Management:**
+- `setAccessToken removes token from localStorage when called with null` — covers else branch in setAccessToken
+- `getStoredUser returns parsed user from localStorage` — covers happy path of getStoredUser
+- `getStoredUser returns null when localStorage has invalid JSON` — covers JSON.parse error catch
+- `getStoredUser returns null when no user in localStorage` — covers early return
+- `setStoredUser removes user from localStorage when called with null` — covers else branch
+
+**Auth API - Profile Updates:**
+- `updates language preference and stores updated user` — covers updateLanguage function
+- `updates display name and stores updated user` — covers updateProfile function
+- `changes password successfully` — covers changePassword function
+- `clears auth when getCurrentUser fetch fails` — covers getCurrentUser error path
+
+**Error Handling:**
+- `clears auth on 401 response` — covers 401 handler in fetchWithAuth
+- `handles 401 response without crashing when window is available` — 401 with window
+- `throws timeout error when request takes too long` — covers AbortError timeout path
+- `throws cancellation error when external signal aborts request` — covers external signal abort
+
+**Admin API:**
+- `gets all admin users` — covers getAdminUsers function
+- `deletes a user by id` — covers deleteUser function
+- `updates user spend limit` — covers updateUserSpendLimit function
+
+**Feedback API:**
+- `submits feedback successfully` — covers submitFeedback happy path
+- `throws error with detail when feedback submission fails` — covers non-ok response in submitFeedback
+- `throws user-friendly message on network failure` — covers TypeError "Failed to fetch" handling
+- `rethrows non-network errors from submitFeedback` — covers generic error rethrow
+
+### 22.2 Frontend: page.tsx (`src/__tests__/app/home.test.tsx`)
+
+**Impact:** 0% → 79.87% statements (+79.9 points)
+
+New test file: `src/__tests__/app/home.test.tsx` — 15 tests
+
+**Loading State:**
+- `shows loading state while auth is loading` — covers auth loading spinner
+- `shows loading while conversations are fetching` — covers conversation load spinner
+
+**Authentication:**
+- `redirects to login when not authenticated` — covers useEffect redirect logic
+- `renders main UI when authenticated` — covers main layout render path
+
+**Conversation Loading:**
+- `loads conversations on mount when authenticated` — covers useEffect + getConversations
+- `handles conversation load failure gracefully` — covers catch block in loadConversations
+
+**Conversation Selection:**
+- `loads and displays conversation when selected` — covers handleSelectConversation
+- `handles conversation selection failure gracefully` — covers error path in handleSelectConversation
+
+**Conversation Deletion:**
+- `deletes conversation and removes from list` — covers handleDeleteConversation
+- `handles delete failure gracefully` — covers error path in handleDeleteConversation
+
+**New Conversation:**
+- `opens new chat modal when new chat button clicked` — covers modal open state
+- `creates a conversation and adds it to the list` — covers handleCreateConversation
+
+**Logout:**
+- `calls logout and redirects to login` — covers handleLogout
+
+**Sidebar Width Persistence:**
+- `loads saved sidebar width from localStorage on mount` — covers sidebar width localStorage read
+- `renders main chat layout with sidebar and chat area` — covers full layout render
+
+### 22.3 Backend: main.py (`tests/test_coverage_sprint_apr20_2026.py`)
+
+**Impact:** 79% → 95%+ statements for main.py
+
+New test file: `backend/tests/test_coverage_sprint_apr20_2026.py` — 5 tests
+
+**TestCreateAdminUser:**
+- `test_creates_admin_user_when_not_exists` — covers the admin user creation branch
+- `test_skips_admin_user_creation_when_already_exists` — covers the "already exists" else branch
+
+**TestLifespan:**
+- `test_lifespan_calls_init_db_and_create_admin` — covers lifespan startup try block (lines 49-62)
+- `test_lifespan_closes_db_on_shutdown` — covers lifespan shutdown (lines 66-68)
+- `test_lifespan_raises_on_startup_failure` — covers lifespan except block (lines 63-65)
+
+### 22.4 Coverage Summary
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| `src/lib/api.ts` | 76.9% | 100% | +23.1% |
+| `src/app/page.tsx` | 0% | 79.87% | +79.9% |
+| `app/main.py` | 79% | 95%+ | +16%+ |
+| **Frontend Overall** | **87.21%** | **91.51%** | **+4.3%** |
