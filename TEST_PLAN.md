@@ -6096,3 +6096,73 @@ Affected tests (all 16 tests in file):
 - `assert_not_found(response, "User not found")` ×2 — admin delete/update nonexistent user
 - `assert_forbidden(response, "Admin access required")` — non-admin accessing admin endpoint
 - `assert_error_response(response, 400, "Cannot delete your own account")` — admin self-delete prevention
+
+## 22. Flaky Test Hunt - Apr 21, 2026 (Tuesday QA)
+
+**Focus:** Identify and fix flaky tests; add hardening tests for known instability risks
+**Coverage Impact:** +18 backend tests (1206 total), warnings reduced from 12 to 9
+**Files**:
+- `backend/tests/test_regression_prevention_mar29_2026.py` (fix: AsyncMock → MagicMock)
+- `backend/tests/test_flaky_hunt_apr21_2026.py` (new - 18 hardening tests)
+
+**Flakiness Issues Identified and Fixed:**
+
+### Fix 1: Unawaited Coroutine Warning in trigger_research Tests
+- **Root cause:** Two tests in `test_regression_prevention_mar29_2026.py` used `AsyncMock` for `_research_thinker` while `asyncio.create_task` was also mocked. `AsyncMock` creates coroutine objects when called; with `create_task` mocked, these coroutines are never awaited, producing `RuntimeWarning: coroutine ... was never awaited`.
+- **Fix:** Changed `new_callable=AsyncMock` to `new_callable=MagicMock` in two tests (`test_trigger_research_starts_new_task_after_previous_completes`, `test_trigger_research_starts_task_for_new_thinker`). When `create_task` is mocked, the argument doesn't need to be a real coroutine.
+- **Impact:** Eliminated 3 RuntimeWarnings per test run.
+
+**New Hardening Tests Added:**
+
+### TestTriggerResearchMockPattern (4 tests) — `test_flaky_hunt_apr21_2026.py`
+
+Guards against AsyncMock antipattern regression and verifies trigger_research mock invariants.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_trigger_research_mock_pattern_no_coroutine_warning` | MagicMock for _research_thinker doesn't create unawaited coroutines |
+| `test_trigger_research_task_stored_in_active_tasks` | create_task return value (not coroutine arg) is stored in _active_tasks |
+| `test_trigger_research_done_callback_registered_on_task` | Cleanup callback is registered via add_done_callback |
+| `test_trigger_research_deduplication_uses_done_method` | done() is called to check task status before creating a new task |
+
+### TestTriggerResearchDoneCallbackCleanup (3 tests) — `test_flaky_hunt_apr21_2026.py`
+
+Tests for the cleanup callback closure's correctness and idempotency.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_done_callback_removes_entry_from_active_tasks` | Cleanup correctly removes thinker from _active_tasks |
+| `test_done_callback_is_idempotent` | Calling cleanup twice doesn't raise KeyError |
+| `test_real_trigger_research_cleanup_on_task_complete` | End-to-end: real task completes and cleanup fires via asyncio |
+
+### TestConnectionManagerGlobalStateAccumulation (4 tests) — `test_flaky_hunt_apr21_2026.py`
+
+Guards against stale rooms in the global ConnectionManager singleton affecting test isolation.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_inactive_room_is_not_active` | Disconnected room reports is_conversation_active=False |
+| `test_multiple_disconnected_rooms_dont_interfere` | Active/inactive rooms each independently report their own state |
+| `test_get_speed_multiplier_for_stale_room_returns_default` | Stale rooms don't crash speed_multiplier queries |
+| `test_broadcast_to_inactive_room_does_not_raise` | Broadcasting to empty (disconnected) room is safe |
+
+### TestThinkerServiceGlobalStateIsolation (4 tests) — `test_flaky_hunt_apr21_2026.py`
+
+Verifies that the global thinker_service singleton doesn't bleed state between tests.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_unique_conversation_ids_prevent_state_bleed` | Different conv IDs never share pause state in singleton |
+| `test_resume_after_test_cleanup_restores_default_state` | Explicit resume cleanup leaves singleton in clean state |
+| `test_new_thinker_service_instance_ignores_global_state` | Fresh ThinkerService() doesn't see global singleton's pause state |
+| `test_paused_conversations_set_is_instance_not_class_level` | _paused_conversations is instance attribute, not class-level shared mutable |
+
+### TestKnowledgeResearchSingletonStateIsolation (3 tests) — `test_flaky_hunt_apr21_2026.py`
+
+Verifies that KnowledgeResearchService instance state is not accidentally shared at class level.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_fresh_service_has_empty_active_tasks` | New service instance starts with no active tasks |
+| `test_active_tasks_isolated_between_instances` | _active_tasks from one instance not visible in another |
+| `test_trigger_research_deduplication_independent_per_instance` | Deduplication is per-instance, not globally shared |

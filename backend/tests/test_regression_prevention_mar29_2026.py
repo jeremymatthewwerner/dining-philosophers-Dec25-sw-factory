@@ -48,7 +48,7 @@ Root cause of each regression risk:
 
 import asyncio
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from httpx import AsyncClient
 
@@ -243,7 +243,7 @@ class TestKnowledgeResearchDeduplication:
         mock_new_task = MagicMock(spec=asyncio.Task)
         with (
             patch("asyncio.create_task", return_value=mock_new_task) as mock_create_task,
-            patch.object(service, "_research_thinker", new_callable=AsyncMock),
+            patch.object(service, "_research_thinker", new_callable=MagicMock),
         ):
             service.trigger_research("Aristotle")
             # Should create a new task because previous is done
@@ -262,7 +262,7 @@ class TestKnowledgeResearchDeduplication:
         mock_task = MagicMock(spec=asyncio.Task)
         with (
             patch("asyncio.create_task", return_value=mock_task) as mock_create_task,
-            patch.object(service, "_research_thinker", new_callable=AsyncMock),
+            patch.object(service, "_research_thinker", new_callable=MagicMock),
         ):
             service.trigger_research("Einstein")
             mock_create_task.assert_called_once()
