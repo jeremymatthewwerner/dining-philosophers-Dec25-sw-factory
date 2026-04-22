@@ -6096,3 +6096,91 @@ Affected tests (all 16 tests in file):
 - `assert_not_found(response, "User not found")` ×2 — admin delete/update nonexistent user
 - `assert_forbidden(response, "Admin access required")` — non-admin accessing admin endpoint
 - `assert_error_response(response, 400, "Cannot delete your own account")` — admin self-delete prevention
+
+## 22. Integration Test Gaps - Apr 22, 2026 (Wednesday QA)
+
+**Focus:** Fill integration test gaps covering untested code paths identified by coverage analysis.
+**Coverage:** 87.62% → 88.00% (partial branches improved from 21 to 13)
+
+### 22.1 ConnectionManager Async Edge Cases (`backend/tests/test_integration_gaps_apr22_2026.py`)
+
+Tests async edge cases in `ConnectionManager` that expose previously uncovered branches (websocket.py lines 125->127, 189->191, 212->214).
+
+| Test | Validates |
+|------|-----------|
+| `test_connect_to_existing_room_reuses_room` | Connecting to a room that already exists reuses the same room object (branch 125->127) |
+| `test_broadcast_to_nonexistent_conversation_is_noop` | Broadcasting to a non-existent room silently does nothing (branch 189->191) |
+| `test_send_thinker_typing_without_room` | Typing notification for non-existent room doesn't crash (branch 212->214) |
+| `test_send_thinker_stopped_typing_without_room` | Stopped-typing notification for non-existent room doesn't crash |
+| `test_set_speed_multiplier_clamped_to_valid_range` | Speed multiplier is clamped to [0.5, 6.0] and broadcast to clients |
+| `test_set_speed_multiplier_for_nonexistent_room_is_noop` | Setting speed for non-existent room is silently ignored |
+| `test_get_speed_multiplier_for_nonexistent_room_returns_default` | Default speed 1.0 returned when no room exists |
+| `test_conversation_room_typing_thinkers_tracking` | typing_thinkers set is updated correctly on start/stop |
+
+### 22.2 SpendLimitExceeded and save_thinker_message (`backend/tests/test_integration_gaps_apr22_2026.py`)
+
+Tests the spend limit enforcement in the WebSocket message saving path.
+
+| Test | Validates |
+|------|-----------|
+| `test_spend_limit_exceeded_attributes` | SpendLimitExceeded stores current_spend and spend_limit attributes |
+| `test_spend_limit_exceeded_is_exception` | SpendLimitExceeded is a proper Exception subclass |
+| `test_save_message_raises_when_spend_equals_limit` | save_thinker_message raises when user.total_spend == spend_limit |
+| `test_save_message_raises_when_spend_exceeds_limit` | save_thinker_message raises when user.total_spend > spend_limit |
+| `test_save_message_succeeds_when_under_limit` | save_thinker_message succeeds and updates user.total_spend when under limit |
+| `test_save_message_with_no_conversation_does_not_crash` | Message created even when conversation ID doesn't exist |
+| `test_get_messages_returns_empty_for_new_conversation` | Empty list returned for conversations with no messages |
+| `test_get_messages_returns_all_messages_ordered_by_time` | All messages returned in creation order |
+
+### 22.3 `_split_response_into_bubbles` Force-Split Path (`backend/tests/test_integration_gaps_apr22_2026.py`)
+
+Tests the force-split path triggered when a very long text ends up as a single bubble (lines 763-768 in thinker.py).
+
+| Test | Validates |
+|------|-----------|
+| `test_force_split_on_very_long_single_bubble` | Text > 300 chars with single bubble triggers force-split |
+| `test_force_split_creates_two_bubbles_from_long_text` | Force-split finds sentence boundary past midpoint and creates 2 parts |
+| `test_text_with_transition_word_starts_new_bubble` | "However," and similar words start a new bubble |
+| `test_very_long_text_without_sentence_end_past_midpoint` | No valid split point → text returned as-is |
+
+### 22.4 `_extract_thinking_display` Language Branches (`backend/tests/test_integration_gaps_apr22_2026.py`)
+
+Tests language-specific branches in `_extract_thinking_display` (previously uncovered: Japanese, Korean, Hindi, and English internal monologue replacements).
+
+| Test | Validates |
+|------|-----------|
+| `test_extract_thinking_display_japanese` | Japanese language handled without crashing |
+| `test_extract_thinking_display_korean` | Korean language handled without crashing |
+| `test_extract_thinking_display_hindi` | Hindi language handled without crashing |
+| `test_extract_thinking_display_text_over_200_chars_trimmed` | Long text trimmed from end with sentence boundary search |
+| `test_extract_thinking_display_sentence_boundary_search` | ". " within first 80 chars of trimmed text used as new start |
+| `test_extract_thinking_display_text_starting_with_lowercase` | Incomplete word at start dropped after trimming |
+| `test_extract_thinking_display_english_replacements` | LLM phrasing replaced with first-person monologue |
+
+### 22.5 Knowledge Research Service (`backend/tests/test_integration_gaps_apr22_2026.py`)
+
+Integration tests for knowledge research service lifecycle.
+
+| Test | Validates |
+|------|-----------|
+| `test_get_or_create_knowledge_creates_new_entry` | Creates new ThinkerKnowledge entry if none exists |
+| `test_get_or_create_knowledge_returns_existing` | Returns same entry on repeated calls (no duplication) |
+| `test_get_knowledge_returns_none_for_unknown` | Returns None for thinkers not yet researched |
+| `test_is_stale_returns_true_for_old_knowledge` | Marks knowledge > threshold days old as stale |
+| `test_is_stale_returns_false_for_fresh_knowledge` | Freshly updated knowledge is not stale |
+
+### 22.6 End-to-End Integration Chains (`backend/tests/test_integration_gaps_apr22_2026.py`)
+
+Multi-step API workflows testing full integration chains.
+
+| Test | Chain | Validates |
+|------|-------|-----------|
+| `test_submit_feedback_then_retrieve_as_pending` | POST /feedback → GET /feedback/pending | Submitted feedback appears in pending queue |
+| `test_full_feedback_mark_processed_chain` | POST /feedback → GET pending → PATCH processed | Full feedback lifecycle moves to REVIEWED status |
+| `test_admin_update_spend_limit_then_retrieve_spend_data` | PATCH admin spend → GET spend | Spend limit update visible in spend API |
+| `test_admin_list_users_shows_updated_spend_limit` | PATCH admin spend → GET admin/users | Updated limit appears in user list |
+| `test_register_login_create_conversation_send_message` | Register → session → conversation → message | Full user workflow end-to-end |
+| `test_delete_user_cascade_removes_conversations` | Create user → admin delete → verify gone | Admin delete cascades to remove all user data |
+| `test_get_knowledge_creates_entry_and_triggers_research` | GET /thinkers/knowledge/{name} | Creates entry and triggers background research |
+| `test_get_knowledge_status_returns_pending_for_unknown` | GET /thinkers/knowledge/{name}/status | Returns PENDING for unknown thinkers |
+| `test_refresh_thinker_knowledge_triggers_new_research` | POST /thinkers/knowledge/{name}/refresh | Forces fresh research even for complete entries |
