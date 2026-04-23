@@ -178,4 +178,84 @@ test.describe('API Response Performance', () => {
     expect(response.ok()).toBe(true);
     expect(elapsed).toBeLessThan(2000);
   });
+
+  test('user registration endpoint completes within 2 seconds', async ({
+    page,
+  }) => {
+    const uniqueUsername = `perf_reg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const startTime = Date.now();
+    const response = await page.request.post(
+      'http://localhost:8000/api/auth/register',
+      {
+        data: {
+          username: uniqueUsername,
+          display_name: 'Perf Test User',
+          password: 'testpass123',
+        },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(2000);
+  });
+
+  test('conversation creation via API completes within 3 seconds', async ({
+    page,
+  }) => {
+    await setupAuthenticatedUser(page);
+
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+    expect(token).toBeTruthy();
+
+    const startTime = Date.now();
+    const response = await page.request.post(
+      'http://localhost:8000/api/conversations',
+      {
+        data: {
+          topic: 'Performance test conversation',
+          thinkers: [
+            {
+              name: 'Aristotle',
+              bio: 'Greek philosopher.',
+              positions: 'Virtue ethics',
+              style: 'Analytical',
+            },
+          ],
+        },
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(NAV_TIMEOUT);
+  });
+
+  test('thinker suggestions endpoint responds within 3 seconds', async ({
+    page,
+  }) => {
+    await setupAuthenticatedUser(page);
+
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+    expect(token).toBeTruthy();
+
+    const startTime = Date.now();
+    const response = await page.request.post(
+      'http://localhost:8000/api/thinkers/suggest',
+      {
+        data: { topic: 'philosophy of mind' },
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(NAV_TIMEOUT);
+  });
 });

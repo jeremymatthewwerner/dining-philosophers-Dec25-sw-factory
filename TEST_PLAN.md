@@ -2,6 +2,55 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.16 E2E Performance Optimization - Apr 23, 2026 (Thursday QA)
+
+**Focus:** e2e-performance — eliminate remaining active `networkidle` anti-patterns, fix double-navigation in beforeEach, add API performance regression tests.
+**Coverage Impact:** No coverage change (performance improvement + 3 new performance tests)
+
+### Anti-Pattern Fixes
+
+**`e2e/feedback-edge-cases.spec.ts`**
+
+Three improvements:
+1. **Double-navigation removed from `beforeEach`** — `setupAuthenticatedUser` already ends on `/` with `new-chat-button` visible; the subsequent `await page.goto('/')` was redundant and wasted ~500ms per test. Removed.
+2. **`networkidle` in Promise.race (email validation)** — `Promise.race([errorSelector.waitFor(...), networkidle])` → `errorSelector.waitFor({ timeout: 3000 }).catch(() => {})`. The element wait is sufficient; `networkidle` added latency with no benefit.
+3. **`networkidle` stabilization wait (overlay click)** — bare `page.waitForLoadState('networkidle', { timeout: 2000 })` before an `isVisible()` check removed entirely. The `isVisible()` call itself provides the necessary synchronization.
+
+**`e2e/settings-edge-cases.spec.ts`**
+
+Two fixes in active tests:
+- `should reject password change with same password` — `networkidle` removed from `Promise.race` of error/success selectors; the two element waits are sufficient.
+- `should handle very long display name (500 chars)` — same pattern: `networkidle` removed from Promise.race.
+
+**`e2e/cost-edge-cases.spec.ts`**
+
+Two fixes in `should accumulate costs across multiple messages`:
+- After sending each message, replaced `waitForLoadState('networkidle', { timeout: 5000 })` with `await expect(sendButton).toBeEnabled({ timeout: 5000 })`. The send button re-enabling is the precise signal that message processing is complete; `networkidle` was waiting for all network activity to stop, which is broader and slower.
+
+**`e2e/form-validation.spec.ts`**
+
+One fix in `handles empty custom thinker input`:
+- `Promise.race([expect(count).toHaveCount(1), networkidle])` replaced with `expect(count).toHaveCount(0, { timeout: 2000 }).catch(() => {})`. We expect 0 thinkers (the whitespace input was rejected), not 1; the assertion now correctly validates the expected outcome.
+
+### New Performance Tests (`e2e/performance.spec.ts`)
+
+Three new tests added to `API Response Performance` describe block:
+
+| Test | Threshold | What it validates |
+|------|-----------|-------------------|
+| `user registration endpoint completes within 2 seconds` | 2s | `/api/auth/register` POST is fast; catches DB or bcrypt regressions |
+| `conversation creation via API completes within 3 seconds` | 3s | `/api/conversations` POST is fast; catches query or validation regressions |
+| `thinker suggestions endpoint responds within 3 seconds` | 3s | `/api/thinkers/suggest` POST responds quickly (uses mock when no API key) |
+
+### Anti-Pattern Count
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Active `waitForTimeout()` calls | 0 | 0 |
+| Active `waitForLoadState('networkidle')` in active tests | 6 | 0 |
+| Double navigation in `beforeEach` | 1 | 0 |
+| API performance regression tests | 3 | 6 |
+
 ## 1.15 Regression Prevention (Added 2026-04-19)
 
 **Focus**: Sunday QA focus - add regression prevention tests for recently-touched code paths

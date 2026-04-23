@@ -141,10 +141,8 @@ test.describe('Cost Edge Cases', () => {
       timeout: 5000,
     });
 
-    // Wait for network to settle after sending message
-    await page
-      .waitForLoadState('networkidle', { timeout: 5000 })
-      .catch(() => {});
+    // Wait for send button to re-enable (message processing complete)
+    await expect(sendButton).toBeEnabled({ timeout: 5000 });
 
     // Get cost after first message (if visible)
     const costMeter = page.getByTestId('cost-meter');
@@ -160,10 +158,8 @@ test.describe('Cost Edge Cases', () => {
         timeout: 5000,
       });
 
-      // Wait for network to settle after sending message
-      await page
-        .waitForLoadState('networkidle', { timeout: 5000 })
-        .catch(() => {});
+      // Wait for send button to re-enable (message processing complete)
+      await expect(sendButton).toBeEnabled({ timeout: 5000 });
 
       const costAfterSecond = await costMeter.textContent();
 

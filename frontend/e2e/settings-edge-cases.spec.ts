@@ -134,14 +134,15 @@ test.describe('Settings Edge Cases', () => {
     });
     await changeButton.click();
 
-    // Wait for response - use Promise.race instead of waitForTimeout
-    const errorSelector = page.locator('text=/same password|different password|new password|incorrect/i');
+    // Wait for response - race between error and success element appearing
+    const errorSelector = page.locator(
+      'text=/same password|different password|new password|incorrect/i'
+    );
     const successSelector = page.locator('text=Password changed successfully');
 
     await Promise.race([
       errorSelector.waitFor({ timeout: 10000 }).catch(() => {}),
       successSelector.waitFor({ timeout: 10000 }).catch(() => {}),
-      page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {}),
     ]);
 
     // Should show error that new password must be different
@@ -151,7 +152,10 @@ test.describe('Settings Edge Cases', () => {
     const successVisible = await successSelector.isVisible().catch(() => false);
 
     // Or form still visible (no response yet, but didn't crash)
-    const formStillVisible = await page.locator('#currentPassword').isVisible().catch(() => false);
+    const formStillVisible = await page
+      .locator('#currentPassword')
+      .isVisible()
+      .catch(() => false);
 
     // Either error is shown OR success OR form is still there (all acceptable)
     // The important thing is the app doesn't crash
@@ -174,14 +178,15 @@ test.describe('Settings Edge Cases', () => {
     await displayNameInput.fill(longName);
     await updateButton.click();
 
-    // Should either accept it or show validation error - use Promise.race
-    const successSelector = page.locator('text=Display name updated successfully');
+    // Should either accept it or show validation error - race on element appearance
+    const successSelector = page.locator(
+      'text=Display name updated successfully'
+    );
     const errorSelector = page.locator('text=/too long|maximum length|limit/i');
 
     await Promise.race([
       successSelector.waitFor({ timeout: 10000 }).catch(() => {}),
       errorSelector.waitFor({ timeout: 10000 }).catch(() => {}),
-      page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {}),
     ]);
 
     const successVisible = await successSelector.isVisible().catch(() => false);
@@ -215,7 +220,9 @@ test.describe('Settings Edge Cases', () => {
 
     // Should either trim whitespace automatically or show error
     // Wait for the form to still be visible (element-driven check that page didn't crash)
-    await expect(page.locator('#currentPassword')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#currentPassword')).toBeVisible({
+      timeout: 10000,
+    });
 
     // The form should handle this gracefully (either success or meaningful error)
     const formStillVisible = await page.locator('#currentPassword').isVisible();
