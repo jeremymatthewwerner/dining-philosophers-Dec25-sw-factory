@@ -11,7 +11,7 @@ test.describe('Feedback Modal Edge Cases', () => {
 
   test.beforeEach(async ({ page }) => {
     await setupAuthenticatedUser(page);
-    await page.goto('/');
+    // setupAuthenticatedUser already navigates to '/' and waits for the app to be ready
   });
 
   async function openFeedbackModal(page: any) {
@@ -56,7 +56,9 @@ test.describe('Feedback Modal Edge Cases', () => {
 
       // Should show error message
       await expect(
-        page.locator('text=/feedback.*required|please.*feedback|provide.*feedback/i')
+        page.locator(
+          'text=/feedback.*required|please.*feedback|provide.*feedback/i'
+        )
       ).toBeVisible({ timeout: 3000 });
     } else {
       // Expected: button is disabled when feedback is empty
@@ -77,8 +79,9 @@ test.describe('Feedback Modal Edge Cases', () => {
 
     // Create very long feedback (15,000 characters)
     // "This is a very detailed piece of feedback. " = 45 chars, so 334 repeats = 15,030 chars
-    const longFeedback =
-      'This is a very detailed piece of feedback. '.repeat(334);
+    const longFeedback = 'This is a very detailed piece of feedback. '.repeat(
+      334
+    );
     expect(longFeedback.length).toBeGreaterThan(14000);
 
     const feedbackText = page.getByTestId('feedback-message');
@@ -120,9 +123,11 @@ test.describe('Feedback Modal Edge Cases', () => {
     await page.getByTestId('feedback-message').fill('Testing email validation');
 
     // Check HTML5 validation BEFORE clicking submit (more reliable)
-    const isInvalidBeforeSubmit = await emailInput.evaluate((el: HTMLInputElement) => {
-      return !el.validity.valid;
-    });
+    const isInvalidBeforeSubmit = await emailInput.evaluate(
+      (el: HTMLInputElement) => {
+        return !el.validity.valid;
+      }
+    );
 
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
@@ -131,10 +136,7 @@ test.describe('Feedback Modal Edge Cases', () => {
     const errorSelector = page.locator(
       'text=/invalid email|email format|valid email/i'
     );
-    await Promise.race([
-      errorSelector.waitFor({ timeout: 3000 }).catch(() => {}),
-      page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {}),
-    ]);
+    await errorSelector.waitFor({ timeout: 3000 }).catch(() => {});
 
     const errorVisible = await errorSelector.isVisible().catch(() => false);
 
@@ -233,9 +235,6 @@ test.describe('Feedback Modal Edge Cases', () => {
     // This assumes the modal has a backdrop/overlay
     const modalOverlay = page.locator('[data-testid="feedback-modal"]');
     await modalOverlay.click({ position: { x: 5, y: 5 } }); // Click top-left corner (overlay)
-
-    // Wait briefly for any animation
-    await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
 
     const modalStillVisible = await page
       .getByTestId('feedback-modal')

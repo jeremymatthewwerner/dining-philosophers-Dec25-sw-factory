@@ -4,7 +4,10 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupAuthenticatedUser, createAndNavigateToConversation } from './test-utils';
+import {
+  setupAuthenticatedUser,
+  createAndNavigateToConversation,
+} from './test-utils';
 
 test.describe('Topic Input Validation', () => {
   test.describe.configure({ mode: 'parallel' });
@@ -46,7 +49,9 @@ test.describe('Topic Input Validation', () => {
 
     // Enter topic with special characters, unicode, and emojis
     const topicInput = page.getByTestId('topic-input');
-    await topicInput.fill('Philosophy of 🧠 & 💭: "Mind" vs. (Body) — ¿Qué es la vida?');
+    await topicInput.fill(
+      'Philosophy of 🧠 & 💭: "Mind" vs. (Body) — ¿Qué es la vida?'
+    );
 
     // Click Next
     await page.getByTestId('next-button').click();
@@ -74,7 +79,9 @@ test.describe('Topic Input Validation', () => {
 
     // Should successfully advance (or show validation if there's a limit)
     const thinkerHeader = page.locator('h2', { hasText: 'Select Thinkers' });
-    const isVisible = await thinkerHeader.isVisible({ timeout: 5000 }).catch(() => false);
+    const isVisible = await thinkerHeader
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (isVisible) {
       // No length limit - proceed with test
@@ -95,7 +102,9 @@ test.describe('Message Input Validation', () => {
 
   test('prevents sending empty message', async ({ page }) => {
     // Create a conversation via API (faster than UI modal flow)
-    await createAndNavigateToConversation(page, 'Quick test chat', ['Socrates']);
+    await createAndNavigateToConversation(page, 'Quick test chat', [
+      'Socrates',
+    ]);
 
     // Get message input and send button
     const messageTextarea = page.getByTestId('message-textarea');
@@ -124,10 +133,14 @@ test.describe('Message Input Validation', () => {
 
   test('handles very long message input', async ({ page }) => {
     // Create a conversation via API (faster than UI modal flow)
-    await createAndNavigateToConversation(page, 'Long message test', ['Aristotle']);
+    await createAndNavigateToConversation(page, 'Long message test', [
+      'Aristotle',
+    ]);
 
     // Type a very long message (5000 characters)
-    const longMessage = 'This is a very long philosophical question. '.repeat(100);
+    const longMessage = 'This is a very long philosophical question. '.repeat(
+      100
+    );
     const messageTextarea = page.getByTestId('message-textarea');
     await messageTextarea.fill(longMessage);
 
@@ -144,10 +157,13 @@ test.describe('Message Input Validation', () => {
 
   test('handles special characters in messages', async ({ page }) => {
     // Create a conversation via API (faster than UI modal flow)
-    await createAndNavigateToConversation(page, 'Special chars test', ['Confucius']);
+    await createAndNavigateToConversation(page, 'Special chars test', [
+      'Confucius',
+    ]);
 
     // Send message with special characters, emojis, and unicode
-    const specialMessage = 'What is 仁 (rén)? 🤔 How about "virtue" & <morality>?';
+    const specialMessage =
+      'What is 仁 (rén)? 🤔 How about "virtue" & <morality>?';
     const messageTextarea = page.getByTestId('message-textarea');
     await messageTextarea.fill(specialMessage);
 
@@ -155,9 +171,9 @@ test.describe('Message Input Validation', () => {
     await sendButton.click();
 
     // Message should appear correctly (not escaped or corrupted)
-    await expect(
-      page.locator('text=What is 仁 (rén)?')
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=What is 仁 (rén)?')).toBeVisible({
+      timeout: 5000,
+    });
   });
 });
 
@@ -219,10 +235,12 @@ test.describe('Rapid-Fire Actions', () => {
     }
 
     // Wait for state to settle by polling the thinker count
-    await expect.poll(
-      async () => await page.getByTestId('selected-thinker').count(),
-      { timeout: 2000, intervals: [100, 200] }
-    ).toBeLessThanOrEqual(4); // Allow for possible race condition in rapid clicks
+    await expect
+      .poll(async () => await page.getByTestId('selected-thinker').count(), {
+        timeout: 2000,
+        intervals: [100, 200],
+      })
+      .toBeLessThanOrEqual(4); // Allow for possible race condition in rapid clicks
   });
 
   test('handles rapid message sending', async ({ page }) => {
@@ -305,7 +323,8 @@ test.describe('Custom Thinker Validation', () => {
       expect(selectedThinkers).toBe(0);
     } else {
       // Check if error message is shown
-      const errorVisible = await page.locator('text=/invalid|not found|fictional|error/i')
+      const errorVisible = await page
+        .locator('text=/invalid|not found|fictional|error/i')
         .isVisible()
         .catch(() => false);
 
@@ -335,15 +354,12 @@ test.describe('Custom Thinker Validation', () => {
 
     if (!isDisabled) {
       await addButton.click();
-      // Wait briefly for any potential state change
-      await Promise.race([
-        expect(page.getByTestId('selected-thinker')).toHaveCount(1, {
+      // Wait briefly to confirm no thinker was added (whitespace-only input rejected)
+      await expect(page.getByTestId('selected-thinker'))
+        .toHaveCount(0, {
           timeout: 2000,
-        }),
-        page.waitForLoadState('networkidle', { timeout: 5000 }),
-      ]).catch(() => {
-        // Expected - empty input should not add thinker
-      });
+        })
+        .catch(() => {});
     }
 
     // No thinker should be added
