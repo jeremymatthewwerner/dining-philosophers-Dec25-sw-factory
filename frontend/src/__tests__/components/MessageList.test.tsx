@@ -1,20 +1,6 @@
-import { render, screen } from '@/test-utils';
+import { render, screen, createMessage } from '@/test-utils';
 import { MessageList } from '@/components/MessageList';
-import type { ConversationThinker, Message } from '@/types';
-
-const createMessage = (
-  id: string,
-  content: string,
-  sender_type: Message['sender_type'] = 'user'
-): Message => ({
-  id,
-  conversation_id: 'conv-1',
-  sender_type,
-  sender_name: sender_type === 'thinker' ? 'Socrates' : null,
-  content,
-  cost: null,
-  created_at: new Date().toISOString(),
-});
+import type { ConversationThinker } from '@/types';
 
 const thinkers: ConversationThinker[] = [
   {
@@ -24,6 +10,7 @@ const thinkers: ConversationThinker[] = [
     positions: 'Socratic method',
     style: 'Questions everything',
     color: '#3B82F6',
+    image_url: null,
   },
 ];
 
@@ -35,7 +22,10 @@ describe('MessageList', () => {
   });
 
   it('renders messages', () => {
-    const messages = [createMessage('1', 'Hello'), createMessage('2', 'World')];
+    const messages = [
+      createMessage({ id: '1', content: 'Hello' }),
+      createMessage({ id: '2', content: 'World' }),
+    ];
     render(<MessageList messages={messages} thinkers={thinkers} />);
 
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
@@ -45,8 +35,13 @@ describe('MessageList', () => {
 
   it('renders user and thinker messages', () => {
     const messages = [
-      createMessage('1', 'User question', 'user'),
-      createMessage('2', 'Thinker response', 'thinker'),
+      createMessage({ id: '1', content: 'User question', sender_type: 'user' }),
+      createMessage({
+        id: '2',
+        content: 'Thinker response',
+        sender_type: 'thinker',
+        sender_name: 'Socrates',
+      }),
     ];
     render(<MessageList messages={messages} thinkers={thinkers} />);
 
@@ -57,7 +52,14 @@ describe('MessageList', () => {
   });
 
   it('passes thinker color to messages', () => {
-    const messages = [createMessage('1', 'Response', 'thinker')];
+    const messages = [
+      createMessage({
+        id: '1',
+        content: 'Response',
+        sender_type: 'thinker',
+        sender_name: 'Socrates',
+      }),
+    ];
     render(<MessageList messages={messages} thinkers={thinkers} />);
 
     const thinkerName = screen.getByTestId('thinker-name');

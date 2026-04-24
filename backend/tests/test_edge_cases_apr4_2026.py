@@ -30,6 +30,7 @@ from tests.conftest import (
     assert_forbidden,
     assert_not_found,
     assert_unauthorized,
+    assert_validation_error,
     create_admin_headers,
     create_conversation_with_thinker,
     get_auth_headers,
@@ -97,7 +98,7 @@ class TestAuthEdgeCases:
                 "password": "password123",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_register_password_at_min_length(self, client: AsyncClient) -> None:
         """Test registration with password exactly at minimum length (6 chars).
@@ -127,7 +128,7 @@ class TestAuthEdgeCases:
                 "password": "12345",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_register_invalid_language_preference(self, client: AsyncClient) -> None:
         """Test registration with unsupported language preference.
@@ -143,7 +144,7 @@ class TestAuthEdgeCases:
                 "language_preference": "jp",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_login_wrong_password(self, client: AsyncClient) -> None:
         """Test login with correct username but wrong password.
@@ -165,7 +166,7 @@ class TestAuthEdgeCases:
             "/api/auth/login",
             json={"username": "wrongpassuser", "password": "wrongpassword"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
         # Must not distinguish between wrong username vs wrong password
         assert "Invalid username or password" in response.json()["detail"]
 
@@ -178,8 +179,7 @@ class TestAuthEdgeCases:
             "/api/auth/login",
             json={"username": "doesnotexist99999", "password": "anypassword"},
         )
-        assert response.status_code == 401
-        assert "Invalid username or password" in response.json()["detail"]
+        assert_unauthorized(response, "Invalid username or password")
 
     async def test_change_password_wrong_current_password(self, client: AsyncClient) -> None:
         """Test change-password with incorrect current password.
@@ -212,7 +212,7 @@ class TestAuthEdgeCases:
                 "new_password": "12345",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_update_language_invalid_code(self, client: AsyncClient) -> None:
         """Test language update with unsupported language code.
@@ -225,7 +225,7 @@ class TestAuthEdgeCases:
             headers=headers,
             json={"language_preference": "zh"},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_update_profile_empty_display_name_rejected(self, client: AsyncClient) -> None:
         """Test profile update with empty display name.
@@ -238,7 +238,7 @@ class TestAuthEdgeCases:
             headers=headers,
             json={"display_name": ""},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_update_profile_display_name_at_max_length(self, client: AsyncClient) -> None:
         """Test profile update with display name at exactly maximum length (100 chars).
@@ -269,7 +269,7 @@ class TestAuthEdgeCases:
             headers=headers,
             json={"display_name": too_long_name},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
 
 # ===========================================================================
@@ -291,7 +291,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json={"topic": "", "thinkers": make_simple_thinker_list()},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_create_conversation_no_thinkers_rejected(self, client: AsyncClient) -> None:
         """Test that creating a conversation with no thinkers is rejected.
@@ -304,7 +304,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json={"topic": "Some topic", "thinkers": []},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_create_conversation_too_many_thinkers_rejected(
         self, client: AsyncClient
@@ -328,7 +328,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json={"topic": "Six thinkers", "thinkers": thinkers},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_create_conversation_with_exactly_5_thinkers(self, client: AsyncClient) -> None:
         """Test that creating a conversation with exactly 5 thinkers (the max) succeeds.
@@ -367,7 +367,7 @@ class TestConversationEdgeCases:
         # User B tries to access User A's conversation
         headers_b = await get_auth_headers(client, "userb_conv", "password123")
         response = await client.get(f"/api/conversations/{conv_id}", headers=headers_b)
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_delete_conversation_other_users_conv_returns_404(
         self, client: AsyncClient
@@ -381,7 +381,7 @@ class TestConversationEdgeCases:
 
         headers_b = await get_auth_headers(client, "del_userb", "password123")
         response = await client.delete(f"/api/conversations/{conv_id}", headers=headers_b)
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_get_conversation_nonexistent_id_returns_404(self, client: AsyncClient) -> None:
         """Test that fetching a non-existent conversation ID returns 404.
@@ -390,7 +390,7 @@ class TestConversationEdgeCases:
         """
         headers = await get_auth_headers(client, "getmissuser", "password123")
         response = await client.get("/api/conversations/nonexistent-conv-id-xyz", headers=headers)
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_send_message_empty_content_rejected(self, client: AsyncClient) -> None:
         """Test that sending a message with empty content is rejected.
@@ -405,7 +405,7 @@ class TestConversationEdgeCases:
             json={"content": ""},
         )
         # Should fail - empty content not valid
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_send_message_to_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test sending message to a conversation that does not exist.
@@ -418,7 +418,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json={"content": "Hello there"},
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_add_thinkers_exceeds_max_limit(self, client: AsyncClient) -> None:
         """Test adding thinkers that would exceed the 5-thinker maximum.
@@ -481,7 +481,7 @@ class TestConversationEdgeCases:
             headers=headers,
             json=make_simple_thinker_list(),
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_add_thinkers_to_other_users_conversation(self, client: AsyncClient) -> None:
         """Test adding thinkers to another user's conversation returns 404.
@@ -497,7 +497,7 @@ class TestConversationEdgeCases:
             headers=headers_b,
             json=make_simple_thinker_list("New Thinker"),
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_add_thinkers_with_invalid_color_rejected(self, client: AsyncClient) -> None:
         """Test adding a thinker with an invalid hex color is rejected.
@@ -519,7 +519,7 @@ class TestConversationEdgeCases:
                 }
             ],
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_conversation_list_empty_for_new_user(self, client: AsyncClient) -> None:
         """Test that a brand new user has an empty conversation list.
@@ -537,7 +537,7 @@ class TestConversationEdgeCases:
         Security: All conversation endpoints require authentication.
         """
         response = await client.get("/api/conversations")
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_thinker_name_at_max_length(self, client: AsyncClient) -> None:
         """Test creating a thinker with name at exactly the max length (255 chars).
@@ -585,7 +585,7 @@ class TestConversationEdgeCases:
                 ],
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
 
 # ===========================================================================
@@ -688,7 +688,7 @@ class TestThinkersApiEdgeCases:
             "/api/thinkers/suggest",
             json={"topic": "philosophy", "count": 6},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_suggest_thinkers_count_zero_rejected(self, client: AsyncClient) -> None:
         """Test suggest thinkers with count=0 is rejected.
@@ -699,7 +699,7 @@ class TestThinkersApiEdgeCases:
             "/api/thinkers/suggest",
             json={"topic": "philosophy", "count": 0},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_suggest_thinkers_empty_topic_rejected(self, client: AsyncClient) -> None:
         """Test that suggest with empty topic is rejected.
@@ -710,7 +710,7 @@ class TestThinkersApiEdgeCases:
             "/api/thinkers/suggest",
             json={"topic": ""},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_suggest_thinkers_invalid_language_rejected(self, client: AsyncClient) -> None:
         """Test that suggest with unsupported language is rejected.
@@ -722,7 +722,7 @@ class TestThinkersApiEdgeCases:
             json={"topic": "philosophy", "language": "de"},
         )
         # 'de' is not in the allowed pattern ^(en|es|fr)$ for thinkers
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_validate_thinker_quota_error_returns_503(self, client: AsyncClient) -> None:
         """Test that quota error in validate endpoint returns 503.
@@ -771,7 +771,7 @@ class TestThinkersApiEdgeCases:
             "/api/thinkers/validate",
             json={"name": ""},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_validate_thinker_no_api_key_unknown_name(self, client: AsyncClient) -> None:
         """Test validate with no API key returns valid=False for unknown names.
@@ -957,7 +957,7 @@ class TestAdminEdgeCases:
         Security: Admin endpoints require both auth and admin role.
         """
         response = await client.get("/api/admin/users")
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
 
 # ===========================================================================
@@ -999,7 +999,7 @@ class TestFeedbackEdgeCases:
             "/api/feedback",
             json={"message": "A" * 5001},
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_submit_feedback_via_x_forwarded_for(self, client: AsyncClient) -> None:
         """Test that X-Forwarded-For header is used for rate limiting.
@@ -1045,7 +1045,7 @@ class TestFeedbackEdgeCases:
         with patch("app.api.feedback.get_settings") as mock_settings:
             mock_settings.return_value.feedback_processor_secret = "test-secret"
             response = await client.get("/api/feedback/pending?secret=test-secret&limit=51")
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_mark_processed_not_configured_returns_503(self, client: AsyncClient) -> None:
         """Test mark-processed when secret is not configured returns 503.

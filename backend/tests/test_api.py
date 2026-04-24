@@ -5,6 +5,9 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import (
+    assert_not_found,
+    assert_unauthorized,
+    assert_validation_error,
     create_admin_user,
     create_conversation_with_thinker,
     get_auth_headers,
@@ -90,8 +93,7 @@ class TestAuthAPI:
             "/api/auth/login",
             json={"username": "testuser2", "password": "wrongpassword"},
         )
-        assert response.status_code == 401
-        assert "Invalid" in response.json()["detail"]
+        assert_unauthorized(response, "Invalid")
 
     async def test_get_me(self, client: AsyncClient) -> None:
         """Test getting current user info."""
@@ -104,7 +106,7 @@ class TestAuthAPI:
     async def test_get_me_no_token(self, client: AsyncClient) -> None:
         """Test that /me requires authentication."""
         response = await client.get("/api/auth/me")
-        assert response.status_code == 401  # Not authenticated
+        assert_unauthorized(response)
 
     async def test_logout(self, client: AsyncClient) -> None:
         """Test logout endpoint."""
@@ -133,10 +135,10 @@ class TestAuthAPI:
             "/api/auth/profile",
             json={"display_name": "New Name"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     @pytest.mark.parametrize(
-        "username,display_name,description",
+        "username,display_name,_description",
         [
             ("emptyprofile", "", "empty string rejected"),
             ("longprofile", "A" * 101, "name over 100 chars rejected"),
@@ -147,7 +149,7 @@ class TestAuthAPI:
         client: AsyncClient,
         username: str,
         display_name: str,
-        description: str,
+        _description: str,
     ) -> None:
         """Test that invalid display names are rejected with 422.
 
@@ -161,7 +163,7 @@ class TestAuthAPI:
             headers=headers,
             json={"display_name": display_name},
         )
-        assert response.status_code == 422, f"Expected 422 for {description}"
+        assert_validation_error(response)
 
     async def test_change_password_success(self, client: AsyncClient) -> None:
         """Test successful password change."""
@@ -215,7 +217,7 @@ class TestAuthAPI:
                 "new_password": "new123456",
             },
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     @pytest.mark.parametrize(
         "new_password,expected_status,description",
@@ -269,14 +271,13 @@ class TestSessionAPI:
     async def test_get_session_no_auth(self, client: AsyncClient) -> None:
         """Test that session requires authentication."""
         response = await client.get("/api/sessions/me")
-        assert response.status_code == 401  # Not authenticated
+        assert_unauthorized(response)
 
     async def test_get_session_invalid_token(self, client: AsyncClient) -> None:
         """Test that invalid token returns 401."""
         headers = {"Authorization": "Bearer invalid_token_here"}
         response = await client.get("/api/sessions/me", headers=headers)
-        assert response.status_code == 401
-        assert "Invalid token" in response.json()["detail"]
+        assert_unauthorized(response, "Invalid token")
 
     async def test_get_session_token_missing_session_id(self, client: AsyncClient) -> None:
         """Test that token without session_id returns 401."""
@@ -286,7 +287,7 @@ class TestSessionAPI:
         token = create_access_token({"sub": "some-user-id"})
         headers = {"Authorization": f"Bearer {token}"}
         response = await client.get("/api/sessions/me", headers=headers)
-        assert response.status_code == 401
+        assert_unauthorized(response)
         assert "no session" in response.json()["detail"].lower()
 
     async def test_get_session_nonexistent_session(self, client: AsyncClient) -> None:
@@ -300,8 +301,7 @@ class TestSessionAPI:
         token = create_access_token({"sub": "some-user-id", "session_id": fake_session_id})
         headers = {"Authorization": f"Bearer {token}"}
         response = await client.get("/api/sessions/me", headers=headers)
-        assert response.status_code == 404
-        assert "Session not found" in response.json()["detail"]
+        assert_not_found(response, "Session not found")
 
 
 class TestConversationAPI:
@@ -380,7 +380,7 @@ class TestConversationAPI:
             "/api/conversations/non-existent",
             headers=headers,
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_send_message(self, client: AsyncClient) -> None:
         """Test sending a user message."""
@@ -415,7 +415,7 @@ class TestConversationAPI:
             f"/api/conversations/{conv_id}",
             headers=headers,
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_conversation_color_assignment_edge_cases(self, client: AsyncClient) -> None:
         """Test color assignment with max thinkers and custom colors."""
@@ -487,7 +487,7 @@ class TestConversationAPI:
             f"/api/conversations/{conv_id}",
             headers=headers,
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_unauthorized_conversation_access(self, client: AsyncClient) -> None:
         """Test that users cannot access other users' conversations."""
@@ -501,7 +501,7 @@ class TestConversationAPI:
             f"/api/conversations/{conv_id}",
             headers=headers_b,
         )
-        assert response.status_code == 404  # Should not find it
+        assert_not_found(response)
 
         # User B tries to send message to User A's conversation
         response = await client.post(
@@ -509,14 +509,14 @@ class TestConversationAPI:
             headers=headers_b,
             json={"content": "Trying to access!"},
         )
-        assert response.status_code == 404  # Should not find it
+        assert_not_found(response)
 
         # User B tries to delete User A's conversation
         response = await client.delete(
             f"/api/conversations/{conv_id}",
             headers=headers_b,
         )
-        assert response.status_code == 404  # Should not find it
+        assert_not_found(response)
 
     async def test_send_message_to_nonexistent_conversation(self, client: AsyncClient) -> None:
         """Test sending a message to non-existent conversation returns 404."""
@@ -526,8 +526,7 @@ class TestConversationAPI:
             headers=headers,
             json={"content": "This should fail"},
         )
-        assert response.status_code == 404
-        assert "Conversation not found" in response.json()["detail"]
+        assert_not_found(response, "Conversation not found")
 
     async def test_create_conversation_with_custom_color(self, client: AsyncClient) -> None:
         """Test that custom (non-default) thinker colors are preserved."""
@@ -770,7 +769,7 @@ class TestAdminAPI:
     async def test_list_users_no_auth(self, client: AsyncClient) -> None:
         """Test that unauthenticated requests are rejected."""
         response = await client.get("/api/admin/users")
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_delete_user_as_admin(
         self, client: AsyncClient, db_session: AsyncSession
@@ -823,7 +822,7 @@ class TestAdminAPI:
         headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
 
         response = await client.delete("/api/admin/users/nonexistent-id", headers=headers)
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_update_spend_limit_success(
         self, client: AsyncClient, db_session: AsyncSession
@@ -872,10 +871,10 @@ class TestAdminAPI:
             json={"spend_limit": 50.0},
             headers=headers,
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     @pytest.mark.parametrize(
-        "invalid_limit,description",
+        "invalid_limit,_description",
         [
             (0, "zero value"),
             (-5.0, "negative value"),
@@ -887,7 +886,7 @@ class TestAdminAPI:
         client: AsyncClient,
         db_session: AsyncSession,
         invalid_limit: float,
-        description: str,
+        _description: str,
     ) -> None:
         """Test validation for invalid spend limit values.
 
@@ -905,9 +904,7 @@ class TestAdminAPI:
             json={"spend_limit": invalid_limit},
             headers=headers,
         )
-        assert response.status_code == 422, (
-            f"Expected 422 for {description}, got {response.status_code}"
-        )
+        assert_validation_error(response)
 
     async def test_update_spend_limit_persists(
         self, client: AsyncClient, db_session: AsyncSession
@@ -1000,8 +997,7 @@ class TestSpendAPI:
         headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
 
         response = await client.get("/api/spend/nonexistent-user-id", headers=headers)
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
+        assert_not_found(response, "User not found")
 
     async def test_get_spend_as_non_admin(self, client: AsyncClient) -> None:
         """Test that non-admins cannot access spend data."""
@@ -1014,4 +1010,4 @@ class TestSpendAPI:
     async def test_get_spend_no_auth(self, client: AsyncClient) -> None:
         """Test that unauthenticated requests are rejected."""
         response = await client.get("/api/spend/some-user-id")
-        assert response.status_code == 401
+        assert_unauthorized(response)
