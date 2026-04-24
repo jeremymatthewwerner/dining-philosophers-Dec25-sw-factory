@@ -6184,3 +6184,75 @@ Multi-step API workflows testing full integration chains.
 | `test_get_knowledge_creates_entry_and_triggers_research` | GET /thinkers/knowledge/{name} | Creates entry and triggers background research |
 | `test_get_knowledge_status_returns_pending_for_unknown` | GET /thinkers/knowledge/{name}/status | Returns PENDING for unknown thinkers |
 | `test_refresh_thinker_knowledge_triggers_new_research` | POST /thinkers/knowledge/{name}/refresh | Forces fresh research even for complete entries |
+
+## 23. Test Refactoring - Apr 24, 2026 (Friday QA)
+
+**Focus:** Improve test readability and reduce duplication by using shared helper utilities.
+**Coverage:** 88.00% (maintained — refactoring focus, no new tests added)
+
+### 23.1 Frontend: MessageList.test.tsx
+
+**Refactoring:** Replaced local `createMessage(id, content, sender_type)` factory function with the shared `createMessage(overrides)` from `@/test-utils`. Eliminates duplicate factory definition that was diverging from the canonical version.
+
+| Change | Details |
+|--------|---------|
+| Removed local `createMessage` | Was 10-line factory with positional args; replaced with import |
+| Updated 4 test cases | All `createMessage(...)` calls updated to use override-based API |
+| Added `image_url: null` | Added required field to local `thinkers` fixture |
+
+### 23.2 Frontend: Message.test.tsx
+
+**Refactoring:** Replaced local `createMessage(overrides)` and `createThinker(name, overrides)` factory functions with the shared versions from `@/test-utils`. Removes 25 lines of duplicate factory definitions.
+
+| Change | Details |
+|--------|---------|
+| Removed local `createMessage` | 11-line factory replaced with import from `@/test-utils` |
+| Removed local `createThinker` | 10-line factory replaced with import from `@/test-utils` |
+| Updated 15 test cases | All factory calls updated to use shared helpers with override API |
+| Removed unused `fireEvent` import | Import cleanup |
+
+### 23.3 Backend: test_edge_cases_mar14_2026.py
+
+**Refactoring:** Added `assert_validation_error`, `assert_unauthorized`, and `assert_not_found` helpers from conftest. Replaced 20 raw `assert response.status_code == XXX` patterns with single-line helper calls.
+
+| Pattern Replaced | Count | Helper Used |
+|-----------------|-------|-------------|
+| `assert response.status_code == 422` | 12 | `assert_validation_error(response)` |
+| `assert response.status_code == 401` | 7 | `assert_unauthorized(response)` |
+| `assert response.status_code == 401` + detail check | 1 | `assert_unauthorized(response, "Invalid token")` |
+| `assert response.status_code == 404` | 1 | `assert_not_found(response)` |
+
+### 23.4 Backend: test_edge_cases_apr4_2026.py
+
+**Refactoring:** Added `assert_validation_error` import (file already had other assertion helpers). Replaced 30 raw assertion patterns with single-line helper calls.
+
+| Pattern Replaced | Count | Helper Used |
+|-----------------|-------|-------------|
+| `assert response.status_code == 422` | 22 | `assert_validation_error(response)` |
+| `assert response.status_code == 401` | 4 | `assert_unauthorized(response)` |
+| `assert response.status_code == 401` + detail | 1 | `assert_unauthorized(response, "Invalid username or password")` |
+| `assert response.status_code == 404` | 8 | `assert_not_found(response)` |
+| `_description` parameter rename | 0 | Renamed unused `description` to `_description` in parametrized tests |
+
+### 23.5 Backend: test_edge_cases_feb21_2026.py
+
+**Refactoring:** Added `assert_not_found`, `assert_unauthorized`, `assert_validation_error` helpers from conftest. Replaced 12 raw assertion patterns.
+
+| Pattern Replaced | Count | Helper Used |
+|-----------------|-------|-------------|
+| `assert response.status_code == 422` | 4 | `assert_validation_error(response)` |
+| `assert response.status_code == 401` | 4 | `assert_unauthorized(response)` |
+| `assert response.status_code == 401` + detail | 2 | `assert_unauthorized(response, "Invalid username or password")` |
+| `assert response.status_code == 404` | 2 | `assert_not_found(response)` |
+
+### 23.6 Backend: test_api.py
+
+**Refactoring:** Added `assert_not_found`, `assert_unauthorized`, `assert_validation_error` helpers from conftest. Replaced 22 raw assertion patterns with helper calls. Fixed orphaned multi-line assertion continuation after replacing `assert response.status_code == 422, (...)`.
+
+| Pattern Replaced | Count | Helper Used |
+|-----------------|-------|-------------|
+| `assert response.status_code == 422` | 3 | `assert_validation_error(response)` |
+| `assert response.status_code == 401` + detail | 2 | `assert_unauthorized(response, "...")` |
+| `assert response.status_code == 401` standalone | 6 | `assert_unauthorized(response)` |
+| `assert response.status_code == 404` standalone | 2 | `assert_not_found(response)` |
+| Parametrize `description` → `_description` | 2 | Ruff ARG002 unused argument fix |

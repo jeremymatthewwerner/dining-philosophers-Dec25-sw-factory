@@ -22,7 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import User
 from app.schemas.feedback import MAX_SCREENSHOT_SIZE, FeedbackCreate
 from app.services.spend import check_spend_limit
-from tests.conftest import get_auth_headers
+from tests.conftest import (
+    assert_not_found,
+    assert_unauthorized,
+    assert_validation_error,
+    get_auth_headers,
+)
 
 
 class TestSpendServiceZeroLimitEdgeCases:
@@ -208,7 +213,7 @@ class TestAuthBoundaryLengths:
                 "password": "password123",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_register_password_exactly_minimum_length(self, client: AsyncClient) -> None:
         """Test registration with password at exactly min length (6 chars).
@@ -238,7 +243,7 @@ class TestAuthBoundaryLengths:
                 "password": "abc12",  # 5 chars - below minimum
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_register_display_name_exactly_minimum_length(self, client: AsyncClient) -> None:
         """Test registration with display_name at exactly min length (1 char).
@@ -288,7 +293,7 @@ class TestAuthBoundaryLengths:
                 "password": "password123",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_register_password_at_maximum_length(self, client: AsyncClient) -> None:
         """Test registration with password at exactly max length (100 chars).
@@ -318,7 +323,7 @@ class TestAuthBoundaryLengths:
                 "password": "p" * 101,  # 101 chars - over maximum
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
 
 class TestAuthJWTEdgeCases:
@@ -340,7 +345,7 @@ class TestAuthJWTEdgeCases:
             "/api/auth/me",
             headers={"Authorization": f"Bearer {expired_token}"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_get_me_with_completely_malformed_token(self, client: AsyncClient) -> None:
         """Test that a completely invalid token string is rejected."""
@@ -348,7 +353,7 @@ class TestAuthJWTEdgeCases:
             "/api/auth/me",
             headers={"Authorization": "Bearer not-a-jwt-token"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_get_me_with_empty_bearer_token(self, client: AsyncClient) -> None:
         """Test that an empty bearer token value is handled gracefully."""
@@ -356,7 +361,7 @@ class TestAuthJWTEdgeCases:
             "/api/auth/me",
             headers={"Authorization": "Bearer "},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_get_me_with_token_for_nonexistent_user(self, client: AsyncClient) -> None:
         """Test that a valid JWT for a user that doesn't exist returns 401.
@@ -372,7 +377,7 @@ class TestAuthJWTEdgeCases:
             "/api/auth/me",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
     async def test_get_me_with_custom_expiry_token(self, client: AsyncClient) -> None:
         """Test that a JWT with custom positive expiry works correctly.
@@ -420,8 +425,7 @@ class TestSessionsTokenEdgeCases:
             headers={"Authorization": f"Bearer {token}"},
         )
         # Should get 401 for missing session_id
-        assert response.status_code == 401
-        assert "Invalid token" in response.json()["detail"]
+        assert_unauthorized(response, "Invalid token")
 
     async def test_get_session_me_with_invalid_session_id(self, client: AsyncClient) -> None:
         """Test that a token with non-existent session_id returns 404.
@@ -440,7 +444,7 @@ class TestSessionsTokenEdgeCases:
             "/api/sessions/me",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_conversations_with_token_missing_session_id(self, client: AsyncClient) -> None:
         """Test that conversations endpoint rejects token without session_id.
@@ -457,7 +461,7 @@ class TestSessionsTokenEdgeCases:
             "/api/conversations",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
 
 class TestFeedbackSchemaEdgeCases:
@@ -491,7 +495,7 @@ class TestFeedbackSchemaEdgeCases:
                 "message": "a" * 9,  # 9 chars - below minimum
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_submit_feedback_message_at_exactly_maximum_length(
         self, client: AsyncClient
@@ -521,7 +525,7 @@ class TestFeedbackSchemaEdgeCases:
                 "message": "a" * 5001,  # 5001 chars - over maximum
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     def test_feedback_screenshot_at_exactly_max_size_is_accepted(self) -> None:
         """Test that screenshot data at exactly max size is accepted by schema.
@@ -679,7 +683,7 @@ class TestConversationThinkerBoundaryEdgeCases:
                 ],
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_add_thinkers_to_reach_exactly_5(self, client: AsyncClient) -> None:
         """Test adding thinkers to reach exactly the 5-thinker limit.
@@ -826,7 +830,7 @@ class TestConversationThinkerBoundaryEdgeCases:
                 ],
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_thinker_color_invalid_format_rejected(self, client: AsyncClient) -> None:
         """Test creating thinker with invalid hex color format is rejected.
@@ -850,7 +854,7 @@ class TestConversationThinkerBoundaryEdgeCases:
                 ],
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_thinker_color_valid_uppercase_hex_accepted(self, client: AsyncClient) -> None:
         """Test creating thinker with valid uppercase hex color is accepted.
@@ -958,7 +962,7 @@ class TestPasswordChangeEdgeCases:
                 "new_password": "ab123",  # 5 chars - below minimum
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_change_password_to_max_length(self, client: AsyncClient) -> None:
         """Test changing password to exactly max length (100 chars).
@@ -994,7 +998,7 @@ class TestPasswordChangeEdgeCases:
                 "new_password": "newpassword123",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_change_password_with_special_characters(self, client: AsyncClient) -> None:
         """Test changing password to one with special characters and unicode.
@@ -1158,7 +1162,7 @@ class TestProfileUpdateEdgeCases:
             headers=headers,
             json={"display_name": ""},  # Empty - below minimum
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_update_profile_display_name_at_max_length(self, client: AsyncClient) -> None:
         """Test updating display_name to exactly max length (100 chars).
@@ -1188,7 +1192,7 @@ class TestProfileUpdateEdgeCases:
             headers=headers,
             json={"display_name": "D" * 101},  # 101 chars - over maximum
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_update_language_all_valid_codes(self, client: AsyncClient) -> None:
         """Test updating language to all valid codes (en, es, fr, de).

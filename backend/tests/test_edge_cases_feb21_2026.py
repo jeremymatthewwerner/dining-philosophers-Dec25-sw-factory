@@ -16,7 +16,13 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import User
-from tests.conftest import get_auth_headers, register_and_get_token
+from tests.conftest import (
+    assert_not_found,
+    assert_unauthorized,
+    assert_validation_error,
+    get_auth_headers,
+    register_and_get_token,
+)
 
 
 class TestAuthLogoutEndpoint:
@@ -124,8 +130,7 @@ class TestLoginSessionCreation:
             "/api/auth/login",
             json={"username": "wrong_pass_user_feb21", "password": "wrongpass"},
         )
-        assert response.status_code == 401
-        assert "Invalid username or password" in response.json()["detail"]
+        assert_unauthorized(response, "Invalid username or password")
 
     async def test_login_nonexistent_user_returns_401(self, client: AsyncClient) -> None:
         """Test that login with nonexistent username returns 401.
@@ -136,8 +141,7 @@ class TestLoginSessionCreation:
             "/api/auth/login",
             json={"username": "does_not_exist_feb21", "password": "anypass"},
         )
-        assert response.status_code == 401
-        assert "Invalid username or password" in response.json()["detail"]
+        assert_unauthorized(response, "Invalid username or password")
 
 
 class TestAuthUpdateEndpoints:
@@ -303,8 +307,7 @@ class TestAdminSpendLimitEdgeCases:
             headers=admin_headers,
             json={"spend_limit": 100.0},
         )
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
+        assert_not_found(response, "User not found")
 
     async def test_delete_nonexistent_user_returns_404(
         self, client: AsyncClient, db_session: AsyncSession
@@ -335,8 +338,7 @@ class TestAdminSpendLimitEdgeCases:
             "/api/admin/users/nonexistent-user-xyz-9999",
             headers=admin_headers,
         )
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
+        assert_not_found(response, "User not found")
 
     async def test_update_spend_limit_success_returns_response(
         self, client: AsyncClient, db_session: AsyncSession
@@ -423,7 +425,7 @@ class TestFeedbackEdgeCases:
                 "message": "short",  # only 5 chars
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_submit_feedback_message_too_long(self, client: AsyncClient) -> None:
         """Test submitting feedback with message longer than 5000 chars.
@@ -437,7 +439,7 @@ class TestFeedbackEdgeCases:
                 "message": "A" * 5001,  # one more than max
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_submit_feedback_feature_type(self, client: AsyncClient) -> None:
         """Test submitting feedback with 'feature' type.
@@ -465,7 +467,7 @@ class TestFeedbackEdgeCases:
                 "message": "This has an invalid feedback type value",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_get_pending_feedback_no_secret_configured(self, client: AsyncClient) -> None:
         """Test that pending feedback endpoint returns 503 when no secret is configured.
@@ -519,7 +521,7 @@ class TestFeedbackEdgeCases:
                 "screenshot_filename": "screenshot.png",
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_submit_feedback_rate_limiting(self, client: AsyncClient) -> None:
         """Test that feedback rate limiting kicks in after 5 submissions.
@@ -613,7 +615,7 @@ class TestConversationMaxThinkersEdgeCases:
                 ],
             },
         )
-        assert response.status_code == 422
+        assert_validation_error(response)
 
     async def test_add_thinkers_when_at_capacity_returns_400(self, client: AsyncClient) -> None:
         """Test that adding thinkers to a conversation already at 5 returns 400.
@@ -692,7 +694,7 @@ class TestConversationMaxThinkersEdgeCases:
                 }
             ],
         )
-        assert response.status_code == 404
+        assert_not_found(response)
         assert "not found" in response.json()["detail"].lower()
 
     async def test_add_thinkers_too_many_at_once_returns_400(self, client: AsyncClient) -> None:
@@ -900,7 +902,7 @@ class TestMessageBoundaryConditions:
             headers=headers,
             json={"content": "Hello, is anyone there?"},
         )
-        assert response.status_code == 404
+        assert_not_found(response)
         assert "not found" in response.json()["detail"].lower()
 
     async def test_send_message_to_other_users_conversation(self, client: AsyncClient) -> None:
@@ -942,7 +944,7 @@ class TestMessageBoundaryConditions:
             headers=user2_headers,
             json={"content": "Unauthorized message attempt!"},
         )
-        assert response.status_code == 404
+        assert_not_found(response)
 
     async def test_get_conversation_with_messages_returns_cost(self, client: AsyncClient) -> None:
         """Test that getting a conversation with messages returns total_cost.

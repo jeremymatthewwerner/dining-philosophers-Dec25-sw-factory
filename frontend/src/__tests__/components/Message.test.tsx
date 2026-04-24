@@ -1,30 +1,5 @@
-import { render, screen, fireEvent } from '@/test-utils';
+import { render, screen, createMessage, createThinker } from '@/test-utils';
 import { Message } from '@/components/Message';
-import type { Message as MessageType, ConversationThinker } from '@/types';
-
-const createMessage = (overrides: Partial<MessageType> = {}): MessageType => ({
-  id: 'msg-1',
-  conversation_id: 'conv-1',
-  sender_type: 'user',
-  sender_name: null,
-  content: 'Hello, world!',
-  cost: null,
-  created_at: '2024-01-15T10:30:00Z',
-  ...overrides,
-});
-
-const createThinker = (
-  name: string,
-  overrides: Partial<ConversationThinker> = {}
-): ConversationThinker => ({
-  id: `thinker-${name.toLowerCase().replace(' ', '-')}`,
-  name,
-  bio: `Bio of ${name}`,
-  positions: `Positions of ${name}`,
-  style: `Style of ${name}`,
-  color: '#3B82F6',
-  ...overrides,
-});
 
 describe('Message', () => {
   it('renders user message', () => {
@@ -32,7 +7,7 @@ describe('Message', () => {
     render(<Message message={message} />);
 
     expect(screen.getByTestId('message')).toBeInTheDocument();
-    expect(screen.getByText('Hello, world!')).toBeInTheDocument();
+    expect(screen.getByText('Test message content')).toBeInTheDocument();
     expect(screen.getByTestId('message')).toHaveAttribute(
       'data-sender-type',
       'user'
@@ -111,7 +86,7 @@ describe('Message', () => {
   });
 
   it('renders thinker avatar alongside thinker message', () => {
-    const thinker = createThinker('Socrates');
+    const thinker = createThinker({ name: 'Socrates' });
     const message = createMessage({
       sender_type: 'thinker',
       sender_name: 'Socrates',
@@ -123,7 +98,7 @@ describe('Message', () => {
   });
 
   it('does not show thinker avatar for user messages', () => {
-    const thinker = createThinker('Socrates');
+    const thinker = createThinker({ name: 'Socrates' });
     const message = createMessage({ sender_type: 'user', content: 'Hello' });
     render(<Message message={message} thinker={thinker} />);
 
@@ -145,7 +120,7 @@ describe('Message mention highlighting', () => {
   });
 
   it('highlights a thinker mention in message content', () => {
-    const thinkers = [createThinker('Plato')];
+    const thinkers = [createThinker({ name: 'Plato', id: 'thinker-plato' })];
     const message = createMessage({
       sender_type: 'thinker',
       sender_name: 'Socrates',
@@ -160,7 +135,9 @@ describe('Message mention highlighting', () => {
   });
 
   it('handles message with no mentions (no allThinkers match)', () => {
-    const thinkers = [createThinker('Einstein')];
+    const thinkers = [
+      createThinker({ name: 'Einstein', id: 'thinker-einstein' }),
+    ];
     const message = createMessage({
       sender_type: 'thinker',
       sender_name: 'Socrates',
@@ -173,7 +150,10 @@ describe('Message mention highlighting', () => {
   });
 
   it('highlights multiple different thinkers in same message', () => {
-    const thinkers = [createThinker('Plato'), createThinker('Aristotle')];
+    const thinkers = [
+      createThinker({ name: 'Plato', id: 'thinker-plato' }),
+      createThinker({ name: 'Aristotle', id: 'thinker-aristotle' }),
+    ];
     const message = createMessage({
       sender_type: 'thinker',
       sender_name: 'Socrates',
@@ -187,7 +167,7 @@ describe('Message mention highlighting', () => {
   });
 
   it('matches partial name (first name only)', () => {
-    const thinkers = [createThinker('Karl Marx')];
+    const thinkers = [createThinker({ name: 'Karl Marx', id: 'thinker-karl' })];
     const message = createMessage({
       sender_type: 'user',
       content: 'What would Karl say about this?',
@@ -200,7 +180,7 @@ describe('Message mention highlighting', () => {
   });
 
   it('renders user message with thinker mentions', () => {
-    const thinkers = [createThinker('Socrates')];
+    const thinkers = [createThinker({ name: 'Socrates' })];
     const message = createMessage({
       sender_type: 'user',
       content: 'Socrates, please respond.',
