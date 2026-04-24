@@ -1057,3 +1057,130 @@ These will be added in future QA iterations with proper API mocking.
 - `assert_success_response()` / `assert_error_response()` helpers from conftest.py
 - Direct database setup via SQLAlchemy models for complex test scenarios
 
+
+## Integration Gaps - Wednesday Sprint (Added 2026-04-15)
+
+**Focus**: Add tests for untested integration gaps identified in coverage analysis.
+**File**: `tests/test_integration_gaps_apr15_2026.py` (25 new tests)
+
+**Coverage before**: 87.24% | **Coverage after**: 87.73%
+**Key improvements**:
+- `app/services/knowledge_research.py`: 89% → 97%
+- `app/api/websocket.py`: 68% (added SET_SPEED path coverage)
+- `app/api/auth.py`: Comprehensive PATCH /language error path coverage
+
+### TestWebSocketSetSpeed (4 tests)
+
+1. **`test_set_speed_message_broadcasts_speed_changed`**
+   - Validates SET_SPEED client message triggers speed_multiplier update
+   - Asserts SPEED_CHANGED response is broadcast with correct conversation_id and value
+   - Coverage: `websocket.py:474-477` (SET_SPEED handler branch)
+
+2. **`test_set_speed_clamps_to_minimum`**
+   - Validates values below 0.5 are clamped to 0.5
+   - Coverage: `websocket.py:148` (max(0.5, min(6.0, multiplier)))
+
+3. **`test_set_speed_clamps_to_maximum`**
+   - Validates values above 6.0 are clamped to 6.0
+   - Coverage: `websocket.py:148`
+
+4. **`test_set_speed_multiple_clients_all_receive_notification`**
+   - Validates all connected clients in a room receive SPEED_CHANGED broadcast
+   - Uses two WebSocket connections to the same conversation
+   - Coverage: `websocket.py:161-164` (broadcast_to_conversation)
+
+### TestConnectionManagerSpeedMultiplier (2 tests)
+
+5. **`test_get_speed_multiplier_defaults_to_one`**
+   - Tests unknown conversation returns default 1.0
+
+6. **`test_get_speed_multiplier_for_room_without_connections`**
+   - Tests defaultdict-created room returns default speed
+
+### TestAuthLanguageUpdateIntegration (5 tests)
+
+7. **`test_update_language_without_auth_returns_401`**
+   - Validates require_user raises 401 when no auth header provided
+   - Coverage: `auth.py:56-66`
+
+8. **`test_update_language_with_invalid_token_returns_401`**
+   - Validates invalid JWT token returns 401
+   - Coverage: `auth.py:33-53`
+
+9. **`test_update_language_success_and_persists`**
+   - Validates language update commits to DB and is readable via GET /me
+   - Tests round-trip persistence of language preference
+   - Coverage: `auth.py:192-212`
+
+10. **`test_update_language_multiple_times`**
+    - Validates repeated PATCH calls correctly override previous value
+    - Tests all valid codes: de, fr, es, en
+    - Coverage: `auth.py:199-211`
+
+11. **`test_update_language_response_contains_full_user_profile`**
+    - Validates response includes all UserResponse fields, not just language
+    - Coverage: `auth.py:203-211` (UserResponse construction)
+
+### TestKnowledgeResearchFailurePath (3 tests)
+
+12. **`test_research_thinker_marks_failed_on_exception`**
+    - Mocks `_fetch_wikipedia_data` to raise and verifies error handling
+    - Validates no exception propagates out of `_research_thinker`
+    - Coverage: `knowledge_research.py:156-165`
+
+13. **`test_research_thinker_handles_nested_exception_gracefully`**
+    - Tests the inner except block when error-status update also fails
+    - Uses call-count mock: first session call succeeds, second raises
+    - Validates inner `except Exception as inner_e` swallows the error
+    - Coverage: `knowledge_research.py:166-167`
+
+14. **`test_research_service_marks_in_progress_before_fetch`**
+    - Validates status transitions PENDING -> IN_PROGRESS before fetch
+    - Uses async callback to confirm fetch is called within a working DB session
+    - Coverage: `knowledge_research.py:130-133`
+
+### TestExtractThinkingDisplayLanguages (11 tests)
+
+15. **`test_empty_string_returns_empty`**
+    - Early exit: empty input returns "" immediately
+    - Coverage: `thinker.py:789`
+
+16. **`test_short_text_returns_empty`**
+    - Short text (< 80 chars) returns "" to avoid truncated snippets
+    - Coverage: `thinker.py:797`
+
+17. **`test_english_replacements_applied`**
+    - Tests English replacement dict (I should → Perhaps I should, etc.)
+    - Coverage: `thinker.py:876-889`
+
+18. **`test_german_replacements_applied`**
+    - Tests German replacement dict and starters (Hmm..., Mal sehen..., etc.)
+    - Coverage: `thinker.py:824-836, 894-906`
+
+19. **`test_spanish_replacements_applied`**
+    - Tests Spanish replacement dict and starters
+    - Coverage: `thinker.py:837-849, 907-918`
+
+20. **`test_french_replacements_applied`**
+    - Tests French replacement dict and starters
+    - Coverage: `thinker.py:850-862, 919-930`
+
+21. **`test_hindi_replacements_applied`**
+    - Tests Hindi replacement dict and starters (even though "hi" is not a valid API language)
+    - Coverage: `thinker.py:863-875, 931-942`
+
+22. **`test_unknown_language_falls_back_to_english`**
+    - Unsupported language code falls through to English defaults
+    - Coverage: `thinker.py:876` (else branch)
+
+23. **`test_long_text_truncated_at_sentence_boundary`**
+    - Text > 200 chars is truncated at sentence boundary (". ", "! ", etc.)
+    - Coverage: `thinker.py:800-808`
+
+24. **`test_text_gets_ellipsis_when_truncated`**
+    - Non-punctuated endings get "..." appended
+    - Coverage: `thinker.py:964-966`
+
+25. **`test_text_starting_with_starter_prefix_not_double_prefixed`**
+    - Text already starting with a known starter is not double-prefixed
+    - Coverage: `thinker.py:960-962`
