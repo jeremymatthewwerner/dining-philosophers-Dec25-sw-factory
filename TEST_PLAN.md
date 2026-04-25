@@ -6256,3 +6256,75 @@ Multi-step API workflows testing full integration chains.
 | `assert response.status_code == 401` standalone | 6 | `assert_unauthorized(response)` |
 | `assert response.status_code == 404` standalone | 2 | `assert_not_found(response)` |
 | Parametrize `description` → `_description` | 2 | Ruff ARG002 unused argument fix |
+
+## 24. Edge Case Analysis - Apr 25, 2026 (`test_edge_cases_apr25_2026.py`)
+
+**Focus:** Boundary conditions and error paths targeting uncovered branches in websocket.py and thinker.py.
+
+**Coverage before:** 88% (1229 tests)
+**Coverage target:** 89%+ (30 new tests added)
+
+### 24.1 WebSocket Authentication Edge Cases (`TestWebSocketAuthEdgeCases`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_websocket_no_token_closes_with_4001` | Missing token triggers close(4001) guard at websocket.py:355 |
+| `test_websocket_invalid_token_closes_with_4001` | Malformed JWT rejected by decode_access_token guard at websocket.py:360 |
+| `test_websocket_token_without_session_id_closes_with_4001` | Valid JWT without session_id claim rejected at websocket.py:364 |
+| `test_websocket_valid_token_connects_successfully` | Control: valid token with session_id allows connection |
+
+### 24.2 WebSocket SET_SPEED Handler (`TestWebSocketSetSpeed`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_set_speed_message_broadcasts_speed_changed` | SET_SPEED message triggers SPEED_CHANGED broadcast to all clients |
+| `test_set_speed_clamps_to_valid_range` | Extreme speed values are clamped to [0.5, 6.0] range |
+
+### 24.3 ThinkerService Idle Pause/Resume (`TestThinkerServiceIdlePause`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_is_idle_paused_returns_false_for_unknown_conversation` | Unknown conversation ID returns False (boundary) |
+| `test_pause_for_idle_sets_both_paused_and_idle_paused` | pause_for_idle() adds to both _paused and _idle_paused sets |
+| `test_resume_from_idle_clears_both_sets` | resume_from_idle() removes from both pause sets |
+| `test_resume_from_idle_is_noop_for_manual_pause` | Manual pause is not cleared by resume_from_idle (isolation) |
+| `test_resume_from_idle_is_noop_for_unknown_conversation` | resume_from_idle on unknown conv is safe no-op |
+| `test_pause_for_idle_then_manual_resume_clears_idle_state` | Manual resume clears pause but keeps idle set entry |
+
+### 24.4 _should_respond Edge Cases (`TestShouldRespondEdgeCases`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_at_mentioned_thinker_has_very_high_response_probability` | @mention sets probability to 0.98 (near-certain response) |
+| `test_addressed_by_name_boosts_probability` | Name without @ gets boosted probability (>base) |
+| `test_consecutive_silence_boosts_probability` | consecutive_silence>2 increases response rate |
+| `test_own_last_message_reduces_probability_to_near_zero` | Own last message drops probability to 0.05 |
+| `test_no_new_messages_always_returns_false` | No new messages → always False (early exit guard) |
+
+### 24.5 _extract_thinking_display Language Paths (`TestExtractThinkingDisplayLanguages`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_german_language_path_applies_replacements` | German ('de') replacements applied (e.g., Ich sollte → Vielleicht sollte ich) |
+| `test_german_language_returns_non_empty_for_valid_input` | German path produces output without error |
+| `test_spanish_language_path_applies_replacements` | Spanish ('es') replacements applied |
+| `test_spanish_language_returns_non_empty_for_valid_input` | Spanish path produces output without error |
+| `test_french_language_path_applies_replacements` | French ('fr') replacements applied |
+| `test_french_language_returns_non_empty_for_valid_input` | French path produces output without error |
+| `test_hindi_language_path_applies_replacements` | Hindi ('hi') path exercised |
+| `test_unknown_language_falls_back_to_english_replacements` | Unknown language code uses English defaults |
+| `test_text_already_ending_with_ellipsis_no_double_ellipsis` | Text ending in '...' does not get second ellipsis |
+
+### 24.6 _split_response_into_bubbles Edge Cases (`TestSplitResponseEdgeCases`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_transition_word_forces_bubble_split` | Transition words (However,) trigger bubble split even below target size |
+| `test_very_long_single_sentence_gets_force_split` | Single bubble >300 chars gets force-split at mid-sentence boundary |
+| `test_empty_bubbles_filtered_out` | Filter step removes empty strings from bubble list |
+
+### 24.7 Streaming Thinking Unexpected Error (`TestStreamingThinkingUnexpectedError`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_unexpected_exception_in_stream_raises_thinker_api_error` | Non-APIError during streaming is wrapped in ThinkerAPIError (lines 686-688) |
