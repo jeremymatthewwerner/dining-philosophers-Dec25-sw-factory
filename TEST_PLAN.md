@@ -2,6 +2,105 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.16 Regression Prevention (Added 2026-04-26)
+
+**Focus**: Sunday QA - regression prevention for recent bug fixes
+**Coverage Impact**: +30 backend tests (1289 total)
+**Files**:
+- `backend/tests/test_regression_prevention_apr26_2026.py` (new - 30 regression tests)
+
+**Bug fixes guarded** (from January 2026):
+- fix(thinker)#533: linear speed scaling instead of exponential
+- fix(websocket)#367: sync pause button state on reconnect
+- fix(feedback)#299: enum values for PostgreSQL
+- fix(i18n)#570: Hindi language support
+
+### TestStopAgentsPauseStatePersistence (3 tests)
+
+Regression guard: `stop_conversation_agents` MUST NOT clear pause state (intentional design).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_stop_agents_does_not_clear_manual_pause` | Manual pause persists after stop_conversation_agents |
+| `test_stop_agents_does_not_clear_idle_pause` | Idle pause persists after stop_conversation_agents |
+| `test_stop_agents_cleans_up_active_tasks_dict` | Active tasks dict IS cleaned up (unlike pause state) |
+
+### TestConversationRoomConnectionManagement (4 tests)
+
+Regression guard: `ConversationRoom.is_active` tracks connections correctly after fix(websocket)#367.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_room_becomes_inactive_when_only_connection_removed` | is_active=False after last connection removed |
+| `test_room_stays_active_with_multiple_connections_one_removed` | is_active=True while 2nd client still connected |
+| `test_room_becomes_inactive_when_all_connections_removed` | is_active=False after all connections removed |
+| `test_broadcast_handles_stale_connection_gracefully` | Stale connections purged, other clients still get message |
+
+### TestExtractThinkingDisplayEllipsis (4 tests)
+
+Regression guard for lines 964-966 in thinker.py: ellipsis added to mid-sentence truncations.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_text_truncated_mid_sentence_gets_ellipsis` | Text ending mid-word gets '...' |
+| `test_text_ending_with_exclamation_does_not_get_ellipsis` | '!' text doesn't become '!...' |
+| `test_text_ending_with_question_mark_does_not_get_ellipsis` | '?' text doesn't become '?...' |
+| `test_text_already_ending_with_ellipsis_no_double_ellipsis` | '...' text doesn't become '......' |
+
+### TestSenderTypeEnumDualPath (5 tests)
+
+Regression guard: helper methods work with both ORM SenderType enum and plain string values.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_get_last_timestamp_recognizes_enum_sender_type` | _get_last_user_message_timestamp finds SenderType.USER |
+| `test_get_last_timestamp_recognizes_string_sender_type` | _get_last_user_message_timestamp finds plain "user" |
+| `test_count_messages_since_user_recognizes_enum` | _count_messages_since_user counts with SenderType.USER |
+| `test_count_messages_since_user_recognizes_string` | _count_messages_since_user counts with plain "user" |
+| `test_get_user_name_recognizes_enum_sender_type` | _get_user_name_from_messages returns name for SenderType.USER |
+
+### TestConnectionManagerRoomSpeedMultiplier (3 tests)
+
+Regression guard for fix(thinker)#533: per-room speed multiplier defaults and independence.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_new_room_has_default_speed_multiplier_of_1_0` | New ConversationRoom defaults to speed_multiplier=1.0 |
+| `test_speed_multiplier_is_independent_per_conversation` | Setting speed on conv-A doesn't affect conv-B |
+| `test_get_speed_for_unknown_conversation_returns_1_0` | get_speed_multiplier returns 1.0 for unknown convs |
+
+### TestIsMentionedEdgeCases (4 tests)
+
+Regression guard for the @mention system (feat#257): edge cases that must not raise or false-positive.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_is_mentioned_empty_text_returns_false` | Empty text returns False without error |
+| `test_is_mentioned_no_at_sign_returns_false` | Name without @ is NOT treated as @mention |
+| `test_extract_mentions_bare_at_sign_returns_empty` | Bare '@' with no name produces no mentions |
+| `test_is_mentioned_case_insensitive_match` | @SOCRATES and @socrates both match 'Socrates' |
+
+### TestShouldRespondMessageCountBoundary (3 tests)
+
+Regression guard: `_should_respond` returns False when no new messages since last response.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_no_response_when_message_count_equals_last_response_count` | Returns False when new_message_count == 0 |
+| `test_no_response_when_last_response_count_exceeds_messages` | Returns False when new_message_count < 0 |
+| `test_can_respond_when_one_new_message` | Can return True with 1 new message (positive case) |
+
+### TestPauseStateAttemptDualSet (4 tests)
+
+Regression guard for feat(backend)#483 (idle timeout): manual vs idle pause independence.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_manual_pause_not_cleared_by_resume_from_idle` | resume_from_idle is no-op on manual pause |
+| `test_idle_pause_IS_cleared_by_resume_from_idle` | resume_from_idle works on idle-paused conversations |
+| `test_pause_conversation_makes_is_paused_true` | Basic regression: pause sets is_paused=True |
+| `test_resume_conversation_makes_is_paused_false` | Basic regression: resume clears is_paused |
+
 ## 1.15 Regression Prevention (Added 2026-04-19)
 
 **Focus**: Sunday QA focus - add regression prevention tests for recently-touched code paths
