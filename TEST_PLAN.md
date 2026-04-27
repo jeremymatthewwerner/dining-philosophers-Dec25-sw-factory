@@ -2,6 +2,78 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.17 Coverage Sprint - websocket.py (Added 2026-04-27)
+
+**Focus**: Monday QA - coverage sprint targeting `app/api/websocket.py`
+**Coverage Impact**: websocket.py 69% → 92% (+23%), backend overall 88.22% → 91.32% (+3.1%)
+**Config Fix**: Added `"thread"` to `coverage.run.concurrency` in `pyproject.toml` to track async code in TestClient threads
+**Files**:
+- `backend/tests/test_websocket.py` (22 new tests added)
+
+### TestWebSocketAuthRejection (3 tests)
+
+Authentication rejection paths in the WebSocket endpoint (covers lines 355-367).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_websocket_no_token_rejected` | Connection without token raises WebSocketDisconnect (code 4001) |
+| `test_websocket_invalid_token_rejected` | Connection with invalid JWT raises WebSocketDisconnect (code 4001) |
+| `test_websocket_token_without_session_id_rejected` | Token missing session_id field is rejected (code 4001) |
+
+### TestWebSocketSpeedControl (3 tests)
+
+SET_SPEED message handling and clamping behavior (covers lines 474-477).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_set_speed_message_updates_multiplier` | SET_SPEED message updates speed and broadcasts SPEED_CHANGED |
+| `test_set_speed_clamped_to_max` | Speed > 6.0 is clamped to 6.0 |
+| `test_set_speed_clamped_to_min` | Speed < 0.5 is clamped to 0.5 |
+
+### TestWebSocketDisconnect (2 tests)
+
+WebSocket disconnect handling (covers lines 501-512).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_clean_disconnect_does_not_error` | Exiting WebSocket context manager completes without exception |
+| `test_conversation_room_inactive_after_remove_all` | ConversationRoom.is_active becomes False when last connection removed |
+
+### TestConnectionManagerBroadcastMethods (10 tests)
+
+ConnectionManager send/broadcast methods for thinker events (covers lines 175-262).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_send_thinker_message_broadcasts_correctly` | send_thinker_message sends MESSAGE type with thinker name, content, message_id, cost |
+| `test_send_thinker_typing_broadcasts_correctly` | send_thinker_typing sends THINKER_TYPING type with sender_name |
+| `test_send_thinker_thinking_broadcasts_correctly` | send_thinker_thinking sends THINKER_THINKING type with thinking content |
+| `test_send_thinker_stopped_typing_broadcasts_correctly` | send_thinker_stopped_typing sends THINKER_STOPPED_TYPING and removes thinker from typing set |
+| `test_send_research_started_broadcasts_correctly` | send_research_started sends RESEARCH_STARTED with thinker_name |
+| `test_send_research_complete_broadcasts_correctly` | send_research_complete sends RESEARCH_COMPLETE with thinker_name |
+| `test_send_research_failed_broadcasts_correctly` | send_research_failed sends RESEARCH_FAILED with error content |
+| `test_send_cache_hit_broadcasts_correctly` | send_cache_hit sends CACHE_HIT with thinker_name |
+| `test_get_speed_multiplier_returns_default` | get_speed_multiplier returns 1.0 for unknown conversation |
+| `test_get_speed_multiplier_returns_set_value` | get_speed_multiplier returns value set by set_speed_multiplier |
+
+### TestSpendLimitExceeded (2 tests)
+
+SpendLimitExceeded exception class (covers lines 284-287).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_spend_limit_exceeded_message` | Exception formats current/limit spend in message |
+| `test_spend_limit_exceeded_is_exception` | SpendLimitExceeded is an Exception subclass |
+
+### TestGetMessagesForConversation (2 tests)
+
+`get_messages_for_conversation` helper function (covers lines 273-278).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_returns_empty_for_unknown_conversation` | Unknown conversation returns empty list |
+| `test_returns_messages_in_order` | Messages returned in chronological creation order |
+
 ## 1.16 Regression Prevention (Added 2026-04-26)
 
 **Focus**: Sunday QA - regression prevention for recent bug fixes
