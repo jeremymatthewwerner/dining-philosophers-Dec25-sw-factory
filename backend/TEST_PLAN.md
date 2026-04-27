@@ -1057,3 +1057,172 @@ These will be added in future QA iterations with proper API mocking.
 - `assert_success_response()` / `assert_error_response()` helpers from conftest.py
 - Direct database setup via SQLAlchemy models for complex test scenarios
 
+---
+
+## 0.4 Integration Gaps - March 18, 2026 (Wednesday)
+
+**Focus**: Integration gaps - untested API endpoint paths
+**File**: `backend/tests/test_integration_gaps_mar18_2026.py`
+**Coverage Before**: 85.13% total | websocket.py: 68% | knowledge_research.py: 73% | main.py: 79%
+**Coverage After**: 86.52% total | knowledge_research.py: 96%
+
+### 0.4.1 WebSocket Auth & Speed Control Tests (TestWebSocketAuthPaths)
+
+1. **`test_websocket_no_token_closes_with_4001`**
+   - Validates WebSocket connection without token parameter is rejected
+   - Server closes connection without accepting (code 4001)
+   - Coverage: `app/api/websocket.py` lines 355-357
+
+2. **`test_websocket_empty_token_closes_with_4001`**
+   - Validates WebSocket connection with empty token string is rejected
+   - Empty string is falsy, triggers auth failure
+   - Coverage: `app/api/websocket.py` lines 355-357
+
+3. **`test_websocket_invalid_token_closes_with_4001`**
+   - Validates WebSocket connection with malformed JWT is rejected
+   - `decode_access_token` returns None for invalid JWT
+   - Coverage: `app/api/websocket.py` lines 359-362
+
+4. **`test_websocket_token_without_session_id_closes_with_4001`**
+   - Validates WebSocket connection with valid JWT but missing session_id claim is rejected
+   - Token payload missing `session_id` key triggers auth failure
+   - Coverage: `app/api/websocket.py` lines 364-367
+
+5. **`test_websocket_set_speed_message_handling`**
+   - Validates SET_SPEED message updates speed and broadcasts SPEED_CHANGED
+   - Verifies speed_multiplier is reflected in broadcast response
+   - Coverage: `app/api/websocket.py` lines 474-477
+
+6. **`test_websocket_set_speed_clamped_to_max`**
+   - Validates SET_SPEED with value > 6.0 is clamped to 6.0
+   - Tests boundary condition at max speed
+   - Coverage: `app/api/websocket.py` set_speed_multiplier clamp logic
+
+7. **`test_websocket_set_speed_clamped_to_min`**
+   - Validates SET_SPEED with value < 0.5 is clamped to 0.5
+   - Tests boundary condition at min speed
+   - Coverage: `app/api/websocket.py` set_speed_multiplier clamp logic
+
+### 0.4.2 ConnectionManager Branch Tests (TestConnectionManagerBranches)
+
+8. **`test_connect_when_room_already_exists_adds_to_existing_room`**
+   - Validates second connection to same conversation uses existing room object
+   - Tests branch where `conversation_id in self.rooms` is True
+   - Coverage: `app/api/websocket.py` lines 125->127
+
+9. **`test_send_thinker_typing_when_room_not_in_rooms`**
+   - Validates `send_thinker_typing` does not raise when conversation has no room
+   - Tests branch where room is absent
+   - Coverage: `app/api/websocket.py` lines 189->191
+
+10. **`test_get_speed_multiplier_for_nonexistent_conversation`**
+    - Validates `get_speed_multiplier` returns 1.0 default for unknown conversations
+    - Coverage: `app/api/websocket.py` lines 141-143
+
+11. **`test_set_speed_multiplier_for_nonexistent_conversation_does_not_raise`**
+    - Validates `set_speed_multiplier` is a no-op when conversation has no room
+    - Coverage: `app/api/websocket.py` line 149 (room not in rooms branch)
+
+12. **`test_disconnect_when_room_not_in_rooms_does_not_raise`**
+    - Validates `disconnect` is a no-op for conversations never connected
+    - Coverage: `app/api/websocket.py` lines 131-133
+
+13. **`test_broadcast_to_conversation_when_no_room_does_not_raise`**
+    - Validates `broadcast_to_conversation` is a no-op when no room exists
+    - Coverage: `app/api/websocket.py` line 163
+
+14. **`test_conversation_room_broadcast_handles_disconnected_clients`**
+    - Validates ConversationRoom.broadcast removes failed connections
+    - Tests exception handling during broadcast to a dead websocket
+    - Coverage: `app/api/websocket.py` lines 103-107
+
+### 0.4.3 Knowledge Research Service Tests (TestKnowledgeResearchThinkerPaths)
+
+15. **`test_research_thinker_success_path`**
+    - Validates `_research_thinker` sets status to COMPLETE with Wikipedia data
+    - Mocks DB session and Wikipedia fetch
+    - Coverage: `app/services/knowledge_research.py` lines 130-154
+
+16. **`test_research_thinker_no_wikipedia_data`**
+    - Validates `_research_thinker` succeeds even when Wikipedia returns None
+    - Status should be COMPLETE with empty research_data
+    - Coverage: `app/services/knowledge_research.py` lines 140-154
+
+17. **`test_research_thinker_error_path_marks_as_failed`**
+    - Validates `_research_thinker` marks entry as FAILED when exception occurs
+    - Error message should be stored in `failed_knowledge.error_message`
+    - Coverage: `app/services/knowledge_research.py` lines 156-167
+
+18. **`test_research_thinker_error_path_knowledge_not_found`**
+    - Validates `_research_thinker` error handler gracefully handles None knowledge
+    - Tests robustness when `get_knowledge` returns None in error path
+    - Coverage: `app/services/knowledge_research.py` lines 161-167
+
+### 0.4.4 Refresh Stale Knowledge Tests (TestRefreshStaleKnowledge)
+
+19. **`test_refresh_stale_knowledge_with_stale_entries`**
+    - Validates `refresh_stale_knowledge` returns integer count of stale entries
+    - Tests full method flow with database entries
+    - Coverage: `app/services/knowledge_research.py` lines 292-312
+
+20. **`test_refresh_stale_knowledge_returns_zero_when_no_stale_entries`**
+    - Validates `refresh_stale_knowledge` returns 0 on empty database
+    - Verifies `trigger_research` is not called when nothing is stale
+    - Coverage: `app/services/knowledge_research.py` lines 292-312
+
+21. **`test_refresh_stale_knowledge_skips_recent_complete_entries`**
+    - Validates recently completed entries are excluded from stale refresh
+    - COMPLETE entries with recent updated_at should not trigger research
+    - Coverage: `app/services/knowledge_research.py` lines 331-344
+
+### 0.4.5 Wikipedia Fetch Edge Case Tests (TestWikipediaFetchEdgeCases)
+
+22. **`test_fetch_wikipedia_data_page_id_minus_one_returns_none`**
+    - Validates `_fetch_wikipedia_data` returns None when page_id is "-1"
+    - page_id="-1" indicates Wikipedia could not find the page
+    - Coverage: `app/services/knowledge_research.py` lines 214-215
+
+23. **`test_fetch_wikipedia_data_with_sections_in_result`**
+    - Validates sections are included in result when `_fetch_wikipedia_sections` returns data
+    - Tests the `sections_data` truthy branch
+    - Coverage: `app/services/knowledge_research.py` lines 228-232
+
+24. **`test_fetch_wikipedia_data_without_thumbnail`**
+    - Validates result is correct when page has no thumbnail
+    - Tests absent `thumbnail` key branch (no image_url in result)
+    - Coverage: `app/services/knowledge_research.py` lines 224-225
+
+### 0.4.6 Main App Integration Tests (TestMainAppIntegration)
+
+25. **`test_billing_error_handler_returns_503`**
+    - Validates `BillingError` exception results in 503 Service Unavailable
+    - Tests the billing_error_handler directly
+    - Coverage: `app/main.py` lines 80-106
+
+26. **`test_create_admin_user_when_admin_already_exists`**
+    - Validates `create_admin_user` is a no-op when admin user already exists
+    - Verifies `db.add` is NOT called when admin found
+    - Coverage: `app/main.py` lines 42-43
+
+27. **`test_create_admin_user_creates_admin_when_none_exists`**
+    - Validates `create_admin_user` creates a new admin user when none exists
+    - Verifies `db.add` and `db.commit` are called
+    - Coverage: `app/main.py` lines 32-41
+
+### 0.4.7 Summary
+
+**Files Modified**:
+- `backend/tests/test_integration_gaps_mar18_2026.py` - Added 27 new integration tests
+
+**Total Impact**:
+- 27 integration tests added across 6 test classes
+- knowledge_research.py coverage: 73% → 96% (major improvement)
+- Total coverage: 85.13% → 86.52% (+1.39%)
+- Tests are stable (verified 3x, no flakiness)
+
+**Key Patterns Used**:
+- Starlette `TestClient` for synchronous WebSocket testing
+- `AsyncMock` with `__aenter__`/`__aexit__` for async context manager mocking
+- `patch.object` for targeted method-level mocking in services
+- `pytest.raises` with multiple exception types for rejected connection testing
+
