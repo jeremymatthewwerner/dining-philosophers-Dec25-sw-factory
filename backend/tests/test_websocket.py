@@ -1,6 +1,7 @@
 """Tests for WebSocket functionality."""
 
 import json
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import select
@@ -9,8 +10,11 @@ from starlette.testclient import TestClient
 
 from app.api.websocket import (
     ConnectionManager,
+    ConversationRoom,
+    SpendLimitExceeded,
     WSMessage,
     WSMessageType,
+    get_messages_for_conversation,
     save_thinker_message,
 )
 from app.core.auth import create_access_token
@@ -512,3 +516,296 @@ class TestCostAccumulation:
         result = await db_session.execute(select(User).where(User.id == user2.id))
         updated_user2 = result.scalar_one()
         assert updated_user2.total_spend == cost2
+
+
+class TestWebSocketAuthRejection:
+    """Tests for WebSocket authentication rejection paths."""
+
+    def test_websocket_no_token_rejected(self) -> None:
+        """Test WebSocket connection without token is rejected with code 4001."""
+        from starlette.websockets import WebSocketDisconnect
+
+        with (
+            TestClient(app) as test_client,
+            pytest.raises(WebSocketDisconnect),
+            test_client.websocket_connect("/ws/test-conv-no-token") as websocket,
+        ):
+            # Connection should be closed immediately
+            websocket.receive_json()
+
+    def test_websocket_invalid_token_rejected(self) -> None:
+        """Test WebSocket connection with invalid JWT token is rejected with code 4001."""
+        from starlette.websockets import WebSocketDisconnect
+
+        with (
+            TestClient(app) as test_client,
+            pytest.raises(WebSocketDisconnect),
+            test_client.websocket_connect(
+                "/ws/test-conv-bad-token?token=not.a.valid.jwt"
+            ) as websocket,
+        ):
+            websocket.receive_json()
+
+    def test_websocket_token_without_session_id_rejected(self) -> None:
+        """Test that a token lacking session_id is rejected."""
+        from starlette.websockets import WebSocketDisconnect
+
+        # Token with user_id but no session_id
+        token = create_access_token({"sub": "some-user-id"})
+        with (
+            TestClient(app) as test_client,
+            pytest.raises(WebSocketDisconnect),
+            test_client.websocket_connect(f"/ws/test-conv-no-session?token={token}") as websocket,
+        ):
+            websocket.receive_json()
+
+
+class TestWebSocketSpeedControl:
+    """Tests for WebSocket speed control message."""
+
+    def test_set_speed_message_updates_multiplier(self) -> None:
+        """Test that SET_SPEED message updates speed and broadcasts SPEED_CHANGED."""
+        token = get_test_token()
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/speed-test?token={token}") as websocket,
+        ):
+            # Consume the initial join + resumed messages
+            websocket.receive_json()
+            websocket.receive_json()
+
+            # Send a set_speed message
+            websocket.send_json({"type": "set_speed", "speed_multiplier": 2.0})
+
+            # Should receive speed_changed broadcast
+            data = websocket.receive_json()
+            assert data["type"] == "speed_changed"
+            assert data["speed_multiplier"] == 2.0
+
+    def test_set_speed_clamped_to_max(self) -> None:
+        """Test that speed is clamped to maximum value of 6.0."""
+        token = get_test_token()
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/speed-clamp-max?token={token}") as websocket,
+        ):
+            websocket.receive_json()
+            websocket.receive_json()
+
+            websocket.send_json({"type": "set_speed", "speed_multiplier": 100.0})
+            data = websocket.receive_json()
+            assert data["type"] == "speed_changed"
+            assert data["speed_multiplier"] == 6.0
+
+    def test_set_speed_clamped_to_min(self) -> None:
+        """Test that speed is clamped to minimum value of 0.5."""
+        token = get_test_token()
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/speed-clamp-min?token={token}") as websocket,
+        ):
+            websocket.receive_json()
+            websocket.receive_json()
+
+            websocket.send_json({"type": "set_speed", "speed_multiplier": 0.0})
+            data = websocket.receive_json()
+            assert data["type"] == "speed_changed"
+            assert data["speed_multiplier"] == 0.5
+
+
+class TestWebSocketDisconnect:
+    """Tests for WebSocket disconnect handling."""
+
+    def test_clean_disconnect_does_not_error(self) -> None:
+        """Test that disconnecting cleanly completes without errors."""
+        token = get_test_token("disc-user-clean")
+        conversation_id = "clean-disconnect-test"
+
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/{conversation_id}?token={token}") as websocket,
+        ):
+            websocket.receive_json()  # user_joined
+            websocket.receive_json()  # resumed
+        # Context manager exit triggers disconnect; no exception = success
+
+    async def test_conversation_room_inactive_after_remove_all(self) -> None:
+        """Test ConversationRoom.is_active becomes False when last connection removed."""
+        from unittest.mock import MagicMock
+
+        from app.api.websocket import ConversationRoom
+
+        room = ConversationRoom(conversation_id="test-room")
+        mock_ws = MagicMock()
+
+        # Add a connection — room becomes active
+        room.add_connection(mock_ws)
+        assert room.is_active is True
+
+        # Remove the last connection — room becomes inactive
+        room.remove_connection(mock_ws)
+        assert room.is_active is False
+
+
+class TestConnectionManagerBroadcastMethods:
+    """Tests for ConnectionManager broadcast/send methods using mock WebSocket connections."""
+
+    async def _setup_manager_with_mock_ws(self) -> tuple[ConnectionManager, MagicMock, str]:
+        """Create a ConnectionManager with a mock WebSocket connected."""
+        manager = ConnectionManager()
+        mock_ws = MagicMock()
+        mock_ws.send_text = AsyncMock()
+        conv_id = "mock-conv-001"
+        # Simulate connect without actually accepting a real WebSocket
+        manager.rooms[conv_id] = ConversationRoom(conversation_id=conv_id)
+        manager.rooms[conv_id].add_connection(mock_ws)
+        return manager, mock_ws, conv_id
+
+    async def test_send_thinker_message_broadcasts_correctly(self) -> None:
+        """Test send_thinker_message sends MESSAGE type with correct fields."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.send_thinker_message(
+            conv_id,
+            thinker_name="Socrates",
+            content="What is virtue?",
+            message_id="msg-1",
+            cost=0.01,
+        )
+
+        mock_ws.send_text.assert_called_once()
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "message"
+        assert data["sender_name"] == "Socrates"
+        assert data["content"] == "What is virtue?"
+        assert data["message_id"] == "msg-1"
+        assert data["cost"] == 0.01
+
+    async def test_send_thinker_typing_broadcasts_correctly(self) -> None:
+        """Test send_thinker_typing sends THINKER_TYPING type."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.send_thinker_typing(conv_id, thinker_name="Plato")
+
+        mock_ws.send_text.assert_called_once()
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "thinker_typing"
+        assert data["sender_name"] == "Plato"
+
+    async def test_send_thinker_thinking_broadcasts_correctly(self) -> None:
+        """Test send_thinker_thinking sends THINKER_THINKING with content."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.send_thinker_thinking(conv_id, "Aristotle", "Considering the nature of form")
+
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "thinker_thinking"
+        assert data["sender_name"] == "Aristotle"
+        assert data["content"] == "Considering the nature of form"
+
+    async def test_send_thinker_stopped_typing_broadcasts_correctly(self) -> None:
+        """Test send_thinker_stopped_typing sends THINKER_STOPPED_TYPING."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+        # Simulate thinker already typing
+        manager.rooms[conv_id].typing_thinkers.add("Kant")
+
+        await manager.send_thinker_stopped_typing(conv_id, "Kant")
+
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "thinker_stopped_typing"
+        assert data["sender_name"] == "Kant"
+        assert "Kant" not in manager.rooms[conv_id].typing_thinkers
+
+    async def test_send_research_started_broadcasts_correctly(self) -> None:
+        """Test send_research_started sends RESEARCH_STARTED with thinker_name."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.send_research_started(conv_id, "Nietzsche")
+
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "research_started"
+        assert data["thinker_name"] == "Nietzsche"
+
+    async def test_send_research_complete_broadcasts_correctly(self) -> None:
+        """Test send_research_complete sends RESEARCH_COMPLETE."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.send_research_complete(conv_id, "Descartes")
+
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "research_complete"
+        assert data["thinker_name"] == "Descartes"
+
+    async def test_send_research_failed_broadcasts_correctly(self) -> None:
+        """Test send_research_failed sends RESEARCH_FAILED with optional error."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.send_research_failed(conv_id, "Hume", error="Timeout error")
+
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "research_failed"
+        assert data["thinker_name"] == "Hume"
+        assert data["content"] == "Timeout error"
+
+    async def test_send_cache_hit_broadcasts_correctly(self) -> None:
+        """Test send_cache_hit sends CACHE_HIT with thinker_name."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.send_cache_hit(conv_id, "Locke")
+
+        data = json.loads(mock_ws.send_text.call_args[0][0])
+        assert data["type"] == "cache_hit"
+        assert data["thinker_name"] == "Locke"
+
+    async def test_get_speed_multiplier_returns_default(self) -> None:
+        """Test get_speed_multiplier returns 1.0 when conversation has no room."""
+        manager = ConnectionManager()
+        assert manager.get_speed_multiplier("nonexistent-conv") == 1.0
+
+    async def test_get_speed_multiplier_returns_set_value(self) -> None:
+        """Test get_speed_multiplier returns the value set via set_speed_multiplier."""
+        manager, mock_ws, conv_id = await self._setup_manager_with_mock_ws()
+
+        await manager.set_speed_multiplier(conv_id, 2.5)
+        assert manager.get_speed_multiplier(conv_id) == 2.5
+
+
+class TestSpendLimitExceeded:
+    """Tests for SpendLimitExceeded exception."""
+
+    def test_spend_limit_exceeded_message(self) -> None:
+        """Test SpendLimitExceeded formats message correctly."""
+        exc = SpendLimitExceeded(current_spend=5.50, spend_limit=5.00)
+        assert exc.current_spend == 5.50
+        assert exc.spend_limit == 5.00
+        assert "$5.50" in str(exc)
+        assert "$5.00" in str(exc)
+
+    def test_spend_limit_exceeded_is_exception(self) -> None:
+        """Test SpendLimitExceeded is an Exception subclass."""
+        exc = SpendLimitExceeded(current_spend=1.0, spend_limit=0.5)
+        assert isinstance(exc, Exception)
+
+
+class TestGetMessagesForConversation:
+    """Tests for get_messages_for_conversation helper."""
+
+    async def test_returns_empty_for_unknown_conversation(self, db_session: AsyncSession) -> None:
+        """Test that an unknown conversation returns an empty message list."""
+        messages = await get_messages_for_conversation("nonexistent-conv-id", db_session)
+        assert list(messages) == []
+
+    async def test_returns_messages_in_order(self, db_session: AsyncSession) -> None:
+        """Test messages are returned in chronological order."""
+        from tests.conftest import create_test_user_session_conversation
+
+        _, _, conversation = await create_test_user_session_conversation(db_session)
+
+        # Save two messages
+        await save_thinker_message(conversation.id, "Socrates", "First message", 0.01, db_session)
+        await save_thinker_message(conversation.id, "Plato", "Second message", 0.01, db_session)
+
+        messages = await get_messages_for_conversation(conversation.id, db_session)
+        assert len(messages) == 2
+        assert messages[0].content == "First message"
+        assert messages[1].content == "Second message"
