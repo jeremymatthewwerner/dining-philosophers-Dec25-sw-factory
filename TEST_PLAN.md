@@ -6499,3 +6499,74 @@ Multi-step API workflows testing full integration chains.
 | Test | What It Validates |
 |------|-------------------|
 | `test_unexpected_exception_in_stream_raises_thinker_api_error` | Non-APIError during streaming is wrapped in ThinkerAPIError (lines 686-688) |
+
+## 25. Flaky Test Hunt - Apr 28, 2026 (`test_flaky_hunt_apr28_2026.py`)
+
+**Focus:** flaky-hunt (Tuesday QA)
+**Issue:** #863
+
+Tests run 5x without failures. Coverage maintained at 91.32% (1350 passed). Key flakiness risks identified and hardened.
+
+### 25.1 Extract Thinking Display Language Branches (`TestExtractThinkingDisplayLanguages`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_german_replacements_applied` | German (de): "Ich denke " removed from output |
+| `test_spanish_replacements_applied` | Spanish (es): "Creo que " removed from output |
+| `test_french_replacements_applied` | French (fr): "Je pense que " removed from output |
+| `test_english_should_replacement` | English: "I should" → "Perhaps I should" replacement |
+| `test_english_let_me_replacement` | English: "Let me" → "Let me see..." replacement |
+| `test_short_text_returns_empty_string` | Lengths 0, 1, 40, 79 all return "" (threshold guard) |
+| `test_exactly_80_chars_threshold` | 79-char text returns "" (exact boundary) |
+| `test_empty_text_returns_empty_string` | Empty string returns "" for all language codes |
+| `test_long_text_gets_truncated_to_200_chars` | 500-char text uses only last 200 chars |
+| `test_text_with_ellipsis_not_doubled` | Text already ending "..." does not get second ellipsis |
+| `test_german_user_pronoun_replacement` | German: "Der Benutzer" → "Sie" replacement |
+| `test_spanish_user_pronoun_replacement` | Spanish: "El usuario" → "Ellos" replacement |
+| `test_hindi_short_text_returns_empty` | Hindi (hi): short text still returns "" |
+
+### 25.2 Deterministic Should-Respond Tests (`TestShouldRespondDeterministic`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_at_mentioned_with_random_always_0_always_responds` | @mention + random=0.0 → always responds (98% prob) |
+| `test_at_mentioned_with_random_always_1_never_responds` | @mention + random=1.0 → never responds (above 98%) |
+| `test_own_message_with_random_0_still_suppressed` | Own message + random=0.0 → False (silence check fires at 15%) |
+| `test_own_message_with_random_above_silence_threshold_uses_5pct` | Own message passes silence (0.20>0.15), then 4% < 5% → responds |
+| `test_no_messages_returns_false` | Empty message list always False (no random needed) |
+| `test_no_new_messages_returns_false` | last_response_count >= len(messages) → always False |
+| `test_consecutive_silence_boosts_probability` | consecutive_silence=3: passes silence (0.20>0.15), then 0.0 < boosted prob |
+| `test_addressed_by_name_boosts_probability` | Name in message: silence check skipped, 0.0 < 0.87 → True |
+| `test_silence_cutoff_returns_false_deterministically` | random=0.10 < 0.15 silence threshold → always False |
+
+### 25.3 Deterministic Bubble Split Tests (`TestSplitResponseBubblesDeterministic`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_transition_word_but_forces_new_bubble` | "But " starts new bubble when text >250 chars (bypass single-bubble shortcut) |
+| `test_however_transition_forces_new_bubble` | "However," starts new bubble when text >250 chars |
+| `test_very_short_text_always_single_bubble` | Text < 60 chars → always 1 bubble (10 seeds) |
+| `test_empty_text_returns_empty_list` | Empty text → [] |
+| `test_very_long_text_force_splits` | Text >300 chars force-splits at sentence boundary |
+| `test_no_empty_bubbles_in_output` | Filter ensures no empty strings in bubble list (5 seeds × 3 texts) |
+
+### 25.4 Conversation State Isolation (`TestConversationStateIsolation`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_fresh_thinker_service_has_no_paused_conversations` | New ThinkerService starts with no paused convs |
+| `test_fresh_thinker_service_has_no_idle_paused_conversations` | New ThinkerService starts with no idle-paused convs |
+| `test_pause_and_unpause_returns_to_clean_state` | pause_for_idle + resume_from_idle → clean state |
+| `test_unknown_conv_resume_from_idle_is_safe` | resume_from_idle on unknown ID doesn't raise |
+| `test_multiple_services_have_independent_state` | Two instances have independent _paused/_idle_paused state |
+| `test_pause_for_idle_sets_idle_paused_flag` | pause_for_idle() sets is_idle_paused() to True |
+| `test_get_last_user_message_timestamp_with_no_user_messages` | Empty messages → 0.0 (sentinel, not exception) |
+| `test_idle_timeout_default_setting_is_positive` | idle_timeout_seconds >= 0 (guard for timeout logic) |
+
+### 25.5 Should-Respond Probability Cap Tests (`TestShouldRespondEdgeCases`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_probability_capped_at_0_9_with_high_silence` | consecutive_silence=100: prob capped at 0.9; 0.89 responds, 0.91 doesn't |
+| `test_addressed_probability_capped_at_0_95` | Addressed with N=5 messages: cap at 0.95; 0.94 responds, 0.96 doesn't |
+| `test_base_probability_capped_at_0_7` | N=10 messages: base capped at 0.7; 0.69 responds, 0.71 doesn't |
