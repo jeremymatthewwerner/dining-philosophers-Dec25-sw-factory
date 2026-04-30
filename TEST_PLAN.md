@@ -677,6 +677,60 @@ Creates default options for `useWebSocket` hook testing.
 - **Default**: `{ conversationId: 'conv-123' }` — matching the most common test case.
 - **Parametrizable**: All 6 hook options can be overridden via the `overrides` parameter.
 
+## 1.11 E2E Performance Optimization (Added 2026-04-30)
+
+**Focus**: Thursday QA focus - eliminate remaining `waitForLoadState('networkidle')` anti-patterns, add parallel config to missing describe block, add new performance regression tests
+**Coverage Impact**: No backend/frontend unit coverage change; 5 new E2E performance tests added
+
+### Performance Analysis Summary
+
+**Before optimization:**
+- `waitForLoadState('networkidle')` in active (non-skipped) tests: 4 calls across 3 files
+- `chat.spec.ts` 'Thinker Responses' describe block missing `test.describe.configure({ mode: 'parallel' })`
+- `performance.spec.ts` missing: thinkers/suggest timing, register endpoint, concurrent requests, FCP, SPA nav
+
+**After optimization:**
+- Active `waitForLoadState('networkidle')` calls: 0 (down from 4)
+- All describe blocks have `test.describe.configure({ mode: 'parallel' })` ✅
+- 5 new performance regression tests in `performance.spec.ts`
+
+### Changes Made
+
+#### Anti-pattern fixes
+
+| File | Location | Before | After |
+|------|----------|--------|-------|
+| `cost-edge-cases.spec.ts` | After message send (2×) | `waitForLoadState('networkidle', 5000)` | `expect(messageTextarea).toBeEnabled({ timeout: 5000 })` |
+| `feedback-edge-cases.spec.ts` | Overlay click animation | `waitForLoadState('networkidle', 2000)` | `expect.poll(() => modal.isVisible(), { timeout: 2000 })` |
+| `feedback-edge-cases.spec.ts` | Email validation | `Promise.race([..., networkidle])` | `errorSelector.waitFor({ state: 'visible', timeout: 3000 })` |
+| `form-validation.spec.ts` | Empty thinker add | `Promise.race([..., networkidle])` | `expect.poll(() => selected.count(), { timeout: 2000 })` |
+
+The `waitForLoadState('networkidle')` pattern forces Playwright to wait 500ms after ALL network activity stops. For pages with WebSocket connections or polling, this can take multiple seconds or never settle. Element-driven waits are more deterministic and typically 2–5× faster.
+
+#### Parallelism fix in `chat.spec.ts`
+
+Added `test.describe.configure({ mode: 'parallel' })` to the `'Thinker Responses'` describe block (line 119). All tests inside are currently `test.skip`, but the config is in place so they run in parallel when re-enabled.
+
+#### New tests in `performance.spec.ts` — `Page Rendering Performance` and `API Response Performance`
+
+| Test | File | What It Validates |
+|------|------|-------------------|
+| `health/ready deep check responds within 3 seconds` | `performance.spec.ts` | `/health/ready` DB-connected check stays fast |
+| `register endpoint responds within 3 seconds` | `performance.spec.ts` | Critical auth path (new user registration) |
+| `concurrent API calls complete in parallel within budget` | `performance.spec.ts` | 3 simultaneous requests finish faster than 3 sequential |
+| `login page first contentful paint within 3 seconds` | `performance.spec.ts` | FCP via Performance API — catches rendering regressions |
+| `SPA navigation between home and settings is instant (<1s)` | `performance.spec.ts` | Client-side navigation stays fast (no full reload) |
+| `page.waitForResponse pattern completes faster than networkidle` | `performance.spec.ts` | Documents and validates the preferred wait pattern |
+
+### Performance Metrics
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Active `waitForLoadState('networkidle')` calls | 4 | 0 |
+| `waitForTimeout()` calls | 0 | 0 |
+| Spec files with parallel mode | all | all |
+| New performance regression tests | 0 | 6 |
+
 ## 1.10 E2E Performance Optimization (Added 2026-04-09)
 
 **Focus**: Thursday QA focus - optimize E2E test speed and parallelism

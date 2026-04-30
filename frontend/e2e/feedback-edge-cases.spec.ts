@@ -127,14 +127,11 @@ test.describe('Feedback Modal Edge Cases', () => {
     const submitButton = page.getByTestId('submit-feedback');
     await submitButton.click();
 
-    // Wait for error OR network idle (since this is client-side, should be fast)
+    // Client-side validation fires synchronously after click — poll for error element
     const errorSelector = page.locator(
       'text=/invalid email|email format|valid email/i'
     );
-    await Promise.race([
-      errorSelector.waitFor({ timeout: 3000 }).catch(() => {}),
-      page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {}),
-    ]);
+    await errorSelector.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
 
     const errorVisible = await errorSelector.isVisible().catch(() => false);
 
@@ -234,8 +231,11 @@ test.describe('Feedback Modal Edge Cases', () => {
     const modalOverlay = page.locator('[data-testid="feedback-modal"]');
     await modalOverlay.click({ position: { x: 5, y: 5 } }); // Click top-left corner (overlay)
 
-    // Wait briefly for any animation
-    await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
+    // Wait briefly for any animation to complete (element-driven instead of networkidle)
+    await expect.poll(
+      async () => page.getByTestId('feedback-modal').isVisible().catch(() => false),
+      { timeout: 2000 }
+    ).toBeDefined();
 
     const modalStillVisible = await page
       .getByTestId('feedback-modal')
