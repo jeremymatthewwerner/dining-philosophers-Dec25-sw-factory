@@ -116,6 +116,8 @@ test.describe('Chat Functionality', () => {
 });
 
 test.describe('Thinker Responses', () => {
+  test.describe.configure({ mode: 'parallel' });
+
   // SKIP: Flaky in CI - depends on Claude API response times which can timeout
   // TODO: Mock Claude API or add better retry logic
   test.skip('pause actually stops thinker responses', async ({ page }) => {

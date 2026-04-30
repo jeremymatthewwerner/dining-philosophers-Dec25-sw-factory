@@ -335,15 +335,16 @@ test.describe('Custom Thinker Validation', () => {
 
     if (!isDisabled) {
       await addButton.click();
-      // Wait briefly for any potential state change
-      await Promise.race([
-        expect(page.getByTestId('selected-thinker')).toHaveCount(1, {
-          timeout: 2000,
-        }),
-        page.waitForLoadState('networkidle', { timeout: 5000 }),
-      ]).catch(() => {
-        // Expected - empty input should not add thinker
-      });
+      // Wait briefly - poll selected-thinker count instead of arbitrary networkidle
+      await expect
+        .poll(
+          async () => page.getByTestId('selected-thinker').count(),
+          { timeout: 2000 }
+        )
+        .toBe(0)
+        .catch(() => {
+          // Expected - empty input should not add thinker
+        });
     }
 
     // No thinker should be added
