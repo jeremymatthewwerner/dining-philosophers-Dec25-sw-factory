@@ -9,8 +9,6 @@ Tests cover:
 - Boundary conditions: unicode topics, special characters, min/max field lengths
 """
 
-from unittest.mock import patch
-
 from httpx import AsyncClient
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -565,24 +563,23 @@ class TestConversationMaxThinkersEdgeCases:
         )
 
         thinker_names = ["Plato", "Aristotle", "Socrates", "Descartes", "Hume"]
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Philosophy roundtable with 5 thinkers",
-                    "thinkers": [
-                        {
-                            "name": name,
-                            "bio": f"Bio of {name}",
-                            "positions": f"Positions of {name}",
-                            "style": f"Style of {name}",
-                            "color": "#6366f1",
-                        }
-                        for name in thinker_names
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Philosophy roundtable with 5 thinkers",
+                "thinkers": [
+                    {
+                        "name": name,
+                        "bio": f"Bio of {name}",
+                        "positions": f"Positions of {name}",
+                        "style": f"Style of {name}",
+                        "color": "#6366f1",
+                    }
+                    for name in thinker_names
+                ],
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -629,42 +626,40 @@ class TestConversationMaxThinkersEdgeCases:
 
         # Create conversation with 5 thinkers
         thinker_names = ["Plato", "Aristotle", "Socrates", "Descartes", "Hume"]
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            create_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Full capacity conversation",
-                    "thinkers": [
-                        {
-                            "name": name,
-                            "bio": f"Bio of {name}",
-                            "positions": f"Positions of {name}",
-                            "style": f"Style of {name}",
-                            "color": "#6366f1",
-                        }
-                        for name in thinker_names
-                    ],
-                },
-            )
+        create_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Full capacity conversation",
+                "thinkers": [
+                    {
+                        "name": name,
+                        "bio": f"Bio of {name}",
+                        "positions": f"Positions of {name}",
+                        "style": f"Style of {name}",
+                        "color": "#6366f1",
+                    }
+                    for name in thinker_names
+                ],
+            },
+        )
         assert create_response.status_code == 200
         conversation_id = create_response.json()["id"]
 
         # Try to add one more thinker
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            add_response = await client.put(
-                f"/api/conversations/{conversation_id}/thinkers",
-                headers=headers,
-                json=[
-                    {
-                        "name": "Kant",
-                        "bio": "German philosopher",
-                        "positions": "Categorical imperative",
-                        "style": "Systematic",
-                        "color": "#6366f1",
-                    }
-                ],
-            )
+        add_response = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Kant",
+                    "bio": "German philosopher",
+                    "positions": "Categorical imperative",
+                    "style": "Systematic",
+                    "color": "#6366f1",
+                }
+            ],
+        )
         assert add_response.status_code == 400
         assert "Cannot add" in add_response.json()["detail"]
         assert "Maximum is 5" in add_response.json()["detail"]
@@ -708,33 +703,12 @@ class TestConversationMaxThinkersEdgeCases:
         )
 
         # Create conversation with 3 thinkers
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            create_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Partial capacity conversation",
-                    "thinkers": [
-                        {
-                            "name": name,
-                            "bio": f"Bio of {name}",
-                            "positions": f"Positions of {name}",
-                            "style": f"Style of {name}",
-                            "color": "#6366f1",
-                        }
-                        for name in ["Plato", "Aristotle", "Socrates"]
-                    ],
-                },
-            )
-        assert create_response.status_code == 200
-        conversation_id = create_response.json()["id"]
-
-        # Try to add 3 more (would make 6 total)
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            add_response = await client.put(
-                f"/api/conversations/{conversation_id}/thinkers",
-                headers=headers,
-                json=[
+        create_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Partial capacity conversation",
+                "thinkers": [
                     {
                         "name": name,
                         "bio": f"Bio of {name}",
@@ -742,9 +716,28 @@ class TestConversationMaxThinkersEdgeCases:
                         "style": f"Style of {name}",
                         "color": "#6366f1",
                     }
-                    for name in ["Descartes", "Hume", "Kant"]
+                    for name in ["Plato", "Aristotle", "Socrates"]
                 ],
-            )
+            },
+        )
+        assert create_response.status_code == 200
+        conversation_id = create_response.json()["id"]
+
+        # Try to add 3 more (would make 6 total)
+        add_response = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": name,
+                    "bio": f"Bio of {name}",
+                    "positions": f"Positions of {name}",
+                    "style": f"Style of {name}",
+                    "color": "#6366f1",
+                }
+                for name in ["Descartes", "Hume", "Kant"]
+            ],
+        )
         assert add_response.status_code == 400
         assert "Cannot add 3 thinkers" in add_response.json()["detail"]
 
@@ -763,23 +756,22 @@ class TestUnicodeAndSpecialCharacters:
 
         unicode_topic = "哲学対話: プラトンとアリストテレスの議論 🏛️"
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": unicode_topic,
-                    "thinkers": [
-                        {
-                            "name": "Plato",
-                            "bio": "Greek philosopher",
-                            "positions": "Theory of Forms",
-                            "style": "Dialogues",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": unicode_topic,
+                "thinkers": [
+                    {
+                        "name": "Plato",
+                        "bio": "Greek philosopher",
+                        "positions": "Theory of Forms",
+                        "style": "Dialogues",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["topic"] == unicode_topic
@@ -795,23 +787,22 @@ class TestUnicodeAndSpecialCharacters:
 
         arabic_topic = "الفلسفة اليونانية القديمة"
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": arabic_topic,
-                    "thinkers": [
-                        {
-                            "name": "Aristotle",
-                            "bio": "Greek philosopher",
-                            "positions": "Logic",
-                            "style": "Analytical",
-                            "color": "#ec4899",
-                        }
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": arabic_topic,
+                "thinkers": [
+                    {
+                        "name": "Aristotle",
+                        "bio": "Greek philosopher",
+                        "positions": "Logic",
+                        "style": "Analytical",
+                        "color": "#ec4899",
+                    }
+                ],
+            },
+        )
         assert response.status_code == 200
         assert response.json()["topic"] == arabic_topic
 
@@ -826,23 +817,22 @@ class TestUnicodeAndSpecialCharacters:
             client, username="special_chars_feb21", password="testpass123"
         )
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Testing special characters in names",
-                    "thinkers": [
-                        {
-                            "name": "J.J. Rousseau",  # Periods in name
-                            "bio": 'A "complex" philosopher with <tags> & symbols',
-                            "positions": "Liberty & equality - freedom's role",
-                            "style": "Passionate; direct",
-                            "color": "#10b981",
-                        }
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Testing special characters in names",
+                "thinkers": [
+                    {
+                        "name": "J.J. Rousseau",  # Periods in name
+                        "bio": 'A "complex" philosopher with <tags> & symbols',
+                        "positions": "Liberty & equality - freedom's role",
+                        "style": "Passionate; direct",
+                        "color": "#10b981",
+                    }
+                ],
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["thinkers"][0]["name"] == "J.J. Rousseau"
@@ -856,23 +846,22 @@ class TestUnicodeAndSpecialCharacters:
             client, username="unicode_message_feb21", password="testpass123"
         )
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Unicode message test",
-                    "thinkers": [
-                        {
-                            "name": "Confucius",
-                            "bio": "Chinese philosopher",
-                            "positions": "Virtue ethics",
-                            "style": "Aphoristic",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Unicode message test",
+                "thinkers": [
+                    {
+                        "name": "Confucius",
+                        "bio": "Chinese philosopher",
+                        "positions": "Virtue ethics",
+                        "style": "Aphoristic",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_response.status_code == 200
         conversation_id = conv_response.json()["id"]
 
@@ -915,23 +904,22 @@ class TestMessageBoundaryConditions:
         user1_headers = await get_auth_headers(
             client, username="msg_isolation_user1_feb21", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=user1_headers,
-                json={
-                    "topic": "Private conversation",
-                    "thinkers": [
-                        {
-                            "name": "Nietzsche",
-                            "bio": "German philosopher",
-                            "positions": "Will to power",
-                            "style": "Aphoristic",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=user1_headers,
+            json={
+                "topic": "Private conversation",
+                "thinkers": [
+                    {
+                        "name": "Nietzsche",
+                        "bio": "German philosopher",
+                        "positions": "Will to power",
+                        "style": "Aphoristic",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_response.status_code == 200
         conversation_id = conv_response.json()["id"]
 
@@ -953,23 +941,22 @@ class TestMessageBoundaryConditions:
         """
         headers = await get_auth_headers(client, username="conv_cost_feb21", password="testpass123")
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Cost tracking test",
-                    "thinkers": [
-                        {
-                            "name": "Hegel",
-                            "bio": "German idealist philosopher",
-                            "positions": "Dialectics",
-                            "style": "Systematic",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Cost tracking test",
+                "thinkers": [
+                    {
+                        "name": "Hegel",
+                        "bio": "German idealist philosopher",
+                        "positions": "Dialectics",
+                        "style": "Systematic",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_response.status_code == 200
         conversation_id = conv_response.json()["id"]
 
@@ -1020,23 +1007,22 @@ class TestConversationListEdgeCases:
             client, username="zero_cost_list_feb21", password="testpass123"
         )
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Zero cost conversation",
-                    "thinkers": [
-                        {
-                            "name": "Bertrand Russell",
-                            "bio": "British philosopher",
-                            "positions": "Logical atomism",
-                            "style": "Analytical",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Zero cost conversation",
+                "thinkers": [
+                    {
+                        "name": "Bertrand Russell",
+                        "bio": "British philosopher",
+                        "positions": "Logical atomism",
+                        "style": "Analytical",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_response.status_code == 200
 
         list_response = await client.get("/api/conversations", headers=headers)

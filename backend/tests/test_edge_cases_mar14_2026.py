@@ -636,26 +636,24 @@ class TestConversationThinkerBoundaryEdgeCases:
 
         Boundary: ConversationCreate schema has thinkers max_length=5.
         """
-        from unittest.mock import patch
 
         headers = await get_auth_headers(client, "five_thinker_user", "password123")
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Five philosophers debate",
-                    "thinkers": [
-                        {
-                            "name": f"Philosopher{i}",
-                            "bio": f"Bio {i}",
-                            "positions": f"Position {i}",
-                            "style": f"Style {i}",
-                        }
-                        for i in range(5)
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Five philosophers debate",
+                "thinkers": [
+                    {
+                        "name": f"Philosopher{i}",
+                        "bio": f"Bio {i}",
+                        "positions": f"Position {i}",
+                        "style": f"Style {i}",
+                    }
+                    for i in range(5)
+                ],
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -690,44 +688,42 @@ class TestConversationThinkerBoundaryEdgeCases:
 
         Edge case: Start with 3, add 2, total should be exactly 5 (allowed).
         """
-        from unittest.mock import patch
 
         headers = await get_auth_headers(client, "add_to_five_user", "password123")
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            # Create conversation with 3 thinkers
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Building to 5 thinkers",
-                    "thinkers": [
-                        {
-                            "name": f"Initial{i}",
-                            "bio": f"Bio {i}",
-                            "positions": f"Position {i}",
-                            "style": f"Style {i}",
-                        }
-                        for i in range(3)
-                    ],
-                },
-            )
-            assert response.status_code == 200
-            conv_id = response.json()["id"]
-
-            # Add 2 more to reach exactly 5
-            add_response = await client.put(
-                f"/api/conversations/{conv_id}/thinkers",
-                headers=headers,
-                json=[
+        # Create conversation with 3 thinkers
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Building to 5 thinkers",
+                "thinkers": [
                     {
-                        "name": f"Added{i}",
-                        "bio": f"Added Bio {i}",
-                        "positions": f"Added Position {i}",
-                        "style": f"Added Style {i}",
+                        "name": f"Initial{i}",
+                        "bio": f"Bio {i}",
+                        "positions": f"Position {i}",
+                        "style": f"Style {i}",
                     }
-                    for i in range(2)
+                    for i in range(3)
                 ],
-            )
+            },
+        )
+        assert response.status_code == 200
+        conv_id = response.json()["id"]
+
+        # Add 2 more to reach exactly 5
+        add_response = await client.put(
+            f"/api/conversations/{conv_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": f"Added{i}",
+                    "bio": f"Added Bio {i}",
+                    "positions": f"Added Position {i}",
+                    "style": f"Added Style {i}",
+                }
+                for i in range(2)
+            ],
+        )
 
         assert add_response.status_code == 200
         assert len(add_response.json()) == 2
@@ -737,44 +733,42 @@ class TestConversationThinkerBoundaryEdgeCases:
 
         Edge case: Start with 4, try to add 2 - should be rejected since 4+2=6 > 5.
         """
-        from unittest.mock import patch
 
         headers = await get_auth_headers(client, "exceed_limit_user", "password123")
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            # Create conversation with 4 thinkers
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Near limit conversation",
-                    "thinkers": [
-                        {
-                            "name": f"Existing{i}",
-                            "bio": f"Bio {i}",
-                            "positions": f"Position {i}",
-                            "style": f"Style {i}",
-                        }
-                        for i in range(4)
-                    ],
-                },
-            )
-            assert response.status_code == 200
-            conv_id = response.json()["id"]
-
-            # Try to add 2 more (would make 6, exceeding 5 limit)
-            add_response = await client.put(
-                f"/api/conversations/{conv_id}/thinkers",
-                headers=headers,
-                json=[
+        # Create conversation with 4 thinkers
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Near limit conversation",
+                "thinkers": [
                     {
-                        "name": f"Extra{i}",
-                        "bio": f"Extra Bio {i}",
-                        "positions": f"Extra Position {i}",
-                        "style": f"Extra Style {i}",
+                        "name": f"Existing{i}",
+                        "bio": f"Bio {i}",
+                        "positions": f"Position {i}",
+                        "style": f"Style {i}",
                     }
-                    for i in range(2)
+                    for i in range(4)
                 ],
-            )
+            },
+        )
+        assert response.status_code == 200
+        conv_id = response.json()["id"]
+
+        # Try to add 2 more (would make 6, exceeding 5 limit)
+        add_response = await client.put(
+            f"/api/conversations/{conv_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": f"Extra{i}",
+                    "bio": f"Extra Bio {i}",
+                    "positions": f"Extra Position {i}",
+                    "style": f"Extra Style {i}",
+                }
+                for i in range(2)
+            ],
+        )
 
         assert add_response.status_code == 400
         assert "Cannot add" in add_response.json()["detail"]
@@ -784,26 +778,24 @@ class TestConversationThinkerBoundaryEdgeCases:
 
         Boundary: ThinkerCreate name max_length=255.
         """
-        from unittest.mock import patch
 
         headers = await get_auth_headers(client, "long_name_thinker_user", "password123")
         long_name = "A" * 255  # Exactly 255 chars - maximum
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Long name thinker test",
-                    "thinkers": [
-                        {
-                            "name": long_name,
-                            "bio": "Bio",
-                            "positions": "Positions",
-                            "style": "Style",
-                        }
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Long name thinker test",
+                "thinkers": [
+                    {
+                        "name": long_name,
+                        "bio": "Bio",
+                        "positions": "Positions",
+                        "style": "Style",
+                    }
+                ],
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -861,26 +853,24 @@ class TestConversationThinkerBoundaryEdgeCases:
 
         Edge case: Pattern allows a-fA-F so uppercase hex is valid.
         """
-        from unittest.mock import patch
 
         headers = await get_auth_headers(client, "uppercase_color_user", "password123")
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Uppercase color test",
-                    "thinkers": [
-                        {
-                            "name": "Plato",
-                            "bio": "Bio",
-                            "positions": "Positions",
-                            "style": "Style",
-                            "color": "#AABBCC",  # Valid uppercase hex
-                        }
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Uppercase color test",
+                "thinkers": [
+                    {
+                        "name": "Plato",
+                        "bio": "Bio",
+                        "positions": "Positions",
+                        "style": "Style",
+                        "color": "#AABBCC",  # Valid uppercase hex
+                    }
+                ],
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()

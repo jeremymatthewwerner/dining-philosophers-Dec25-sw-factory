@@ -90,20 +90,19 @@ class TestThinkerColorAssignment:
         conv_id = conv_response.json()["id"]
 
         # Add a thinker with a custom non-default color
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            add_response = await client.put(
-                f"/api/conversations/{conv_id}/thinkers",
-                headers=headers,
-                json=[
-                    {
-                        "name": "Plato",
-                        "bio": "Philosopher",
-                        "positions": "Theory of Forms",
-                        "style": "Dialogue",
-                        "color": "#ec4899",  # NOT the default color
-                    }
-                ],
-            )
+        add_response = await client.put(
+            f"/api/conversations/{conv_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Plato",
+                    "bio": "Philosopher",
+                    "positions": "Theory of Forms",
+                    "style": "Dialogue",
+                    "color": "#ec4899",  # NOT the default color
+                }
+            ],
+        )
 
         assert add_response.status_code == 200
         thinkers = add_response.json()
@@ -126,42 +125,40 @@ class TestThinkerColorAssignment:
         headers = await get_auth_headers(client, "colortest2", "testpass123")
 
         # Create conversation - this will use color cycling for the 1 thinker
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Available color test",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Greek philosopher",
-                            "positions": "Socratic method",
-                            "style": "Question-based",
-                            "color": "#6366f1",  # default color - will be overridden by create
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Available color test",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Greek philosopher",
+                        "positions": "Socratic method",
+                        "style": "Question-based",
+                        "color": "#6366f1",  # default color - will be overridden by create
+                    }
+                ],
+            },
+        )
 
         assert conv_response.status_code == 200
         conv_id = conv_response.json()["id"]
 
         # Now add a thinker with the default color - should get next available color
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            add_response = await client.put(
-                f"/api/conversations/{conv_id}/thinkers",
-                headers=headers,
-                json=[
-                    {
-                        "name": "Aristotle",
-                        "bio": "Philosopher",
-                        "positions": "Empiricism",
-                        "style": "Analytical",
-                        "color": "#6366f1",  # default color - should be replaced
-                    }
-                ],
-            )
+        add_response = await client.put(
+            f"/api/conversations/{conv_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Aristotle",
+                    "bio": "Philosopher",
+                    "positions": "Empiricism",
+                    "style": "Analytical",
+                    "color": "#6366f1",  # default color - should be replaced
+                }
+            ],
+        )
 
         assert add_response.status_code == 200
         thinkers = add_response.json()
@@ -200,12 +197,11 @@ class TestThinkerColorAssignment:
             for i, color in enumerate(all_colors)
         ]
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={"topic": "All colors used", "thinkers": thinkers_data},
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={"topic": "All colors used", "thinkers": thinkers_data},
+        )
 
         assert conv_response.status_code == 200
         conv_id = conv_response.json()["id"]
@@ -213,20 +209,19 @@ class TestThinkerColorAssignment:
         assert len(conv_response.json()["thinkers"]) == 5
 
         # Try to add one more - should fail with 400 (max 5 thinkers)
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            add_response = await client.put(
-                f"/api/conversations/{conv_id}/thinkers",
-                headers=headers,
-                json=[
-                    {
-                        "name": "AnotherThinker",
-                        "bio": "Bio",
-                        "positions": "Positions",
-                        "style": "Style",
-                        "color": "#6366f1",
-                    }
-                ],
-            )
+        add_response = await client.put(
+            f"/api/conversations/{conv_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "AnotherThinker",
+                    "bio": "Bio",
+                    "positions": "Positions",
+                    "style": "Style",
+                    "color": "#6366f1",
+                }
+            ],
+        )
 
         assert add_response.status_code == 400
         assert "Cannot add" in add_response.json()["detail"]
@@ -255,22 +250,21 @@ class TestConversationListCostAggregation:
         """
         headers = await get_auth_headers(client, "costtest1", "testpass123")
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Empty messages test",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Philosopher",
-                            "positions": "Questioning",
-                            "style": "Dialectic",
-                        }
-                    ],
-                },
-            )
+        await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Empty messages test",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Philosopher",
+                        "positions": "Questioning",
+                        "style": "Dialectic",
+                    }
+                ],
+            },
+        )
 
         list_response = await client.get("/api/conversations", headers=headers)
         assert list_response.status_code == 200
@@ -290,28 +284,27 @@ class TestConversationListCostAggregation:
         """
         headers = await get_auth_headers(client, "costtest2", "testpass123")
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Thinker list test",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Philosopher",
-                            "positions": "Questioning",
-                            "style": "Dialectic",
-                        },
-                        {
-                            "name": "Aristotle",
-                            "bio": "Philosopher",
-                            "positions": "Empiricism",
-                            "style": "Analytical",
-                        },
-                    ],
-                },
-            )
+        await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Thinker list test",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Philosopher",
+                        "positions": "Questioning",
+                        "style": "Dialectic",
+                    },
+                    {
+                        "name": "Aristotle",
+                        "bio": "Philosopher",
+                        "positions": "Empiricism",
+                        "style": "Analytical",
+                    },
+                ],
+            },
+        )
 
         list_response = await client.get("/api/conversations", headers=headers)
         assert list_response.status_code == 200
@@ -879,22 +872,21 @@ class TestConversationAPIRegressions:
         """
         headers = await get_auth_headers(client, "deltest1", "testpass123")
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Delete test",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Philosopher",
-                            "positions": "Questioning",
-                            "style": "Dialectic",
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Delete test",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Philosopher",
+                        "positions": "Questioning",
+                        "style": "Dialectic",
+                    }
+                ],
+            },
+        )
         conv_id = conv_response.json()["id"]
 
         delete_response = await client.delete(
@@ -917,22 +909,21 @@ class TestConversationAPIRegressions:
         """
         headers = await get_auth_headers(client, "gettest1", "testpass123")
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Get test conversation",
-                    "thinkers": [
-                        {
-                            "name": "Plato",
-                            "bio": "Philosopher",
-                            "positions": "Forms",
-                            "style": "Dialogue",
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Get test conversation",
+                "thinkers": [
+                    {
+                        "name": "Plato",
+                        "bio": "Philosopher",
+                        "positions": "Forms",
+                        "style": "Dialogue",
+                    }
+                ],
+            },
+        )
         conv_id = conv_response.json()["id"]
 
         get_response = await client.get(
@@ -960,22 +951,21 @@ class TestConversationAPIRegressions:
         # User 1 creates a conversation
         headers1 = await get_auth_headers(client, "crosssess1", "testpass123")
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_response = await client.post(
-                "/api/conversations",
-                headers=headers1,
-                json={
-                    "topic": "User 1 private conversation",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Philosopher",
-                            "positions": "Questioning",
-                            "style": "Dialectic",
-                        }
-                    ],
-                },
-            )
+        conv_response = await client.post(
+            "/api/conversations",
+            headers=headers1,
+            json={
+                "topic": "User 1 private conversation",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Philosopher",
+                        "positions": "Questioning",
+                        "style": "Dialectic",
+                    }
+                ],
+            },
+        )
         conv_id = conv_response.json()["id"]
 
         # User 2 tries to access User 1's conversation
