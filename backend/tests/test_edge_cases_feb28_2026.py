@@ -33,37 +33,36 @@ class TestConversationCreateFullFlow:
         headers = await get_auth_headers(
             client, username="color_cycle_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Color cycling test",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Greek philosopher",
-                            "positions": "Socratic method",
-                            "style": "Questioning",
-                            "color": "#6366f1",  # default - gets colors[0]
-                        },
-                        {
-                            "name": "Plato",
-                            "bio": "Student of Socrates",
-                            "positions": "Theory of Forms",
-                            "style": "Dialogues",
-                            "color": "#6366f1",  # default - gets colors[1]
-                        },
-                        {
-                            "name": "Aristotle",
-                            "bio": "Student of Plato",
-                            "positions": "Logic",
-                            "style": "Systematic",
-                            "color": "#6366f1",  # default - gets colors[2]
-                        },
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Color cycling test",
+                "thinkers": [
+                    {
+                        "name": "Socrates",
+                        "bio": "Greek philosopher",
+                        "positions": "Socratic method",
+                        "style": "Questioning",
+                        "color": "#6366f1",  # default - gets colors[0]
+                    },
+                    {
+                        "name": "Plato",
+                        "bio": "Student of Socrates",
+                        "positions": "Theory of Forms",
+                        "style": "Dialogues",
+                        "color": "#6366f1",  # default - gets colors[1]
+                    },
+                    {
+                        "name": "Aristotle",
+                        "bio": "Student of Plato",
+                        "positions": "Logic",
+                        "style": "Systematic",
+                        "color": "#6366f1",  # default - gets colors[2]
+                    },
+                ],
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -82,23 +81,22 @@ class TestConversationCreateFullFlow:
             client, username="custom_color_feb28", password="testpass123"
         )
         custom_color = "#ff6600"
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            response = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Custom color preserved",
-                    "thinkers": [
-                        {
-                            "name": "Marcus Aurelius",
-                            "bio": "Roman emperor",
-                            "positions": "Stoicism",
-                            "style": "Meditations",
-                            "color": custom_color,
-                        }
-                    ],
-                },
-            )
+        response = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Custom color preserved",
+                "thinkers": [
+                    {
+                        "name": "Marcus Aurelius",
+                        "bio": "Roman emperor",
+                        "positions": "Stoicism",
+                        "style": "Meditations",
+                        "color": custom_color,
+                    }
+                ],
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -161,23 +159,22 @@ class TestListConversationsSummaries:
         headers = await get_auth_headers(
             client, username="list_msg_count_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Message count test",
-                    "thinkers": [
-                        {
-                            "name": "Nietzsche",
-                            "bio": "German philosopher",
-                            "positions": "Will to power",
-                            "style": "Aphoristic",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Message count test",
+                "thinkers": [
+                    {
+                        "name": "Nietzsche",
+                        "bio": "German philosopher",
+                        "positions": "Will to power",
+                        "style": "Aphoristic",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_resp.status_code == 200
         conversation_id = conv_resp.json()["id"]
 
@@ -204,23 +201,22 @@ class TestListConversationsSummaries:
         headers = await get_auth_headers(
             client, username="list_zero_cost_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Zero cost test",
-                    "thinkers": [
-                        {
-                            "name": "Spinoza",
-                            "bio": "Dutch philosopher",
-                            "positions": "Pantheism",
-                            "style": "Ethics",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Zero cost test",
+                "thinkers": [
+                    {
+                        "name": "Spinoza",
+                        "bio": "Dutch philosopher",
+                        "positions": "Pantheism",
+                        "style": "Ethics",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_resp.status_code == 200
 
         list_resp = await client.get("/api/conversations", headers=headers)
@@ -240,26 +236,25 @@ class TestListConversationsSummaries:
             client, username="list_order_feb28", password="testpass123"
         )
         conv_ids = []
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            for i in range(3):
-                resp = await client.post(
-                    "/api/conversations",
-                    headers=headers,
-                    json={
-                        "topic": f"Ordered conversation {i}",
-                        "thinkers": [
-                            {
-                                "name": "Locke",
-                                "bio": "English philosopher",
-                                "positions": "Social contract",
-                                "style": "Treatises",
-                                "color": "#6366f1",
-                            }
-                        ],
-                    },
-                )
-            assert resp.status_code == 200
-            conv_ids.append(resp.json()["id"])
+        for i in range(3):
+            resp = await client.post(
+                "/api/conversations",
+                headers=headers,
+                json={
+                    "topic": f"Ordered conversation {i}",
+                    "thinkers": [
+                        {
+                            "name": "Locke",
+                            "bio": "English philosopher",
+                            "positions": "Social contract",
+                            "style": "Treatises",
+                            "color": "#6366f1",
+                        }
+                    ],
+                },
+            )
+        assert resp.status_code == 200
+        conv_ids.append(resp.json()["id"])
 
         list_resp = await client.get("/api/conversations", headers=headers)
         assert list_resp.status_code == 200
@@ -277,23 +272,22 @@ class TestGetConversationPath:
         Covers lines 126-129 (conversation check + return) in conversations.py.
         """
         headers = await get_auth_headers(client, username="get_conv_feb28", password="testpass123")
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Get conversation test",
-                    "thinkers": [
-                        {
-                            "name": "Leibniz",
-                            "bio": "German polymath",
-                            "positions": "Monadology",
-                            "style": "Mathematical",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Get conversation test",
+                "thinkers": [
+                    {
+                        "name": "Leibniz",
+                        "bio": "German polymath",
+                        "positions": "Monadology",
+                        "style": "Mathematical",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_resp.status_code == 200
         conversation_id = conv_resp.json()["id"]
 
@@ -326,23 +320,22 @@ class TestDeleteConversationPath:
         headers = await get_auth_headers(
             client, username="delete_conv_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "To be deleted",
-                    "thinkers": [
-                        {
-                            "name": "Hegel",
-                            "bio": "German idealist",
-                            "positions": "Dialectics",
-                            "style": "Systematic",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "To be deleted",
+                "thinkers": [
+                    {
+                        "name": "Hegel",
+                        "bio": "German idealist",
+                        "positions": "Dialectics",
+                        "style": "Systematic",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_resp.status_code == 200
         conversation_id = conv_resp.json()["id"]
 
@@ -364,23 +357,22 @@ class TestDeleteConversationPath:
         headers = await get_auth_headers(
             client, username="delete_get_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Ephemeral conversation",
-                    "thinkers": [
-                        {
-                            "name": "Heraclitus",
-                            "bio": "Pre-Socratic philosopher",
-                            "positions": "Flux",
-                            "style": "Aphoristic",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Ephemeral conversation",
+                "thinkers": [
+                    {
+                        "name": "Heraclitus",
+                        "bio": "Pre-Socratic philosopher",
+                        "positions": "Flux",
+                        "style": "Aphoristic",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         conversation_id = conv_resp.json()["id"]
 
         await client.delete(f"/api/conversations/{conversation_id}", headers=headers)
@@ -400,41 +392,39 @@ class TestAddThinkersFullFlow:
         headers = await get_auth_headers(
             client, username="add_thinkers_colors_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Color dedup test",
-                    "thinkers": [
-                        {
-                            "name": "Plato",
-                            "bio": "Student of Socrates",
-                            "positions": "Forms",
-                            "style": "Dialogues",
-                            "color": "#6366f1",  # Plato gets indigo
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Color dedup test",
+                "thinkers": [
+                    {
+                        "name": "Plato",
+                        "bio": "Student of Socrates",
+                        "positions": "Forms",
+                        "style": "Dialogues",
+                        "color": "#6366f1",  # Plato gets indigo
+                    }
+                ],
+            },
+        )
         assert conv_resp.status_code == 200
         conversation_id = conv_resp.json()["id"]
 
         # Add another thinker with default color - should get next available color
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            add_resp = await client.put(
-                f"/api/conversations/{conversation_id}/thinkers",
-                headers=headers,
-                json=[
-                    {
-                        "name": "Aristotle",
-                        "bio": "Student of Plato",
-                        "positions": "Logic",
-                        "style": "Analytical",
-                        "color": "#6366f1",  # default - should get next available
-                    }
-                ],
-            )
+        add_resp = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Aristotle",
+                    "bio": "Student of Plato",
+                    "positions": "Logic",
+                    "style": "Analytical",
+                    "color": "#6366f1",  # default - should get next available
+                }
+            ],
+        )
         assert add_resp.status_code == 200
         new_thinkers = add_resp.json()
         assert len(new_thinkers) == 1
@@ -449,41 +439,39 @@ class TestAddThinkersFullFlow:
         headers = await get_auth_headers(
             client, username="add_custom_color_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Custom color add test",
-                    "thinkers": [
-                        {
-                            "name": "Descartes",
-                            "bio": "French philosopher",
-                            "positions": "Cogito",
-                            "style": "Meditations",
-                            "color": "#ec4899",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Custom color add test",
+                "thinkers": [
+                    {
+                        "name": "Descartes",
+                        "bio": "French philosopher",
+                        "positions": "Cogito",
+                        "style": "Meditations",
+                        "color": "#ec4899",
+                    }
+                ],
+            },
+        )
         assert conv_resp.status_code == 200
         conversation_id = conv_resp.json()["id"]
 
         custom_color = "#abcdef"
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            add_resp = await client.put(
-                f"/api/conversations/{conversation_id}/thinkers",
-                headers=headers,
-                json=[
-                    {
-                        "name": "Pascal",
-                        "bio": "French mathematician-philosopher",
-                        "positions": "Faith and reason",
-                        "style": "Pensées",
-                        "color": custom_color,
-                    }
-                ],
-            )
+        add_resp = await client.put(
+            f"/api/conversations/{conversation_id}/thinkers",
+            headers=headers,
+            json=[
+                {
+                    "name": "Pascal",
+                    "bio": "French mathematician-philosopher",
+                    "positions": "Faith and reason",
+                    "style": "Pensées",
+                    "color": custom_color,
+                }
+            ],
+        )
         assert add_resp.status_code == 200
         assert add_resp.json()[0]["color"] == custom_color
 
@@ -495,23 +483,22 @@ class TestAddThinkersFullFlow:
         headers = await get_auth_headers(
             client, username="add_trigger_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Knowledge trigger add test",
-                    "thinkers": [
-                        {
-                            "name": "Voltaire",
-                            "bio": "French Enlightenment writer",
-                            "positions": "Tolerance",
-                            "style": "Satire",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Knowledge trigger add test",
+                "thinkers": [
+                    {
+                        "name": "Voltaire",
+                        "bio": "French Enlightenment writer",
+                        "positions": "Tolerance",
+                        "style": "Satire",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         assert conv_resp.status_code == 200
         conversation_id = conv_resp.json()["id"]
 
@@ -551,23 +538,22 @@ class TestSendMessageEdgeCases:
         headers = await get_auth_headers(
             client, username="send_msg_fields_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Message field test",
-                    "thinkers": [
-                        {
-                            "name": "Mill",
-                            "bio": "British philosopher",
-                            "positions": "Utilitarianism",
-                            "style": "Essays",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Message field test",
+                "thinkers": [
+                    {
+                        "name": "Mill",
+                        "bio": "British philosopher",
+                        "positions": "Utilitarianism",
+                        "style": "Essays",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         conversation_id = conv_resp.json()["id"]
 
         msg_resp = await client.post(
@@ -592,23 +578,22 @@ class TestSendMessageEdgeCases:
         headers = await get_auth_headers(
             client, username="auto_resume_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Auto-resume test",
-                    "thinkers": [
-                        {
-                            "name": "Epicurus",
-                            "bio": "Greek philosopher",
-                            "positions": "Pleasure and happiness",
-                            "style": "Letters",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Auto-resume test",
+                "thinkers": [
+                    {
+                        "name": "Epicurus",
+                        "bio": "Greek philosopher",
+                        "positions": "Pleasure and happiness",
+                        "style": "Letters",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         conversation_id = conv_resp.json()["id"]
 
         # Mock is_idle_paused to return True, triggering the auto-resume path
@@ -644,23 +629,22 @@ class TestSendMessageEdgeCases:
         Edge case: is_idle_paused returns False - resume path is skipped (line 246-247).
         """
         headers = await get_auth_headers(client, username="no_idle_feb28", password="testpass123")
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "No idle test",
-                    "thinkers": [
-                        {
-                            "name": "Zeno",
-                            "bio": "Stoic founder",
-                            "positions": "Virtue is sufficient",
-                            "style": "Lectures",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "No idle test",
+                "thinkers": [
+                    {
+                        "name": "Zeno",
+                        "bio": "Stoic founder",
+                        "positions": "Virtue is sufficient",
+                        "style": "Lectures",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         conversation_id = conv_resp.json()["id"]
 
         mock_resume = MagicMock()
@@ -705,23 +689,22 @@ class TestSendMessageEdgeCases:
         token = response.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=headers,
-                json={
-                    "topic": "Username fallback test",
-                    "thinkers": [
-                        {
-                            "name": "Pythagoras",
-                            "bio": "Greek mathematician",
-                            "positions": "Numbers",
-                            "style": "Mystical",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=headers,
+            json={
+                "topic": "Username fallback test",
+                "thinkers": [
+                    {
+                        "name": "Pythagoras",
+                        "bio": "Greek mathematician",
+                        "positions": "Numbers",
+                        "style": "Mystical",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         conversation_id = conv_resp.json()["id"]
 
         msg_resp = await client.post(
@@ -760,23 +743,22 @@ class TestAdminListUsersFullFlow:
         )
         reg_headers = {"Authorization": f"Bearer {reg_data['access_token']}"}
 
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            await client.post(
-                "/api/conversations",
-                headers=reg_headers,
-                json={
-                    "topic": "Admin list test convo",
-                    "thinkers": [
-                        {
-                            "name": "Thales",
-                            "bio": "First philosopher",
-                            "positions": "Water is fundamental",
-                            "style": "Cosmological",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        await client.post(
+            "/api/conversations",
+            headers=reg_headers,
+            json={
+                "topic": "Admin list test convo",
+                "thinkers": [
+                    {
+                        "name": "Thales",
+                        "bio": "First philosopher",
+                        "positions": "Water is fundamental",
+                        "style": "Cosmological",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
 
         # Login as admin to get fresh token
         login_resp = await client.post(
@@ -975,23 +957,22 @@ class TestConversationBoundaryConditions:
         user1_headers = await get_auth_headers(
             client, username="isolation_user1_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=user1_headers,
-                json={
-                    "topic": "Private conversation",
-                    "thinkers": [
-                        {
-                            "name": "Russell",
-                            "bio": "British philosopher",
-                            "positions": "Logical atomism",
-                            "style": "Analytical",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=user1_headers,
+            json={
+                "topic": "Private conversation",
+                "thinkers": [
+                    {
+                        "name": "Russell",
+                        "bio": "British philosopher",
+                        "positions": "Logical atomism",
+                        "style": "Analytical",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         conversation_id = conv_resp.json()["id"]
 
         # User 2 tries to send message to User 1's conversation
@@ -1015,23 +996,22 @@ class TestConversationBoundaryConditions:
         user1_headers = await get_auth_headers(
             client, username="add_isolation1_feb28", password="testpass123"
         )
-        with patch("app.services.knowledge_research.knowledge_service.trigger_research"):
-            conv_resp = await client.post(
-                "/api/conversations",
-                headers=user1_headers,
-                json={
-                    "topic": "Private conversation for add test",
-                    "thinkers": [
-                        {
-                            "name": "Wittgenstein",
-                            "bio": "Austrian philosopher",
-                            "positions": "Language games",
-                            "style": "Aphoristic",
-                            "color": "#6366f1",
-                        }
-                    ],
-                },
-            )
+        conv_resp = await client.post(
+            "/api/conversations",
+            headers=user1_headers,
+            json={
+                "topic": "Private conversation for add test",
+                "thinkers": [
+                    {
+                        "name": "Wittgenstein",
+                        "bio": "Austrian philosopher",
+                        "positions": "Language games",
+                        "style": "Aphoristic",
+                        "color": "#6366f1",
+                    }
+                ],
+            },
+        )
         conversation_id = conv_resp.json()["id"]
 
         user2_headers = await get_auth_headers(
