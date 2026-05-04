@@ -1,5 +1,6 @@
 """Tests for the ThinkerService."""
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
@@ -7,7 +8,7 @@ import pytest
 from anthropic import APIError
 from anthropic.types import TextBlock
 
-from app.exceptions import BillingError
+from app.exceptions import BillingError, ThinkerAPIError
 from app.models.message import SenderType
 from app.services.thinker import ThinkerService, extract_mentions, is_mentioned
 from tests.conftest import (
@@ -1549,3 +1550,407 @@ class TestIdleTimeout:
         """Test that is_idle_paused returns False for unknown conversations."""
         service = ThinkerService()
         assert not service.is_idle_paused("unknown-conversation")
+
+
+class TestSuggestSingleBatchDirectCoverage:
+    """Direct tests for _suggest_single_batch to cover line 272."""
+
+    async def test_suggest_single_batch_returns_empty_without_client(self) -> None:
+        """Cover line 272: _suggest_single_batch returns [] when no client."""
+        service = ThinkerService()
+        with patch.object(type(service), "client", new_callable=PropertyMock) as mock_client:
+            mock_client.return_value = None
+            result = await service._suggest_single_batch("philosophy", 2)
+        assert result == []
+
+
+class TestParallelSuggestionExceptionBranch:
+    """Cover lines 250->242: Exception results in parallel gather are logged."""
+
+    async def test_exception_result_in_parallel_gather_is_logged(self) -> None:
+        """Cover 250->242: ThinkerAPIError from batch appears as Exception in second loop."""
+        from app.exceptions import ThinkerAPIError as TAError
+
+        service = ThinkerService()
+        call_count = 0
+        suggestion = MagicMock()
+        suggestion.name = "Socrates"
+
+        async def mock_single_batch(*_args: Any, **_kwargs: Any) -> list[Any]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [suggestion]
+            raise TAError("API quota exceeded")
+
+        with patch.object(service, "_suggest_single_batch", side_effect=mock_single_batch):
+            result = await service.suggest_thinkers("philosophy", 4)
+
+        assert len(result) > 0
+
+
+class TestShouldPromptUserBelowThreshold:
+    """Cover line 1465: _should_prompt_user returns False when messages_since_user < threshold."""
+
+    def test_should_not_prompt_below_threshold_with_enough_total_messages(self) -> None:
+        """Cover line 1465: 5+ messages but user spoke recently keeps count below threshold."""
+        service = ThinkerService()
+
+        user_message = MagicMock()
+        user_message.sender_type = "user"
+        user_message.content = "Hello everyone"
+
+        thinker_msg = MagicMock()
+        thinker_msg.sender_type = "thinker"
+        thinker_msg.content = "Interesting"
+
+        # 6 total messages: user spoke 3rd-to-last, only 2 thinker msgs since
+        # threshold at speed_mult=1.0 = max(4, int(8/1)) = 8; messages_since_user=2 < 8
+        messages: Any = [
+            thinker_msg,
+            thinker_msg,
+            thinker_msg,
+            user_message,
+            thinker_msg,
+            thinker_msg,
+        ]
+
+        result = service._should_prompt_user(messages, 1.0)
+        assert result is False
+
+
+class TestExtractThinkingNoEllipsis:
+    """Cover lines 965->968: Ellipsis is not added when text already ends with punctuation."""
+
+    def test_no_ellipsis_added_when_ends_with_period(self) -> None:
+        """Cover 965->968: Text ending with '.' doesn't get extra '...' appended."""
+        service = ThinkerService()
+        # Text > 80 chars, ends with '.', no spaces in last 30 chars
+        # No spaces in last 30 chars prevents line-816 truncation that would remove the period
+        text = "Contemplating the philosophical question carefully." + "AAAAAAAAAA" * 4 + "."
+        result = service._extract_thinking_display(text)
+        assert len(result) > 0
+        # Must end with "." but NOT "..." (no extra ellipsis added by line 966)
+        assert result.endswith(".")
+        assert not result.endswith("...")
+
+
+class TestSplitBubblesEmptySentence:
+    """Cover line 733: Empty sentences produced by re.split are skipped."""
+
+    def test_trailing_space_produces_empty_sentence_that_is_skipped(self) -> None:
+        """Cover line 733: 'sentence. ' splits to ['sentence.', ''] - empty string skipped."""
+        service = ThinkerService()
+        # "word. " -> re.split(r"(?<=[.!?])\s+", ...) = ["word.", ""]
+        # The empty "" triggers: if not sentence: continue (line 733)
+        text = "This first sentence ends here. " + "B" * 50
+        result = service._split_response_into_bubbles(text)
+        assert len(result) >= 1
+        assert all(bubble for bubble in result)
+
+
+class TestGenerateStreamingThinkingCoverage:
+    """Tests for generate_response_with_streaming_thinking (lines 557->563, 616-672)."""
+
+    async def test_non_initial_message_path_is_taken(self) -> None:
+        """Cover 557->563: With 2+ messages, is_initial_message=False skips intro instruction."""
+        mock_request = make_mock_api_request()
+        mock_client_obj = AsyncMock()
+        mock_stream = AsyncMock()
+        mock_stream.__aenter__ = AsyncMock(
+            side_effect=APIError("Rate limit exceeded", mock_request, body=None)
+        )
+        mock_client_obj.messages.stream = MagicMock(return_value=mock_stream)
+
+        service = ThinkerService()
+        service._client = mock_client_obj
+        thinker = make_mock_thinker()
+
+        msg1 = MagicMock()
+        msg1.sender_type = "user"
+        msg1.content = "What do you think?"
+        msg1.sender_name = "User"
+        msg2 = MagicMock()
+        msg2.sender_type = "thinker"
+        msg2.content = "I believe..."
+        msg2.sender_name = "Socrates"
+        messages: Any = [msg1, msg2]
+
+        mock_manager = MagicMock()
+        mock_manager.get_speed_multiplier = MagicMock(return_value=1.0)
+
+        with patch("app.services.thinker.manager", mock_manager), pytest.raises(ThinkerAPIError):
+            await service.generate_response_with_streaming_thinking(
+                "test-conv", thinker, messages, "philosophy"
+            )
+
+    async def test_streaming_processes_thinking_and_text_events(self) -> None:
+        """Cover lines 616-672: Stream events for thinking and text are processed correctly."""
+
+        class MockStream:
+            def __init__(self, events: list[Any]) -> None:
+                self._events = iter(events)
+                final = MagicMock()
+                final.usage.input_tokens = 100
+                final.usage.output_tokens = 50
+                final.content = []
+                self._final = final
+
+            def __aiter__(self) -> "MockStream":
+                return self
+
+            async def __anext__(self) -> Any:
+                try:
+                    return next(self._events)
+                except StopIteration as exc:
+                    raise StopAsyncIteration from exc
+
+            async def get_final_message(self) -> Any:
+                return self._final
+
+        thinking_delta = MagicMock()
+        thinking_delta.thinking = "A" * 90
+        thinking_delta.text = None
+
+        text_delta = MagicMock()
+        text_delta.text = "Hello from thinker"
+        text_delta.thinking = None
+
+        block_start = MagicMock()
+        block_start.type = "content_block_start"
+
+        thinking_event = MagicMock()
+        thinking_event.type = "content_block_delta"
+        thinking_event.delta = thinking_delta
+
+        text_event = MagicMock()
+        text_event.type = "content_block_delta"
+        text_event.delta = text_delta
+
+        stream = MockStream([block_start, thinking_event, text_event])
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=stream)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        mock_client_obj = MagicMock()
+        mock_client_obj.messages.stream = MagicMock(return_value=mock_ctx)
+
+        service = ThinkerService()
+        service._client = mock_client_obj
+        thinker = make_mock_thinker()
+
+        mock_manager = MagicMock()
+        mock_manager.get_speed_multiplier = MagicMock(return_value=1.0)
+        mock_manager.send_thinker_thinking = AsyncMock()
+
+        with (
+            patch("app.services.thinker.manager", mock_manager),
+            patch("asyncio.get_event_loop") as mock_loop,
+        ):
+            mock_loop.return_value.time.return_value = 100.0
+            response, cost = await service.generate_response_with_streaming_thinking(
+                "test-conv", thinker, [], "philosophy"
+            )
+
+        assert response == "Hello from thinker"
+        assert cost > 0
+
+
+class TestRunThinkerAgentExceptions:
+    """Tests for _run_thinker_agent exception handling (lines 1155-1410)."""
+
+    def _make_mock_manager(self) -> MagicMock:
+        mock_manager = MagicMock()
+        mock_manager.is_conversation_active = MagicMock(return_value=True)
+        mock_manager.get_speed_multiplier = MagicMock(return_value=1.0)
+        mock_manager.send_thinker_typing = AsyncMock()
+        mock_manager.send_thinker_stopped_typing = AsyncMock()
+        mock_manager.broadcast_to_conversation = AsyncMock()
+        return mock_manager
+
+    def _make_thinker_message(self) -> MagicMock:
+        msg = MagicMock()
+        msg.sender_type = "thinker"
+        msg.content = "Hello"
+        return msg
+
+    async def test_cancelled_error_exits_loop(self) -> None:
+        """Cover lines 1338-1339: CancelledError breaks the loop cleanly."""
+        service = ThinkerService()
+        thinker = make_mock_thinker()
+        conv_id = "test-conv-cancel"
+        messages = [self._make_thinker_message()]
+
+        async def mock_get_messages(_cid: str) -> list[Any]:
+            return messages
+
+        async def mock_save_message(_cid: str, _name: str, _content: str, _cost: float) -> Any:
+            return MagicMock()
+
+        mock_manager = self._make_mock_manager()
+
+        with (
+            patch("app.services.thinker.manager", mock_manager),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch.object(service, "_should_respond", return_value=True),
+            patch.object(service, "_should_prompt_user", return_value=False),
+            patch.object(
+                service,
+                "generate_response_with_streaming_thinking",
+                new_callable=AsyncMock,
+                side_effect=asyncio.CancelledError(),
+            ),
+        ):
+            await service._run_thinker_agent(
+                conv_id, thinker, "philosophy", mock_get_messages, mock_save_message
+            )
+
+    async def test_spend_limit_exceeded_pauses_conversation(self) -> None:
+        """Cover lines 1340-1360: SpendLimitExceeded pauses and broadcasts error."""
+        from app.api.websocket import SpendLimitExceeded as SLE
+
+        service = ThinkerService()
+        thinker = make_mock_thinker()
+        conv_id = "test-conv-spend"
+        messages = [self._make_thinker_message()]
+
+        async def mock_get_messages(_cid: str) -> list[Any]:
+            return messages
+
+        async def mock_save_message(_cid: str, _name: str, _content: str, _cost: float) -> Any:
+            return MagicMock()
+
+        mock_manager = self._make_mock_manager()
+
+        with (
+            patch("app.services.thinker.manager", mock_manager),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch.object(service, "_should_respond", return_value=True),
+            patch.object(service, "_should_prompt_user", return_value=False),
+            patch.object(
+                service,
+                "generate_response_with_streaming_thinking",
+                new_callable=AsyncMock,
+                side_effect=SLE(0.50, 0.50),
+            ),
+        ):
+            await service._run_thinker_agent(
+                conv_id, thinker, "philosophy", mock_get_messages, mock_save_message
+            )
+
+        assert service.is_paused(conv_id)
+        assert mock_manager.broadcast_to_conversation.called
+
+    async def test_billing_error_pauses_conversation(self) -> None:
+        """Cover lines 1361-1382: BillingError pauses and broadcasts billing message."""
+        service = ThinkerService()
+        thinker = make_mock_thinker()
+        conv_id = "test-conv-billing"
+        messages = [self._make_thinker_message()]
+
+        async def mock_get_messages(_cid: str) -> list[Any]:
+            return messages
+
+        async def mock_save_message(_cid: str, _name: str, _content: str, _cost: float) -> Any:
+            return MagicMock()
+
+        mock_manager = self._make_mock_manager()
+
+        with (
+            patch("app.services.thinker.manager", mock_manager),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch.object(service, "_should_respond", return_value=True),
+            patch.object(service, "_should_prompt_user", return_value=False),
+            patch.object(
+                service,
+                "generate_response_with_streaming_thinking",
+                new_callable=AsyncMock,
+                side_effect=BillingError("Billing quota exceeded"),
+            ),
+        ):
+            await service._run_thinker_agent(
+                conv_id, thinker, "philosophy", mock_get_messages, mock_save_message
+            )
+
+        assert service.is_paused(conv_id)
+        assert mock_manager.broadcast_to_conversation.called
+
+    async def test_thinker_api_error_retries_then_cancelled(self) -> None:
+        """Cover lines 1383-1409: ThinkerAPIError broadcasts error and retries; CancelledError exits."""
+        from app.exceptions import ThinkerAPIError as TAError
+
+        service = ThinkerService()
+        thinker = make_mock_thinker()
+        conv_id = "test-conv-api-err"
+        messages = [self._make_thinker_message()]
+        call_count = 0
+
+        async def mock_get_messages(_cid: str) -> list[Any]:
+            return messages
+
+        async def mock_save_message(_cid: str, _name: str, _content: str, _cost: float) -> Any:
+            return MagicMock()
+
+        async def mock_generate(*_args: Any, **_kwargs: Any) -> Any:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise TAError("Rate limit exceeded")
+            raise asyncio.CancelledError()
+
+        mock_manager = self._make_mock_manager()
+
+        with (
+            patch("app.services.thinker.manager", mock_manager),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch.object(service, "_should_respond", return_value=True),
+            patch.object(service, "_should_prompt_user", return_value=False),
+            patch.object(
+                service, "generate_response_with_streaming_thinking", side_effect=mock_generate
+            ),
+        ):
+            await service._run_thinker_agent(
+                conv_id, thinker, "philosophy", mock_get_messages, mock_save_message
+            )
+
+        assert mock_manager.broadcast_to_conversation.called
+        assert call_count == 2
+
+    async def test_generic_exception_retries_then_cancelled(self) -> None:
+        """Cover lines 1396-1410: Generic Exception broadcasts unexpected error and retries."""
+        service = ThinkerService()
+        thinker = make_mock_thinker()
+        conv_id = "test-conv-generic"
+        messages = [self._make_thinker_message()]
+        call_count = 0
+
+        async def mock_get_messages(_cid: str) -> list[Any]:
+            return messages
+
+        async def mock_save_message(_cid: str, _name: str, _content: str, _cost: float) -> Any:
+            return MagicMock()
+
+        async def mock_generate(*_args: Any, **_kwargs: Any) -> Any:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("Unexpected runtime error")
+            raise asyncio.CancelledError()
+
+        mock_manager = self._make_mock_manager()
+
+        with (
+            patch("app.services.thinker.manager", mock_manager),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch.object(service, "_should_respond", return_value=True),
+            patch.object(service, "_should_prompt_user", return_value=False),
+            patch.object(
+                service, "generate_response_with_streaming_thinking", side_effect=mock_generate
+            ),
+        ):
+            await service._run_thinker_agent(
+                conv_id, thinker, "philosophy", mock_get_messages, mock_save_message
+            )
+
+        assert mock_manager.broadcast_to_conversation.called
+        assert call_count == 2
