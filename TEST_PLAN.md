@@ -6649,3 +6649,52 @@ Tests run 5x without failures. Coverage maintained at 91.32% (1350 passed). Key 
 - Removed unused `from unittest.mock import patch` import from `test_edge_cases_feb21_2026.py`
 
 **What these refactored tests validate:** All original test coverage is preserved. The refactoring only removes duplicate mock setup, not test logic. Coverage remains at 91%.
+
+---
+
+## Coverage Sprint - May 4, 2026 (Monday)
+
+**Target:** `app/services/thinker.py` (77% → 88%)
+**Overall backend coverage improvement:** 91.32% → 95.13%
+**File:** `backend/tests/test_thinker_service.py`
+**New test classes and methods added:**
+
+### `TestSuggestSingleBatchDirectCoverage`
+| Test | Validates | Covered Lines |
+|------|-----------|---------------|
+| `test_suggest_single_batch_returns_empty_without_client` | `_suggest_single_batch` returns `[]` when no client is set | Line 272 |
+
+### `TestParallelSuggestionExceptionBranch`
+| Test | Validates | Covered Lines |
+|------|-----------|---------------|
+| `test_exception_result_in_parallel_gather_is_logged` | When a parallel batch raises `ThinkerAPIError`, it appears as an `Exception` in the `asyncio.gather` results and is logged as a warning while partial results are returned | Lines 250->242 |
+
+### `TestShouldPromptUserBelowThreshold`
+| Test | Validates | Covered Lines |
+|------|-----------|---------------|
+| `test_should_not_prompt_below_threshold_with_enough_total_messages` | `_should_prompt_user` returns `False` when 5+ messages exist but `messages_since_user < threshold` (user spoke recently) | Line 1465 |
+
+### `TestExtractThinkingNoEllipsis`
+| Test | Validates | Covered Lines |
+|------|-----------|---------------|
+| `test_no_ellipsis_added_when_ends_with_period` | When extracted thinking text already ends with `.`, no extra `...` is appended at line 966 | Lines 965->968 |
+
+### `TestSplitBubblesEmptySentence`
+| Test | Validates | Covered Lines |
+|------|-----------|---------------|
+| `test_trailing_space_produces_empty_sentence_that_is_skipped` | Text ending with `. ` produces an empty string in `re.split` output that is skipped via `continue` | Line 733 |
+
+### `TestGenerateStreamingThinkingCoverage`
+| Test | Validates | Covered Lines |
+|------|-----------|---------------|
+| `test_non_initial_message_path_is_taken` | When 2+ messages are provided, `is_initial_message=False` skips the intro instruction block | Lines 557->563 |
+| `test_streaming_processes_thinking_and_text_events` | Streaming loop processes `content_block_start`, `content_block_delta` (thinking), and `content_block_delta` (text) events correctly, accumulating response text and calculating cost | Lines 616-672 |
+
+### `TestRunThinkerAgentExceptions`
+| Test | Validates | Covered Lines |
+|------|-----------|---------------|
+| `test_cancelled_error_exits_loop` | `asyncio.CancelledError` inside `_run_thinker_agent` breaks the loop cleanly | Lines 1155+, 1338-1339 |
+| `test_spend_limit_exceeded_pauses_conversation` | `SpendLimitExceeded` causes the conversation to be paused and error/paused messages broadcast before breaking the loop | Lines 1340-1360 |
+| `test_billing_error_pauses_conversation` | `BillingError` causes the conversation to be paused and billing error message broadcast before breaking the loop | Lines 1361-1382 |
+| `test_thinker_api_error_retries_then_cancelled` | `ThinkerAPIError` broadcasts an error message and retries (doesn't break), then exits on subsequent `CancelledError` | Lines 1383-1409 |
+| `test_generic_exception_retries_then_cancelled` | Generic `Exception` broadcasts an unexpected error message and retries (doesn't break), then exits on subsequent `CancelledError` | Lines 1396-1410 |
