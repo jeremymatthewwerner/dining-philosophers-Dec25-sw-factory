@@ -6649,3 +6649,74 @@ Tests run 5x without failures. Coverage maintained at 91.32% (1350 passed). Key 
 - Removed unused `from unittest.mock import patch` import from `test_edge_cases_feb21_2026.py`
 
 **What these refactored tests validate:** All original test coverage is preserved. The refactoring only removes duplicate mock setup, not test logic. Coverage remains at 91%.
+
+## 27. Flaky Test Hunt (Tuesday QA, May 5, 2026)
+
+**Focus:** Tuesday - Flaky Test Hunt
+**Issue:** #876
+**File:** `backend/tests/test_flaky_hunt_may5_2026.py` (19 new tests)
+
+### 27.1 Analysis Results
+
+**Backend:** 91.32% total coverage (1350 passed, 9 skipped). Runs are consistently stable (3/3 passes).
+
+**Frontend:** 525 tests, all pass consistently (3/3 runs in ~7-8 seconds).
+
+**Flakiness risks identified:**
+- `test_thinker_service.py:332` uses `random.seed(None)` inside a loop (benign for short-text test, but pattern flagged)
+- `test_regression_prevention_apr26_2026.py:604` uses probabilistic loop (50 tries, P(all-fail) ≈ 2e-9, statistically safe)
+- `_extract_thinking_display` line 819->824: False branch (last_space ≤ 40, no truncation) never tested
+- `_should_prompt_user` line 1470: random.random() path tested only via seed iteration (not direct mock)
+- `_should_respond` line 1597: forced-silence 15% path tested only probabilistically
+
+### 27.2 `_extract_thinking_display` Word-Boundary Branches (`TestExtractThinkingDisplayWordBoundaryBranches`)
+
+Covers lines 816-820: the word-boundary end-truncation logic. Branch 819->824 (last_space ≤ 40, truncation skipped) was never exercised.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_word_boundary_truncation_skipped_when_space_position_is_early` | Covers 819->824: space at position 35 (≤ 40) → no tail trim → B chars preserved |
+| `test_word_boundary_truncation_applied_when_space_far_from_start` | Covers 819-True: space at position 81 (> 40) → tail trim applied → C chars removed |
+| `test_word_boundary_check_not_triggered_when_no_space_in_tail` | Covers line 816 False path: no space in last 30 chars → entire block skipped |
+
+### 27.3 `_should_prompt_user` Deterministic Tests (`TestShouldPromptUserDeterministic`)
+
+Replaces seed-iteration approach with direct mock of `random.random()` for deterministic coverage of line 1470.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_prompt_returns_true_when_random_below_probability` | random.random()=0.05 < 0.15 (prob) → True |
+| `test_prompt_returns_false_when_random_above_probability` | random.random()=0.20 >= 0.15 → False |
+| `test_prompt_returns_false_when_threshold_not_met_regardless_of_random` | 2 thinker msgs < threshold=8 → False before random check |
+| `test_prompt_threshold_scales_with_speed_multiplier` | speed_mult=6.0 reduces threshold to 4; 4 msgs + random=0.0 → True |
+
+### 27.4 `_should_respond` Forced-Silence Branch Tests (`TestShouldRespondForcedSilenceBranch`)
+
+Deterministic coverage of the 15% noise-floor at line 1597 using `patch('random.random', side_effect=[...])`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_forced_silence_returns_false_when_noise_floor_triggers` | random()=0.05 < 0.15 → forced silence → False |
+| `test_forced_silence_bypassed_when_at_mentioned` | @mentioned thinker skips noise-floor entirely → True |
+| `test_should_respond_false_when_base_probability_roll_fails` | Noise-floor passes but 0.99 > base_prob → False |
+| `test_should_respond_true_when_both_checks_pass` | Noise-floor 0.20 > 0.15; prob 0.10 < 0.37 → True |
+
+### 27.5 `_count_messages_since_user` Edge Cases (`TestCountMessagesSinceUserEdgeCases`)
+
+Edge cases not covered by existing tests: all-thinker conversation, empty list, user as latest message.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_all_thinker_messages_returns_full_count` | 7 thinker msgs, no user → returns 7 |
+| `test_empty_messages_returns_zero` | Empty list → 0 (no crash) |
+| `test_user_as_last_message_returns_zero` | User spoke last → count = 0 immediately |
+| `test_enum_sender_type_counted_correctly` | SenderType enum (not string) recognized correctly → 3 |
+
+### 27.6 `_split_response_into_bubbles` Edge Cases (`TestSplitResponseBubblesEdgeCases`)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_text_with_consecutive_punctuation_produces_no_empty_bubbles` | `!?` sequences → no empty bubbles (line 733 filter) across 5 seeds |
+| `test_single_char_sentence_boundaries_not_treated_as_empty` | `?` followed by `?` → no crash, valid list returned |
+| `test_empty_response_returns_empty_list` | Empty string → []; whitespace → list (documents actual behavior) |
+| `test_very_short_text_always_single_bubble_across_seeds` | 30-char text → 1 bubble across all 10 seeds (deterministic, no seed(None)) |
