@@ -2,6 +2,82 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.18 Integration Gaps - Cross-endpoint workflows (Added 2026-05-06)
+
+**Focus**: Wednesday QA - integration gap tests covering cross-endpoint state transitions
+**Coverage Impact**: 91.36% → 91.36%+ (preserved at high level; new tests verify integration behavior, not just unit paths)
+**Files**:
+- `backend/tests/test_integration_gaps_may6_2026.py` (20 new tests added)
+
+### TestAuthLifecycleIntegration (5 tests)
+
+End-to-end auth flows that span multiple endpoints — cross-endpoint state observability.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_register_then_update_profile_reflected_in_me` | PATCH /api/auth/profile → state visible via GET /api/auth/me |
+| `test_change_password_invalidates_old_password_and_validates_new` | Change-password durably persists; old password 401s; new succeeds |
+| `test_change_password_with_wrong_current_password_does_not_persist` | Failed change-password leaves stored password intact (rollback path) |
+| `test_language_update_persists_across_login` | PATCH /language → fresh login response contains updated preference |
+| `test_old_token_remains_valid_after_password_change` | JWTs are stateless; old token still validates after password change (documented behavior) |
+
+### TestAdminPermissionCascadeIntegration (4 tests)
+
+Admin operations on users observed via subsequent API calls — cross-endpoint cascade behavior.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_delete_user_removes_them_from_users_list` | DELETE /api/admin/users/{id} reflected in GET /api/admin/users |
+| `test_admin_cannot_delete_self_via_admin_endpoint` | Admin self-delete returns 400; admin still authenticates afterward |
+| `test_spend_limit_update_visible_to_user_via_me` | Admin PATCH spend-limit → target user's GET /me reflects new limit |
+| `test_non_admin_cannot_call_any_admin_endpoint` | All admin endpoints return 403 for non-admin users (consistency) |
+
+### TestDevOpsStatsAccuracyIntegration (2 tests)
+
+GET /api/devops/stats reflects entities created via REST endpoints.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_stats_reflects_users_registered_via_api` | Each /api/auth/register increments stats users + sessions counts |
+| `test_stats_health_endpoint_share_authentication_secret` | Same secret authenticates /devops/stats and /devops/health; wrong secret rejected by both |
+
+### TestDevOpsCleanupBoundaryIntegration (3 tests)
+
+Cleanup endpoints with real entities created via API.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_cleanup_test_users_dry_run_does_not_delete` | dry_run=true previews matching users without deleting; non-matching users untouched |
+| `test_cleanup_test_users_actual_delete_then_login_fails` | Actual cleanup removes users — subsequent login returns 401 |
+| `test_cleanup_orphans_dry_run_does_not_modify_state` | dry_run on orphan cleanup leaves stats counts unchanged |
+
+### TestFeedbackWorkflowIntegration (3 tests)
+
+Feedback submit → fetch pending → mark processed full state-transition lifecycle.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_submit_then_appears_in_pending_then_marked_processed` | Full lifecycle: feedback created → in pending list → marked → no longer pending |
+| `test_mark_nonexistent_feedback_returns_404` | Valid secret + bad id returns 404 (not 500/403); auth-then-lookup ordering |
+| `test_pending_endpoint_rejects_wrong_secret` | Wrong secret on /pending returns 403 even with submitted feedback present |
+
+### TestSessionsIntegration (2 tests)
+
+Validates /api/sessions/me reflects login-time session creation.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_sessions_me_returns_session_for_logged_in_user` | After register, /api/sessions/me returns the auto-created session |
+| `test_sessions_me_with_no_token_returns_401_or_403` | Unauthenticated /api/sessions/me returns auth error (401 or 403) |
+
+### TestAuthAdminBoundaryIntegration (1 test)
+
+Validates role transitions and permission consistency across endpoints.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_promoted_admin_can_access_admin_endpoint_without_relogin` | DB-promoted admin's existing token gets through admin endpoint (require_admin reads from DB at request time, not JWT) |
+
 ## 1.17 Coverage Sprint - websocket.py (Added 2026-04-27)
 
 **Focus**: Monday QA - coverage sprint targeting `app/api/websocket.py`
