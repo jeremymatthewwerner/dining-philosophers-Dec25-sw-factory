@@ -2,6 +2,45 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.19 E2E Performance Optimization (Added 2026-05-07)
+
+**Focus**: Thursday QA — broaden E2E performance regression coverage. Prior PRs eliminated `waitForLoadState('networkidle')` anti-patterns and added parallel-mode config; this run focuses on filling gaps in *user-journey* performance regression tests so that future regressions in critical flows (login, logout, conversation switching, sidebar scaling) are caught at PR time.
+
+**Why these tests**: Page-load and API-timing regressions were already covered. The remaining gaps were around user-driven *interactions* (form submits, clicks, navigations) and *scale* (multiple conversations in sidebar, parallel auth flows). Adding regression guards for these means a future "innocuous" change that adds an unnecessary round-trip or blocks the main thread will be caught before merging.
+
+**Files**:
+- `frontend/e2e/performance.spec.ts` (8 new tests added, 16 → 24 active tests)
+
+### New tests in `performance.spec.ts` — `User Journey Performance` describe block
+
+| Test | What It Validates |
+|------|-------------------|
+| `login form submission redirects to home within 3 seconds` | End-to-end login (POST /api/auth/login + redirect + home render) fits in budget |
+| `logout via user menu completes within 3 seconds` | Logout interaction (open menu → click signout → auth cleared / redirect) stays fast |
+| `DOMContentLoaded fires within 2 seconds on login page` | DCL via Performance API — catches initial-bundle regressions before user-perceived metrics do |
+| `sidebar renders 5 conversations within 5 seconds` | Sidebar list rendering scales — guards against O(n) regressions or render thrash |
+| `switching between conversations in sidebar completes within 3s` | Common interaction: clicking a sidebar item swaps the chat view promptly |
+| `message textarea is interactive within 5s of opening a conversation` | Time-to-interactive in chat view — textarea visible AND enabled |
+| `initial homepage load fires fewer than 50 network requests` | Over-fetching regression guard — catches accidental request loops or duplicates |
+| `browser back navigation between home and settings is instant (<1s)` | bfcache / SPA navigation stays fast — guards against accidental `Cache-Control: no-store` |
+
+### New tests in `performance.spec.ts` — `Auth Flow Performance` describe block
+
+| Test | What It Validates |
+|------|-------------------|
+| `registerUser helper completes in under 3 seconds` | Locks in the baseline for the most-called test setup helper — every E2E pays this cost |
+| `parallel registration of 3 users completes within 5 seconds` | Backend handles concurrent registrations efficiently (not serialized server-side) |
+
+### Mobile Compatibility
+
+All 8 user-journey tests run on both `chromium` and `mobile-chrome` (Pixel 5) projects. The `switching between conversations` test detects a hidden sidebar (mobile viewport) and opens the hamburger menu before clicking — mirrors the pattern already used in `conversation-deletion-edge.spec.ts`.
+
+### Verification
+
+- 26 tests on chromium + 26 on mobile-chrome = 52 total runs
+- 3x stability runs: all 52 passed each time (38.2s, 38.4s, 38.8s)
+- No `.skip` calls added — every new test is active in CI
+
 ## 1.18 Integration Gaps - Cross-endpoint workflows (Added 2026-05-06)
 
 **Focus**: Wednesday QA - integration gap tests covering cross-endpoint state transitions
