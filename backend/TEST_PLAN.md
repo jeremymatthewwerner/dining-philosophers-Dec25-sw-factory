@@ -1057,3 +1057,102 @@ These will be added in future QA iterations with proper API mocking.
 - `assert_success_response()` / `assert_error_response()` helpers from conftest.py
 - Direct database setup via SQLAlchemy models for complex test scenarios
 
+## Regression Prevention - Sunday May 3, 2026 (Issue #871)
+
+**File**: `backend/tests/test_regression_prevention_may3_2026.py`
+**Total new tests**: 22
+**Coverage before**: 91.32% | **After**: 91.32% (tests add guards, not new branches)
+
+### TestShouldPromptUser (5 tests)
+Tests `ThinkerService._should_prompt_user` — previously **never tested**.
+
+1. **`test_returns_false_for_fewer_than_5_messages`**
+   - Guards early-exit: len(messages) < 5 must return False
+   - Prevents prompting users on very short conversations
+
+2. **`test_returns_false_when_messages_since_user_below_threshold`**
+   - At speed 1.0, threshold = max(4, int(8/1^0.3)) = 8; 4 thinker msgs → False
+
+3. **`test_threshold_floors_at_4`**
+   - At speed 6.0, floor ensures never below 4; 3 thinker msgs → False
+
+4. **`test_returns_true_when_threshold_met_and_lucky`**
+   - Patches random.random=0.0; with 10 thinker msgs at 1x → True
+   - Verifies the probability path is actually reachable
+
+5. **`test_returns_false_when_threshold_met_but_unlucky`**
+   - Patches random.random=1.0; even with sufficient msgs → False
+   - Guards the probability gate preventing invitation spam
+
+### TestGetLanguageInstruction (4 tests)
+Tests `_get_language_instruction` — previously untested standalone function.
+
+6. **`test_english_returns_empty_string`**
+   - 'en' must return '' (fast-path), not "Respond in English."
+
+7. **`test_spanish_returns_correct_instruction`**
+   - 'es' maps to 'Spanish' in LANGUAGE_NAMES; instruction contains "Spanish"
+
+8. **`test_hindi_returns_correct_instruction`**
+   - 'hi' maps to 'Hindi' — regression guard for issue #570 (Jan 23 fix)
+
+9. **`test_unknown_code_uses_code_as_fallback_name`**
+   - Unknown 'pt' falls back to using the code itself (no KeyError)
+
+### TestGetUserNameEdgeCases (4 tests)
+New edge cases for `ThinkerService._get_user_name_from_messages`.
+
+10. **`test_empty_message_list_returns_none`**
+    - Empty list → None (no exception)
+
+11. **`test_only_thinker_messages_returns_none`**
+    - Thinker-only conversation → None (user never introduced themselves)
+
+12. **`test_user_message_with_no_sender_name_is_skipped`**
+    - sender_name=None must not produce the string "None" as a user name
+
+13. **`test_returns_most_recent_user_name`**
+    - Reversed iteration returns most recent user name, not oldest
+
+### TestStartAgentsRestart (3 tests)
+Tests idempotent restart in `ThinkerService.start_conversation_agents`.
+
+14. **`test_restart_stops_existing_tasks_first`**
+    - Calling start with existing tasks triggers stop first
+    - Prevents task leaks causing duplicate thinker responses
+
+15. **`test_empty_thinker_list_creates_empty_task_dict`**
+    - Even 0 thinkers initialises _active_tasks[conv_id] = {}
+    - Prevents KeyError on subsequent stop_conversation_agents
+
+16. **`test_second_start_replaces_task_dict`**
+    - Second start produces a fresh dict, not the same object reference
+    - Guards against stale task references mixing with new ones
+
+### TestKnowledgeResearchCleanupCallback (3 tests)
+Tests the done-callback in `KnowledgeResearchService.trigger_research` (line 107).
+
+17. **`test_done_callback_removes_task_from_active_tasks`**
+    - Callback fires → thinker name removed from _active_tasks
+    - Enables re-triggering research after completion (refresh flow)
+
+18. **`test_done_callback_is_noop_when_task_already_removed`**
+    - Callback after manual removal → no KeyError
+    - Guards against concurrent cleanup + natural completion race
+
+19. **`test_trigger_research_registers_done_callback`**
+    - add_done_callback called exactly once on the created task
+    - Without registration, _active_tasks leaks forever
+
+### TestSetSpeedMultiplierAsync (3 tests)
+Tests `ConnectionManager.set_speed_multiplier` async clamping (lines 145-157).
+
+20. **`test_set_speed_clamps_below_minimum`**
+    - speed=0.0 → stored as 0.5 (prevents spin-loop from zero interval)
+
+21. **`test_set_speed_clamps_above_maximum`**
+    - speed=100.0 → stored as 6.0 (prevents conversation freeze)
+
+22. **`test_set_speed_is_noop_for_unknown_conversation`**
+    - Non-existent room → no broadcast, no defaultdict side-effects
+
