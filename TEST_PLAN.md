@@ -6835,3 +6835,40 @@ Edge cases not covered by existing tests: all-thinker conversation, empty list, 
 | `test_single_char_sentence_boundaries_not_treated_as_empty` | `?` followed by `?` → no crash, valid list returned |
 | `test_empty_response_returns_empty_list` | Empty string → []; whitespace → list (documents actual behavior) |
 | `test_very_short_text_always_single_bubble_across_seeds` | 30-char text → 1 bubble across all 10 seeds (deterministic, no seed(None)) |
+
+
+## 28. Test Refactoring (Friday QA, May 8, 2026)
+
+**Focus:** Reduce inline mock boilerplate by adopting existing helpers.
+**Issue:** #882
+**Files Modified:**
+- `backend/tests/test_thinker_service.py`
+- `backend/tests/test_coverage_sprint_mar30_2026.py`
+
+### 28.1 `make_mock_thinker` Adoption in `test_thinker_service.py`
+
+**Problem:** 13 inline occurrences of `thinker = MagicMock(); thinker.name = "X"` ignored the existing `make_mock_thinker(name="X")` helper defined at the top of the same file (line 19-53).
+
+**Refactored 13 call sites** across `TestShouldRespond`, `TestGenerateResponse`, `TestChooseResponseStyle`, `TestGenerateUserPrompt`, and `TestShouldRespondWithMentions`. Each replacement collapses 2 lines (`thinker = MagicMock()` + `thinker.name = "X"`) into 1 line (`thinker = make_mock_thinker(name="X")`).
+
+**No tests added or removed.** All 97 tests in `test_thinker_service.py` continue to pass identically.
+
+### 28.2 `create_mock_anthropic_response` Adoption in `test_coverage_sprint_mar30_2026.py`
+
+**Problem:** 4 inline occurrences of:
+```python
+mock_response = MagicMock()
+mock_response.content = [TextBlock(type="text", text=...)]
+```
+ignored the existing `create_mock_anthropic_response()` helper in `conftest.py`.
+
+**Refactored 4 call sites** in `TestSuggestThinkersWithLanguage` and `TestParallelSuggestionsDeduplication`. Each replacement collapses 2 lines into 1 and removes the local `TextBlock` import (no longer needed in this file).
+
+**No tests added or removed.** All 64 tests in `test_coverage_sprint_mar30_2026.py` continue to pass identically.
+
+### 28.3 Net Effect
+
+- **Lines removed:** ~22 lines of duplicated mock boilerplate
+- **Imports cleaned:** 1 unused `from anthropic.types import TextBlock` removed
+- **Tests:** 161 tests across the two refactored files, all passing 3x
+- **Behavior:** Identical — pure refactoring with no semantic change

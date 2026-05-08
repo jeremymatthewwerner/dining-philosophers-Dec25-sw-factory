@@ -154,8 +154,7 @@ class TestShouldRespond:
     def test_should_not_respond_to_empty_messages(self) -> None:
         """Test that thinker doesn't respond when there are no messages."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         result = service._should_respond(thinker, [], 0)
         assert result is False
@@ -163,8 +162,7 @@ class TestShouldRespond:
     def test_should_not_respond_when_no_new_messages(self) -> None:
         """Test that thinker doesn't respond when no new messages."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         messages: Any = [MagicMock(content="Hello", sender_name="User")]
 
@@ -174,8 +172,7 @@ class TestShouldRespond:
     def test_low_probability_for_own_message(self) -> None:
         """Test that thinker has low probability to respond to own message."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         message = MagicMock()
         message.content = "This is my message"
@@ -273,7 +270,7 @@ class TestGenerateResponse:
         """Test that generate_response returns empty without client."""
         service = ThinkerService()
 
-        thinker = MagicMock()
+        thinker = make_mock_thinker()
         messages: Any = []
 
         # Mock the client property to return None
@@ -625,8 +622,7 @@ class TestChooseResponseStyle:
     def test_choose_style_with_empty_messages(self) -> None:
         """Test choosing response style with no messages."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         style, max_tokens = service._choose_response_style(thinker, [])
 
@@ -639,8 +635,7 @@ class TestChooseResponseStyle:
         import random
 
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         message = MagicMock()
         message.content = "Socrates, what do you think about this?"
@@ -665,8 +660,7 @@ class TestChooseResponseStyle:
         import random
 
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         message = MagicMock()
         message.content = "I believe this is true."
@@ -888,7 +882,7 @@ class TestGenerateUserPrompt:
         """Test that generate_user_prompt returns empty without client."""
         service = ThinkerService()
 
-        thinker = MagicMock()
+        thinker = make_mock_thinker()
         messages: Any = []
 
         with patch.object(type(service), "client", new_callable=PropertyMock) as mock_client:
@@ -1360,8 +1354,7 @@ class TestShouldRespondWithMentions:
     def test_very_high_probability_when_at_mentioned(self) -> None:
         """Test that thinker has very high probability to respond when @mentioned."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         message = MagicMock()
         message.content = "@Socrates what do you think about virtue?"
@@ -1377,8 +1370,7 @@ class TestShouldRespondWithMentions:
     def test_at_mention_overrides_own_message_suppression(self) -> None:
         """Test that @mention still works even if responding to own message."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Socrates"
+        thinker = make_mock_thinker(name="Socrates")
 
         # Socrates's own message that @mentions himself (unlikely but possible)
         message = MagicMock()
@@ -1395,8 +1387,7 @@ class TestShouldRespondWithMentions:
     def test_first_name_at_mention_works(self) -> None:
         """Test that @mention with first name works for multi-word names."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Marie Curie"
+        thinker = make_mock_thinker(name="Marie Curie")
 
         message = MagicMock()
         message.content = "@Marie what are your thoughts on radioactivity?"
@@ -1411,8 +1402,7 @@ class TestShouldRespondWithMentions:
     def test_quoted_at_mention_works(self) -> None:
         """Test that quoted @mention works."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Marie Curie"
+        thinker = make_mock_thinker(name="Marie Curie")
 
         message = MagicMock()
         message.content = '@"Marie Curie" please explain your research'
@@ -1427,8 +1417,7 @@ class TestShouldRespondWithMentions:
     def test_other_thinker_at_mentioned_lower_probability(self) -> None:
         """Test that thinker not @mentioned has normal/lower probability."""
         service = ThinkerService()
-        thinker = MagicMock()
-        thinker.name = "Plato"
+        thinker = make_mock_thinker(name="Plato")
 
         message = MagicMock()
         message.content = "@Socrates what do you think?"

@@ -17,11 +17,11 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from anthropic.types import TextBlock
 
 from app.models import ResearchStatus, ThinkerKnowledge
 from app.services.knowledge_research import KnowledgeResearchService
 from app.services.thinker import ThinkerService, _get_language_instruction
+from tests.conftest import create_mock_anthropic_response
 
 # ---------------------------------------------------------------------------
 # _get_language_instruction – non-English language paths (lines 49-52)
@@ -604,8 +604,7 @@ class TestSuggestThinkersWithLanguage:
             }
         }]"""
 
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text=json_response)]
+        mock_response = create_mock_anthropic_response(json_response)
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
         service._client = mock_client
@@ -636,9 +635,7 @@ class TestSuggestThinkersWithLanguage:
                     "style": "Test style"
                 }}
             }}]"""
-            resp = MagicMock()
-            resp.content = [TextBlock(type="text", text=json_text)]
-            return resp
+            return create_mock_anthropic_response(json_text)
 
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(
@@ -677,8 +674,7 @@ class TestValidateThinkerWithLanguage:
             }
         }"""
 
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text=valid_response)]
+        mock_response = create_mock_anthropic_response(valid_response)
         mock_client = AsyncMock()
         mock_client.messages.create = AsyncMock(return_value=mock_response)
 
@@ -1188,8 +1184,7 @@ class TestSuggestSingleBatchDeduplication:
             }
         }]"""
 
-        mock_response = MagicMock()
-        mock_response.content = [TextBlock(type="text", text=same_thinker_json)]
+        mock_response = create_mock_anthropic_response(same_thinker_json)
         mock_client = AsyncMock()
         # Return same thinker from both parallel calls
         mock_client.messages.create = AsyncMock(
