@@ -6872,3 +6872,55 @@ ignored the existing `create_mock_anthropic_response()` helper in `conftest.py`.
 - **Imports cleaned:** 1 unused `from anthropic.types import TextBlock` removed
 - **Tests:** 161 tests across the two refactored files, all passing 3x
 - **Behavior:** Identical — pure refactoring with no semantic change
+
+## 29. Edge Case Analysis (Saturday QA, May 9, 2026)
+
+**Focus**: Saturday QA — error paths and boundary conditions targeting branches not exercised by other suites.
+
+**File**: `backend/tests/test_edge_cases_may9_2026.py` (18 new tests)
+
+**Why these tests**: Coverage analysis showed several boundary branches and error paths that no existing test exercised — most notably the `/health/ready` 503 path when the database is unreachable, the DevOps cleanup endpoints when there's nothing to delete (the `count > 0` branches in `app/api/devops.py`), and several validator boundary points (spend limit ≤ 0, feedback `limit` query bounds, password/username length boundaries). These are the edges most likely to break silently — the happy path tests pass either way.
+
+### 29.1 `/health/ready` Degraded Path (`TestHealthReadyDegraded`)
+
+- **`test_health_ready_returns_503_when_db_raises`**: Overrides `get_db` with a session whose `.execute()` raises `OperationalError`. Confirms the endpoint catches the exception, sets `checks.database = "error: …"`, and returns HTTP 503 with `status: "degraded"`. Covers `app/main.py` lines 155-157.
+
+### 29.2 DevOps Cleanup with Zero Matches (`TestDevOpsCleanupNoMatches`)
+
+- **`test_cleanup_stale_sessions_zero_count_skips_delete`**: Calls the endpoint with `older_than_hours=99999` so no sessions qualify; verifies `deleted_count=0` and that the `count > 0` DELETE branch is skipped. Covers `app/api/devops.py` 145→150 branch.
+- **`test_cleanup_orphans_returns_zero_when_database_clean`**: Empty database has no orphans; endpoint reports `deleted_count=0` with detailed counts of 0 for both conversations and messages.
+- **`test_cleanup_test_users_dry_run_with_no_matches`**: Dry-run when no `smoketest_*` / `canary_*` users exist returns empty username list and `dry_run=True`.
+
+### 29.3 Spend Service Boundaries (`TestSpendServiceBoundaries`)
+
+- **`test_check_spend_limit_with_zero_limit_uses_100_percent`**: A user with `spend_limit=0.0` does not divide by zero — the ternary in `app/services/spend.py:42` short-circuits to 100% used, marks them over and near limit.
+- **`test_check_spend_limit_exactly_at_85_percent_is_near_limit`**: User at exactly 85% (`8.5/10.0`) trips `is_near_limit=True` — boundary inclusive.
+- **`test_check_spend_limit_just_below_85_percent_is_not_near_limit`**: User at 84.99% does NOT trip `is_near_limit` — boundary exclusive below.
+
+### 29.4 Admin Spend Limit Validation (`TestAdminSpendLimitBoundaries`)
+
+- **`test_update_spend_limit_zero_rejected`**: `spend_limit=0` returns 422 (Field `gt=0`).
+- **`test_update_spend_limit_negative_rejected`**: `spend_limit=-1.0` returns 422.
+- **`test_update_spend_limit_very_large_value_accepted`**: `1e9` is persisted unchanged and reflected in the response message.
+
+### 29.5 Feedback Pending Limit Boundaries (`TestFeedbackPendingLimitBoundaries`)
+
+- **`test_get_pending_feedback_limit_one_returns_at_most_one`**: With two pending items and `limit=1`, response contains exactly one entry.
+- **`test_get_pending_feedback_limit_above_max_rejected`**: `limit=51` returns 422 (Query `le=50`).
+- **`test_get_pending_feedback_limit_below_min_rejected`**: `limit=0` returns 422 (Query `ge=1`).
+
+### 29.6 Conversation Custom Color Preservation (`TestConversationCustomColors`)
+
+- **`test_add_thinkers_preserves_custom_non_default_color`**: A custom color (`#abcdef`, not the default `#6366f1`) supplied to `PUT /api/conversations/{id}/thinkers` is persisted as-is and returned unchanged.
+
+### 29.7 Auth Validation Boundaries (`TestAuthValidationBoundaries`)
+
+- **`test_register_password_too_short_rejected`**: 5-char password (one below `min_length=6`) returns 422.
+- **`test_register_username_too_short_rejected`**: 2-char username (one below `min_length=3`) returns 422.
+- **`test_register_username_at_max_length_accepted`**: 50-char username (exactly `max_length`) registers successfully.
+- **`test_change_password_new_too_short_rejected`**: 3-char new password returns 422 from Pydantic before endpoint runs.
+
+### 29.8 Coverage Impact
+
+After this run, focused coverage on touched modules: `app/api/admin.py` 100%, `app/api/devops.py` 100% (statements + branches), `app/services/spend.py` 100% (boundary cases), `app/main.py` `/health/ready` degraded path now covered (was previously untested).
+
