@@ -1057,3 +1057,80 @@ These will be added in future QA iterations with proper API mocking.
 - `assert_success_response()` / `assert_error_response()` helpers from conftest.py
 - Direct database setup via SQLAlchemy models for complex test scenarios
 
+
+
+---
+
+## Regression Prevention - Sunday QA (Added 2026-05-10)
+
+**Focus**: Pin down behavioral invariants in core services that lack explicit regression guards. Since recent commits in the window have been test-only, these tests guard subtle branches and boundary semantics that, if changed inadvertently, would cause silent product regressions.
+
+### Analysis Results
+
+Coverage before: 91.36% (1389 tests pass), coverage after: 91.36% (1419 tests pass).
+The new tests do not raise coverage but harden existing code paths against silent regressions.
+
+### Tests Added (test_regression_prevention_may10_2026.py)
+
+**File**: `tests/test_regression_prevention_may10_2026.py` (30 new tests)
+
+#### TestShouldRespondSelfFollowupSuppression
+1. `test_self_followup_suppressed_to_low_probability` - When the last message is from the same thinker AND no @mention, base_probability drops to 0.05. Guards against runaway monologues if the suppression branch is removed.
+2. `test_at_mentioning_self_bypasses_self_followup_suppression` - Self @mention bypasses the 0.05 floor (the `not was_at_mentioned` clause). Guards the dual-condition logic intact.
+
+#### TestShouldRespondProbabilityCaps
+3. `test_at_mention_does_not_exceed_0_98` - @mention sets base_probability to 0.98 (not 1.0). Statistically detects regression to 1.0.
+4. `test_consecutive_silence_boost_capped_at_0_9` - Consecutive-silence boost is hard-capped at 0.9 — preserves the silent-skip branch and natural variability.
+
+#### TestIsMentionedEmptyThinkerName
+5. `test_empty_thinker_name_does_not_raise` - Defensive guard: empty thinker_name does not trigger IndexError on `.split()[0]` (line 105 fallback).
+6. `test_empty_thinker_name_with_empty_text_does_not_raise` - Companion: both inputs empty also does not raise.
+
+#### TestExtractThinkingDisplayStarterDedup
+7. `test_text_starting_with_hmm_does_not_get_double_prefix` - The `if not text.lower().startswith(starter_prefixes)` check prevents "Hmm... Hmm, ..." double-prefix output.
+8. `test_text_starting_with_let_me_does_not_get_double_prefix` - Companion test for the "Let me" starter prefix.
+
+#### TestExtractMentionsQuotedDedup
+9. `test_quoted_name_followed_by_bare_first_word_does_not_duplicate` - The dedup check (`if name not in mentions`) prevents the simple_pattern from double-listing names already captured by the quoted_pattern.
+10. `test_simple_pattern_alone_works_for_punctuation_terminator` - `@Plato!` (with trailing punctuation) extracts cleanly as `["Plato"]` — pins down the regex contract.
+
+#### TestGetUserNameSkipsUnnamedUsers
+11. `test_user_message_without_sender_name_is_skipped` - Truthiness check on sender_name (line 1417) means user messages with sender_name=None are skipped.
+12. `test_user_message_with_empty_string_sender_name_is_skipped` - Empty string sender_name (also falsy) is skipped — protects against "None" prompts.
+
+#### TestConversationRoomBroadcastDeactivation
+13. `test_broadcast_deactivates_room_when_all_clients_fail` - When every WebSocket fails during broadcast, all are purged and is_active flips to False — preserves the agent-pause-on-empty-room contract.
+14. `test_broadcast_to_empty_room_does_not_raise` - Broadcasting to a room with zero connections is a silent no-op.
+
+#### TestConnectionManagerLifecycle
+15. `test_connect_creates_room_for_new_conversation` - First connect() creates the ConversationRoom entry (not the defaultdict sentinel).
+16. `test_disconnect_is_noop_for_unknown_conversation` - disconnect for an unknown conversation_id does not raise and does not auto-create a phantom room.
+
+#### TestThinkerServicePauseIdempotency
+17. `test_pause_conversation_called_twice_is_idempotent` - Set semantics ensure duplicate pause events from clients do not corrupt state.
+18. `test_resume_unpaused_conversation_is_safe` - Uses set.discard() (not remove()) so resuming a never-paused conversation does not raise KeyError.
+
+#### TestSpendStatusBoundaries
+19. `test_is_near_limit_true_at_exactly_85_percent` - is_near_limit threshold is `>=` 85%, not `>`. UI yellow-flag preserved at the boundary.
+20. `test_is_near_limit_false_at_84_99_percent` - Just below 85% does not trigger the warning — guards against threshold drift.
+21. `test_zero_spend_limit_treats_user_as_at_100_percent` - When spend_limit=0, percentage falls back to 100 (no division-by-zero crash).
+22. `test_can_user_spend_returns_false_for_unknown_user` - Unknown user denied by default — protects against forged JWTs for deleted users.
+23. `test_spend_status_dataclass_clamps_percentage_to_100` - percentage_used clamped to 100 even when actual usage exceeds limit (UI progress bar safety).
+
+#### TestKnowledgeRefreshNoStaleEntries
+24. `test_refresh_stale_returns_zero_for_only_fresh_entries` - WHERE clause filtering on (status==COMPLETE AND old timestamp) preserves fresh data and avoids re-refreshing FAILED entries.
+
+#### TestKnowledgeIsStaleNaiveAware
+25. `test_is_stale_with_naive_recent_timestamp` - The .replace(tzinfo=UTC) call lets is_stale work uniformly with SQLite (naive) and PostgreSQL (aware) datetimes.
+26. `test_is_stale_with_naive_old_timestamp` - Companion: confirms the 30-day threshold still triggers correctly for old naive timestamps.
+
+#### TestLanguageInstructionMappingGap
+27. `test_hindi_maps_to_full_name_in_thinker_service` - LANGUAGE_NAMES["hi"] mapping (added in fix(i18n) #570) produces "Respond in Hindi.", not "Respond in hi.".
+28. `test_unknown_language_code_falls_back_to_code_itself` - Defensive fallback: unknown codes use the code as the language name.
+29. `test_english_returns_empty_instruction` - English path returns empty string (saves prompt tokens for the default case).
+30. `test_auth_api_still_rejects_hindi` - Documents the auth/service language gap — auth schema rejects `hi` while ThinkerService supports it. When the gap is closed, this test will fail and prompt the developer to update the all-valid-codes test.
+
+### Stability Verification
+
+All 30 tests verified passing across 3 consecutive runs (no flakiness). Probability-based tests use enough trials (200-500) to be statistically reliable across random seeds.
+
