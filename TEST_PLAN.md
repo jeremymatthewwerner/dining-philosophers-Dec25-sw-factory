@@ -2,6 +2,52 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.20 Coverage Sprint — ThinkerService streaming + agent loop (Added 2026-05-11)
+
+**Focus**: Monday QA — coverage sprint targeting the lowest-coverage module (`app/services/thinker.py`, 77% before this run). The two largest uncovered regions were the streaming-thinking event-handler (lines 616-672) and the long-lived `_run_thinker_agent` driver loop (lines 1155-1410), which together accounted for most of the missing coverage.
+
+**Coverage Impact**:
+- `app/services/thinker.py`: 77% → **92%** (+15pp — meets the coverage-sprint goal exactly)
+- Overall backend: 91.36% → **96.34%** (+5pp)
+
+**Files**:
+- `backend/tests/test_thinker_coverage_sprint_may11_2026.py` (14 new tests)
+
+### New tests in `test_thinker_coverage_sprint_may11_2026.py` — `TestStreamingThinkingEventBranches`
+
+These tests drive `generate_response_with_streaming_thinking` against a `_FakeStream` async-context-manager / async-iterator that yields synthetic Anthropic streaming events. They cover the previously-uncovered event-handler branches at lines 616-672.
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_text_delta_accumulates_response_text` | `content_block_delta` events whose delta has a `text` field accumulate into the response string and ultimately return as the response. |
+| `test_thinking_delta_sends_throttled_update` | A long-enough thinking delta (≥80 chars so `_extract_thinking_display` returns content) triggers `manager.send_thinker_thinking()` with the conversation id and thinker name. |
+| `test_pause_during_stream_sends_stopped_typing_once` | When `is_paused(conv_id)` is True for the entire stream, `send_thinker_stopped_typing` fires exactly once (the `paused_during_stream` guard prevents duplicate emissions) and no response text is accumulated. |
+| `test_thinking_block_contributes_to_cost` | A real `ThinkingBlock` in `final_message.content` is detected via `isinstance(block, ThinkingBlock)` and increases the returned cost beyond the input+output baseline. |
+| `test_message_delta_event_updates_usage` | A `message_delta` event with a `usage` attribute is consumed without error and the final cost is still computed from `final_message.usage`. |
+
+### New tests in `test_thinker_coverage_sprint_may11_2026.py` — `TestRunThinkerAgentLoop`
+
+These tests drive the otherwise-uncovered `_run_thinker_agent` infinite loop with `asyncio.sleep` patched to a no-op. The loop is broken either by the handler's `break` statement (Spend/Billing) or by raising `CancelledError` from a mock on the second iteration (which is caught by the loop's `except asyncio.CancelledError: break` clause).
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_exits_on_cancelled_error` | `asyncio.CancelledError` raised inside the try block exits the loop cleanly (no propagation). |
+| `test_waits_when_conversation_inactive` | When `manager.is_conversation_active()` is False, the loop sleeps then continues; the next iteration's call to `is_conversation_active` is what eventually breaks the loop. |
+| `test_waits_when_conversation_paused` | When `is_paused(conv_id)` is True, the loop sleeps 0.5s and continues without generating. |
+| `test_idle_timeout_triggers_pause_flow` | After `idle_timeout_seconds` has elapsed since the last user message, the agent calls `pause_for_idle`, sends `stopped_typing`, and broadcasts `IDLE_TIMEOUT` + `PAUSED` messages. |
+| `test_spend_limit_exceeded_pauses_and_breaks` | When `generate_response_with_streaming_thinking` raises `SpendLimitExceeded`, the handler pauses the conversation, broadcasts ERROR + PAUSED, and exits the loop via `break`. |
+| `test_billing_error_pauses_and_breaks` | When the generator raises `BillingError`, the handler pauses the conversation, broadcasts ERROR + PAUSED, and exits the loop via `break`. |
+| `test_thinker_api_error_broadcasts_then_retries` | `ThinkerAPIError` is recoverable — the handler broadcasts ERROR and sleeps 10s but does NOT pause the conversation (the next iteration would retry). |
+| `test_generic_exception_broadcasts_then_retries` | An unexpected `RuntimeError` is logged with `exc_info=True`, broadcasts ERROR, sleeps 5s, and does NOT pause the conversation. |
+| `test_pause_before_generation_skips_generate` | If `is_paused` returns True between the typing-indicator + reading delay and the actual generator call (line 1251), `generate_response_with_streaming_thinking` is never invoked and no message is saved. |
+
+### Verification
+
+- 14 new tests, 3 stability runs: all 14 passed each time (~1.0s per run)
+- Full backend suite: 1433 passed, 9 skipped (was 1419 passed pre-sprint)
+- Coverage on `app/services/thinker.py` jumped from 77% to 92% (+15pp)
+- Overall backend coverage: 91.36% → 96.34% (+5pp)
+
 ## 1.19 E2E Performance Optimization (Added 2026-05-07)
 
 **Focus**: Thursday QA — broaden E2E performance regression coverage. Prior PRs eliminated `waitForLoadState('networkidle')` anti-patterns and added parallel-mode config; this run focuses on filling gaps in *user-journey* performance regression tests so that future regressions in critical flows (login, logout, conversation switching, sidebar scaling) are caught at PR time.
