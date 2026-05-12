@@ -1134,3 +1134,45 @@ The new tests do not raise coverage but harden existing code paths against silen
 
 All 30 tests verified passing across 3 consecutive runs (no flakiness). Probability-based tests use enough trials (200-500) to be statistically reliable across random seeds.
 
+---
+
+## Flaky Test Hunt - Tuesday QA (Added 2026-05-12)
+
+**Focus**: Lock down flakiness-prone branches in `app/services/thinker.py` with fully deterministic mocks — no seed-based luck, no real wall-clock dependency. Close branch coverage gap 965->968 (already-ends-in-punctuation case in `_extract_thinking_display`).
+
+### Analysis Results
+
+- Full backend suite (1433 passed, 9 skipped) executed cleanly before adding the new file.
+- Probabilistic / timing subset (63 tests matching `bubble`, `split`, `random`, `should_respond`, `should_prompt`, `thinking_display`) was run **5 times in a row** — all green every run. No flakiness detected.
+- Coverage before: 96.34% (27 partial branches). Coverage after: 96.38% (26 partial branches). Branch 965->968 closed.
+
+### Tests Added (test_flaky_hunt_may12_2026.py)
+
+**File**: `tests/test_flaky_hunt_may12_2026.py` (16 new tests)
+
+#### TestSplitBubblesStrategyBranchesDeterministic
+1. `test_strategy_single_bubble_when_roll_below_025_and_text_under_250` - With `random.random()` mocked to 0.0 and a 100-char text, the single-bubble early-return at line 711-712 fires deterministically — no seed lottery.
+2. `test_strategy_single_bubble_skipped_when_text_at_least_250_chars` - The compound condition at line 711 requires BOTH `roll<0.25` AND `len<250`. With a 358-char text and roll=0.0, the early return is skipped and the function falls through to aggressive splitting.
+3. `test_strategy_aggressive_uses_randint_80_120` - `0.25 <= roll < 0.45` exercises the aggressive branch (line 718). Verified by asserting `random.randint` was called with exactly `(80, 120)`.
+4. `test_strategy_normal_uses_randint_120_180` - `0.45 <= roll < 0.80` exercises the normal branch (line 720). Verified by asserting `random.randint` was called with exactly `(120, 180)`.
+5. `test_strategy_relaxed_uses_randint_180_250` - `roll >= 0.80` exercises the relaxed branch (line 722). Verified by asserting `random.randint` was called with exactly `(180, 250)`.
+6. `test_strategy_boundary_at_025_does_not_take_single_bubble` - At exactly `roll==0.25` the strict `<` comparison must NOT fire single-bubble; locks down inequality direction so a refactor to `<=` is caught.
+7. `test_strategy_boundary_at_045_does_not_take_aggressive` - At exactly `roll==0.45` the strict `<` must NOT fire aggressive; normal `(120, 180)` is chosen instead.
+8. `test_strategy_boundary_at_080_does_not_take_normal` - At exactly `roll==0.80` the strict `<` must NOT fire normal; relaxed `(180, 250)` is chosen instead.
+
+#### TestExtractThinkingDisplayPunctuationBranch
+9. `test_text_ending_in_period_does_not_get_ellipsis` - When the cleaned text already ends with `.`, line 965 False branch (965->968) fires and no extra `...` is appended. Engineered so the final 30 chars are a single space-free word, bypassing the word-boundary truncation (lines 816-820).
+10. `test_text_ending_in_exclamation_does_not_get_ellipsis` - Same branch for `!` terminator.
+11. `test_text_ending_in_question_does_not_get_ellipsis` - Same branch for `?` terminator.
+12. `test_text_ending_in_triple_dot_does_not_get_ellipsis` - Same branch for existing `...` — verifies no double-`......` produced.
+13. `test_text_not_ending_in_punctuation_gets_ellipsis_appended` - Positive control: text ending in a letter triggers the True branch (965->966) and `...` is appended. Paired with the False-branch tests so a flipped condition is caught by BOTH branches in this file.
+
+#### TestRandomBoundaryStrictnessRegression
+14. `test_should_respond_silence_check_strict_at_exactly_015` - `random.random()==0.15` at line 1597 must NOT trigger the 15% silence cutoff (strict `<`). Verified by asserting BOTH random calls happen (silence check + response probability) and the final result is True.
+15. `test_should_prompt_user_strict_at_threshold_returns_false` - `random.random()==prompt_probability` (both 0.15 at speed_mult=1.0) must NOT trigger the prompt at line 1470 (strict `<`).
+16. `test_should_prompt_user_below_threshold_returns_true` - Positive control: `random.random()==0.0` is strictly below the 0.15 prompt_probability, so the prompt fires. Paired with the boundary-equality test to lock down direction.
+
+### Stability Verification
+
+All 16 tests verified passing across 3 consecutive runs (no flakiness). The full backend suite (1449 passed, 9 skipped) also runs cleanly with the new tests included.
+
