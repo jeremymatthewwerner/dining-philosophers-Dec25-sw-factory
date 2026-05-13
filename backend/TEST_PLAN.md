@@ -1176,3 +1176,53 @@ All 30 tests verified passing across 3 consecutive runs (no flakiness). Probabil
 
 All 16 tests verified passing across 3 consecutive runs (no flakiness). The full backend suite (1449 passed, 9 skipped) also runs cleanly with the new tests included.
 
+---
+
+## Integration Gaps - Wednesday QA (Added 2026-05-13)
+
+**Focus**: Cross-endpoint workflow validation. Backend line coverage is already at 96.38%, so the remaining integration gaps are about multi-endpoint state transitions, not individual endpoint coverage.
+
+### Analysis Results
+
+- Backend coverage: 96.38% overall (1449 tests passing).
+- All API files are at 100% line coverage except `websocket.py` (95%) and a few infra files.
+- Identified gaps are about cross-endpoint workflows: data isolation, full lifecycles, polling contracts, stats consistency after deletions.
+
+### Tests Added (test_integration_gaps_wednesday_may13_2026.py)
+
+**File**: `tests/test_integration_gaps_wednesday_may13_2026.py` (13 new tests)
+
+#### TestCrossUserDataIsolationIntegration
+1. `test_user_b_cannot_see_user_a_conversation_in_list` - GET /api/conversations is session-scoped: a conversation created by user A does not appear in user B's list.
+2. `test_user_b_get_user_a_conversation_returns_404` - GET /api/conversations/{id} returns 404 (not 403) to a non-owner, documenting the data-hiding pattern.
+3. `test_user_b_delete_user_a_conversation_returns_404` - DELETE /api/conversations/{id} from a non-owner returns 404 and leaves the conversation intact for the real owner.
+
+#### TestConversationFullLifecycleIntegration
+4. `test_full_conversation_lifecycle_endpoints_consistent` - Full chain: POST /conversations → PUT /thinkers → POST /messages → GET /conversations/{id} (reflects all changes) → DELETE /conversations/{id} → GET returns 404.
+5. `test_conversation_list_returns_all_created_conversations` - GET /api/conversations returns every conversation the user created (3 created → all 3 returned).
+
+#### TestKnowledgeResearchCycleIntegration
+6. `test_refresh_status_cycle_returns_consistent_shape` - POST /api/thinkers/knowledge/{name}/refresh → GET /api/thinkers/knowledge/{name}/status returns the polling contract (name, status, has_data) idempotently across repeat calls.
+
+#### TestDevOpsStatsDecrementIntegration
+7. `test_stats_user_count_decrements_after_admin_delete` - Deleting a user via DELETE /api/admin/users/{id} decreases the count returned by GET /api/devops/stats by exactly 1.
+
+#### TestLogoutStatelessIntegration
+8. `test_logout_does_not_revoke_token_for_me` - Documents real behavior: POST /api/auth/logout returns 200 but the JWT is still valid for /api/auth/me (stateless JWT, client-side revocation only).
+
+#### TestReLoginSessionReuseIntegration
+9. `test_two_logins_reuse_same_session` - The session row is reused: the session id observed via /api/sessions/me is the same for the registration token and a subsequent login token.
+
+#### TestThinkerValidateMockPathIntegration
+10. `test_validate_mock_thinker_returns_valid_with_profile` - POST /api/thinkers/validate for "Socrates" (a MOCK_THINKERS entry) returns valid=True with profile fields and the Wikipedia image_url.
+11. `test_validate_mock_thinker_case_insensitive` - "ARISTOTLE" (uppercased) resolves to the mock thinker — verifies the .lower() lookup.
+
+#### TestAdminSpendManagementChainIntegration
+12. `test_spend_limit_visible_in_list_users_and_target_me` - PATCH /api/admin/users/{id}/spend-limit is observable via TWO endpoints: GET /api/admin/users (admin view) and GET /api/auth/me (target's view).
+
+#### TestDevOpsCleanupPreservesIntegration
+13. `test_real_user_not_deleted_when_test_users_cleaned` - cleanup-test-users only deletes usernames matching `smoketest*` / `canary*`; a `real_user_*` username remains and can still log in afterward.
+
+### Stability Verification
+
+All 13 tests verified passing across 3 consecutive runs (7.18s, 7.21s, 7.21s — no flakiness, no variance in test count).
