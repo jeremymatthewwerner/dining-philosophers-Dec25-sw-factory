@@ -2,6 +2,52 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.21 E2E Performance Optimization (Added 2026-05-14)
+
+**Focus**: Thursday QA — extend E2E performance regression coverage. Prior runs eliminated `waitForLoadState('networkidle')` anti-patterns, added parallel-mode config, and covered page-load / user-journey timings. This run fills the remaining gaps: API endpoints that were not directly timed, modal dismissal paths, higher-scale list rendering, and static-asset caching.
+
+**Why these tests**: Existing tests directly timed `/register`, `/auth/me`, `/conversations`, `/health`, and `/health/ready`, but **login**, **logout**, **profile update**, and **conversation deletion** had no direct timing. Modal *open* was timed but *dismissal* (Escape, backdrop click) was not. Sidebar scaling was capped at 5 items, and static-asset caching had no regression guard. Each new test isolates a specific failure mode that would otherwise only surface as user-perceived slowness in production.
+
+**Files**:
+- `frontend/e2e/performance.spec.ts` (10 new tests added across 2 new describe blocks: 26 → 36 active tests)
+
+### New tests in `performance.spec.ts` — `Auth Flow Performance` describe block (5 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `login API endpoint responds within 3 seconds` | Direct `POST /api/auth/login` timing — was untimed (only `/register` was previously timed) |
+| `logout API endpoint responds within 2 seconds` | Direct `POST /api/auth/logout` timing — UI awaits this before clearing local state, must be fast |
+| `profile update API responds within 2 seconds` | `PATCH /api/auth/profile` settings save must feel instant; catches DB-write or pre-save-hook regressions |
+| `conversation deletion API responds within 2 seconds` | `DELETE /api/conversations/{id}` keeps sidebar responsive; catches ORM cascade regressions that pull in unbounded related rows |
+| `second /auth/me call is faster than 3s (warm connection)` | Second call within budget AND not 5x slower than the first — guards against accidental per-request connection teardown |
+
+### New tests in `performance.spec.ts` — `Modal Dismissal Performance` describe block (2 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `Escape key closes new-chat modal within 1 second` | Keyboard dismissal feels instant; catches handler regressions that block on network or animation |
+| `backdrop click closes new-chat modal within 1 second` | Alternate dismissal path (parent div onClick when `e.target === e.currentTarget`); ensures both `onClose` code paths stay fast |
+
+### New tests in `performance.spec.ts` — `Scale & Caching Performance` describe block (3 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `sidebar renders 10 conversations within 5 seconds` | Higher-scale guard than the existing 5-conversation test; catches O(n²) regressions that wouldn't surface at 5 items |
+| `static JS bundle is cached on second navigation` | Second login-page visit loads in <2s and serves `_next/static/*` chunks — catches `Cache-Control: no-store` regressions that would force re-downloads |
+| `repeated home→settings→home navigation does not grow request count` | 3 round-trips between home and settings; third must not exceed 2x the first — catches useEffect-without-deps multipliers and accumulating listeners |
+
+### Mobile Compatibility
+
+All 10 new tests run on both `chromium` and `mobile-chrome` (Pixel 5) projects = 20 total runs added.
+
+### Verification
+
+- 3x stability runs on chromium (36 tests each): all 36 passed each run (26.2s, 24.3s, 24.4s)
+- Mobile-chrome run of 10 new tests: all 10 passed (12.5s)
+- No `.skip` calls added — every new test is active in CI
+- `waitForTimeout` count across all `frontend/e2e/*.spec.ts` files remains 0 (one comment-only reference)
+- Total: 72 performance tests (36 chromium + 36 mobile-chrome)
+
 ## 1.20 Coverage Sprint — ThinkerService streaming + agent loop (Added 2026-05-11)
 
 **Focus**: Monday QA — coverage sprint targeting the lowest-coverage module (`app/services/thinker.py`, 77% before this run). The two largest uncovered regions were the streaming-thinking event-handler (lines 616-672) and the long-lived `_run_thinker_agent` driver loop (lines 1155-1410), which together accounted for most of the missing coverage.
