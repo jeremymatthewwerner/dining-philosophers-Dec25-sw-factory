@@ -1176,3 +1176,39 @@ All 30 tests verified passing across 3 consecutive runs (no flakiness). Probabil
 
 All 16 tests verified passing across 3 consecutive runs (no flakiness). The full backend suite (1449 passed, 9 skipped) also runs cleanly with the new tests included.
 
+## Edge Cases - Saturday Sprint (Added 2026-05-16)
+
+**Focus**: Hard-to-hit error/edge branches surfaced by full-suite coverage (96.38% baseline).
+
+### Analysis Results
+
+The full suite already covers happy paths well; remaining gaps clustered around defensive error-handlers, fallback branches, and small helper edge values. New tests target lines that only execute on unusual or failure inputs.
+
+### Tests Added (test_edge_cases_may16_2026.py)
+
+**File**: `tests/test_edge_cases_may16_2026.py` (11 new tests)
+
+#### TestGetDbRollbackPath
+1. `test_get_db_rolls_back_on_exception` — Drives `app/core/database.py:get_db` through its `except`/`rollback`/`raise` branch (lines 55-57) by injecting an exception via `athrow` into the dependency generator. Verifies `rollback` is awaited and `commit` is not.
+2. `test_get_db_commits_on_clean_exit` — Companion happy-path that confirms the normal exit takes the `commit` branch on line 54.
+
+#### TestLifespanStartupFailure
+3. `test_lifespan_reraises_init_db_error` — Patches `init_db` to raise during application startup and asserts the `lifespan` context manager (`app/main.py` lines 63-65) logs `Startup failed` with `exc_info=True` and re-raises. Also confirms `create_admin_user` is NOT called when init fails (early-exit invariant).
+
+#### TestKnowledgeResearchEdgeCases
+4. `test_fetch_wikipedia_data_includes_sections` — Mocks the Wikipedia search + content API responses and the `_fetch_wikipedia_sections` helper to return data, exercising the `sections` merge branch at `knowledge_research.py:231-232`.
+5. `test_research_thinker_swallows_nested_error_during_failure_update` — Forces the outer research to raise via `get_or_create_knowledge`, then makes the inner `async_session()` reopen also raise, hitting the nested `except` on lines 166-167. Asserts `_research_thinker` returns without propagating either error.
+
+#### TestThinkerHelperEdgeCases
+6. `test_get_last_user_message_timestamp_no_user_messages` — Returns 0.0 when only thinker messages exist (`thinker.py:1431` fallback).
+7. `test_get_last_user_message_timestamp_returns_latest_user_msg` — Happy-path companion: returns the *most recent* user message's timestamp.
+8. `test_should_prompt_user_below_threshold_returns_false` — With a recent user message, the `messages_since_user < threshold` guard at `thinker.py:1465` short-circuits to False.
+9. `test_should_prompt_user_too_few_messages_returns_false` — Conversations with fewer than 5 messages are never eligible (line 1457 guard).
+10. `test_should_prompt_user_threshold_met_respects_random` — Locks both sides of the random gate by patching `random.random()` to 0.0 and 0.99, asserting True/False respectively when the threshold is met.
+11. `test_count_messages_since_user_counts_trailing_thinkers` — Supporting helper test: counts only thinker messages after the *last* user turn.
+
+### Stability Verification
+
+All 11 tests verified passing across 3 consecutive runs (no flakiness). Tests use only mocks/patches — no real network, DB, or background-task dependencies — so they are also very fast (~1.4s total).
+
+
