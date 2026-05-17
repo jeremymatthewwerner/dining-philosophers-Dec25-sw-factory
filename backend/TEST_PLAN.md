@@ -1,3 +1,80 @@
+## Regression Prevention - Sunday Sprint (Added 2026-05-17)
+
+**Focus**: Pin down behavioral contracts from recent bug fixes that lack explicit regression guards.
+
+### Analysis Results
+
+Backend coverage is already at **96.83%** with very few missing lines. Existing regression-prevention test files (mar29, apr12, apr19, apr26, may10) cover most invariants. Remaining gaps are in **wire-protocol constants** and **cross-state contracts** that are easy to break silently in refactors.
+
+### Tests Added (test_regression_prevention_may17_2026.py)
+
+**File**: `tests/test_regression_prevention_may17_2026.py` (34 new tests)
+
+Bug fixes covered:
+- **#299** fix(feedback): use enum values instead of names for PostgreSQL (commit 451a962)
+- **#483** feat(backend): add idle timeout to auto-pause inactive conversations (commit 7aa14e7)
+- **#367** fix(websocket): sync pause button state when switching threads (commit a9c7742)
+- **#257** feat(thinker): add @mention support for addressing specific thinkers (commit 363f0e7)
+- **#81** fix: persist language preference to database (commit 6fb8b6c)
+
+#### TestFeedbackEnumValuesCallable (6 tests)
+1. `test_feedback_type_column_has_values_callable` - SQLAlchemy Enum column produces lowercase labels `["bug","feature","other"]` matching the PostgreSQL `feedbacktype` enum.
+2. `test_feedback_status_column_has_values_callable` - Same guard for `feedbackstatus` enum: labels are lowercase values, not uppercase names.
+3. `test_feedback_type_enum_values_are_lowercase` - `FeedbackType.BUG.value == "bug"` (the values_callable depends on this).
+4. `test_feedback_status_enum_values_are_lowercase` - `FeedbackStatus.NEW.value == "new"`.
+5. `test_feedback_type_postgres_enum_name` - Column uses explicit `name="feedbacktype"` for predictable migrations.
+6. `test_feedback_status_postgres_enum_name` - Column uses explicit `name="feedbackstatus"`.
+
+#### TestFeedbackTablenameContract (2 tests)
+7. `test_feedback_tablename_is_plural` - `Feedback.__tablename__ == "feedbacks"` (singular rename would orphan production data).
+8. `test_feedback_table_object_matches_tablename` - Metadata table name matches `__tablename__` (no drift).
+
+#### TestWSMessageTypeConstants (6 tests)
+9. `test_idle_timeout_value_is_snake_case` - `WSMessageType.IDLE_TIMEOUT.value == "idle_timeout"` (wire protocol guard for #483).
+10. `test_paused_value_is_snake_case` - `PAUSED.value == "paused"` (used by pause sync fix #367).
+11. `test_resumed_value_is_snake_case` - `RESUMED.value == "resumed"` (sent on every connect post-#367).
+12. `test_speed_changed_value_is_snake_case` - `SPEED_CHANGED.value == "speed_changed"`.
+13. `test_cache_hit_value_is_snake_case` - `CACHE_HIT.value == "cache_hit"`.
+14. `test_wsmessagetype_is_string_enum` - `WSMessageType` inherits from `str`; refactor to plain Enum would break JSON serialization.
+
+#### TestIdlePauseCrossStateContract (5 tests)
+15. `test_manual_pause_does_not_set_idle_paused` - `pause_conversation()` must NOT add to `_idle_paused_conversations` (otherwise user messages would auto-resume manually paused convs).
+16. `test_is_paused_returns_true_when_only_idle_paused` - Idle-paused conversations are also reported as `is_paused == True` (cross-set invariant required by agent loop).
+17. `test_pause_for_idle_is_idempotent` - Calling `pause_for_idle()` twice does not error or double-add.
+18. `test_resume_from_idle_unknown_conversation_is_noop` - `resume_from_idle()` for unknown conv is a safe no-op (called on every user message).
+19. `test_idle_timeout_seconds_default_is_300` - Config default for `idle_timeout_seconds` is 300 (5 minutes); changing to 0 disables auto-pause silently.
+
+#### TestExtractMentionsBasicContract (5 tests)
+20. `test_empty_text_returns_empty_list` - `extract_mentions("") == []` (downstream `is_mentioned` iterates the result).
+21. `test_plain_text_without_at_sign_returns_empty` - Plain text produces no mentions; regression guard for the `@` regex anchor.
+22. `test_email_addresses_not_treated_as_mentions` - Documents current behavior: `user@example.com` captures `"example"` (no email-aware filtering yet).
+23. `test_at_with_no_following_word_is_skipped` - Bare `@` without a following word produces no mention.
+24. `test_multiple_distinct_mentions_preserved_in_order` - Mentions returned in encounter order (downstream may rely on first-mention-is-primary).
+
+#### TestIsMentionedCaseInsensitivity (3 tests)
+25. `test_lowercase_mention_matches_capitalized_thinker` - `@socrates` matches thinker "Socrates" (common user typing case).
+26. `test_uppercase_mention_matches_capitalized_thinker` - `@SOCRATES` matches "Socrates" (both folded to lowercase).
+27. `test_lowercase_first_name_matches_multi_word_thinker` - `@marie` matches "Marie Curie" via first-name path, case-insensitive.
+
+#### TestLanguageInstructionEnglishBypass (3 tests)
+28. `test_english_returns_empty_string` - `_get_language_instruction("en") == ""` (token-saver bypass that must be preserved).
+29. `test_non_english_returns_non_empty_string` - es/fr/de/hi all produce `"\n\nIMPORTANT: Respond in X."` (regression guard for the language directive).
+30. `test_unknown_language_falls_back_to_raw_code` - Unknown code (e.g., "xx") uses the code as the language name, doesn't crash.
+
+#### TestSplitBubblesEmptyAndShort (4 tests)
+31. `test_empty_string_returns_empty_list` - `_split_response_into_bubbles("") == []` (not `[""]`); otherwise broadcast would emit blank message.
+32. `test_whitespace_only_returns_at_most_one_empty_bubble` - Documents current behavior of the short-text fast path for whitespace input.
+33. `test_short_text_returns_single_bubble` - Text < 60 chars always returns one bubble (line 705 guard).
+34. `test_borderline_60_char_text_does_not_crash` - 59/60/61 char inputs all produce at least one non-empty bubble (off-by-one guard).
+
+### Coverage Impact
+- Coverage stays at 96.83% (target was *contract pinning*, not coverage increase)
+- 34 new regression tests added, all pass 3x stable
+- Total tests: 1460 → 1494 passed
+- Each test class is justified by a specific bug fix (with commit SHA + issue number)
+
+---
+
 ## Edge Cases - Saturday Sprint (Added 2026-03-07)
 
 **Focus**: Add tests for error paths and boundary conditions in low-coverage modules.
