@@ -1,3 +1,50 @@
+## Coverage Sprint - Monday (Added 2026-05-18)
+
+**Focus**: Cover the post-generation **bubble-sending path** inside `_run_thinker_agent` — the largest contiguous uncovered region in `app/services/thinker.py` (lines 1269-1336) plus the min-interval gating branch (1184-1187) and the user-prompt branch (line 1258).
+
+### Coverage Impact
+- Backend total: **96.83% → 98.75%** (+1.92%)
+- `app/services/thinker.py`: **92% → 98%** (35 missed statements → 2)
+- Total tests: 1494 → 1503 (9 new tests, all pass 3x stable)
+- The previous Monday sprint (may11) covered the streaming-thinking event loop and exception handlers; this sprint completes the agent loop's success path.
+
+### Tests Added (test_thinker_coverage_sprint_may18_2026.py)
+
+**File**: `tests/test_thinker_coverage_sprint_may18_2026.py` (9 new tests, single class `TestRunThinkerAgentBubblePath`)
+
+All tests drive `_run_thinker_agent` for one or two iterations using the "cancel iter N via CancelledError from `is_conversation_active`" pattern from `test_thinker_coverage_sprint_may11_2026.py`, with `asyncio.sleep` patched to a no-op so the event loop time barely advances.
+
+1. `test_happy_path_single_bubble_sends_message` - Generate→split→save→send: a single-bubble response is persisted via `save_message` and broadcast via `manager.send_thinker_message` exactly once, validating the bubble-loop happy path (lines 1273-1312, 1322-1323) and `last_message_time` update.
+2. `test_multi_bubble_response_sends_each_with_typing_between` - Three-bubble response causes three `send_thinker_message` awaits and at least 3 `send_thinker_typing` awaits (the inter-bubble "show typing for next bubble" path on lines 1315-1320 fires `n-1` times).
+3. `test_pause_after_generation_skips_bubble_send` - When `is_paused` flips True between `generate_response_with_streaming_thinking` and the bubble loop, no `save_message`/`send_thinker_message` is emitted but `send_thinker_stopped_typing` is awaited to flush the indicator (lines 1269-1271).
+4. `test_pause_inside_bubble_loop_breaks_iteration` - Pause flipping True at the top of the first bubble iteration breaks the loop before any save runs (lines 1283-1287); no save_message and no send_thinker_message.
+5. `test_pause_between_save_and_send_breaks_iteration` - Pause flipping True between `save_message` and `send_thinker_message` results in exactly one save_message but zero send_thinker_message — the loop broke mid-iteration (lines 1298-1302).
+6. `test_empty_response_text_stops_typing` - Generate returning `("", 0.0)` skips the bubble loop entirely and only emits `send_thinker_stopped_typing` (lines 1324-1325). No save, no send.
+7. `test_should_prompt_user_calls_generate_user_prompt` - `_should_prompt_user=True` + `_get_user_name_from_messages="Alice"` routes through `generate_user_prompt` instead of `generate_response_with_streaming_thinking` (line 1258); validates the user-name argument is passed through.
+8. `test_min_interval_gating_after_successful_response` - After one successful iteration, `last_message_time > 0` and `elapsed < min_interval` (since `asyncio.sleep` is no-op), so iteration 2 short-circuits via `await asyncio.sleep(min_interval - elapsed); continue` without reaching `_should_respond` (lines 1183-1187). Asserted via call count on `_should_respond`.
+9. `test_consecutive_silence_exceeds_threshold_uses_quiet_wait` - 5 silent iterations (`_should_respond=False`) drive `consecutive_silence` past the threshold of 3, exercising the `wait_time = random.uniform(10.0, 20.0) * speed_mult` quiet-conversation branch on line 1332.
+
+### Branches Now Covered
+- `1184-1187` - min-interval gating sleep+continue ✓
+- `1258` - `should_prompt and user_name` → call `generate_user_prompt` ✓
+- `1269-1271` - pause flips True between generate and bubble loop ✓
+- `1281-1287` - pause check at start of bubble iteration (break) ✓
+- `1289-1296` - happy-path `save_message` + first-bubble send ✓
+- `1298-1302` - pause between `save_message` and `send_thinker_message` ✓
+- `1305-1322` - full bubble send + `last_message_time` update ✓
+- `1315-1320` - multi-bubble case: sleep + typing for next bubble ✓
+- `1324-1325` - empty `response_text` → stop typing only ✓
+- `1332-1336` - `consecutive_silence > 3` quiet-wait branch ✓
+
+### Remaining Gaps (≤2% in thinker.py)
+- `272` - `_suggest_single_batch` no-client early return
+- `733`, `763->767` - micro-branches inside `_split_response_into_bubbles` (force-split when single bubble exceeds 300 chars and a sentence boundary is found exactly mid-text)
+- `1185->1190`, `1194->1230`, `1198->1230`, `1200->1226` - partial branches inside the idle-timeout block (already covered for the True path by may11 tests)
+
+These are partial-branch edge cases worth deferring to a future flaky-hunt or edge-case sprint.
+
+---
+
 ## Regression Prevention - Sunday Sprint (Added 2026-05-17)
 
 **Focus**: Pin down behavioral contracts from recent bug fixes that lack explicit regression guards.
