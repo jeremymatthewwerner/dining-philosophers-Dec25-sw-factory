@@ -1336,3 +1336,55 @@ The full suite already covers happy paths well; remaining gaps clustered around 
 All 11 tests verified passing across 3 consecutive runs (no flakiness). Tests use only mocks/patches — no real network, DB, or background-task dependencies — so they are also very fast (~1.4s total).
 
 
+
+## Flaky Test Hunt - Tuesday QA (Added 2026-05-19)
+
+**Focus**: Lock down `_choose_response_style` branches and the no-client guard in `_suggest_single_batch` with fully deterministic mocks — no seed-based luck. Closes the last fully-uncovered line in `app/services/thinker.py` (line 272).
+
+### Analysis Results
+
+- Full backend suite (1503 passed, 9 skipped) ran cleanly on the baseline at 98.75% coverage. No spurious failures across the full run.
+- Only `app/services/thinker.py` uses `random.*` for branch selection. The `_split_response_into_bubbles` / `_should_respond` / `_should_prompt_user` random branches were locked down in earlier flaky-hunt sessions (apr28_2026, may5_2026, may12_2026).
+- `_choose_response_style` still had ONLY seed-based tests (`test_thinker_service.py::TestChooseResponseStyle`, `test_flaky_hunt_mar17_2026.py::test_choose_response_style_always_returns_valid_values`) which assert distributional properties. A refactor that breaks a single branch or flips one `<` to `<=` would slip past those checks.
+- Coverage before: 98.75% (22 partial branches, 11 missing lines). Coverage after: 98.83% (21 partial branches, 10 missing lines). Line 272 closed.
+
+### Tests Added (test_flaky_hunt_may19_2026.py)
+
+**File**: `tests/test_flaky_hunt_may19_2026.py` (25 new tests)
+
+#### TestChooseResponseStyleAddressedBranchesDeterministic
+1. `test_addressed_roll_0_00_returns_30_tokens` — `random.random()` mocked to 0.0 with a name-addressed message → 30-token "2-5 words" branch.
+2. `test_addressed_roll_0_14_returns_30_tokens` — roll=0.14 (just under 0.15) still returns 30 tokens.
+3. `test_addressed_roll_0_15_boundary_returns_60_tokens` — At exactly `roll==0.15` the strict `<` must NOT take the 30-token branch; locks down inequality direction.
+4. `test_addressed_roll_0_34_returns_60_tokens` — roll=0.34 (just under 0.35) returns 60 tokens.
+5. `test_addressed_roll_0_35_boundary_returns_120_tokens` — Boundary at 0.35: must take 120-token branch (strict `<`).
+6. `test_addressed_roll_0_54_returns_120_tokens` — roll=0.54 (just under 0.55) returns 120 tokens.
+7. `test_addressed_roll_0_55_boundary_returns_200_tokens` — Boundary at 0.55: must take 200-token branch (strict `<`).
+8. `test_addressed_roll_0_79_returns_200_tokens` — roll=0.79 (just under 0.80) returns 200 tokens.
+9. `test_addressed_roll_0_80_boundary_returns_350_tokens` — Boundary at 0.80: must take terminal else (350-token "fuller response" branch).
+10. `test_addressed_roll_0_99_returns_350_tokens` — roll=0.99 hits the terminal else branch and asserts the style contains "exploring" or "fuller" so a swap of the two largest branches is caught.
+
+#### TestChooseResponseStyleNotAddressedBranchesDeterministic
+11. `test_not_addressed_roll_0_00_returns_30_tokens` — roll=0.0 + generic content (no name mention) → 30-token "very brief reaction" branch.
+12. `test_not_addressed_roll_0_19_returns_30_tokens` — roll=0.19 (just under 0.20) still returns 30 tokens.
+13. `test_not_addressed_roll_0_20_boundary_returns_60_tokens` — Boundary at 0.20: must take 60-token branch (strict `<`).
+14. `test_not_addressed_roll_0_39_returns_60_tokens` — roll=0.39 (just under 0.40) returns 60 tokens.
+15. `test_not_addressed_roll_0_40_boundary_returns_120_tokens` — Boundary at 0.40: must take 120-token branch.
+16. `test_not_addressed_roll_0_59_returns_120_tokens` — roll=0.59 (just under 0.60) returns 120 tokens.
+17. `test_not_addressed_roll_0_60_boundary_returns_200_tokens` — Boundary at 0.60: must take 200-token branch.
+18. `test_not_addressed_roll_0_79_returns_200_tokens` — roll=0.79 (just under 0.80) returns 200 tokens.
+19. `test_not_addressed_roll_0_80_boundary_returns_300_tokens` — Boundary at 0.80: must take terminal else (300 tokens — NOT 350; the not-addressed cap is intentionally smaller than the addressed cap, and this test pins that distinction).
+
+#### TestChooseResponseStyleJustSpokeFollowUp
+20. `test_just_spoke_roll_0_00_returns_follow_up` — Last sender == thinker name + roll=0.00 → 50-token "VERY brief follow-up" branch.
+21. `test_just_spoke_roll_0_39_returns_follow_up` — roll=0.39 (just under 0.40) still returns 50-token follow-up.
+22. `test_just_spoke_roll_0_40_boundary_falls_through` — Boundary at 0.40 with just_spoke=True must NOT take the follow-up branch (strict `<`). Falls through to the not-addressed roll=0.40 branch (120 tokens) since the message content does not mention the thinker by name.
+23. `test_just_spoke_false_with_low_roll_does_not_return_follow_up` — When `just_spoke=False` (last sender is User), even roll=0.05 must NOT trigger the follow-up branch. Verifies the `just_spoke and ...` short-circuit guards the entire follow-up path.
+
+#### TestSuggestSingleBatchNoClientGuard
+24. `test_suggest_single_batch_returns_empty_when_client_is_none` — Direct call with `client` property mocked to None returns `[]` (closes line 272). The public `suggest_thinkers` caller short-circuits earlier so this inner guard was previously unreachable; locking it down means a refactor that drops the guard (and later assumes `client` is non-None) will fail loudly.
+25. `test_suggest_single_batch_returns_empty_with_exclude_when_client_is_none` — Same guard with all optional arguments populated (`perspective_hint`, `exclude`, `language`); verifies the guard fires regardless of the other args.
+
+### Stability Verification
+
+All 25 tests verified passing across 3 consecutive runs (~1.9s each, no flakiness). The full backend suite (1528 passed, 9 skipped, ~6:43) also runs cleanly with the new tests included. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
