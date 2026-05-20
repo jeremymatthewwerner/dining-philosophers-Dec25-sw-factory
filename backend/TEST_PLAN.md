@@ -1,3 +1,43 @@
+## Integration Gaps - Wednesday (Added 2026-05-20)
+
+**Focus**: Multi-endpoint workflows that traverse the public API surface. Each test exercises 2+ endpoints in sequence and asserts that effects of the first call are observable through a later call — the kind of contract mismatch that single-endpoint tests cannot catch.
+
+Line coverage was already at **98.83%** before this sprint, with every endpoint at 100%. The gap targeted here is **behavioral / integration**, not line-coverage.
+
+### Tests Added (test_integration_gaps_may20_2026.py)
+
+**File**: `tests/test_integration_gaps_may20_2026.py` (10 new tests across 5 classes, all pass 3x stable)
+
+#### `TestConversationLifecycleIntegration`
+1. `test_create_then_list_then_get_then_delete_then_list_again` — Full CRUD path: create returns id, list contains it, get returns the same conversation, delete removes it, subsequent list excludes it, and follow-up GET on the deleted id returns 404. Validates that every conversations.py endpoint observes the same underlying DB state.
+2. `test_list_returns_all_created_conversations_with_full_summary_fields` — Creates 3 conversations and validates the list endpoint returns every one with the full `ConversationSummary` schema populated (topic, thinkers, message_count=0, total_cost=0.0). Cross-endpoint contract between create_conversation and list_conversations.
+3. `test_send_message_to_deleted_conversation_returns_404` — DELETE /conversations/{id} → POST /messages on that id returns 404. Validates that DELETE is observable by send_message (the row is actually gone, not orphaned).
+
+#### `TestAddThinkersConstraintIntegration`
+4. `test_add_thinkers_rejected_when_total_exceeds_five_and_state_unchanged` — Create with 4 thinkers, PUT 2 more (would be 6), expect 400 with "Maximum is 5 total", then GET to verify the conversation still has exactly 4 thinkers and neither "Extra1" nor "Extra2" was partially written. Validates the limit-check fires *before* any db.add commits.
+5. `test_add_thinkers_assigns_unique_colors_when_default_color_provided` — Create 1 thinker, PUT 2 more with default color → GET to verify all 3 thinkers have distinct colors (the color-dedup logic in add_thinkers_to_conversation is observable in the persisted state).
+
+#### `TestKnowledgeResearchWorkflowIntegration`
+6. `test_validate_mock_thinker_triggers_research_and_knowledge_endpoint_works` — POST /thinkers/validate with mock thinker "Socrates" → asserts `trigger_research` was called once → subsequent GET /thinkers/knowledge/Socrates returns 200 with the thinker name. Cross-endpoint contract: validate's side-effect must be observable to the knowledge endpoint.
+7. `test_refresh_on_never_seen_thinker_creates_entry_then_status_reflects_it` — On a never-seen name, GET /status returns pending+has_data=false, then POST /refresh (which calls `get_or_create_knowledge`) creates the entry and fires research; subsequent GET /status finds the entry. Validates the get-or-create-on-refresh path is observable via status.
+8. `test_get_knowledge_for_new_thinker_creates_entry_and_subsequent_status_finds_it` — GET /knowledge/{name} on a new name creates the entry via `get_or_create_knowledge`; the next GET /status finds it. Coverage: the create-on-miss path in `get_thinker_knowledge` is observable downstream.
+
+#### `TestLanguagePreferenceCrossFlowIntegration`
+9. `test_register_with_custom_lang_login_returns_same_then_patch_updates_everywhere` — Register with `language_preference="fr"` → /me returns fr → fresh login still returns fr → PATCH /language to "es" → /me reflects es → another fresh login returns es. Validates the contract between auth.register, auth.login, auth.update_language, and auth.get_me.
+
+#### `TestAdminSpendLimitVisibilityIntegration`
+10. `test_admin_patches_spend_limit_user_me_and_admin_user_list_both_reflect` — Admin PATCH /admin/users/{id}/spend-limit → user GET /auth/me reflects the new limit → admin GET /admin/users list shows the matching limit on that user → admin GET /spend/{user_id} returns spend data with the correct user_id and username. Cross-endpoint contract among admin.update_spend_limit, auth.get_me, admin.list_users, and spend.get_spend.
+
+### Coverage Impact
+- Backend line coverage: **98.83% → ≥98.83%** (these are integration tests; the lines they hit were already covered by unit tests, but they pin down cross-endpoint contracts).
+- Total tests: 1547 → 1557 (10 new tests).
+- All 10 tests run in <5s and pass 3x consecutively (no flakiness).
+
+### Why These Tests
+Single-endpoint unit tests verify each endpoint in isolation. Integration tests catch a different class of bugs: schema drift between create/read, missing cascades, lazy-load pitfalls, observable-state contracts. Each test in this batch is selected to fail loudly if a future refactor accidentally breaks the contract between two endpoints (e.g. if delete_conversation stops cascading, or if update_language stops persisting before login is called again).
+
+---
+
 ## Coverage Sprint - Monday (Added 2026-05-18)
 
 **Focus**: Cover the post-generation **bubble-sending path** inside `_run_thinker_agent` — the largest contiguous uncovered region in `app/services/thinker.py` (lines 1269-1336) plus the min-interval gating branch (1184-1187) and the user-prompt branch (line 1258).
