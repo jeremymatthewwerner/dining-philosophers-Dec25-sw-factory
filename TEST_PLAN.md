@@ -2,6 +2,57 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.22 E2E Performance Optimization (Added 2026-05-21)
+
+**Focus**: Thursday QA — fill the remaining gaps in E2E performance regression coverage. Prior runs already covered page-load, interaction, generic API timing, modal dismissal, scale & caching, and most user-journey flows. This run targets: (1) the message and single-conversation API paths that drive the chat experience, (2) error/edge paths (401, 404, /health size budget) that should stay cheap, (3) DOMContentLoaded on the authenticated home + settings + post-logout login pages, and (4) FCP on the settings route.
+
+**Why these tests**: `POST /api/conversations/{id}/messages` and `GET /api/conversations/{id}` back every message send and every sidebar click but were never timed. The 401 unauthorized path and the Next.js `not-found` route had no perf guards — a regression that wraps token verification in a DB lookup, or imports the full app shell into not-found, would slow every typo'd URL or expired session. DCL on the authenticated home and settings routes was never measured (only login DCL was). FCP on settings is a distinct code path from login FCP (authenticated providers, separate bundle). Each new test isolates a specific failure mode.
+
+**Files**:
+- `frontend/e2e/performance.spec.ts` (10 new tests added across 4 new describe blocks: 36 → 46 active tests)
+
+### New tests in `performance.spec.ts` — `Message & Conversation Performance` describe block (3 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `send-message API responds within 2 seconds` | `POST /api/conversations/{id}/messages` must stay fast so the user sees their message + typing indicator without delay — catches synchronous spend-limit checks or cascade joins added to this path |
+| `GET /api/conversations/{id} responds within 2 seconds` | Single-conversation fetch backs every sidebar click; catches N+1 query and unbounded message-eager-loading regressions |
+| `3 sequential createConversationViaAPI calls complete within 5s` | Benchmarks per-conversation creation cost when calls are not parallelized; catches regressions in `POST /api/conversations` latency |
+
+### New tests in `performance.spec.ts` — `Error & Edge Path Performance` describe block (3 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `unauthorized API call returns 401 within 1 second` | The 401 reject path must be cheap — no DB lookup, no expensive validation; catches accidental session-table-on-every-request regressions |
+| `404 page loads within 3 seconds` | Next.js `not-found` route bundle stays tiny; catches developers accidentally importing the full app shell into the not-found page |
+| `GET /health response body is small (<10KB)` | Health endpoint is polled thousands of times/day by Railway + external monitors — guards against turning `/health` into a verbose debug dump |
+
+### New tests in `performance.spec.ts` — `DOMContentLoaded & Navigation Performance` describe block (3 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `authenticated home DOMContentLoaded fires within 3 seconds` | DCL on the authenticated entry point is the strongest sync-script guarantee; catches heavy sync imports added to the app shell |
+| `settings page DOMContentLoaded fires within 2 seconds` | The settings route ships its own bundle; catches sync-script regressions specific to settings (e.g., heavy form-library imports) |
+| `logout redirect to /login renders within 3 seconds` | Full sign-out flow: click sign-out → see login form; budgets the redirect + cold-load of `/login` (the existing logout test only verifies redirect happens) |
+
+### New tests in `performance.spec.ts` — `Settings Page Rendering Performance` describe block (1 test)
+
+| Test | What It Validates |
+|------|-------------------|
+| `settings page first contentful paint within 2 seconds` | FCP on the settings route catches a different code path than login FCP — settings uses authenticated providers (theme, language, auth) and a separate bundle |
+
+### Mobile Compatibility
+
+All 10 new tests run on both `chromium` and `mobile-chrome` (Pixel 5) projects = 20 total runs added.
+
+### Verification
+
+- 3x stability runs on chromium (46 tests each): all 46 passed each run (33.8s, 32.3s, 32.4s)
+- Mobile-chrome run of 10 new tests: all 10 passed (7.6s)
+- No `.skip` calls added — every new test is active in CI
+- `waitForTimeout` count across all `frontend/e2e/*.spec.ts` files remains 0 (one comment-only reference)
+- Total active perf tests: 92 (46 chromium + 46 mobile-chrome)
+
 ## 1.21 E2E Performance Optimization (Added 2026-05-14)
 
 **Focus**: Thursday QA — extend E2E performance regression coverage. Prior runs eliminated `waitForLoadState('networkidle')` anti-patterns, added parallel-mode config, and covered page-load / user-journey timings. This run fills the remaining gaps: API endpoints that were not directly timed, modal dismissal paths, higher-scale list rendering, and static-asset caching.

@@ -918,3 +918,254 @@ test.describe('Scale & Caching Performance', () => {
     expect(roundTripCounts[2]).toBeLessThan(roundTripCounts[0] * 2 + 10);
   });
 });
+
+test.describe('Message & Conversation Performance', () => {
+  test.describe.configure({ mode: 'parallel' });
+
+  test('send-message API responds within 2 seconds', async ({ page }) => {
+    // POST /api/conversations/{id}/messages just inserts a user message and
+    // returns; the AI response is generated asynchronously via WebSocket.
+    // The endpoint must stay fast so the user sees their message and the
+    // typing indicator without perceptible delay. Catches regressions like
+    // synchronous spend-limit checks or cascade joins added to this path.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+    const conv = await createConversationViaAPI(page, 'Send-msg perf', [
+      'Aristotle',
+    ]);
+
+    const startTime = Date.now();
+    const response = await page.request.post(
+      `http://localhost:8000/api/conversations/${conv.id}/messages`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { content: 'Hello, world!' },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(INTERACTION_TIMEOUT);
+  });
+
+  test('GET /api/conversations/{id} responds within 2 seconds', async ({
+    page,
+  }) => {
+    // Single-conversation fetch backs every sidebar click — must be fast
+    // even when the message list grows. Catches N+1 query regressions and
+    // unbounded message-eager-loading.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+    const conv = await createConversationViaAPI(page, 'Single-fetch perf', [
+      'Plato',
+    ]);
+
+    const startTime = Date.now();
+    const response = await page.request.get(
+      `http://localhost:8000/api/conversations/${conv.id}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(INTERACTION_TIMEOUT);
+  });
+
+  test('3 sequential createConversationViaAPI calls complete within 5s', async ({
+    page,
+  }) => {
+    // Benchmark the per-conversation creation cost when calls are NOT
+    // parallelized (e.g., setup helpers that build a fixture step-by-step).
+    // 3 sequential creates at <1.5s each = 4.5s — anything beyond signals
+    // a regression in POST /api/conversations latency.
+    await setupAuthenticatedUser(page);
+
+    const startTime = Date.now();
+    for (let i = 0; i < 3; i++) {
+      await createConversationViaAPI(page, `Sequential perf #${i + 1}`, [
+        'Socrates',
+      ]);
+    }
+    const elapsed = Date.now() - startTime;
+
+    expect(elapsed).toBeLessThan(PERF_TIMEOUT);
+  });
+});
+
+test.describe('Error & Edge Path Performance', () => {
+  test.describe.configure({ mode: 'parallel' });
+
+  test('unauthorized API call returns 401 within 1 second', async ({
+    page,
+  }) => {
+    // The 401 reject path must be cheap — no DB lookup, no expensive
+    // validation. A regression that wraps token verification in a DB query
+    // (e.g., a session lookup for every request) would slow this down.
+    await page.goto('/');
+
+    const startTime = Date.now();
+    const response = await page.request.get(
+      'http://localhost:8000/api/auth/me',
+      {
+        headers: { Authorization: 'Bearer invalid-token-12345' },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.status()).toBe(401);
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  test('404 page loads within 3 seconds', async ({ page }) => {
+    // Next.js renders a `not-found` route for unknown paths. The bundle for
+    // that route should be tiny — if a developer accidentally imports the
+    // full app shell (or a heavy provider tree) into not-found, this trips.
+    const startTime = Date.now();
+    const response = await page.goto('/this-route-definitely-does-not-exist');
+    // Wait for the page body to be present — body becomes interactive once
+    // the not-found route has hydrated
+    await expect(page.locator('body')).toBeVisible({ timeout: NAV_TIMEOUT });
+    const elapsed = Date.now() - startTime;
+
+    // Next.js serves 404 with HTTP 404; we just need a response and quick render
+    expect(response).not.toBeNull();
+    expect(elapsed).toBeLessThan(NAV_TIMEOUT);
+  });
+
+  test('GET /health response body is small (<10KB)', async ({ page }) => {
+    // The health endpoint is polled by Railway and external monitors. A
+    // verbose response (e.g., dumping all subsystem versions or build info)
+    // would inflate bandwidth across thousands of probes per day. Guards
+    // against accidentally turning /health into a debug dump.
+    const response = await page.request.get('http://localhost:8000/health');
+    expect(response.ok()).toBe(true);
+
+    const body = await response.body();
+    // 10KB is a generous ceiling — a typical healthy response is <500 bytes
+    expect(body.byteLength).toBeLessThan(10 * 1024);
+  });
+});
+
+test.describe('DOMContentLoaded & Navigation Performance', () => {
+  test.describe.configure({ mode: 'parallel' });
+
+  test('authenticated home DOMContentLoaded fires within 3 seconds', async ({
+    page,
+  }) => {
+    // DCL on the authenticated entry point is the strongest sync-script
+    // guarantee — it means the HTML is parsed and synchronous scripts have
+    // executed. A regression that adds a heavy synchronous import to the
+    // app shell (e.g., a polyfill or a sync analytics SDK) will surface here.
+    await setupAuthenticatedUser(page);
+
+    await page.goto('/');
+
+    const dclTiming = await page.evaluate(() => {
+      const navEntry = performance.getEntriesByType('navigation')[0] as
+        | PerformanceNavigationTiming
+        | undefined;
+      return navEntry ? navEntry.domContentLoadedEventEnd : null;
+    });
+
+    // Sanity-check the page actually rendered
+    await expect(page.getByTestId('new-chat-button')).toBeVisible({
+      timeout: PERF_TIMEOUT,
+    });
+
+    if (dclTiming !== null) {
+      expect(dclTiming).toBeLessThan(NAV_TIMEOUT);
+    }
+  });
+
+  test('settings page DOMContentLoaded fires within 2 seconds', async ({
+    page,
+  }) => {
+    // The settings route ships its own bundle (separate from `/`). DCL here
+    // catches regressions specific to settings — e.g., a developer adding a
+    // sync `import` for a heavy form library to the settings page.
+    await setupAuthenticatedUser(page);
+
+    await page.goto('/settings');
+
+    const dclTiming = await page.evaluate(() => {
+      const navEntry = performance.getEntriesByType('navigation')[0] as
+        | PerformanceNavigationTiming
+        | undefined;
+      return navEntry ? navEntry.domContentLoadedEventEnd : null;
+    });
+
+    // Sanity-check the page actually rendered
+    await expect(page.locator('h1')).toContainText('Settings', {
+      timeout: NAV_TIMEOUT,
+    });
+
+    if (dclTiming !== null) {
+      expect(dclTiming).toBeLessThan(INTERACTION_TIMEOUT);
+    }
+  });
+
+  test('logout redirect to /login renders within 3 seconds', async ({
+    page,
+  }) => {
+    // After logout, the app redirects to /login and the login form should
+    // appear quickly. This is the full sign-out user flow: click sign-out,
+    // see the login page. Distinct from the existing logout test which only
+    // verifies redirect happens — this one budgets the full re-render.
+    await setupAuthenticatedUser(page);
+
+    await page.getByTestId('user-menu-button').click();
+    await expect(page.getByTestId('user-menu-dropdown')).toBeVisible({
+      timeout: INTERACTION_TIMEOUT,
+    });
+
+    const startTime = Date.now();
+    await page.getByTestId('user-menu-signout').click();
+    // After logout, the username field must be visible on /login
+    await expect(page.locator('#username')).toBeVisible({
+      timeout: NAV_TIMEOUT,
+    });
+    const elapsed = Date.now() - startTime;
+
+    expect(elapsed).toBeLessThan(NAV_TIMEOUT);
+  });
+});
+
+test.describe('Settings Page Rendering Performance', () => {
+  test.describe.configure({ mode: 'parallel' });
+
+  test('settings page first contentful paint within 2 seconds', async ({
+    page,
+  }) => {
+    // FCP on the settings route guards against a different code path than the
+    // login FCP test — settings ships its own bundle and uses authenticated
+    // providers (theme, language, auth). A regression that adds a heavy
+    // synchronous provider tree to the settings page will surface here.
+    await setupAuthenticatedUser(page);
+
+    const startTime = Date.now();
+    await page.goto('/settings');
+    await expect(page.locator('h1')).toContainText('Settings', {
+      timeout: NAV_TIMEOUT,
+    });
+
+    const fcp = await page.evaluate(() => {
+      const entries = performance.getEntriesByType('paint');
+      const fcpEntry = entries.find((e) => e.name === 'first-contentful-paint');
+      return fcpEntry ? fcpEntry.startTime : null;
+    });
+
+    const elapsed = Date.now() - startTime;
+    expect(elapsed).toBeLessThan(NAV_TIMEOUT);
+
+    // FCP should be well under 2 seconds on a local dev server
+    if (fcp !== null) {
+      expect(fcp).toBeLessThan(INTERACTION_TIMEOUT);
+    }
+  });
+});
