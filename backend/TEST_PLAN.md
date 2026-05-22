@@ -735,6 +735,56 @@ Fix: patch `app.services.knowledge_research.knowledge_service.trigger_research`.
 
 ---
 
+## Test Refactoring - Friday Sprint (Added 2026-05-22)
+
+**Focus**: Eliminate inline admin-user setup boilerplate across three dated test files; use existing `conftest.py` helpers.
+
+### Refactoring Summary
+**Files Refactored**: 3 test files
+**Patterns Eliminated**: 9 inline admin-user setups + ~6 inline thinker/error-assertion blocks
+**Tests**: 90 tests in scope, all still passing (verified 3x)
+
+**Improvements Made**:
+- Replaced 9 instances of manual "register → `update(User).is_admin=True` → (optionally re-login) → build headers" with single-line `create_admin_headers()` calls
+- Replaced `assert response.status_code == 401/404` patterns with `assert_unauthorized()` / `assert_not_found()` for clearer intent and consistent error-detail checks
+- Replaced inline `{"name": ..., "bio": ..., "positions": ..., "style": ...}` thinker dict with `make_simple_thinker_list()`
+- Removed now-unused `sqlalchemy.update` and `app.models.User` imports
+- Identified an anti-pattern in `test_edge_cases_feb21_2026.py`: tests were performing an unnecessary `/api/auth/login` re-login after setting `is_admin=True`. Because `require_admin` re-reads `is_admin` from the DB at request time, the original registration token already works — removed 3 redundant login round-trips.
+
+**Refactoring Patterns Applied**:
+1. **Admin setup consolidation**: ~15 lines → 1 line (`create_admin_headers(client, db_session, username, password)`)
+2. **Error assertion helpers**: `assert response.status_code == 4xx` + manual detail check → `assert_not_found(response, "...")` / `assert_unauthorized(response)`
+3. **Thinker dict consolidation**: inline dict → `make_simple_thinker_list(name=..., bio=..., positions=..., style=...)`
+
+### Refactored Files
+
+**File**: `tests/test_integration_gaps_mar2026.py`
+**Refactorings**: 3 admin setups, 2 `assert_unauthorized`, 1 `assert_not_found`, 1 thinker list
+**Impact**: ~55 lines of boilerplate removed; reads as intent rather than DB plumbing
+
+**File**: `tests/test_integration_gaps_feb25_2026.py`
+**Refactorings**: 5 admin setups, 2 `assert_not_found`
+**Impact**: ~70 lines of boilerplate removed; centralizes a previously-duplicated DB update pattern
+
+**File**: `tests/test_edge_cases_feb21_2026.py`
+**Refactorings**: 3 admin setups (each had a redundant re-login step that is now removed)
+**Impact**: ~30 lines removed; removes a misleading pattern that suggested admin promotion required re-login
+
+### Test Coverage Maintained
+
+**Before Refactoring**: 1538 tests passing, 98.83% coverage
+**After Refactoring**: 1538 tests passing, 98.83% coverage (verified across 3 sequential runs)
+**Test Stability**: 100% — no behavior changes, no new tests, no removed tests
+
+**Benefits**:
+- Removes ~155 lines of boilerplate
+- Eliminates 3 unnecessary HTTP round-trips per session (the redundant re-login pattern)
+- Makes the test intent obvious: "I need admin headers" instead of 15 lines of DB plumbing
+- New test authors are more likely to discover and reuse the helpers
+- Coverage and behavior unchanged
+
+---
+
 ## Test Refactoring - Friday Sprint (Added 2026-01-23)
 
 **Focus**: Improve test maintainability by consolidating duplicate test setup code

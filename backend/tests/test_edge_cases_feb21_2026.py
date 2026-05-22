@@ -10,14 +10,13 @@ Tests cover:
 """
 
 from httpx import AsyncClient
-from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import User
 from tests.conftest import (
     assert_not_found,
     assert_unauthorized,
     assert_validation_error,
+    create_admin_headers,
     get_auth_headers,
     register_and_get_token,
 )
@@ -283,21 +282,9 @@ class TestAdminSpendLimitEdgeCases:
         Edge case: User not found in database.
         Covers: admin.py update_spend_limit 404 path (lines 81-85)
         """
-        admin_data = await register_and_get_token(
-            client, username="admin_404_test_feb21", password="adminpass"
+        admin_headers = await create_admin_headers(
+            client, db_session, "admin_404_test_feb21", "adminpass"
         )
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
-
-        # Login as admin
-        login_resp = await client.post(
-            "/api/auth/login",
-            json={"username": "admin_404_test_feb21", "password": "adminpass"},
-        )
-        admin_token = login_resp.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # Try to update spend limit for nonexistent user
         response = await client.patch(
@@ -315,21 +302,9 @@ class TestAdminSpendLimitEdgeCases:
         Edge case: User not found in database.
         Covers: admin.py delete_user 404 path (lines 115-119)
         """
-        admin_data = await register_and_get_token(
-            client, username="admin_del_404_feb21", password="adminpass"
+        admin_headers = await create_admin_headers(
+            client, db_session, "admin_del_404_feb21", "adminpass"
         )
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
-
-        # Login as admin
-        login_resp = await client.post(
-            "/api/auth/login",
-            json={"username": "admin_del_404_feb21", "password": "adminpass"},
-        )
-        admin_token = login_resp.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # Try to delete nonexistent user
         response = await client.delete(
@@ -345,25 +320,14 @@ class TestAdminSpendLimitEdgeCases:
 
         Covers: admin.py update_spend_limit success path (lines 87-93)
         """
-        admin_data = await register_and_get_token(
-            client, username="admin_succ_feb21", password="adminpass"
+        admin_headers = await create_admin_headers(
+            client, db_session, "admin_succ_feb21", "adminpass"
         )
-        await db_session.execute(
-            update(User).where(User.id == admin_data["user"]["id"]).values(is_admin=True)
-        )
-        await db_session.commit()
 
         target_data = await register_and_get_token(
             client, username="target_user_feb21", password="testpass"
         )
         target_id = target_data["user"]["id"]
-
-        login_resp = await client.post(
-            "/api/auth/login",
-            json={"username": "admin_succ_feb21", "password": "adminpass"},
-        )
-        admin_token = login_resp.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         response = await client.patch(
             f"/api/admin/users/{target_id}/spend-limit",

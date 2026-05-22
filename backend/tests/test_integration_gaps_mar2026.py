@@ -17,10 +17,16 @@ from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import get_auth_headers, register_and_get_token
+from tests.conftest import (
+    assert_not_found,
+    assert_unauthorized,
+    create_admin_headers,
+    get_auth_headers,
+    make_simple_thinker_list,
+    register_and_get_token,
+)
 
 # Patch target for knowledge_service.trigger_research
 _KNOWLEDGE_PATCH = "app.services.knowledge_research.knowledge_service.trigger_research"
@@ -406,7 +412,7 @@ class TestAuthLanguageUpdatePersistence:
             "/api/auth/language",
             json={"language_preference": "es"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
 
 # ---------------------------------------------------------------------------
@@ -425,35 +431,14 @@ class TestAdminDeleteUserCascade:
         Coverage: app/api/admin.py lines 105-118 - delete user + cascade
         Verifies deletion by checking that the deleted user's token no longer works.
         """
-        from app.models import User
-
-        # Register admin user
-        admin_resp = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "admin_cascade_del",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
+        admin_headers = await create_admin_headers(
+            client, async_session, "admin_cascade_del", "adminpass123"
         )
-        admin_id = admin_resp.json()["user"]["id"]
-        admin_token = admin_resp.json()["access_token"]
-
-        # Promote to admin
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
 
         # Register target user
-        target_resp = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "target_cascade_del",
-                "display_name": "Target",
-                "password": "targetpass123",
-            },
-        )
-        target_id = target_resp.json()["user"]["id"]
-        target_token = target_resp.json()["access_token"]
+        target_resp = await register_and_get_token(client, "target_cascade_del", "targetpass123")
+        target_id = target_resp["user"]["id"]
+        target_token = target_resp["access_token"]
 
         # Verify target user can access their account before deletion
         me_resp = await client.get(
@@ -463,7 +448,6 @@ class TestAdminDeleteUserCascade:
         assert me_resp.status_code == 200
 
         # Admin deletes target user
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
         delete_response = await client.delete(
             f"/api/admin/users/{target_id}",
             headers=admin_headers,
@@ -479,32 +463,16 @@ class TestAdminDeleteUserCascade:
 
         Coverage: app/api/admin.py lines 108-112 - user not found check
         """
-        from app.models import User
-
-        # Register admin user
-        admin_resp = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "admin_del_notfound",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
+        admin_headers = await create_admin_headers(
+            client, async_session, "admin_del_notfound", "adminpass123"
         )
-        admin_id = admin_resp.json()["user"]["id"]
-        admin_token = admin_resp.json()["access_token"]
-
-        # Promote to admin
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
 
         # Try to delete non-existent user
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
         response = await client.delete(
             "/api/admin/users/nonexistent-user-id-xyz",
             headers=admin_headers,
         )
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        assert_not_found(response, "not found")
 
 
 # ---------------------------------------------------------------------------
@@ -540,7 +508,7 @@ class TestSessionsAPIIntegration:
             "/api/sessions/me",
             headers={"Authorization": "Bearer this.is.not.a.valid.jwt.token"},
         )
-        assert response.status_code == 401
+        assert_unauthorized(response)
 
 
 # ---------------------------------------------------------------------------
@@ -558,37 +526,15 @@ class TestSpendAPIIntegrationPaths:
 
         Coverage: app/api/spend.py lines 33-41 - get_spend with no conversations
         """
-        from app.models import User
-
-        # Register admin
-        admin_resp = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "admin_spend_test",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
+        admin_headers = await create_admin_headers(
+            client, async_session, "admin_spend_test", "adminpass123"
         )
-        admin_id = admin_resp.json()["user"]["id"]
-        admin_token = admin_resp.json()["access_token"]
-
-        # Promote to admin
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
 
         # Register target user (has a session from registration but no conversations)
-        target_resp = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "spend_no_convs",
-                "display_name": "No Conversations",
-                "password": "noconvpass123",
-            },
-        )
-        target_id = target_resp.json()["user"]["id"]
+        target_resp = await register_and_get_token(client, "spend_no_convs", "noconvpass123")
+        target_id = target_resp["user"]["id"]
 
         # Get spend data for user with no conversations
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
         response = await client.get(
             f"/api/spend/{target_id}",
             headers=admin_headers,
@@ -641,14 +587,12 @@ class TestConversationsEmptyList:
                 headers=headers,
                 json={
                     "topic": "Test topic",
-                    "thinkers": [
-                        {
-                            "name": "Socrates",
-                            "bio": "Ancient philosopher",
-                            "positions": "Virtue",
-                            "style": "Questioning",
-                        }
-                    ],
+                    "thinkers": make_simple_thinker_list(
+                        name="Socrates",
+                        bio="Ancient philosopher",
+                        positions="Virtue",
+                        style="Questioning",
+                    ),
                 },
             )
         assert create_resp.status_code == 200
