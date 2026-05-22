@@ -18,7 +18,13 @@ from unittest.mock import patch
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import create_test_conversation, get_auth_headers
+from tests.conftest import (
+    assert_not_found,
+    create_admin_headers,
+    create_test_conversation,
+    get_auth_headers,
+    register_and_get_token,
+)
 
 # Patch target for knowledge_service.trigger_research
 # The service is imported inside function bodies, so we patch the singleton method
@@ -577,38 +583,11 @@ class TestAdminIntegrationPaths:
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
         """list_users builds UserWithStats objects with correct fields (lines 35-53)."""
-        from sqlalchemy import update
-
-        from app.models import User
-
-        # Register admin user via API
-        admin_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "adminstat1",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
-        )
-        assert admin_response.status_code == 200
-        admin_id = admin_response.json()["user"]["id"]
-        admin_token = admin_response.json()["access_token"]
-
-        # Promote to admin directly in DB
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
+        headers = await create_admin_headers(client, async_session, "adminstat1", "adminpass123")
 
         # Register a regular user
-        await client.post(
-            "/api/auth/register",
-            json={
-                "username": "regularstat1",
-                "display_name": "Regular",
-                "password": "userpass123",
-            },
-        )
+        await register_and_get_token(client, "regularstat1", "userpass123")
 
-        headers = {"Authorization": f"Bearer {admin_token}"}
         response = await client.get("/api/admin/users", headers=headers)
         assert response.status_code == 200
         users = response.json()
@@ -628,70 +607,25 @@ class TestAdminIntegrationPaths:
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
         """update_spend_limit returns 404 for non-existent user (lines 79-85)."""
-        from sqlalchemy import update
+        headers = await create_admin_headers(client, async_session, "adminspend1", "adminpass123")
 
-        from app.models import User
-
-        admin_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "adminspend1",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
-        )
-        assert admin_response.status_code == 200
-        admin_id = admin_response.json()["user"]["id"]
-        admin_token = admin_response.json()["access_token"]
-
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
-
-        headers = {"Authorization": f"Bearer {admin_token}"}
         response = await client.patch(
             "/api/admin/users/nonexistent-user-id/spend-limit",
             headers=headers,
             json={"spend_limit": 25.0},
         )
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
+        assert_not_found(response, "User not found")
 
     async def test_update_spend_limit_success_commits_to_db(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
         """update_spend_limit commits and returns updated limit (lines 87-94)."""
-        from sqlalchemy import update
-
-        from app.models import User
-
-        admin_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "adminspend2",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
-        )
-        assert admin_response.status_code == 200
-        admin_id = admin_response.json()["user"]["id"]
-        admin_token = admin_response.json()["access_token"]
-
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
+        headers = await create_admin_headers(client, async_session, "adminspend2", "adminpass123")
 
         # Register target user
-        user_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "targetspend",
-                "display_name": "Target",
-                "password": "userpass123",
-            },
-        )
-        assert user_response.status_code == 200
-        target_id = user_response.json()["user"]["id"]
+        target_data = await register_and_get_token(client, "targetspend", "userpass123")
+        target_id = target_data["user"]["id"]
 
-        headers = {"Authorization": f"Bearer {admin_token}"}
         response = await client.patch(
             f"/api/admin/users/{target_id}/spend-limit",
             headers=headers,
@@ -707,69 +641,24 @@ class TestAdminIntegrationPaths:
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
         """delete_user returns 404 for non-existent user (lines 113-116)."""
-        from sqlalchemy import update
+        headers = await create_admin_headers(client, async_session, "admindel1", "adminpass123")
 
-        from app.models import User
-
-        admin_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "admindel1",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
-        )
-        assert admin_response.status_code == 200
-        admin_id = admin_response.json()["user"]["id"]
-        admin_token = admin_response.json()["access_token"]
-
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
-
-        headers = {"Authorization": f"Bearer {admin_token}"}
         response = await client.delete(
             "/api/admin/users/nonexistent-user-id",
             headers=headers,
         )
-        assert response.status_code == 404
-        assert "User not found" in response.json()["detail"]
+        assert_not_found(response, "User not found")
 
     async def test_delete_user_returns_success_message(
         self, client: AsyncClient, async_session: AsyncSession
     ) -> None:
         """delete_user returns success message with username (line 125 in admin.py)."""
-        from sqlalchemy import update
-
-        from app.models import User
-
-        admin_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "admindel2",
-                "display_name": "Admin",
-                "password": "adminpass123",
-            },
-        )
-        assert admin_response.status_code == 200
-        admin_id = admin_response.json()["user"]["id"]
-        admin_token = admin_response.json()["access_token"]
-
-        await async_session.execute(update(User).where(User.id == admin_id).values(is_admin=True))
-        await async_session.commit()
+        headers = await create_admin_headers(client, async_session, "admindel2", "adminpass123")
 
         # Create user to delete
-        user_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "tobedeleted",
-                "display_name": "ToBeDeleted",
-                "password": "userpass123",
-            },
-        )
-        assert user_response.status_code == 200
-        target_id = user_response.json()["user"]["id"]
+        target_data = await register_and_get_token(client, "tobedeleted", "userpass123")
+        target_id = target_data["user"]["id"]
 
-        headers = {"Authorization": f"Bearer {admin_token}"}
         response = await client.delete(
             f"/api/admin/users/{target_id}",
             headers=headers,
