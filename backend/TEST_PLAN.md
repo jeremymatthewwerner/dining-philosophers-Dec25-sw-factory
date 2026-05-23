@@ -1,3 +1,73 @@
+## Edge Cases - Saturday Sprint (Added 2026-05-23)
+
+**Focus**: Boundary conditions and behavioral invariants in `app/services/thinker.py` decision functions, mention parsing, and `app/api/feedback.py:hash_ip`. Backend line coverage was already **98.83%** before this sprint; these tests pin down edge contracts that line-coverage alone does not catch.
+
+### Tests Added (test_edge_cases_may23_2026.py)
+
+**File**: `tests/test_edge_cases_may23_2026.py` (38 new tests across 7 classes, all pass 3x stable)
+
+#### `TestShouldRespondBoundaries`
+1. `test_empty_messages_returns_false` — `_should_respond([], …)` short-circuits to False before any random roll (line 1561-1562). Regression guard: an empty message history must never yield a response.
+2. `test_no_new_messages_since_last_response_returns_false` — When `last_response_count >= len(messages)`, `new_message_count <= 0` fires the line-1566 short-circuit; tested at boundary (==) and overshoot (>).
+3. `test_own_last_message_without_self_mention_uses_low_probability` — When the thinker's own message is at the tail with no `@self` mention, `base_probability = 0.05` (line 1593). 50 seed sweep confirms ≥40/50 result in False.
+4. `test_self_mention_overrides_own_message_low_probability` — Self-`@mention` keeps `base_probability` at 0.98 even when own message is at tail (the `and not was_at_mentioned` guard on line 1593). 50 seed sweep confirms ≥35/50 True.
+5. `test_consecutive_silence_probability_caps_at_0_9` — Very large `consecutive_silence` values must respect the 0.9 cap (line 1589); 200 seed sweep confirms mixed True/False outcomes rather than always True.
+
+#### `TestShouldPromptUserShortHistory`
+6. `test_below_five_messages_returns_false` (parametrized 0, 1, 4) — Histories shorter than 5 messages short-circuit before any random roll (line 1456).
+7. `test_exactly_five_messages_allows_evaluation` — Five messages passes the gate (boundary), reaches the threshold check where `messages_since_user=5 < threshold=8` returns False without crashing.
+
+#### `TestUserMessageHelpers`
+8. `test_count_messages_since_user_with_no_user_messages` — No user messages → count equals length (full reverse scan).
+9. `test_count_messages_since_user_with_user_at_end` — User message at the tail → 0 (`break` before increment).
+10. `test_count_messages_since_user_works_with_enum_sender_type` — Real `SenderType` enum exercises the `hasattr(sender, "value")` branch in line 1438.
+11. `test_get_user_name_from_messages_returns_none_when_no_user` — No user messages → None.
+12. `test_get_user_name_from_messages_returns_most_recent` — Reverse scan returns latest user, not first.
+13. `test_get_user_name_from_messages_skips_user_with_empty_name` — User message with falsy `sender_name` is skipped per line 1417.
+14. `test_get_last_user_message_timestamp_returns_0_with_no_user` — No user messages → 0.0 (line 1431).
+15. `test_get_last_user_message_timestamp_skips_user_without_created_at` — User message without `created_at` is skipped; older user with timestamp wins.
+
+#### `TestExtractThinkingDisplayBoundaries`
+16. `test_whitespace_only_input_returns_empty` — Whitespace-only thinking_text strips to '' → length < 80 → returns ''.
+17. `test_text_ending_with_ellipsis_not_doubled` — Text already ending in '...' must not get '......'; line 965 guard.
+18. `test_text_ending_with_question_mark_not_appended` — Text already ending in '?' must not get '?...' or '...?' appended.
+19. `test_text_just_below_80_chars_returns_empty` — 79-char text returns '' (boundary below threshold).
+20. `test_text_at_or_above_80_chars_returns_non_empty` — 80-char text returns non-empty (boundary at threshold).
+
+#### `TestSplitResponseBubblesEdgeInputs`
+21. `test_whitespace_only_input_returns_empty` — Single-space input passes the truthiness check then strips to ''; no returned bubble may contain non-whitespace.
+22. `test_leading_consecutive_periods_skip_empty_sentences` — Text with `". . . ."` produces empty post-split sentences that the line-733 `continue` must skip; 10 seeds confirm no empty bubble is ever returned.
+
+#### `TestExtractMentionsCharacterClass`
+23. `test_mention_with_underscore_captured` — `@bob_smith` produces `["bob_smith"]` (regex `\w+` includes underscore).
+24. `test_mention_with_digits_captured` — `@bob123` produces `["bob123"]`.
+25. `test_lone_at_at_end_of_text_not_captured` — Trailing bare `@` produces `[]` (regex requires ≥1 word char).
+26. `test_mention_followed_by_punctuation_stops_at_word_boundary` — `@Socrates,` produces `["Socrates"]` (comma excluded).
+27. `test_back_to_back_mentions_both_captured` — `@Alice@Bob` produces both names.
+28. `test_quoted_mention_with_internal_punctuation` — `@"Dr. Strange"` preserves the dot and space.
+
+#### `TestIsMentionedMultiWord`
+29. `test_first_name_match_for_multi_word_thinker` — `@Marie` matches "Marie Curie" via the first-name path.
+30. `test_full_quoted_name_matches_exact` — `@"Marie Curie"` matches via exact-match path.
+31. `test_last_name_alone_does_not_match_via_at` — `@Curie` does NOT match "Marie Curie" (only first name matches, not last).
+32. `test_case_insensitive_first_name_match` — `@MARIE` matches "Marie Curie" case-insensitively.
+
+#### `TestHashIpProperties`
+33. `test_hash_ip_is_deterministic` — Same input → same hash across multiple calls.
+34. `test_hash_ip_different_ips_produce_different_hashes` — Five distinct IPs (IPv4 + IPv6) produce five distinct hashes.
+35. `test_hash_ip_empty_string_returns_valid_hash` — Empty IP does not crash; returns 64-char hex (SHA-256 of '').
+36. `test_hash_ip_output_is_lowercase_hex` — Output is lowercase hex (the 8-char prefix logged in the rate-limiter depends on this format).
+
+### Coverage Impact
+- Backend line coverage: **98.83% → ≥98.83%** (these tests target boundary contracts already exercised by line coverage; primary value is regression resilience).
+- Total tests: 1538 → 1576 (38 new tests).
+- All 38 tests run in ~3s and pass 3x consecutively (no flakiness).
+
+### Why These Tests
+Line-coverage metrics show 98.83% but say nothing about boundary correctness. The tests in this batch fail loudly if a future refactor breaks subtle invariants: the self-mention exception in `_should_respond` (line 1593), the empty-name skip in `_get_user_name_from_messages` (line 1417), the no-double-ellipsis guard in `_extract_thinking_display` (line 965), and the lone-`@` non-capture in `extract_mentions`. Each test names the line(s) it pins so future maintainers can reason about scope.
+
+---
+
 ## Integration Gaps - Wednesday (Added 2026-05-20)
 
 **Focus**: Multi-endpoint workflows that traverse the public API surface. Each test exercises 2+ endpoints in sequence and asserts that effects of the first call are observable through a later call — the kind of contract mismatch that single-endpoint tests cannot catch.
