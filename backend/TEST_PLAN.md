@@ -155,6 +155,55 @@ These are partial-branch edge cases worth deferring to a future flaky-hunt or ed
 
 ---
 
+## Regression Prevention - Sunday QA (Added 2026-05-24)
+
+**Focus**: Source-level invariants that the existing numeric tests do not lock in. The numeric tests prove "this value comes out right today"; these prove "the implementation hasn't been changed in a way that lets the original bug come back."
+
+### Analysis Results
+
+Backend coverage is already at **98.83%** (`app/services/thinker.py` 98%, `app/api/websocket.py` 95%). With coverage saturated, the highest-leverage regression work is pinning down **source-level invariants** for fixes that the numeric tests describe but don't structurally enforce.
+
+### Tests Added (test_regression_prevention_may24_2026.py)
+
+**File**: `tests/test_regression_prevention_may24_2026.py` (20 new tests)
+
+Bug fixes / features covered:
+- **#533** fix(thinker): use linear scaling for speed multiplier instead of exponential (commit `17cabf9`)
+- **#483** feat(backend): add idle timeout to auto-pause inactive conversations (commit `7aa14e7`)
+- **#336 / #455 / #570** feat(i18n): French / German / Hindi language support
+
+#### TestSpeedMultiplierAgentLoopSourceGuards (4 tests)
+1. `test_run_thinker_agent_source_uses_linear_15s_base` - The agent loop source literally contains `15.0 * speed_mult` (linear). Existing tests verify the *result* via the manager; this test prevents a refactor that bypasses the manager from silently going back to exponential pacing.
+2. `test_run_thinker_agent_source_has_no_exponentiation_on_speed_mult` - Regex-scans `_run_thinker_agent` source for `speed_mult ** N` and `pow(speed_mult, ...)`; fails if either is reintroduced. The original #533 bug was `speed_mult ** 1.5`.
+3. `test_run_thinker_agent_initial_reading_delay_is_linear` - The initial "reading" sleep also uses `random.uniform(1.0, 2.5) * speed_mult` (linear). Before #533, this was `* (speed_mult ** 1.5)`, making the 6x slider feel like 37s of staring at an empty typing indicator.
+4. `test_linear_min_interval_formula_documented_contract` - Documents `min_interval = 15.0 * speed_mult` as the contract: 1x → 15s, 6x → 90s. A baseline change to the formula must rebaseline this test.
+
+#### TestPauseStateMachineDualSetIndependence (5 tests)
+5. `test_resume_from_idle_does_not_clear_manually_paused_conversation` - `resume_from_idle` on a manually-paused-only conv is a no-op. If the two sets were collapsed, the user's Pause click would silently disappear when send_message → resume_from_idle fires.
+6. `test_pause_for_idle_after_manual_pause_keeps_manual_paused` - Calling `pause_for_idle` on an already manually-paused conv adds the idle flag without disturbing the manual one.
+7. `test_resume_conversation_does_not_clear_idle_paused_flag` - Documents current contract: manual resume only clears the manual flag. If this changes, audit the agent loop's `is_idle_paused` re-notification logic.
+8. `test_resume_from_idle_clears_both_pause_sets_atomically` - On idle-paused conv, `resume_from_idle` clears *both* flags so the next idle detection can re-notify the frontend.
+9. `test_repeated_pause_for_idle_resume_from_idle_cycle_stays_clean` - 5 consecutive pause/resume cycles leave the state machine clean (no leaked flags).
+
+#### TestSetSpeedMultiplierClampBoundaries (4 tests)
+10. `test_set_speed_at_exact_lower_bound_is_unchanged` - Setting 0.5 stores 0.5 (no off-by-one in `max(0.5, ...)`).
+11. `test_set_speed_at_exact_upper_bound_is_unchanged` - Setting 6.0 stores 6.0 (no off-by-one in `min(6.0, ...)`).
+12. `test_clamped_speed_value_is_broadcast_not_raw_input` - Broadcasting 100.0 results in `speed_multiplier: 6.0` in the SPEED_CHANGED message, not 100.0. Prevents UI slider position drifting from actual backend pacing.
+13. `test_extreme_negative_input_clamps_to_lower_bound` - `-1000.0` clamps to `0.5` (not 0 or negative). A negative speed_mult in `15.0 * speed_mult` would produce ≤0s min interval and spam.
+
+#### TestLanguageNamesAndThinkingDisplayParity (4 tests)
+14. `test_language_names_exact_keyset_is_documented_five_languages` - `LANGUAGE_NAMES.keys() == {"en","es","fr","de","hi"}`. Catches both accidental removals and additions.
+15. `test_language_names_values_are_full_english_names` - Values are full English names (e.g., "Spanish" not "es") because the LLM recognizes them better in the IMPORTANT: Respond in X instruction.
+16. `test_extract_thinking_display_source_has_branch_per_language` - Source inspection: each non-English language in LANGUAGE_NAMES has `language == "{code}"` in `_extract_thinking_display`. Catches the #570-style regression where a language was added to LANGUAGE_NAMES but not the thinking-display function.
+17. `test_extract_thinking_display_source_has_starters_for_each_language` - Source has at least len(LANGUAGE_NAMES) `starters = [` assignments, so each language gets its own contemplative prefixes.
+
+#### TestIdleTimeoutZeroDisablesSentinel (3 tests)
+18. `test_run_thinker_agent_source_guards_idle_check_with_positive_value` - The `if idle_timeout > 0` guard remains in the agent loop. This is the documented mechanism for disabling idle-pause via `IDLE_TIMEOUT_SECONDS=0` without redeploying.
+19. `test_settings_idle_timeout_can_be_set_to_zero` - `Settings(idle_timeout_seconds=0)` is valid (no validator rejects 0).
+20. `test_settings_idle_timeout_default_is_int_type` - The field is `int` (not `float` or `timedelta`) because the agent loop uses `idle_timeout // 60` in the user-facing inactivity notification.
+
+---
+
 ## Regression Prevention - Sunday Sprint (Added 2026-05-17)
 
 **Focus**: Pin down behavioral contracts from recent bug fixes that lack explicit regression guards.
