@@ -1,3 +1,45 @@
+## Coverage Sprint - Monday (Added 2026-05-25)
+
+**Focus**: Close remaining branch gaps in `app/services/knowledge_research.py`. Existing tests covered the file to ~82% line / 89% branch — the 18% gap was concentrated in the `_research_thinker` failure handler, Wikipedia "-1" sentinel handling, and the `_fetch_wikipedia_sections` iteration/error paths.
+
+**Why this file**: It's the highest-traffic *uncovered* code in the service layer — every conversation creation triggers `trigger_research(...)`, so an untested branch here can silently fail in production background tasks without surfacing in user-facing tests. The added tests exercise exact line + branch combinations identified by `--cov-report=term-missing`.
+
+### Tests Added (test_coverage_sprint_may25_2026.py)
+
+**File**: `tests/test_coverage_sprint_may25_2026.py` (10 new tests across 7 classes, all pass 3x stable)
+
+#### `TestTriggerResearchCleanup`
+1. `test_cleanup_callback_when_name_already_removed` — Simulates a race: the cleanup callback fires after the entry was already cleared from `_active_tasks`. The `if name in self._active_tasks` guard must short-circuit without raising. Covers the 107→exit branch (callback fired but `name` missing).
+
+#### `TestResearchThinkerNoWikipedia`
+2. `test_research_thinker_marks_complete_with_empty_data_when_wikipedia_none` — `_fetch_wikipedia_data` returns None; status must still flip to COMPLETE and `research_data` must NOT contain a `wikipedia` key. Covers the 140→149 branch (`if wikipedia_data:` falsy).
+
+#### `TestResearchThinkerFailureWithoutKnowledge`
+3. `test_failure_handler_no_op_when_get_knowledge_returns_none` — Primary research raises; the inner error handler's `get_knowledge()` returns None (e.g. row deleted concurrently). Handler must skip the FAILED status update silently. Covers the 162→exit branch (`if failed_knowledge:` falsy).
+
+#### `TestFetchWikipediaSentinelPage`
+4. `test_returns_none_when_only_sentinel_page_present` — Wikipedia returns only the `-1` "missing page" sentinel; loop `continue` skips it (line 215) and function returns None (line 236). Both API calls still issued.
+
+#### `TestFetchWikipediaSectionsIteration`
+5. `test_includes_only_interesting_sections_and_skips_others` — Section list mixes interesting (`Philosophy`, `Major works`) and uninteresting (`References`, `External links`). Only the interesting titles land in the result; per-section content calls are made only for matches. Covers lines 292-312 (matched + skipped branches).
+6. `test_returns_none_when_no_interesting_sections_match` — All section titles uninteresting → function returns None (the `result if result else None` falsy branch). Only the initial sections query is issued.
+
+#### `TestFetchWikipediaSectionsExceptionPath`
+7. `test_returns_none_on_http_error` — `client.get` raises; exception is swallowed and None is returned. Covers lines 316-318.
+8. `test_returns_none_on_malformed_response` — Response JSON missing the `parse` key entirely → empty section list → None. Verifies the result-falsy return at function end.
+
+#### `TestFetchWikipediaMixedPages`
+9. `test_skips_sentinel_then_processes_real_page` — Pages dict contains both `-1` (sentinel) and a real page id. Loop `continue`s past the sentinel and processes the real page. Cross-validates the line-215 `continue` works in combination with the success-return at line 234.
+
+#### Sanity guard
+10. `test_fetch_wikipedia_data_timestamp_is_utc_aware` — Successful fetch's `fetched_at` is a UTC-aware ISO-8601 string. Regression guard for `datetime.now(UTC)` usage in result construction.
+
+### Stability & Coverage Verification
+
+- All 10 tests pass across 3 consecutive runs (~0.95-1.00s each, no flakiness).
+- `app/services/knowledge_research.py` coverage with the full knowledge-research test set (existing + new): **100% line, 100% branch** (was 82% / 89%). +18% line coverage on the target file — exceeds the 15% coverage-sprint goal.
+- All tests use only mocks/patches: no real Wikipedia traffic, no background tasks, no DB outside the in-memory fixture used by one test.
+
 ## Edge Cases - Saturday Sprint (Added 2026-05-23)
 
 **Focus**: Boundary conditions and behavioral invariants in `app/services/thinker.py` decision functions, mention parsing, and `app/api/feedback.py:hash_ip`. Backend line coverage was already **98.83%** before this sprint; these tests pin down edge contracts that line-coverage alone does not catch.
