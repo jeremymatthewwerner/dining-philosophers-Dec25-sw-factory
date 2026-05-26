@@ -7015,3 +7015,74 @@ ignored the existing `create_mock_anthropic_response()` helper in `conftest.py`.
 - **Imports cleaned:** 1 unused `from anthropic.types import TextBlock` removed
 - **Tests:** 161 tests across the two refactored files, all passing 3x
 - **Behavior:** Identical — pure refactoring with no semantic change
+
+## 29. Flaky Test Hunt (Tuesday QA, May 26, 2026) — `test_flaky_hunt_may26_2026.py`
+
+**Focus:** Lock down the remaining branches in `app/services/thinker.py` that prior flaky-hunt sessions did not yet pin deterministically. This session targets LENGTH boundaries, randint EXTREME values, and the `consecutive_silence` strict-`>` boundary.
+
+**Issue:** #922
+
+**Flaky-hunt verification (no flakiness found):**
+- Ran the 97-test random/timing-prone subset (matching `bubble`, `split`, `random`, `should_respond`, `should_prompt`, `thinking_display`, `choose_response_style`, `choose_style`, `strategy_roll`) 5x back-to-back. All 5 runs passed cleanly in ~6.5s each.
+
+**Prior sessions already covered:**
+- `_choose_response_style` 11 branches (may19) — just_spoke, was_addressed×5, not-addressed×5
+- `_split_response_into_bubbles` strategy_roll branches (may12) — single-bubble, aggressive, normal, relaxed
+- `_should_respond` silence-check boundary at exactly 0.15 (may12)
+- `_should_prompt_user` boundary at exactly 0.15 (may12)
+- `_extract_thinking_display` punctuation and language branches (apr28, may12)
+
+**This session adds 18 tests across 5 test classes:**
+
+### 29.1 `TestSplitBubblesLengthBoundary60` — line 704 strict `<`
+
+`_split_response_into_bubbles` line 704: `if len(text) < 60: return [text]`. Strict `<` direction pinned with len=59 (early return) and len=60 (falls through to splitting).
+
+- `test_setup_lengths_are_correct` — sanity check on test data lengths
+- `test_length_59_takes_early_return` — positive control: len=59 short-circuits, no random calls
+- `test_length_60_does_not_take_early_return` — len=60 falls through; randint(120, 180) is called
+
+### 29.2 `TestSplitBubblesLengthBoundary250` — line 711 strict `<`
+
+Line 711: `if strategy_roll < 0.25 and len(text) < 250: return [text]`. Compound condition. With strategy_roll=0 forcing the first term True, the length term `len(text) < 250` strict `<` determines whether the early return fires.
+
+- `test_setup_lengths_are_correct` — sanity check
+- `test_length_249_with_low_roll_takes_single_bubble` — positive control: both terms True → early return
+- `test_length_250_with_low_roll_falls_through` — len=250 disqualifies despite roll=0; randint(80, 120) is called
+
+### 29.3 `TestSplitBubblesLengthBoundary300` — line 767 strict `>`
+
+Line 767: `if len(bubbles) == 1 and len(text) > 300:` (force-split fallback). Strict `>` direction pinned with single-sentence inputs at lengths 300 and 301.
+
+- `test_force_split_setup_lengths` — sanity check
+- `test_length_300_single_sentence_does_not_enter_force_split` — len=300 does NOT satisfy the strict `>`
+- `test_length_301_single_sentence_enters_force_split_block` — positive control: len=301 satisfies guard
+
+### 29.4 `TestSplitBubblesRandintExtremeValues` — randint(a, b) inclusive endpoints
+
+Existing tests only patch randint to mid-range values (100, 150, 220). These tests pin behavior at the inclusive MIN and MAX of each randint range, catching any regression that mishandles the boundary (e.g., a refactor that confused inclusive vs exclusive semantics).
+
+- `test_setup_long_text_is_long_enough` — sanity check
+- `test_aggressive_randint_min_value_80_produces_bubbles` — aggressive branch with target_size=80 (inclusive min)
+- `test_aggressive_randint_max_value_120_produces_bubbles` — aggressive branch with target_size=120 (inclusive max)
+- `test_normal_randint_min_value_120_produces_bubbles` — normal branch min
+- `test_normal_randint_max_value_180_produces_bubbles` — normal branch max
+- `test_relaxed_randint_min_value_180_produces_bubbles` — relaxed branch min
+- `test_relaxed_randint_max_value_250_produces_bubbles` — relaxed branch max
+
+Each test asserts the function produces at least one non-empty bubble and that randint was called with the documented range — guarding against typo regressions like `randint(80, 119)` or off-by-one slips.
+
+### 29.5 `TestShouldRespondConsecutiveSilenceBoundary` — line 1588 strict `>`
+
+`_should_respond` line 1588: `if consecutive_silence > 2 and not was_at_mentioned: ...`. Boost-probability branch uses strict `>`. Pin behavior at exactly 2 (no boost) and at 3 (boost), using a roll value that falls between the unboosted (0.37) and boosted (0.67) probabilities — same roll, different silence values, different results.
+
+- `test_silence_2_no_boost_returns_false_with_roll_above_unboosted` — silence=2, roll=0.50, base=0.37 → False
+- `test_silence_3_does_boost_returns_true_with_same_roll` — silence=3, roll=0.50, base=0.67 (boost) → True
+
+A regression flipping `>` → `>=` would make silence=2 also boost to base=0.57, and roll=0.50 < 0.57 would return True instead of False. The test catches this immediately.
+
+### 29.6 Verification
+
+- All 18 tests passed 5x consecutively (3x is the minimum per QA protocol)
+- Full thinker-related suite (261 tests across `test_thinker_service.py`, all `test_flaky_hunt_*.py`, including this new file) passes in 12.7s
+- No existing tests broken, no flakiness introduced
