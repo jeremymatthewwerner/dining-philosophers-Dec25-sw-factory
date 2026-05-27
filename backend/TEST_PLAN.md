@@ -1639,3 +1639,48 @@ All 11 tests verified passing across 3 consecutive runs (no flakiness). Tests us
 ### Stability Verification
 
 All 25 tests verified passing across 3 consecutive runs (~1.9s each, no flakiness). The full backend suite (1528 passed, 9 skipped, ~6:43) also runs cleanly with the new tests included. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
+
+## Integration Gaps - Wednesday QA (Added 2026-05-27)
+
+**Focus**: Cross-endpoint workflow tests targeting integration scenarios that pair multiple API calls and assert effects of one call are observable through another.
+
+### Analysis Results
+
+- Backend coverage is already at 98.94% (2153 statements, 10 missing). Only 3 files below 100%: `app/api/websocket.py` (95.2% — TestClient timing issues with TYPING_START/TYPING_STOP and inner callbacks), `app/services/thinker.py` (98.4% — line 733, `continue` for empty sentence after re.split, unreachable given greedy `\s+`), and `app/core/database.py` (98.4% — branch coverage only).
+- Given high coverage, focus shifted from filling missing lines to filling **cross-endpoint workflow gaps**. Each test exercises 2+ endpoints in sequence and asserts that effects of the first call are observable through a later call. This catches contract drift between endpoints that single-endpoint tests cannot.
+
+### Tests Added (test_integration_gaps_may27_2026.py)
+
+**File**: `tests/test_integration_gaps_may27_2026.py` (10 new tests)
+
+#### TestMessageCountPropagation
+1. `test_list_message_count_reflects_user_messages_sent` — POST 3 user messages to one conversation; `GET /api/conversations` reports `message_count == 3` for that conversation. Catches drift between `send_message` insertion path (conversations.py:257-265) and `list_conversations` aggregation path (lines 88-104).
+
+#### TestSpendHierarchyIntegration
+2. `test_admin_spend_endpoint_includes_user_conversation_after_message_send` — User creates a conversation; admin queries `/api/spend/{user_id}` and the conversation appears in the flat `conversations` list. Verifies the spend endpoint's join across `sessions->conversations` respects newly-created rows and is not cached.
+3. `test_admin_spend_endpoint_reflects_message_with_cost` — Directly inserts a thinker `Message` with `cost=0.05`; admin spend endpoint reports `total_spend >= 0.05` and `message_count >= 1` for that conversation. Validates the SQL aggregation in `get_user_spend_data` correctly sums message costs.
+
+#### TestSequentialAddThinkersColorUniqueness
+4. `test_two_sequential_adds_each_get_distinct_color_from_initial` — Conversation starts with 1 thinker; two subsequent PUT calls (one thinker each, default color) must each receive a distinct color from the palette, none equal to the original. Exercises color-pool logic across consecutive requests — the pool is recomputed on each request, so the second call must observe the first call's allocation.
+
+#### TestIdlePauseResumeDurability
+5. `test_subsequent_message_after_idle_resume_succeeds` — Conversation is force-idle-paused; first user message resumes via auto-resume code path (conversations.py:246-254); second user message also processes normally with `is_idle_paused == False`. Catches regression where idle-resume left the conversation in a partial state.
+
+#### TestLanguagePreferenceRoundTrip
+6. `test_language_update_visible_in_me_after_patch_language` — User PATCHes `/api/auth/language` with a value distinct from the default; both the PATCH response and a subsequent `GET /api/auth/me` reflect the new language. Catches divergence between the language-update endpoint and the canonical user-read endpoint.
+
+#### TestDeleteCascadeSpendVisibility
+7. `test_deleted_conversation_no_longer_in_admin_spend_breakdown` — Admin `/spend/{user_id}` shows the conversation before deletion; after `DELETE /api/conversations/{id}`, the same query no longer lists it. Validates that conversation deletion cascades correctly through the spend join and the admin view doesn't show dangling deleted conversations.
+
+#### TestCreateGetAttributeFidelity
+8. `test_thinker_fields_persist_across_create_and_get` — Conversation created with explicit `bio`, `positions`, `style`, and `image_url` returns identical values via `GET /api/conversations/{id}`. Catches schema-level mismatches where the API drops or transforms fields on response.
+
+#### TestAdminUserListingFreshness
+9. `test_user_registered_after_admin_login_appears_in_admin_list` — Admin lists users → captures baseline → new user registers → admin re-lists → new user is present and user count incremented by exactly 1. Verifies the admin list query is not cached and reflects DB state at request time.
+
+#### TestAuthorizationBoundaryAcrossEndpoints
+10. `test_non_admin_cannot_read_own_spend_but_can_read_own_me` — A non-admin user can `GET /api/auth/me` (200) but receives 401/403 on `GET /api/spend/{own_user_id}`. Catches a regression where `/api/spend` might be mis-gated by ownership rather than admin-flag (which would let any user read their own spend bypassing admin oversight).
+
+### Stability Verification
+
+All 10 tests verified passing across 3 consecutive runs (~5.6s each, no flakiness). Tests use the standard `client` and `db_session` fixtures from `conftest.py`, with `mock_knowledge_service_trigger` (auto-applied) preventing background HTTP tasks. No timing-dependent assertions and no shared state between tests.
