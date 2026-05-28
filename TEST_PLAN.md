@@ -2,6 +2,69 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.23 E2E Performance Hygiene Guards (Added 2026-05-28)
+
+**Focus**: Thursday QA — the E2E suite under `frontend/e2e/` is in excellent perf shape today (0 `page.waitForTimeout()` call sites, every `test.describe` opts into parallel mode, CI workers = 4, global timeout capped at 90s), but **nothing locks any of it in**. A single bad PR can silently undo years of E2E perf work. These pytest-side tests are source-level guards that fail in normal CI (not just the E2E job) the moment perf hygiene regresses.
+
+**Why source-level guards instead of runtime perf tests**:
+- Cheap: no browser, no playwright, runs in ~1s alongside the rest of the backend suite
+- Specific: the failure message names the offender (file:line) instead of "E2E got slower"
+- Robust: not subject to CI machine variability that flakes runtime perf assertions
+
+**File**: `backend/tests/test_e2e_performance_guards.py` (NEW — 20 tests across 5 classes)
+
+### `TestNoWaitForTimeoutAntiPattern` (4 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_no_waitfortimeout_call_in_any_spec` | No `page.waitForTimeout(` call appears in executable code across any `*.spec.ts` (comment mentions stripped before search); fail message lists `file:line` for every offender |
+| `test_waitfortimeout_substring_appears_at_most_once` | Even including comments, only the single anchor mention in `settings-edge-cases.spec.ts` is allowed; catches new policy-violating comments that might precede a call |
+| `test_policy_anchor_comment_is_preserved` | The `// Wait for response - use Promise.race instead of waitForTimeout` comment in `settings-edge-cases.spec.ts` must stay so future authors know the alternative |
+| `test_no_raw_setTimeout_in_specs` | Browser `setTimeout(` (e.g. inside `page.evaluate`) is forbidden in spec files; `test.setTimeout(...)` (Playwright API) is explicitly excluded via negative lookbehind |
+
+### `TestPlaywrightConfigPerfInvariants` (5 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_fully_parallel_is_true` | `playwright.config.ts` must set `fullyParallel: true` so files run concurrently |
+| `test_ci_workers_at_least_four` | Parses `workers: process.env.CI ? <N> : undefined` and asserts N ≥ 4 — keeps CI E2E job under 15-min target |
+| `test_global_timeout_capped` | Top-level `timeout:` setting stays ≤ 90 000 ms; long timeouts hide real problems |
+| `test_expect_assertion_timeout_bounded` | `expect: { timeout: <N> }` stays ≤ 10 000 ms; per-assertion timeouts above 10s mean tests should be event-driven |
+| `test_ci_retries_configured` | `retries: process.env.CI ? <N> : <M>` has N ≥ 1 so transient flakes don't fail CI |
+
+### `TestEveryDescribeBlockOptsIntoParallel` (4 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_every_spec_with_top_level_describe_has_parallel_config` | Every spec with a top-level `test.describe(` (including `.skip` / `.only`) has a matching `describe.configure({ mode: 'parallel' })` call; otherwise inner tests run serially |
+| `test_no_spec_uses_serial_mode` | No spec opts into `mode: 'serial'` — serial mode kills parallelism and encourages shared state |
+| `test_every_spec_has_at_least_one_describe` | Every `*.spec.ts` wraps its tests in a describe so the parallelism contract is uniform across files |
+| `test_parallel_configure_calls_outnumber_or_match_top_describes` | At least one parallel-configure call per file with any describes — catches new describes added without the configure line |
+
+### `TestPerTestTimeoutsStayBounded` (4 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_no_per_call_timeout_above_global` | No `timeout: <ms>` option anywhere in spec files exceeds the 90s global cap |
+| `test_no_test_set_timeout_above_hard_ceiling` | `test.setTimeout(N)` is allowed (the intended escape hatch) but capped at 120 000 ms (current ceiling in `chat.spec.ts`) so runaway 5-minute tests are caught |
+| `test_long_per_call_timeouts_are_concentrated` | 60s+ per-call timeouts are allow-listed to `thinker-selection-edge.spec.ts` (legitimate `Promise.race` patterns); any new file using 60s+ requires explicit allow-list addition |
+| `test_reuse_existing_server_only_outside_ci` | `reuseExistingServer: !process.env.CI` — CI always starts a fresh server so leftover-port reuse can't mask real failures |
+
+### `TestE2EFixturesAvailable` (3 tests)
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_test_fixtures_file_exports_expected_names` | `test-fixtures.ts` exports `testWithAuth`, `test` (with `conversationPage`), and re-exports `expect` so importing tests stay one-line |
+| `test_test_utils_exports_api_setup_helpers` | `test-utils.ts` exports `setupAuthenticatedUser`, `createAndNavigateToConversation`, `createConversationViaAPI` — the building blocks the fixtures depend on |
+| `test_fixture_docstring_explains_perf_motivation` | The "saves 15-30s per test" docstring in `test-fixtures.ts` must stay — it's the documented *why* and prevents a "simplify back to UI flow" regression |
+
+### Verification
+
+- 3x stability runs on the new file: 20 passed each run in ~1.1s
+- Full backend suite passes with no regressions
+
+---
+
 ## 1.22 E2E Performance Optimization (Added 2026-05-21)
 
 **Focus**: Thursday QA — fill the remaining gaps in E2E performance regression coverage. Prior runs already covered page-load, interaction, generic API timing, modal dismissal, scale & caching, and most user-journey flows. This run targets: (1) the message and single-conversation API paths that drive the chat experience, (2) error/edge paths (401, 404, /health size budget) that should stay cheap, (3) DOMContentLoaded on the authenticated home + settings + post-logout login pages, and (4) FCP on the settings route.
