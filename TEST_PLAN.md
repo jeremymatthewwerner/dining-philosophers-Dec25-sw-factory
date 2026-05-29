@@ -2,6 +2,41 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.24 Test Refactoring: Feedback Helpers (Added 2026-05-29)
+
+**Focus**: Friday QA — `test_feedback.py` had ~20 inline `POST /api/feedback` blocks with copy-pasted JSON shape and 9 inline `with patch("app.api.feedback.get_settings")` ladders. Each test body was dominated by setup boilerplate instead of intent. The refactor extracts the duplication into `conftest.py` so test bodies show only what's actually under test.
+
+**Why a refactor here**:
+- Adding a new feedback test currently requires copying the right JSON shape and the right patch ladder — easy to drift
+- Reading existing tests requires mentally diffing nearly-identical 8-line blocks to spot the one field that's different
+- Two helper-validation tests added below lock in the helper defaults so a future change to them can't silently break dozens of call sites
+
+**Files**:
+- `backend/tests/conftest.py` (helpers added at the bottom of the file)
+- `backend/tests/test_feedback.py` (rewritten to call the helpers)
+
+### `conftest.py` additions
+
+| Symbol | Purpose |
+|--------|---------|
+| `TEST_FEEDBACK_PROCESSOR_SECRET` | Shared constant for the mocked processor secret so tests don't redeclare it |
+| `TEST_SCREENSHOT_PNG_B64` | 1×1 PNG b64 string for screenshot-payload tests (was duplicated inline in two tests) |
+| `submit_feedback(client, message=..., **extra_fields)` | One-liner POST to `/api/feedback`; default message passes the 20-char min-length validator so tests that don't care about message can omit it |
+| `mock_feedback_processor_secret` (fixture) | Patches `app.api.feedback.get_settings` to return `TEST_FEEDBACK_PROCESSOR_SECRET`; yields the secret string so tests can use it in URLs |
+| `mock_feedback_processor_unconfigured` (fixture) | Patches `get_settings` to return an empty secret (for the 503 "not configured" branch) |
+
+### New tests in `test_feedback.py`
+
+| Test | What It Validates |
+|------|-------------------|
+| `test_submit_feedback_helper_default_message_valid` | The `submit_feedback()` helper's default `message` argument is long enough to pass the API's min-length validation — if a future change shortens it below 20 chars, every test that omits `message` would silently start failing with 422; this catches that immediately |
+| `test_feedback_processor_secret_constant_is_nonempty` | `TEST_FEEDBACK_PROCESSOR_SECRET` is a non-empty string — an empty value would make `mock_feedback_processor_secret` behave identically to `mock_feedback_processor_unconfigured`, silently corrupting 6+ tests |
+
+### Verified
+
+- All 29 tests in `test_feedback.py` pass 3 runs in a row (2.2-2.5s each)
+- Full backend suite (1663 tests) continues to pass — the new helpers are additive
+
 ## 1.23 E2E Performance Hygiene Guards (Added 2026-05-28)
 
 **Focus**: Thursday QA — the E2E suite under `frontend/e2e/` is in excellent perf shape today (0 `page.waitForTimeout()` call sites, every `test.describe` opts into parallel mode, CI workers = 4, global timeout capped at 90s), but **nothing locks any of it in**. A single bad PR can silently undo years of E2E perf work. These pytest-side tests are source-level guards that fail in normal CI (not just the E2E job) the moment perf hygiene regresses.

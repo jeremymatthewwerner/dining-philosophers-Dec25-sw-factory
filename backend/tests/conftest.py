@@ -871,3 +871,94 @@ async def create_admin_headers(
     """
     admin_data = await create_admin_user(client, db_session, username, password)
     return {"Authorization": f"Bearer {admin_data['access_token']}"}
+
+
+# Feedback test helpers (test refactoring - Friday QA focus, 2026-05-29)
+#
+# Replaces the 20+ inline POST /api/feedback bodies in test_feedback.py and
+# the 9 inline `with patch("app.api.feedback.get_settings")` ladders, so each
+# test reads as intent ("submit feedback with X") instead of boilerplate.
+
+# Default secret used by the feedback processor fixtures below. Tests that
+# need to verify a specific secret value can import this constant.
+TEST_FEEDBACK_PROCESSOR_SECRET = "test-feedback-processor-secret"
+
+# A 1x1 PNG, base64-encoded. Small enough that 100+ tests can include it
+# without bloating the file, but real enough that any size/content checks
+# on screenshot_data pass.
+TEST_SCREENSHOT_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAA"
+    "DUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
+async def submit_feedback(
+    client: "AsyncClient",
+    message: str = "This is a default feedback message for tests.",
+    **extra_fields: Any,
+) -> Any:
+    """POST /api/feedback with the given fields and return the response.
+
+    Reduces duplication of the POST /api/feedback pattern that appears 20+
+    times in test_feedback.py with nearly-identical JSON shape. Tests can
+    pass any field as a kwarg (feedback_type, email, name, username,
+    user_agent, screenshot_data, screenshot_filename) and only the kwargs
+    they care about appear at the call site.
+
+    The default message is long enough to pass the API's min-length
+    validation (>=20 chars).
+
+    Args:
+        client: AsyncClient for making requests
+        message: The feedback message body (default: a generic 20+ char string)
+        **extra_fields: Any additional feedback fields to include in the JSON
+
+    Returns:
+        The raw httpx Response object
+
+    Example:
+        >>> response = await submit_feedback(client)  # minimal submission
+        >>> response = await submit_feedback(
+        ...     client,
+        ...     message="Bug: dark mode broken",
+        ...     feedback_type="bug",
+        ...     email="user@example.com",
+        ... )
+    """
+    payload: dict[str, Any] = {"message": message, **extra_fields}
+    return await client.post("/api/feedback", json=payload)
+
+
+@pytest.fixture
+def mock_feedback_processor_secret() -> Generator[str, None, None]:
+    """Patch app.api.feedback.get_settings to return a known processor secret.
+
+    Replaces the inline pattern that appeared 9+ times in test_feedback.py:
+
+        with patch("app.api.feedback.get_settings") as mock_settings:
+            mock_settings.return_value.feedback_processor_secret = TEST_SECRET
+            ...
+
+    Yields the configured secret so tests can use it in their requests
+    (e.g. `?secret={secret}`) without re-declaring the constant.
+
+    Example:
+        >>> async def test_x(client, mock_feedback_processor_secret):
+        ...     secret = mock_feedback_processor_secret
+        ...     resp = await client.get(f"/api/feedback/pending?secret={secret}")
+    """
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = TEST_FEEDBACK_PROCESSOR_SECRET
+        yield TEST_FEEDBACK_PROCESSOR_SECRET
+
+
+@pytest.fixture
+def mock_feedback_processor_unconfigured() -> Generator[None, None, None]:
+    """Patch app.api.feedback.get_settings to return an empty processor secret.
+
+    Used by tests that verify the 503 "not configured" branch of the
+    processor-secret check. Avoids re-declaring the patch block inline.
+    """
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = ""
+        yield
