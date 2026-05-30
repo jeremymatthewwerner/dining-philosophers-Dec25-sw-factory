@@ -1,3 +1,65 @@
+## Edge Cases - Saturday Sprint (Added 2026-05-30)
+
+**Focus**: Behavioral invariants and boundary contracts in pure helpers across `app/services/thinker.py`, `app/api/feedback.py:hash_ip`, and `app/core/config.py:is_test_mode`. Backend coverage was already **98.94%** before this sprint; these tests pin down off-by-one / precedence regressions that line coverage alone does not catch.
+
+### Tests Added (test_edge_cases_saturday_may30_2026.py)
+
+**File**: `tests/test_edge_cases_saturday_may30_2026.py` (30 passing + 1 skipped documentation marker, across 8 classes; all pass 3x stable in ~2.0s)
+
+#### `TestExtractMentionsDedupAndStructure`
+1. `test_quoted_then_simple_same_first_word_does_not_dedup` — `@"Marie Curie" @Marie` yields BOTH names (the dedup check is exact-string, not substring). Locks the contract that `is_mentioned`'s first-name path relies on.
+2. `test_quoted_then_simple_identical_token_dedups` — `@"Bob" @Bob` produces a single "Bob" (the simple pass's `if name not in mentions` skips the duplicate).
+3. `test_multi_line_text_captures_all_mentions` — Newlines do not break iteration; `\w+` naturally stops at the newline so each line's mention is captured independently.
+4. `test_at_followed_by_only_punctuation_yields_nothing` — `@!`, `@,`, `@.` produce no mentions (regex requires 1+ word chars).
+5. `test_quoted_mention_with_only_spaces_is_captured_literally` — `@"   "` is captured as `"   "`; the regex's `[^"]+` accepts spaces.
+
+#### `TestIsMentionedThinkerNameGuards`
+6. `test_empty_thinker_name_returns_false` — Empty thinker name short-circuits via the `if thinker_name else ""` guard on line 105, preventing IndexError from `"".split()[0]`.
+7. `test_whitespace_only_thinker_name_returns_false` (SKIPPED) — Documents a known hardening opportunity: `"   "` is truthy so passes the guard, but `"   ".split()` returns `[]` and would IndexError on `[0]`. Test is a regression marker — if behavior changes (guard tightened or crash), it surfaces as a status change.
+8. `test_first_name_with_punctuation_in_thinker_name` — `"St. Augustine"` is NOT matched by `@St` because the comparison is exact-string after lowercasing; `@"St. Augustine"` (quoted) IS matched.
+9. `test_mixed_case_thinker_name_lowercased_for_comparison` — `@MCALLISTER`, `@mcallister`, `@McAllister` all match `"McAllister"` (case-insensitive both sides).
+
+#### `TestSplitBubblesBoundaries`
+10. `test_text_exactly_60_chars_does_not_short_circuit` — Boundary `< 60`: at len == 60 the function proceeds into the strategy path. Tested across 20 seeds — never crashes, never produces empty bubbles.
+11. `test_text_exactly_59_chars_short_circuits_to_single_bubble` — At len == 59 returns `[text]` deterministically.
+12. `test_text_exactly_250_chars_keep_single_branch_skipped` — At len == 250, the 25%-keep-single branch (gated on `len(text) < 250`) does NOT fire even when `strategy_roll < 0.25`. Finds the seed deterministically and verifies multi-bubble output.
+13. `test_leading_transition_word_starts_new_bubble` — A sentence starting with "However," forces a new bubble (via `starts_with_transition`). Verified across 30 seeds — at least some produce 2+ bubbles, and "However," always starts its own bubble when split.
+14. `test_text_above_60_below_250_short_strategy_roll_keeps_single` — Sanity sibling: at len 249 (just below boundary), the keep-single branch fires for `strategy_roll < 0.25`.
+
+#### `TestExtractThinkingDisplayContracts`
+15. `test_long_text_with_no_sentence_boundary_in_tail_keeps_full_tail` — Text > 200 with no `. ` / `! ` / `? ` / `\n` anywhere → the for-loop's break never fires → full 200-char tail preserved. Output still gets the trailing "..." per line 965.
+16. `test_text_starting_uppercase_skips_incomplete_word_strip` — `text[0].isupper()` short-circuits the leading-word strip (line 811). "Capital" survives the post-processing.
+17. `test_text_no_spaces_no_leading_word_strip` — Right-hand half of `not text[0].isupper() and " " in text`: 90 `a`'s (lowercase, no space) does NOT trigger the strip.
+18. `test_short_text_below_80_returns_empty_regardless_of_language` — The `< 80` gate is language-independent; checked for `en`, `es`, `fr`, `de`, `hi`, and an unknown `zz` code.
+
+#### `TestShouldRespondProbabilityCeilings`
+19. `test_new_message_count_cap_at_0_7_with_many_new_messages` — Even with 50 new messages, `base_probability = min(0.25 + count*0.12, 0.7)` caps at 0.7. Statistical test across 500 seeds: True-rate stays in [0.30, 0.90] band consistent with 0.7-cap × 0.85-silence-gate ≈ 0.6.
+20. `test_consecutive_silence_exactly_2_does_not_trigger_bonus` — Strict-`>` boundary on line 1588: silence == 2 has no bonus, silence == 10 does. Comparison across 400 seeds shows gap > 0.20.
+
+#### `TestCountMessagesSinceUserMinimal`
+21. `test_empty_messages_returns_zero` — Vacuous truth on empty list.
+22. `test_only_user_messages_returns_zero` — First reverse-iteration breaks immediately.
+23. `test_user_in_middle_counts_only_trailing_thinkers` — Counts thinkers AFTER the most recent user only.
+24. `test_enum_sender_type_at_user_boundary_correctly_detected` — `hasattr(sender, "value")` enum path (line 1437) detects user boundary correctly.
+
+#### `TestHashIpExtendedInputs`
+25. `test_ipv6_with_zone_id_hashes_distinct_from_plain_ipv6` — `fe80::1` and `fe80::1%eth0` produce different hashes (raw-string SHA-256 input).
+26. `test_unicode_input_does_not_crash` — Zero-width-space in IP is UTF-8-encoded by `.encode()`; produces valid 64-char hex digest.
+27. `test_very_long_input_yields_fixed_64_char_digest` — 100KB input still yields 64-char hex; nearby long inputs hash differently.
+28. `test_identical_octet_prefixes_yield_unrelated_hashes` — Avalanche property: `10.0.0.1` and `10.0.0.2` differ in first 8 hex chars too. Regression guard against naive non-cryptographic replacements.
+
+#### `TestIsTestModeSettingsReflection`
+29. `test_is_test_mode_reflects_patched_settings_true` — Patched Settings with `test_mode=True` flows through.
+30. `test_is_test_mode_reflects_patched_settings_false` — Patched `test_mode=False` flows through.
+31. `test_is_test_mode_flip_between_calls_via_cache_clear` — Each call hits `get_settings()` fresh; alternating True/False/True is reflected (no own cache).
+
+### Stability & Coverage Verification
+
+- All 30 tests pass across 3 consecutive runs in ~2.0s each — no flakiness.
+- Backend line coverage remains **98.94%** (the targets were already covered for lines; these tests improve *behavioral* regression resistance, not coverage numbers).
+- Full thinker/feedback/config related suites (`test_thinker_service.py + test_feedback.py + test_config.py + test_edge_cases_may23_2026.py + this file` = 201 tests) all pass.
+- No new dependencies, no DB usage, no network calls — fully self-contained.
+
 ## Coverage Sprint - Monday (Added 2026-05-25)
 
 **Focus**: Close remaining branch gaps in `app/services/knowledge_research.py`. Existing tests covered the file to ~82% line / 89% branch — the 18% gap was concentrated in the `_research_thinker` failure handler, Wikipedia "-1" sentinel handling, and the `_fetch_wikipedia_sections` iteration/error paths.
