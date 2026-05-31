@@ -1,3 +1,64 @@
+## Regression Prevention - Sunday QA (Added 2026-05-31)
+
+**Focus**: Source-level invariants for past bug fixes / features that earlier Sunday regression suites did not explicitly pin. Backend coverage is at **98.94%** (496 branches across 2153 stmts), so the highest-leverage QA work is pinning down "if you change the implementation, this test breaks" guards for fixes that current behavioral tests don't structurally enforce.
+
+### Analysis Results
+
+Cross-referencing `test_regression_prevention_may{10,17,24}_2026.py` shows fixes #81, #257, #299, #336, #367, #455, #483, #533, #570 already have source-level guards. Not yet guarded: #214 (feedback screenshots), #459 / #275 (test-user cleanup), #144 (`/health/ready`), #163 (profile validation), parts of #367 (connect-handler source order), feedback rate-limit constants, and the `trigger_error` test-mode security guard.
+
+### Tests Added (test_regression_prevention_may31_2026.py)
+
+**File**: `tests/test_regression_prevention_may31_2026.py` (24 new tests, all pass 3x stable in ~1.5s)
+
+Bug fixes / features covered:
+- **#214** fix(feedback): add screenshot support and improve error handling (commit `ef3c3dc`)
+- **#459 / #275** feat(devops) + fix(cleanup): test user cleanup endpoint (commits `6fed42a`, `9f25bc7`)
+- **#367** fix(websocket): sync pause button state when switching threads (commit `a9c7742`) — source-level order guards (the May 17 set covered the wire constants)
+- **#144** feat(backend): `/health/ready` deep readiness probe (commit `346bc33`) — source-level `SELECT 1` and 503/200 guards (apr12 set covered behavior under shared test client)
+- **#163** feat(auth): user profile management for password and display name (commit `7acadd7`) — schema validation bounds
+- Feedback rate-limit constants (`MAX_SUBMISSIONS_PER_HOUR`, hashed-IP query)
+- `trigger_error` test-helpers production-disable security guard
+
+#### TestFeedbackScreenshotFieldsContract (5 tests)
+1. `test_feedback_model_has_screenshot_data_text_column` — `Feedback.screenshot_data` is a nullable Text column (must not be String/VARCHAR — base64 PNGs exceed any practical VARCHAR cap).
+2. `test_feedback_model_has_screenshot_filename_string_column` — `Feedback.screenshot_filename` is a nullable String column.
+3. `test_feedback_create_schema_accepts_screenshot_fields` — `FeedbackCreate` exposes both screenshot fields as optional (default None). Without these on the schema, the API would silently strip user-submitted screenshots before persisting.
+4. `test_max_screenshot_size_caps_payload_around_5mb_binary` — `MAX_SCREENSHOT_SIZE == 7_000_000` (~5MB binary post-base64). Pinned with the inline comment so future reviewers can verify intent.
+5. `test_feedback_create_rejects_oversize_screenshot` — `FeedbackCreate.validate_screenshot_size` raises `ValidationError` for payloads exceeding `MAX_SCREENSHOT_SIZE + 1`. Removing the validator would expose the backend to multi-GB DoS payloads.
+
+#### TestFeedbackRateLimitContract (3 tests)
+6. `test_max_submissions_per_hour_constant_is_five` — `feedback.MAX_SUBMISSIONS_PER_HOUR == 5` (matches docstring + frontend copy).
+7. `test_submit_feedback_source_uses_hashed_ip_not_raw` — `submit_feedback` source contains `Feedback.ip_hash == ip_hash` AND `hash_ip(client_ip)`. Prevents a privacy regression where raw IPs leak into the DB column.
+8. `test_submit_feedback_source_uses_one_hour_window` — Source regex matches `timedelta(hours=1)`. The constant + window form one contract; both must update together.
+
+#### TestTestUserPrefixesCleanupContract (4 tests)
+9. `test_test_user_prefixes_contains_documented_three` — Exact tuple `("smoketest_", "canary_", "testuser_")`. Adding a prefix broadens the destructive endpoint's blast radius.
+10. `test_test_user_prefixes_are_all_lowercase` — Every prefix == its lowercase form. The cleanup uses case-sensitive `startswith`, so a non-lowercase prefix silently fails to match real test users.
+11. `test_test_user_prefixes_is_immutable_tuple` — `isinstance(TEST_USER_PREFIXES, tuple)`. A mutable list could be appended to at runtime, broadening cleanup scope without code review.
+12. `test_cleanup_test_users_source_requires_secret_match` — Source contains BOTH `not settings.test_cleanup_secret` (unconfigured rejection) AND `secret != settings.test_cleanup_secret` (wrong-secret rejection). Dropping either check would expose the destructive endpoint.
+
+#### TestWebsocketConnectPauseStateSyncSource (3 tests)
+13. `test_websocket_endpoint_source_dispatches_on_is_paused` — `websocket_endpoint` source contains `thinker_service.is_paused(conversation_id)`. Required for fix #367's correct PAUSED/RESUMED dispatch on connect.
+14. `test_websocket_endpoint_source_has_paused_and_resumed_branches` — Source contains both `WSMessageType.PAUSED` AND `WSMessageType.RESUMED`. Sending only one would leave thread-switch state stuck.
+15. `test_websocket_endpoint_sync_happens_before_receive_loop` — Both PAUSED and RESUMED sends appear in the source BEFORE `while True`. Deferring sync into the receive loop would defeat fix #367.
+
+#### TestHealthReadyEndpointSourceGuards (3 tests)
+16. `test_health_ready_source_executes_select_1_probe` — `health_ready` source contains `text("SELECT 1")`. Without a real DB probe, the endpoint becomes "always green" and masks DB outages from load balancers.
+17. `test_health_ready_source_uses_503_for_degraded` — Source contains literal `503`. Load balancers use 503 to drop a backend from rotation.
+18. `test_health_ready_source_uses_200_for_ready` — Source contains literal `200`. Pinning both literals locks the dual-check contract under JSONResponse wrapping.
+
+#### TestUserProfileValidationContract (4 tests)
+19. `test_change_password_request_new_password_requires_min_length_6` — `ChangePasswordRequest.new_password` metadata contains `min_length=6`. Loosening to no minimum would silently permit 1-character passwords.
+20. `test_user_register_password_has_min_and_max_length` — `UserRegister.password` has `min_length=6` AND `max_length=100`. Inconsistent bounds vs. `change_password` would be a confusing UX + security gap.
+21. `test_user_register_display_name_has_min_and_max_length` — `UserRegister.display_name` has `min_length=1` (reject blanks) AND `max_length=100` (matches DB column).
+22. `test_user_profile_update_display_name_has_min_and_max_length` — `UserProfileUpdate.display_name` has matching bounds. Drift between register and update would create inconsistent state.
+
+#### TestTriggerErrorTestModeGuard (2 tests)
+23. `test_trigger_error_source_checks_is_test_mode` — `trigger_error` source contains `is_test_mode()`. Without this guard, a misconfigured production deploy would expose a public endpoint that injects ERROR banners into any active conversation (phishing/UI-spoofing risk).
+24. `test_trigger_error_source_returns_403_when_not_test_mode` — Source contains `status_code=403`. Documented as 403 in the docstring so clients can distinguish "disabled" from "not found".
+
+---
+
 ## Edge Cases - Saturday Sprint (Added 2026-05-30)
 
 **Focus**: Behavioral invariants and boundary contracts in pure helpers across `app/services/thinker.py`, `app/api/feedback.py:hash_ip`, and `app/core/config.py:is_test_mode`. Backend coverage was already **98.94%** before this sprint; these tests pin down off-by-one / precedence regressions that line coverage alone does not catch.
