@@ -1,3 +1,47 @@
+## Coverage Sprint - Monday QA (Added 2026-06-01)
+
+**Focus**: Close the last-mile coverage gaps in the two lowest-coverage backend modules. Before this run, `app/api/websocket.py` was at 95% (9 missing lines + branches) and `app/services/thinker.py` was at 98%, with overall coverage at **98.94%**. The 9 missing lines in `websocket.py` were the highest-leverage gap because they fall on the **connect-handler path that wires a Conversation to its thinker agents** — code that runs every time a real user opens a chat.
+
+### Analysis Results
+
+`pytest --cov=app --cov-report=term-missing` showed:
+- `app/api/websocket.py` — lines 420-431 (`get_messages`/`save_message` closures + `start_conversation_agents` call), 450 (TYPING_START `pass`), 453 (TYPING_STOP `pass`), branch 478→441 (USER_MESSAGE returning to receive loop).
+- `app/services/thinker.py` — line 733 (`_split_response_into_bubbles` whitespace-only sentence skip) and several partial branches in `_should_respond`, `_extract_thinking_display`, and the streaming response loop.
+
+The pre-existing typing tests *did* send TYPING_START/STOP frames, but the test closed its TestClient context before the server-side loop reached the `pass` body. Sending a **follow-up USER_MESSAGE** on the same connection and waiting for its broadcast back is the strongest possible proof that the server reached the `pass` branch and then returned to `receive_text` — which is also what covers branch 478→441.
+
+### Tests Added (test_coverage_sprint_jun1_2026.py)
+
+**File**: `tests/test_coverage_sprint_jun1_2026.py` (14 new tests, all pass 3x stable in ~1.3s)
+
+After this run: overall backend coverage **99.40%** (+0.46pp), `app/api/websocket.py` 95% → 99%, total missing lines 10 → 1.
+
+#### TestWebSocketLoopHandlesTypingAndUserMessageSequence (3 tests)
+1. `test_typing_start_then_user_message_reaches_loop_again` — Sends TYPING_START then USER_MESSAGE on the same socket and asserts the USER_MESSAGE broadcast arrives. The broadcast can only arrive if the server's receive loop reached the `pass` body for TYPING_START (line 450) and looped back to `receive_text`.
+2. `test_typing_stop_then_user_message_reaches_loop_again` — Same pattern for TYPING_STOP (line 453). Covers the loop-continuation invariant: pass-branch handlers must not break the receive loop.
+3. `test_two_user_messages_in_sequence_proves_loop_continuation` — Sends two consecutive USER_MESSAGE frames and asserts both broadcasts come back, proving branch 478→441 (USER_MESSAGE → top of receive loop).
+
+#### TestWebSocketStartsThinkerAgentsWhenConversationHasThinkers (1 test)
+4. `test_handler_invokes_start_conversation_agents_with_working_closures` — Seeds the in-memory test DB with a User (`language_preference="fr"`), Session, Conversation, and ConversationThinker, then directly invokes `websocket_endpoint` with a mocked WebSocket whose `receive_text` raises `WebSocketDisconnect`. Patches `async_session_maker` at its source module so the closures pick up the test session, and replaces `thinker_service.start_conversation_agents` with a capture that **executes** the closures end-to-end against the real `get_messages_for_conversation` and `save_thinker_message` helpers. Verifies: language is propagated from User, thinker list is forwarded, the `get_messages` closure returns an empty Sequence for a fresh conversation, and the `save_message` closure persists a real Message with the correct cost. Covers lines 420-431 (the closure bodies + the `start_conversation_agents` call).
+
+#### TestExtractThinkingDisplayShortCircuits (3 tests)
+5. `test_empty_thinking_text_returns_empty_string` — Empty thinking text fast-path. The streaming-loop guard `if display_thinking:` only skips when this returns falsy.
+6. `test_short_thinking_text_returns_empty_string` — < 80 chars also short-circuits to empty. Documents the threshold so future changes can't silently lower it (which would surface partial "Har…" snippets to users).
+7. `test_long_thinking_text_returns_non_empty` — Confirms the non-empty path returns a meaningful preview. Together with tests 5 and 6 this pins both legs of branch 641→645.
+
+#### TestShouldRespondEarlyReturns (2 tests)
+8. `test_should_respond_returns_false_when_no_messages` — Empty messages list returns False (line 1561-1562 fast path).
+9. `test_should_respond_returns_false_when_no_new_messages` — When `last_response_count == len(messages)`, no new messages, returns False (line 1566-1567). Pins both early-return invariants so the run-thinker loop can't accidentally start responding to nothing.
+
+#### TestSplitResponseIntoBubblesEdgeCases (5 tests)
+10. `test_empty_response_returns_empty_list` — Empty input returns `[]` (line 698).
+11. `test_short_response_stays_single_bubble` — < 60 chars stays as one bubble (line 704). Locks the "don't fragment short responses" invariant.
+12. `test_long_response_with_transition_words_splits_into_multiple` — Seeded RNG forces aggressive strategy; transition words ("However,") + length both trigger splits. No bubble is empty.
+13. `test_long_run_on_text_force_splits_at_sentence_boundary` — Seeded RNG forces single-bubble strategy; with >300 char text, the force-split branch (lines 767-774) kicks in and produces multiple bubbles.
+14. `test_whitespace_only_fragment_is_skipped` — Crafts a text where `re.split` produces a fragment that becomes empty after `sentence.strip()`. Documents the `if not sentence: continue` skip (line 733) so a future refactor can't drop it without surfacing the bubbles-with-blanks regression.
+
+---
+
 ## Regression Prevention - Sunday QA (Added 2026-05-31)
 
 **Focus**: Source-level invariants for past bug fixes / features that earlier Sunday regression suites did not explicitly pin. Backend coverage is at **98.94%** (496 branches across 2153 stmts), so the highest-leverage QA work is pinning down "if you change the implementation, this test breaks" guards for fixes that current behavioral tests don't structurally enforce.
