@@ -1851,3 +1851,53 @@ All 25 tests verified passing across 3 consecutive runs (~1.9s each, no flakines
 ### Stability Verification
 
 All 10 tests verified passing across 3 consecutive runs (~5.6s each, no flakiness). Tests use the standard `client` and `db_session` fixtures from `conftest.py`, with `mock_knowledge_service_trigger` (auto-applied) preventing background HTTP tasks. No timing-dependent assertions and no shared state between tests.
+
+## Flaky Test Hunt - Tuesday QA (Added 2026-06-02)
+
+**Focus**: Pin the remaining gaps in `_should_respond` probability math (cap transitions, two-call ordering), `is_mentioned` matching rules, and the `_split_response_into_bubbles` transition-word guard at sentence index 0.
+
+### Analysis Results
+
+- Re-ran the 241-test random/timing-prone subset (`flaky`, `random`, `bubble`, `split`, `should_respond`, `should_prompt`, `thinking_display`, `choose_response_style`, `choose_style`, `strategy_roll`, `randint`) **5× back-to-back** — 241 passed every run in ~18s. No flakiness detected.
+- Prior flaky-hunt sessions (mar17, apr14, apr28, may5, may12, may19, may26) already pinned every `strategy_roll` boundary, every `_choose_response_style` roll threshold, every `randint` endpoint, the `_should_prompt_user` threshold formula, the strict `>` direction at `consecutive_silence > 2`, the 15% silence cutoff, and the own-message override `base_probability = 0.05`.
+- **Remaining gaps targeted this run**: (a) the cap *transition* in `min(0.25 + N*0.12, 0.7)` — earlier tests used N=10 (deep cap region) and wouldn't catch a coefficient regression; (b) the **two-call ordering** of `random.random()` in `_should_respond` (silence-check then response-check); (c) the silence-boost cap `min(_, 0.9)` upper-cap transition; (d) the addressed-by-name cap `min(_, 0.95)` transition; (e) `is_mentioned` boundary cases; (f) the `current_bubble and ...` guard at sentence-0 that prevents spurious empty bubbles when text starts with a transition word.
+
+### Tests Added (test_flaky_hunt_jun2_2026.py)
+
+**File**: `tests/test_flaky_hunt_jun2_2026.py` (20 new tests)
+
+#### TestShouldRespondBaseProbabilityCapTransition
+1. `test_n3_base_probability_is_0_61_uncapped` — N=3 → `base = 0.25 + 3*0.12 = 0.61`; `random=0.60 < 0.61` → True. Pins the formula coefficients (regression flipping `0.12` → `0.10` would change this).
+2. `test_n3_response_strict_lt_boundary` — N=3 → base=0.61; `random=0.61` NOT `< 0.61` → False. Strict-`<` direction at the formula-computed value.
+3. `test_n4_base_probability_engages_cap_at_0_7` — N=4 → `0.25 + 4*0.12 = 0.73 → min(_, 0.7) = 0.7`; `random=0.69 < 0.7` → True. Verifies the cap engages at N=4, NOT at N=10 (where prior tests live).
+4. `test_n4_cap_strict_lt_at_0_70` — N=4 cap at 0.7; `random=0.70` NOT `< 0.70` → False. Pins the cap VALUE (0.7) exactly.
+
+#### TestShouldRespondRandomCallOrdering
+5. `test_exactly_two_random_calls_made_in_unaddressed_path` — `random.random()` is called exactly **twice** in the not-@mentioned / not-addressed path (line 1597 silence-check, line 1600 response-check). Regressions that collapse or duplicate calls would fail call-count assertion.
+6. `test_first_call_is_silence_check_second_is_response` — With `side_effect=[0.14, 0.99]`, the first call triggers the `< 0.15` silence early-return after only ONE call. A swapped order would consume both values and reach a different answer.
+
+#### TestShouldRespondConsecutiveSilenceCap
+7. `test_silence_3_gives_uncapped_0_67` — N=1, silence=3 → `0.37 + 0.3 = 0.67` uncapped; `random=0.66` → True, `random=0.67` → False. Pins the silence-boost formula `(silence * 0.1)` exactly.
+8. `test_silence_6_engages_cap_at_0_9` — N=1, silence=6 → `0.37 + 0.6 = 0.97 → min(_, 0.9) = 0.9`; `random=0.89` → True, `random=0.90` → False. Pins the cap VALUE (0.9) — a regression raising the cap would incorrectly return True at 0.90.
+
+#### TestShouldRespondWasAddressedCap
+9. `test_n1_addressed_no_cap_at_0_87` — Name in message (no `@`) + N=1 → `0.37 + 0.5 = 0.87` uncapped; `random=0.86` → True, `random=0.87` → False.
+10. `test_n1_addressed_skips_silence_check` — `was_addressed=True` short-circuits the line-1597 silence check, so only ONE `random.random()` call is made (not two). Pins the short-circuit behavior.
+11. `test_n2_addressed_engages_cap_at_0_95` — N=2 + addressed → `0.49 + 0.5 = 0.99 → min(_, 0.95) = 0.95`; `random=0.94` → True, `random=0.95` → False. Pins the addressed-boost cap VALUE (0.95) exactly.
+
+#### TestIsMentionedBoundaries
+12. `test_full_name_at_mention_matches` — `@Socrates` matches thinker `Socrates`.
+13. `test_first_name_at_mention_matches_multi_word` — `@Marie` matches thinker `Marie Curie` (first-name path in `is_mentioned`).
+14. `test_full_quoted_at_mention_matches_multi_word` — `@"Marie Curie"` matches thinker `Marie Curie` (quoted-name extraction path).
+15. `test_case_insensitive_match` — `@socrates` matches `Socrates` (lowercased compare).
+16. `test_no_at_symbol_does_not_match` — Bare `Socrates` (no `@`) returns False. Critical for the `was_at_mentioned` vs `was_addressed` distinction in `_should_respond`.
+17. `test_wrong_at_mention_does_not_match` — `@Plato` does NOT match `Socrates`.
+18. `test_empty_text_does_not_match` — Empty text → no mentions → False.
+
+#### TestSplitBubblesTransitionAtIndexZero
+19. `test_leading_but_combines_with_next_sentence_under_target` — Text starting with `But ...` followed by another sentence (total length under target_size) must produce a SINGLE bubble. Pins the `current_bubble and ...` guard at line 751 — a regression flipping `and` to `or` would split on the empty current_bubble at sentence-0 and produce 2 bubbles.
+20. `test_leading_however_combines_with_next_sentence_under_target` — Same guard with `However,` transition. Confirms the guard short-circuits for ALL transition words, not just `But `.
+
+### Stability Verification
+
+All 20 tests verified passing across 5 consecutive runs (~1.3s each, no flakiness). The full backend suite (1744 passed, 10 skipped, ~7:00) also runs cleanly with the new tests included. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
