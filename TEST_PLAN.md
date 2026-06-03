@@ -7184,3 +7184,67 @@ A regression flipping `>` → `>=` would make silence=2 also boost to base=0.57,
 - All 18 tests passed 5x consecutively (3x is the minimum per QA protocol)
 - Full thinker-related suite (261 tests across `test_thinker_service.py`, all `test_flaky_hunt_*.py`, including this new file) passes in 12.7s
 - No existing tests broken, no flakiness introduced
+
+## 30. Integration Gaps (Wednesday QA, Jun 3, 2026) — `test_integration_gaps_jun3_2026.py`
+
+Backend line/branch coverage is already 99.4%, so this Wednesday run targets
+**cross-endpoint integration contracts** — workflows where a write through one
+endpoint must be observable through a *different* endpoint. Each endpoint passes
+in isolation; these tests catch contract drift between endpoints that
+single-endpoint tests cannot. 10 tests across 5 classes, all passing 3x plus a
+randomized-order run.
+
+### 30.1 `TestProfileUpdatePropagatesToMessageSenderName`
+
+`send_message` derives `sender_name` from `user.display_name or user.username`
+at send time. Existing tests only check the registration-time display_name, so a
+regression caching the old name or reading a stale row would slip through. Pairs
+`PATCH /api/auth/profile` with `POST /api/conversations/{id}/messages`.
+
+- `test_updated_display_name_used_for_subsequent_message` — rename via profile
+  endpoint, then a new message's `sender_name` reflects the updated name.
+- `test_message_after_two_profile_updates_uses_latest` — two successive renames;
+  the message uses the most recent value, not an intermediate one.
+
+### 30.2 `TestConversationListCrossUserIsolation`
+
+The single-resource 404-on-foreign-id case is covered elsewhere; this asserts the
+`GET /api/conversations` list endpoint's `session_id` filter holds when two real
+authenticated users have overlapping data, so a dropped WHERE clause is caught.
+
+- `test_each_user_sees_only_their_own_conversations` — two users; each list
+  returns exactly their own conversation ids and excludes the other's.
+- `test_other_users_message_not_counted_in_my_list` — a message one user sends
+  must not appear in or inflate the message_count of the other user's list.
+
+### 30.3 `TestDeleteUserCascadeAcrossEndpoints`
+
+A user-deletion that left the row reachable via login or spend would be a serious
+data-integrity bug. Chains `DELETE /api/admin/users/{id}` to the auth and spend
+endpoints.
+
+- `test_deleted_user_cannot_login_and_has_no_spend_record` — after delete, login
+  returns 401 and admin `GET /api/spend/{id}` returns 404 (both 200 beforehand).
+- `test_deleted_user_drops_out_of_admin_user_listing` — deleted user disappears
+  from `GET /api/admin/users`.
+
+### 30.4 `TestFeedbackPendingLimitAndOrdering`
+
+Existing tests cover the `?limit` boundary *status codes* (1/50/51) but not the
+behaviour the DevOps processing workflow relies on.
+
+- `test_pending_truncates_to_limit` — submitting 4 items, `?limit=2` returns
+  exactly 2.
+- `test_pending_returns_items_in_ascending_created_at_order` — `/pending` items
+  come back oldest-first (non-decreasing created_at). Robust against timestamp
+  ties: asserts the asc-ordering invariant rather than specific positions.
+
+### 30.5 `TestFeedbackMarkProcessedIsolation`
+
+The single-item submit→process→gone chain is covered; this asserts the multi-item
+invariant for `PATCH /api/feedback/{id}/processed`.
+
+- `test_processing_one_leaves_others_pending` — marking one of three NEW items
+  removes exactly that id from `/pending` and leaves the other two.
+- `test_processed_feedback_records_issue_url_for_other_items_untouched` — marking
+  one item with a github_issue_url must not stamp a bystander item's url.
