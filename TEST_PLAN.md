@@ -2,6 +2,56 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.25 Frontend-Side E2E Performance Guard (Added 2026-06-04)
+
+**Focus**: Thursday QA (e2e-performance). A backend-side guard already exists
+(`backend/tests/test_e2e_performance_guards.py`, section 1.23) that fails the
+**pytest** job if E2E perf hygiene regresses. But the frontend project's own
+`npm test` (jest) job had **no** such protection — a developer editing
+`frontend/e2e/*.spec.ts` and running `npm test` gets zero feedback until the
+separate backend job runs. This adds a co-located jest guard so the regression
+is caught in the same project and job where E2E specs are actually edited.
+
+It also closed a small real gap: `mention-badge-alignment.spec.ts` had 3
+**unbounded** `waitForLoadState('networkidle')` calls (no timeout). An unbounded
+networkidle wait can hang a worker if traffic never settles; all three now pass
+`{ timeout: 5000 }` and `.catch(() => {})`, matching the bounded pattern used
+everywhere else in the suite.
+
+**Why a jest guard in addition to the pytest one**:
+- Co-located: lives in the frontend project next to the code it guards, so it's
+  discoverable by the people most likely to introduce a regression
+- Same-job feedback: fails `npm test` immediately, not only in the backend job
+- Different runner, different parser: catches the same anti-patterns through an
+  independent implementation, so a bug in one guard's regex doesn't blind both
+
+**File**: `frontend/src/__tests__/e2e-performance-guard.test.ts` (NEW — 101
+parameterized assertions: per-spec checks across all 24 spec files plus config
+invariants)
+
+### What it enforces
+
+| Check | What It Validates |
+|-------|-------------------|
+| no `page.waitForTimeout(...)` | Arbitrary sleeps (the top E2E perf anti-pattern) appear in **zero** spec files; comments mentioning the word are stripped before matching so the policy-anchor comment doesn't trip it |
+| bounded `networkidle` | Every `waitForLoadState('networkidle')` passes a `{ timeout }`; the unbounded one-arg form is forbidden (it can hang a worker) |
+| `test.setTimeout(N)` ≤ 120s | No runaway per-test timeout; 120s matches the current ceiling in `chat.spec.ts` |
+| `{ timeout: N }` ≤ 60s | No per-call assertion/wait timeout above 60s; long per-call timeouts mean a test should be event-driven |
+| `fullyParallel: true` | `playwright.config.ts` keeps file-level parallelism |
+| CI workers ≥ 4 | `workers: process.env.CI ? N` parsed; N ≥ 4 keeps the CI E2E job under the 15-min target |
+| global `timeout` ≤ 120s | Top-level Playwright test timeout stays bounded |
+| `expect: { timeout }` bounded | Per-assertion default timeout is present and ≤ 60s |
+
+### Verification
+
+- Guard passes 3 runs in a row (101 assertions, ~0.6s each — no browser/backend)
+- Regex logic spot-checked against synthetic violations: detects a real
+  `waitForTimeout(` call and an unbounded `networkidle`, while correctly ignoring
+  a `waitForTimeout` mention inside a comment and a bounded `networkidle` call
+- `npm run typecheck` clean
+
+---
+
 ## 1.24 Test Refactoring: Feedback Helpers (Added 2026-05-29)
 
 **Focus**: Friday QA — `test_feedback.py` had ~20 inline `POST /api/feedback` blocks with copy-pasted JSON shape and 9 inline `with patch("app.api.feedback.get_settings")` ladders. Each test body was dominated by setup boilerplate instead of intent. The refactor extracts the duplication into `conftest.py` so test bodies show only what's actually under test.

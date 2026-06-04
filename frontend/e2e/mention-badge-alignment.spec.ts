@@ -40,7 +40,9 @@ test.describe.skip('Regression: @mention badge alignment (Issue #494)', () => {
 
     // Navigate to the conversation
     await page.goto(`/?conversation=${conversation.id}`);
-    await page.waitForLoadState('networkidle');
+    // Bounded networkidle: an unbounded wait can hang the whole suite if the
+    // network never goes idle (e.g. polling/websocket). Cap it and move on.
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
     // Send a message mentioning the thinker's name
     // Note: The app highlights thinker names automatically (word boundary match)
@@ -88,7 +90,8 @@ test.describe.skip('Regression: @mention badge alignment (Issue #494)', () => {
     );
 
     await page.goto(`/?conversation=${conversation.id}`);
-    await page.waitForLoadState('networkidle');
+    // Bounded networkidle (see note above) to avoid hanging if traffic never settles.
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
     // Send message with mention in middle of sentence (most visible alignment issue)
     const messageTextarea = page.getByTestId('message-textarea');
@@ -128,7 +131,8 @@ test.describe.skip('Regression: @mention badge alignment (Issue #494)', () => {
     );
 
     await page.goto(`/?conversation=${conversation.id}`);
-    await page.waitForLoadState('networkidle');
+    // Bounded networkidle (see note above) to avoid hanging if traffic never settles.
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
     // Send message with mention
     const messageTextarea = page.getByTestId('message-textarea');
