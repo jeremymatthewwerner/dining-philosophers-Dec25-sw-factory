@@ -130,6 +130,41 @@ def make_service_with_mock_response(response_text: str) -> tuple[ThinkerService,
     return service, mock_client
 
 
+def make_mock_message(**attrs: Any) -> MagicMock:
+    """Create a mock conversation message with the given attributes.
+
+    Reduces duplication of the 2-4 line message-mock setup that appears 15+
+    times across TestShouldPromptUser, TestGetUserNameFromMessages,
+    TestCountMessagesSinceUser, and TestGetLastUserMessageTimestamp:
+
+        user_message = MagicMock()
+        user_message.sender_type = "user"
+        user_message.content = "I think so"
+
+    Only the attributes passed as kwargs are set, so tests retain MagicMock's
+    auto-attribute behavior for anything they don't explicitly configure -
+    making this a drop-in, behavior-preserving replacement for the inline
+    blocks. Common attributes: sender_type, content, sender_name, created_at.
+
+    Args:
+        **attrs: Attribute name/value pairs to set on the mock message.
+
+    Returns:
+        A MagicMock with the requested attributes assigned.
+
+    Example:
+        >>> msg = make_mock_message(sender_type="user", content="Hello")
+        >>> msg.sender_type
+        'user'
+        >>> msg.content
+        'Hello'
+    """
+    message = MagicMock()
+    for attr_name, value in attrs.items():
+        setattr(message, attr_name, value)
+    return message
+
+
 class TestThinkerService:
     """Tests for ThinkerService."""
 
@@ -174,9 +209,7 @@ class TestShouldRespond:
         service = ThinkerService()
         thinker = make_mock_thinker(name="Socrates")
 
-        message = MagicMock()
-        message.content = "This is my message"
-        message.sender_name = "Socrates"
+        message = make_mock_message(content="This is my message", sender_name="Socrates")
         messages: Any = [message]
 
         # Run multiple times to check probability is low
@@ -290,10 +323,11 @@ class TestGenerateResponse:
             "Descartes", "French philosopher", "Rationalism", "Methodical doubt"
         )
 
-        message = MagicMock()
-        message.sender_type = SenderType.USER
-        message.sender_name = None
-        message.content = "What is the nature of existence?"
+        message = make_mock_message(
+            sender_type=SenderType.USER,
+            sender_name=None,
+            content="What is the nature of existence?",
+        )
         messages: Any = [message]
 
         response, cost = await service.generate_response(thinker, messages, "philosophy")
@@ -637,9 +671,9 @@ class TestChooseResponseStyle:
         service = ThinkerService()
         thinker = make_mock_thinker(name="Socrates")
 
-        message = MagicMock()
-        message.content = "Socrates, what do you think about this?"
-        message.sender_name = "User"
+        message = make_mock_message(
+            content="Socrates, what do you think about this?", sender_name="User"
+        )
         messages: Any = [message]
 
         # Test multiple times to check distribution
@@ -662,9 +696,7 @@ class TestChooseResponseStyle:
         service = ThinkerService()
         thinker = make_mock_thinker(name="Socrates")
 
-        message = MagicMock()
-        message.content = "I believe this is true."
-        message.sender_name = "Socrates"
+        message = make_mock_message(content="I believe this is true.", sender_name="Socrates")
         messages: Any = [message]
 
         # Test multiple times - should sometimes choose brief follow-up
@@ -763,13 +795,8 @@ class TestShouldPromptUser:
         service = ThinkerService()
 
         # Create messages with user speaking recently
-        user_message = MagicMock()
-        user_message.sender_type = "user"
-        user_message.content = "I think so"
-
-        thinker_message = MagicMock()
-        thinker_message.sender_type = "thinker"
-        thinker_message.content = "Interesting"
+        user_message = make_mock_message(sender_type="user", content="I think so")
+        thinker_message = make_mock_message(sender_type="thinker", content="Interesting")
 
         messages: Any = [user_message, thinker_message, thinker_message]
 
@@ -784,13 +811,8 @@ class TestShouldPromptUser:
         service = ThinkerService()
 
         # Create conversation with user spoke long ago
-        user_message = MagicMock()
-        user_message.sender_type = "user"
-        user_message.content = "What about X?"
-
-        thinker_message = MagicMock()
-        thinker_message.sender_type = "thinker"
-        thinker_message.content = "I think..."
+        user_message = make_mock_message(sender_type="user", content="What about X?")
+        thinker_message = make_mock_message(sender_type="thinker", content="I think...")
 
         # User spoke, then 10 thinker messages
         messages: Any = [user_message] + [thinker_message] * 10
@@ -813,13 +835,8 @@ class TestGetUserNameFromMessages:
         """Test extracting user name from message history."""
         service = ThinkerService()
 
-        user_message = MagicMock()
-        user_message.sender_type = "user"
-        user_message.sender_name = "Alice"
-
-        thinker_message = MagicMock()
-        thinker_message.sender_type = "thinker"
-        thinker_message.sender_name = "Socrates"
+        user_message = make_mock_message(sender_type="user", sender_name="Alice")
+        thinker_message = make_mock_message(sender_type="thinker", sender_name="Socrates")
 
         messages: Any = [user_message, thinker_message, thinker_message]
 
@@ -831,9 +848,7 @@ class TestGetUserNameFromMessages:
         """Test that method returns None if no user messages found."""
         service = ThinkerService()
 
-        thinker_message = MagicMock()
-        thinker_message.sender_type = "thinker"
-        thinker_message.sender_name = "Socrates"
+        thinker_message = make_mock_message(sender_type="thinker", sender_name="Socrates")
 
         messages: Any = [thinker_message, thinker_message]
 
@@ -849,11 +864,8 @@ class TestCountMessagesSinceUser:
         """Test counting thinker messages since last user message."""
         service = ThinkerService()
 
-        user_message = MagicMock()
-        user_message.sender_type = "user"
-
-        thinker_message = MagicMock()
-        thinker_message.sender_type = "thinker"
+        user_message = make_mock_message(sender_type="user")
+        thinker_message = make_mock_message(sender_type="thinker")
 
         messages: Any = [user_message, thinker_message, thinker_message, thinker_message]
 
@@ -865,8 +877,7 @@ class TestCountMessagesSinceUser:
         """Test that count is 0 if user spoke last."""
         service = ThinkerService()
 
-        user_message = MagicMock()
-        user_message.sender_type = "user"
+        user_message = make_mock_message(sender_type="user")
 
         messages: Any = [user_message]
 
@@ -901,10 +912,11 @@ class TestGenerateUserPrompt:
         # Use module-level helper instead of repeating 5-line thinker setup
         thinker = make_mock_thinker(positions="Socratic method", style="Questions everything")
 
-        user_message = MagicMock()
-        user_message.sender_type = SenderType.USER
-        user_message.sender_name = "Alice"
-        user_message.content = "What is truth?"
+        user_message = make_mock_message(
+            sender_type=SenderType.USER,
+            sender_name="Alice",
+            content="What is truth?",
+        )
         messages: Any = [user_message]
 
         response, cost = await service.generate_user_prompt(
@@ -1356,9 +1368,9 @@ class TestShouldRespondWithMentions:
         service = ThinkerService()
         thinker = make_mock_thinker(name="Socrates")
 
-        message = MagicMock()
-        message.content = "@Socrates what do you think about virtue?"
-        message.sender_name = "User"
+        message = make_mock_message(
+            content="@Socrates what do you think about virtue?", sender_name="User"
+        )
         messages: Any = [message]
 
         # Run multiple times - should respond almost always
@@ -1373,9 +1385,9 @@ class TestShouldRespondWithMentions:
         thinker = make_mock_thinker(name="Socrates")
 
         # Socrates's own message that @mentions himself (unlikely but possible)
-        message = MagicMock()
-        message.content = "@Socrates let me think more about this"
-        message.sender_name = "Socrates"
+        message = make_mock_message(
+            content="@Socrates let me think more about this", sender_name="Socrates"
+        )
         messages: Any = [message]
 
         # Should still have high probability because of @mention
@@ -1389,9 +1401,10 @@ class TestShouldRespondWithMentions:
         service = ThinkerService()
         thinker = make_mock_thinker(name="Marie Curie")
 
-        message = MagicMock()
-        message.content = "@Marie what are your thoughts on radioactivity?"
-        message.sender_name = "User"
+        message = make_mock_message(
+            content="@Marie what are your thoughts on radioactivity?",
+            sender_name="User",
+        )
         messages: Any = [message]
 
         # Should have very high response rate
@@ -1404,9 +1417,9 @@ class TestShouldRespondWithMentions:
         service = ThinkerService()
         thinker = make_mock_thinker(name="Marie Curie")
 
-        message = MagicMock()
-        message.content = '@"Marie Curie" please explain your research'
-        message.sender_name = "User"
+        message = make_mock_message(
+            content='@"Marie Curie" please explain your research', sender_name="User"
+        )
         messages: Any = [message]
 
         # Should have very high response rate
@@ -1419,9 +1432,7 @@ class TestShouldRespondWithMentions:
         service = ThinkerService()
         thinker = make_mock_thinker(name="Plato")
 
-        message = MagicMock()
-        message.content = "@Socrates what do you think?"
-        message.sender_name = "User"
+        message = make_mock_message(content="@Socrates what do you think?", sender_name="User")
         messages: Any = [message]
 
         # Plato wasn't mentioned, should have normal probability
@@ -1492,13 +1503,14 @@ class TestIdleTimeout:
         service = ThinkerService()
 
         # Create mock messages
-        user_msg = MagicMock()
-        user_msg.sender_type = SenderType.USER
-        user_msg.created_at = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-
-        thinker_msg = MagicMock()
-        thinker_msg.sender_type = SenderType.THINKER
-        thinker_msg.created_at = datetime(2024, 1, 15, 12, 5, 0, tzinfo=UTC)
+        user_msg = make_mock_message(
+            sender_type=SenderType.USER,
+            created_at=datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC),
+        )
+        thinker_msg = make_mock_message(
+            sender_type=SenderType.THINKER,
+            created_at=datetime(2024, 1, 15, 12, 5, 0, tzinfo=UTC),
+        )
 
         messages: Any = [user_msg, thinker_msg]
 
@@ -1510,9 +1522,7 @@ class TestIdleTimeout:
         service = ThinkerService()
 
         # Create mock messages with only thinker messages
-        thinker_msg = MagicMock()
-        thinker_msg.sender_type = SenderType.THINKER
-        thinker_msg.created_at = MagicMock()
+        thinker_msg = make_mock_message(sender_type=SenderType.THINKER, created_at=MagicMock())
 
         messages: Any = [thinker_msg]
 

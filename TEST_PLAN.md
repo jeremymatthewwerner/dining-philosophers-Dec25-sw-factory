@@ -2,6 +2,47 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.26 Test Refactoring: `make_mock_message` Helper (Added 2026-06-05)
+
+**Focus**: Friday QA (test-refactoring). `tests/test_thinker_service.py` (the
+largest backend test file, 1540 lines) already had module-level mock helpers for
+thinkers, requests, clients, and responses — but **conversation message** mocks
+were still built inline. The same 2-4 line block (`msg = MagicMock()` followed by
+`msg.sender_type = ...` / `msg.content = ...` / `msg.sender_name = ...`) was
+copy-pasted **15 times** across `TestShouldRespond`, `TestShouldPromptUser`,
+`TestGetUserNameFromMessages`, `TestCountMessagesSinceUser`,
+`TestGetLastUserMessageTimestamp`, and the `@mention` probability tests.
+
+**Why a refactor here**:
+- Each test body was dominated by mock plumbing instead of the behaviour under
+  test — a reader had to parse 3 attribute assignments to learn "this is a user
+  message saying X".
+- Drift risk: with no shared constructor, a new attribute (e.g. `created_at`) is
+  spelled differently per test, and a typo on a MagicMock silently creates a new
+  auto-attribute rather than failing.
+
+**The helper** (module-level in `test_thinker_service.py`, next to the existing
+`make_mock_thinker` / `make_mock_client_with_response` helpers):
+
+- `make_mock_message(**attrs)` — returns a `MagicMock` with exactly the passed
+  attributes set via `setattr`. Because only the explicitly-passed attributes are
+  assigned, every unspecified attribute keeps MagicMock's auto-attribute
+  behaviour, making this a **behaviour-preserving** drop-in for the inline blocks
+  it replaces. Call sites now read as intent:
+  `make_mock_message(sender_type="user", content="I think so")`.
+
+**Files Refactored**: `tests/test_thinker_service.py` (15 inline message-mock
+blocks → single-call helper; ~30 lines of boilerplate removed).
+
+**Verification**:
+- All 97 tests in `test_thinker_service.py` pass 3 runs in a row (no behaviour
+  change, no flakiness introduced).
+- `ruff format` + `ruff check` clean.
+- Pure refactor: no test was added, removed, or changed in what it asserts — only
+  how the mock messages are constructed.
+
+---
+
 ## 1.25 Frontend-Side E2E Performance Guard (Added 2026-06-04)
 
 **Focus**: Thursday QA (e2e-performance). A backend-side guard already exists
