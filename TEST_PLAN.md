@@ -2,6 +2,41 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.27 Edge Cases: Unrecognized WebSocket Messages (Added 2026-06-06)
+
+**Focus**: Saturday QA (edge-cases). Backend coverage is already at **99.40%**, so
+this run targets the single genuinely-reachable, high-value uncovered branch rather
+than padding numbers.
+
+**Gap addressed**: `app/api/websocket.py` line `478->441` — the message-dispatch
+`if/elif` chain falling through with **no matching `WSMessageType`** and looping
+back to `while True`. This is the handler's error-tolerance path for malformed or
+unknown client payloads, and it was previously untested.
+
+**Why this and not line 733**: The other notable gap, `app/services/thinker.py:733`
+(the `continue` on an empty sentence in `_split_response_into_bubbles`), is
+**effectively unreachable** — `response_text.strip()` runs first, and
+`re.split(r"(?<=[.!?])\s+", text)` never produces a whitespace-only segment from
+stripped input (a lone `.` is non-empty). Verified empirically; not chased.
+
+**New tests** (`tests/test_websocket.py::TestWebSocketUnrecognizedMessages`):
+
+- `test_unknown_message_type_is_ignored_and_connection_stays_open` — a message
+  whose `type` matches no known `WSMessageType` falls through the whole elif chain
+  (covering `478->441`); the connection stays healthy, proven by a subsequent
+  valid `pause` that still returns `paused`.
+- `test_message_without_type_field_is_ignored` — a payload lacking a `type` key
+  yields `message_type=None`, is dropped silently, and the socket still serves a
+  follow-up `pause`.
+- `test_empty_json_object_is_ignored` — boundary: a syntactically valid but empty
+  `{}` payload must not crash the handler.
+- `test_user_message_without_content_defaults_to_empty_string` — a `user_message`
+  with no `content` key broadcasts a `message` with `content == ""` (covers the
+  `message_data.get("content", "")` default) rather than raising `KeyError`.
+
+**Verification**: 4/4 pass 3 runs in a row (no flakiness); `478->441` no longer
+reported as a partial branch. `ruff format` + `ruff check` clean.
+
 ## 1.26 Test Refactoring: `make_mock_message` Helper (Added 2026-06-05)
 
 **Focus**: Friday QA (test-refactoring). `tests/test_thinker_service.py` (the
