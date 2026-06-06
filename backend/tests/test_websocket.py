@@ -613,6 +613,110 @@ class TestWebSocketSpeedControl:
             assert data["speed_multiplier"] == 0.5
 
 
+class TestWebSocketUnrecognizedMessages:
+    """Edge cases for malformed / unrecognized WebSocket message payloads.
+
+    These exercise the message-dispatch elif chain falling through without
+    matching any known ``WSMessageType`` (the ``478->441`` loop-back branch in
+    ``app/api/websocket.py``). The handler must tolerate such payloads silently
+    and keep the connection open rather than erroring or disconnecting.
+    """
+
+    def test_unknown_message_type_is_ignored_and_connection_stays_open(self) -> None:
+        """An unrecognized ``type`` is silently dropped; the socket keeps working.
+
+        Sends a message with a ``type`` matching none of the known message types,
+        which falls through the entire elif chain (covering the 478->441 branch),
+        then proves the connection is still healthy by issuing a valid ``pause``
+        and receiving the expected ``paused`` confirmation.
+        """
+        token = get_test_token()
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/unknown-type-test?token={token}") as websocket,
+        ):
+            # Consume the initial join + resumed messages
+            websocket.receive_json()
+            websocket.receive_json()
+
+            # Unrecognized message type -> no branch matches -> loop continues
+            websocket.send_json({"type": "this_is_not_a_real_message_type"})
+
+            # Connection must still be alive: a valid pause still works
+            websocket.send_json({"type": "pause"})
+            data = websocket.receive_json()
+            assert data["type"] == "paused"
+            assert data["conversation_id"] == "unknown-type-test"
+
+    def test_message_without_type_field_is_ignored(self) -> None:
+        """A JSON payload lacking a ``type`` key yields ``message_type=None``.
+
+        ``message_data.get("type")`` returns ``None``, so no branch matches and
+        the handler loops back without error. Verified by following up with a
+        valid resume after a pause.
+        """
+        token = get_test_token()
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/no-type-test?token={token}") as websocket,
+        ):
+            websocket.receive_json()
+            websocket.receive_json()
+
+            # No "type" key at all -> message_type is None -> ignored gracefully
+            websocket.send_json({"foo": "bar", "content": "orphaned"})
+
+            # Socket still functional
+            websocket.send_json({"type": "pause"})
+            data = websocket.receive_json()
+            assert data["type"] == "paused"
+
+    def test_empty_json_object_is_ignored(self) -> None:
+        """An empty JSON object ``{}`` is dispatched with no matching type.
+
+        Boundary condition: a syntactically valid but semantically empty payload
+        must not crash the handler.
+        """
+        token = get_test_token()
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/empty-obj-test?token={token}") as websocket,
+        ):
+            websocket.receive_json()
+            websocket.receive_json()
+
+            websocket.send_json({})
+
+            # Still alive after the empty payload
+            websocket.send_json({"type": "pause"})
+            data = websocket.receive_json()
+            assert data["type"] == "paused"
+
+    def test_user_message_without_content_defaults_to_empty_string(self) -> None:
+        """A ``user_message`` with no ``content`` broadcasts an empty-string body.
+
+        Covers the ``message_data.get("content", "")`` default: omitting the
+        ``content`` field must broadcast a ``message`` with ``content == ""``
+        rather than raising a ``KeyError``.
+        """
+        token = get_test_token()
+        with (
+            TestClient(app) as test_client,
+            test_client.websocket_connect(f"/ws/user-msg-no-content?token={token}") as websocket,
+        ):
+            websocket.receive_json()
+            websocket.receive_json()
+
+            # user_message with no content key -> defaults to ""
+            websocket.send_json({"type": "user_message"})
+
+            data = websocket.receive_json()
+            assert data["type"] == "message"
+            assert data["sender_type"] == "user"
+            assert data["content"] == ""
+            assert data["conversation_id"] == "user-msg-no-content"
+
+
 class TestWebSocketDisconnect:
     """Tests for WebSocket disconnect handling."""
 
