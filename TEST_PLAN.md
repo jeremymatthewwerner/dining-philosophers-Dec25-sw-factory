@@ -7374,3 +7374,55 @@ invariant for `PATCH /api/feedback/{id}/processed`.
   removes exactly that id from `/pending` and leaves the other two.
 - `test_processed_feedback_records_issue_url_for_other_items_untouched` — marking
   one item with a github_issue_url must not stamp a bystander item's url.
+
+## 31. Coverage Sprint (Monday QA, Jun 8, 2026) — `src/__tests__/lib/api.coverage.test.ts`
+
+**Focus:** Coverage sprint. Backend is effectively maxed (99.43%; the one missed
+statement at `app/services/thinker.py:733` is an unreachable defensive `continue`
+given the upfront `.strip()`). The frontend API client `src/lib/api.ts` was the
+lowest-coverage testable-logic file at **76.9% stmts / 77.27% branch**. After this
+sprint it is at **100% stmts / 95.58% branch / 100% funcs** (remaining branch
+partials are the SSR `typeof window === 'undefined'` guards).
+
+### 31.1 Token & user storage helpers (`api.coverage.test.ts`)
+
+- `setAccessToken(null)` removes `access_token`; `setAccessToken(token)` writes it.
+- `setStoredUser(null)` removes the stored `user`.
+- `getStoredUser` covers all three branches: valid JSON parses, empty storage
+  returns null, and malformed JSON is caught and returns null.
+- `getAccessToken` caches the token in memory after the first read (second read
+  does not touch localStorage).
+
+### 31.2 Profile / language / password mutations
+
+- `updateLanguage` PATCHes `/api/auth/language` and persists the updated user.
+- `updateProfile` PATCHes `/api/auth/profile` and persists the updated user.
+- `changePassword` POSTs `/api/auth/change-password` with current/new passwords.
+
+### 31.3 Admin API
+
+- `getAdminUsers` GETs `/api/admin/users` with the bearer token.
+- `deleteUser` DELETEs `/api/admin/users/{id}`.
+- `updateUserSpendLimit` PATCHes `/api/admin/users/{id}/spend-limit`.
+
+### 31.4 `submitFeedback` (no-auth endpoint)
+
+- Success path POSTs to `/api/feedback` and returns the created record.
+- Non-ok response throws the server-provided `detail`.
+- Error body without a `detail` field falls back to `HTTP <status>`.
+- A `TypeError: Failed to fetch` is mapped to the friendly "Unable to connect to
+  the server…" message.
+- Any other error is re-thrown unchanged.
+
+### 31.5 `fetchWithAuth` auth/error/cancellation branches
+
+- A 401 from a protected page clears auth and triggers the `/login` redirect
+  branch (`api.coverage.test.ts`). The companion case where the user is already
+  on `/login` (redirect skipped, only clearAuth runs) lives in
+  `src/__tests__/lib/api.login-401.coverage.test.ts`, which pins the jsdom URL to
+  `/login` via a `@jest-environment-options` docblock.
+- `getCurrentUser` clears auth and returns null when `/api/auth/me` fails.
+- An `AbortError` with no external signal becomes a `Request timeout after <ms>ms`
+  error; an aborted external `AbortSignal` instead yields `Request cancelled`.
+- `suggestThinkers` wires an external `AbortSignal` through to the request
+  (verified via an `addEventListener('abort', …)` spy).
