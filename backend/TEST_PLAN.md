@@ -1901,3 +1901,36 @@ All 10 tests verified passing across 3 consecutive runs (~5.6s each, no flakines
 ### Stability Verification
 
 All 20 tests verified passing across 5 consecutive runs (~1.3s each, no flakiness). The full backend suite (1744 passed, 10 skipped, ~7:00) also runs cleanly with the new tests included. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
+
+## Flaky Test Hunt - Tuesday QA (Added 2026-06-09)
+
+**Focus**: Pin the speed-multiplier scaling of `_should_prompt_user` (`thinker.py:1444-1470`) — the one probabilistic branch whose `speed_mult**0.3` scaling was never locked deterministically.
+
+### Analysis Results
+
+- Full backend suite ran clean **twice** (1758 passed, 10 skipped, ~7:00 each).
+- The random/timing-prone subset (331 tests matching `flaky`, `random`, `bubble`, `split`, `should_respond`, `should_prompt`, `thinking_display`, `choose_response`, `choose_style`, `strategy`, `randint`, `mention`) ran **5× back-to-back** — 331 passed every run (~25s). **No flakiness detected.**
+- **Gap found**: `_should_prompt_user` scales both its threshold and probability by `speed_mult**0.3`, but existing tests only exercise `speed_mult=1.0` (where `speed**anything == 1`, hiding the exponent) plus one `6.0` test using `random=0.0` (passes any positive probability). The exponent `0.3`, the base constants (`8`, `0.15`), and the `max(4, ...)` floor were effectively unguarded. A mutation changing `0.3`→`0.5` was confirmed to slip past the prior suite but fails 3 of the new tests.
+  - `threshold = max(4, int(8 / speed_mult**0.3))`
+  - `prompt_probability = 0.15 * speed_mult**0.3`
+
+### Tests Added (test_flaky_hunt_jun9_2026.py)
+
+**File**: `tests/test_flaky_hunt_jun9_2026.py` (7 new tests)
+
+#### TestShouldPromptUserProbabilityScaling
+1. `test_fixed_roll_flips_outcome_across_speeds` — A single fixed roll (0.20) yields False at speed 1.0 (prob 0.15) but True at speed 6.0 (prob 0.2568). Same roll, opposite outcomes — pins that probability *increases* with speed. A regression dropping the `speed_mult**0.3` factor (flat 0.15) would return False at 6.0.
+2. `test_exact_probability_boundary_at_speed_1` — At speed 1.0 prob is exactly 0.15; `roll=0.149` → True, `roll=0.15` → False (strict `<`). Pins the base constant 0.15 and the strict-less-than direction.
+3. `test_scaled_probability_value_at_speed_6` — At speed 6.0 prob ≈ 0.2568; `roll=0.25` → True, `roll=0.26` → False. Brackets the scaled probability so a changed exponent/base shifts it out of the `[0.25, 0.26)` window.
+
+#### TestShouldPromptUserThresholdScaling
+4. `test_threshold_is_5_at_speed_4_locks_exponent` — At speed 4.0 threshold = `max(4, int(8/4**0.3))` = 5. `messages_since_user=4` (< 5, roll=0.0) → False; `=5` (== 5) → True. Locks the exponent: at speed 4.0 exp 0.2 → threshold 6 and exp 0.5 → 4, so only exp 0.3 yields 5 (the speed-6.0 test can't distinguish exp 0.3 from 0.5, both → 4).
+5. `test_threshold_strict_less_than_boundary_at_speed_2` — At speed 2.0 threshold = 6; `=5` → False, `=6` → True (gate is strict `<`, `6 < 6` is False). Pins the threshold value and the strict-< gate.
+6. `test_threshold_floor_of_4_at_high_speed` — At speed 20.0 the raw value `int(8/20**0.3)=3` is clamped by `max(4, ...)` to 4. `messages_since_user=3` → False, `=4` → True. Guards the floor, which is never reached at the production-clamped max speed of 6.0.
+
+#### TestShouldPromptUserShortHistoryBeatsSpeed
+7. `test_four_messages_returns_false_even_at_high_speed` — A 4-message history (< 5) short-circuits to False at line 1456 even at speed 6.0, and `random.random()` is never called (asserted via `call_count == 0`). Pins precedence of the short-history gate over the speed-based logic.
+
+### Stability Verification
+
+All 7 tests verified passing across 3 consecutive runs (~0.8s each, no flakiness). Mutation check (`speed_mult**0.3` → `**0.5`) confirmed 3 tests fail on the regression and all 7 pass again once reverted. The full backend suite (1758 passed, 10 skipped) runs cleanly with the new tests included. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
