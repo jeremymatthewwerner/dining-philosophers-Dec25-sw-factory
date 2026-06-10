@@ -1,3 +1,56 @@
+## Integration Gaps - Wednesday QA (Added 2026-06-10)
+
+**Focus**: Cross-endpoint workflows centered on the spend aggregation endpoint
+(`GET /api/spend/{user_id}`). Individual API endpoints already have very high
+unit coverage, but the spend endpoint's multi-table join (Session ⨝ Conversation
+⨝ Message in `app/services/spend.py`) was only exercised by service-level unit
+tests, never through the real REST write path (POST /conversations, POST
+/messages, DELETE /conversations). These integration tests drive the write
+endpoints and assert the spend read endpoint reflects the result, catching
+contract drift (session linkage, cost filtering, delete cascade) that
+single-endpoint tests cannot.
+
+### Tests Added (test_integration_gaps_jun10_2026.py)
+
+#### `TestSpendReflectsRestCreatedConversations` (2 tests)
+- `test_spend_lists_all_conversations_created_via_rest` — Creates three
+  conversations via `POST /conversations` and asserts all three appear in
+  `GET /spend` (by id and topic) with the auto-created session reporting
+  `conversation_count == 3`. Validates the Session⨝Conversation join + Python
+  grouping in `get_user_spend_data` for the multi-conversation case (test_api.py
+  only covers a single conversation).
+- `test_spend_conversation_count_excludes_other_users` — Two real users each
+  create conversations over REST; asserts each user's `GET /spend` returns only
+  their own conversations and `conversation_count`. Exercises the
+  `WHERE UserSession.user_id == user_id` filter against genuine overlapping data.
+
+#### `TestUserMessagesDoNotInflateSpend` (1 test)
+- `test_user_messages_leave_message_count_and_total_at_zero` — Sends three user
+  messages via `POST /conversations/{id}/messages`, then asserts the spend row
+  reports `message_count == 0` and `total_spend == 0.0`. Locks in the
+  cost-filter contract end-to-end: user messages carry `cost = NULL` and the
+  spend query counts only messages with `cost IS NOT NULL`.
+
+#### `TestDeleteConversationDropsFromSpend` (1 test)
+- `test_deleting_one_conversation_removes_it_from_spend` — Creates two
+  conversations, deletes one via `DELETE /conversations/{id}`, and asserts the
+  deleted conversation is gone from `GET /spend` and the session's
+  `conversation_count` drops from 2 to 1. Verifies the delete is durably
+  committed and the spend join no longer returns the removed row.
+
+#### `TestSessionIdConsistencyAcrossEndpoints` (1 test)
+- `test_session_id_identical_across_sessions_me_conversation_and_spend` —
+  Asserts the session id is identical across three endpoints: `GET /sessions/me`,
+  the `session_id` on a `POST /conversations` response, and the session entry in
+  `GET /spend`. Detects drift where a write path might spawn or reference a
+  different session than the one encoded in the JWT.
+
+### Stability & Coverage Verification
+- All 5 tests run 3x consecutively with no flakiness.
+- `ruff format` and `ruff check` pass clean.
+
+---
+
 ## Coverage Sprint - Monday QA (Added 2026-06-01)
 
 **Focus**: Close the last-mile coverage gaps in the two lowest-coverage backend modules. Before this run, `app/api/websocket.py` was at 95% (9 missing lines + branches) and `app/services/thinker.py` was at 98%, with overall coverage at **98.94%**. The 9 missing lines in `websocket.py` were the highest-leverage gap because they fall on the **connect-handler path that wires a Conversation to its thinker agents** — code that runs every time a real user opens a chat.
