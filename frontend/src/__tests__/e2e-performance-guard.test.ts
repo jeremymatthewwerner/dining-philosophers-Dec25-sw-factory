@@ -20,6 +20,10 @@
  *   4. No per-call `{ timeout: N }` above 60s
  *   5. playwright.config keeps CI parallelism: fullyParallel + >=4 CI workers,
  *      a bounded global test timeout, and a bounded expect timeout
+ *   6. No spec opts into serial mode (`mode: 'serial'` / `test.describe.serial`),
+ *      which overrides fullyParallel and silently serializes a whole file
+ *   7. playwright.config retries on CI so a single transient flake doesn't fail
+ *      the whole E2E job and force an expensive full re-run
  *
  * Thresholds have headroom over the current suite so legitimate tests are not
  * penalised — they exist to catch runaway values, not to micro-manage.
@@ -112,8 +116,32 @@ describe('E2E performance-hygiene guard', () => {
     );
   });
 
+  describe('parallelism is not silently disabled', () => {
+    // fullyParallel runs every test in every file concurrently. The one way a
+    // single spec can silently undo that is opting into serial mode, which
+    // forces its tests to run one-at-a-time on a single worker. Forbid both the
+    // `describe.configure({ mode: 'serial' })` form and the `describe.serial(`
+    // / `test.serial(` shorthands.
+    it.each(listSpecFiles().map((f) => [f]))(
+      '%s does not opt into serial mode',
+      (file) => {
+        const code = stripComments(readFileSync(file, 'utf-8'));
+        const serialMode = code.match(/mode:\s*(['"`])serial\1/g) ?? [];
+        const serialShorthand = code.match(/\.serial\s*\(/g) ?? [];
+        expect([...serialMode, ...serialShorthand]).toHaveLength(0);
+      }
+    );
+  });
+
   describe('playwright.config preserves parallelism and bounded timeouts', () => {
     const config = stripComments(readFileSync(PLAYWRIGHT_CONFIG, 'utf-8'));
+
+    it('retries at least once on CI so a single flake does not fail the job', () => {
+      // Matches `retries: process.env.CI ? N : ...`
+      const m = config.match(/retries:\s*process\.env\.CI\s*\?\s*(\d+)/);
+      expect(m).not.toBeNull();
+      expect(Number(m?.[1])).toBeGreaterThanOrEqual(1);
+    });
 
     it('enables fullyParallel', () => {
       expect(config).toMatch(/fullyParallel:\s*true/);
