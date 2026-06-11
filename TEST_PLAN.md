@@ -2,6 +2,54 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.28 E2E Performance Guard: Serial-Mode + CI-Retries Checks (Added 2026-06-11)
+
+**Focus**: Thursday QA (e2e-performance). The E2E suite is already in excellent
+perf shape — **0** real `page.waitForTimeout()` calls, **0** unbounded
+`networkidle` waits, and per-test/per-call timeouts all bounded — and two
+existing guards lock most of that in (pytest `test_e2e_performance_guards.py`
+§1.23 and the co-located jest guard `e2e-performance-guard.test.ts` §1.25).
+
+This session closed a real gap in the **co-located jest guard**: it verified
+config-level `fullyParallel: true` but was blind to the one anti-pattern that
+silently *overrides* it — a spec opting into **serial mode**. With
+`fullyParallel: true` set globally, a single `test.describe.configure({ mode:
+'serial' })` (or the `test.describe.serial(` / `test.serial(` shorthands)
+serializes that whole file onto one worker, quietly erasing the parallelism the
+suite depends on to stay under the 15-min CI target. The pytest guard already
+treats this as important (`test_no_spec_uses_serial_mode`); the same-job jest
+guard now does too. A missing CI-retries check was also added so a single
+transient flake can't fail the whole E2E job and force a full re-run.
+
+**Why extend the existing jest guard instead of adding a third guard file**:
+- Avoids a third near-duplicate static-analysis suite (a redundant Playwright
+  `*.spec.ts` guard was prototyped and discarded — it would have run under both
+  Playwright projects *and* booted the dev webServer, *adding* E2E runtime,
+  which is exactly backwards for an e2e-performance task)
+- Keeps all co-located, same-job perf invariants in one discoverable file
+
+**File**: `frontend/src/__tests__/e2e-performance-guard.test.ts` (extended:
+126 assertions total — adds a per-spec serial-mode check across all 24 spec
+files plus a config-level CI-retries assertion)
+
+### New checks
+
+| Check | What It Validates |
+|-------|-------------------|
+| no serial mode (per spec file) | No `mode: 'serial'` and no `.serial(` shorthand (`describe.serial` / `test.serial`) appears in executable code — these override `fullyParallel` and serialize a whole file onto one worker. Comments mentioning "serial" are stripped before matching. |
+| CI retries ≥ 1 | `playwright.config.ts` sets `retries: process.env.CI ? N` with N ≥ 1, so one transient flake doesn't fail the whole E2E job and force an expensive full re-run. |
+
+### Verification
+
+- Jest guard passes 3 runs in a row (126 assertions, no browser/backend)
+- Regexes spot-checked against synthetic violations: flags all three serial
+  forms (`mode: 'serial'`, `describe.serial(`, `test.serial(`) while ignoring
+  `mode: 'parallel'` and a "serial" mention inside a comment; the retries check
+  passes the current `? 2 :` config and fails `? 0 :` / a missing CI ternary
+- `npm run typecheck` and ESLint clean
+
+---
+
 ## 1.27 Edge Cases: Unrecognized WebSocket Messages (Added 2026-06-06)
 
 **Focus**: Saturday QA (edge-cases). Backend coverage is already at **99.40%**, so
