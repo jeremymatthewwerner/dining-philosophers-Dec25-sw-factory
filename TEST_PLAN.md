@@ -2,6 +2,56 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.29 Test Refactoring: `test_regression_prevention_jan25_2026.py` → conftest helpers (Added 2026-06-12)
+
+**Focus**: Friday QA (test-refactoring). Audited every backend test file for inline
+boilerplate that duplicates helpers `conftest.py` already exports.
+`tests/test_regression_prevention_jan25_2026.py` was the worst offender still
+carrying its own copy: 443 lines, **zero** conftest imports, and the same setup
+plumbing copy-pasted throughout.
+
+**Duplication removed** (all behaviour-preserving — the helpers produce equivalent
+state, and no test asserts on the fields the helpers default):
+
+| Inline pattern | Occurrences | Replaced with |
+|----------------|-------------|---------------|
+| `POST /api/auth/register` → `assert 200` → extract `access_token` → build Bearer header | 7 | `get_auth_headers(client, user, pass)` |
+| `{"Authorization": f"Bearer {session_token}"}` | 15 | header dict returned by the helper, reused |
+| `POST /api/conversations` with an inline single-thinker body | 5 | `create_conversation_with_thinker(...)` / `create_test_conversation(..., num_thinkers=5)` |
+| raw `assert get_response.status_code == 404` | 1 | `assert_not_found(get_response)` |
+
+**Why a refactor here**:
+- Each test opened with ~10 lines of register/extract-token/build-header plumbing
+  before the line that actually exercised the behaviour under test. The intent
+  ("delete a conversation and confirm it cascades") was buried.
+- The `test_add_thinkers_when_all_colors_used` test built 5 thinkers by hand with a
+  hard-coded colour list, but the assertion only checks the **count** limit
+  ("Maximum is 5") — `create_test_conversation(..., num_thinkers=5)` expresses that
+  intent directly without the unused colour scaffolding.
+- The file is named "regression prevention", so the *assertions* are the value;
+  reducing setup noise makes a future reader's diff-review of those assertions far
+  easier.
+
+**What was deliberately left inline**:
+- `test_full_user_journey` and the multi-user isolation tests in
+  `test_integration_workflows.py` — there the explicit register→login→converse flow
+  *is* the end-to-end behaviour being documented, so collapsing it into helpers
+  would obscure intent rather than clarify it.
+- `test_generate_response_with_api_timeout`'s service-level `MagicMock` thinker
+  (positions is a `list`, unlike the conftest `mock_thinker` fixture's `str`).
+
+**File refactored**: `tests/test_regression_prevention_jan25_2026.py`
+(443 → ~330 lines; 15 tests unchanged in what they assert).
+
+**Verification**:
+- All 15 tests pass 3 runs in a row (no behaviour change, no flakiness introduced).
+- Full backend suite still green after the conftest-import change.
+- `ruff format` + `ruff check` clean.
+- Pure refactor: no test added, removed, or changed in what it asserts — only how
+  the per-test setup is constructed.
+
+---
+
 ## 1.28 E2E Performance Guard: Serial-Mode + CI-Retries Checks (Added 2026-06-11)
 
 **Focus**: Thursday QA (e2e-performance). The E2E suite is already in excellent
