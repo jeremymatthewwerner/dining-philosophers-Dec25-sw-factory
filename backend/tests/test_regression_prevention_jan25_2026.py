@@ -12,6 +12,12 @@ import pytest
 from httpx import AsyncClient
 
 from app.services.thinker import ThinkerService
+from tests.conftest import (
+    assert_not_found,
+    create_conversation_with_thinker,
+    create_test_conversation,
+    get_auth_headers,
+)
 
 
 class TestConversationAPIErrorHandling:
@@ -29,42 +35,15 @@ class TestConversationAPIErrorHandling:
 
     async def test_delete_conversation_cascade_deletes_messages(self, client: AsyncClient) -> None:
         """Test that deleting a conversation properly cascades to delete messages."""
-        # Create user, session, conversation, and messages
-        register_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "cascadetest",
-                "password": "password123",
-                "display_name": "Cascade Test",
-            },
+        headers = await get_auth_headers(client, "cascadetest", "password123")
+        conversation_id = await create_conversation_with_thinker(
+            client, headers, topic="Test cascade deletion", thinker_name="Aristotle"
         )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers={"Authorization": f"Bearer {session_token}"},
-            json={
-                "topic": "Test cascade deletion",
-                "thinkers": [
-                    {
-                        "name": "Aristotle",
-                        "bio": "Greek philosopher",
-                        "positions": "Logic",
-                        "style": "Systematic",
-                        "color": "#ec4899",
-                    }
-                ],
-            },
-        )
-        assert conv_response.status_code == 200
-        conversation_id = conv_response.json()["id"]
 
         # Send a message
         msg_response = await client.post(
             f"/api/conversations/{conversation_id}/messages",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
             json={"content": "Hello philosopher"},
         )
         assert msg_response.status_code == 200
@@ -72,56 +51,30 @@ class TestConversationAPIErrorHandling:
         # Delete conversation
         delete_response = await client.delete(
             f"/api/conversations/{conversation_id}",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
         )
         assert delete_response.status_code == 200
 
         # Verify conversation is gone
         get_response = await client.get(
             f"/api/conversations/{conversation_id}",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
         )
-        assert get_response.status_code == 404
+        assert_not_found(get_response)
 
     async def test_add_thinkers_when_all_colors_used(self, client: AsyncClient) -> None:
         """Test adding a 6th thinker when all 5 color slots are taken."""
-        register_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "colortest",
-                "password": "password123",
-                "display_name": "Color Test",
-            },
-        )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
+        headers = await get_auth_headers(client, "colortest", "password123")
 
         # Create conversation with 5 thinkers (max)
-        thinkers = []
-        colors = ["#6366f1", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6"]
-        for i, color in enumerate(colors):
-            thinkers.append(
-                {
-                    "name": f"Thinker{i + 1}",
-                    "bio": f"Philosopher {i + 1}",
-                    "positions": "Philosophy",
-                    "style": "Analytical",
-                    "color": color,
-                }
-            )
-
-        conv_response = await client.post(
-            "/api/conversations",
-            headers={"Authorization": f"Bearer {session_token}"},
-            json={"topic": "Color test", "thinkers": thinkers},
+        conversation_id = await create_test_conversation(
+            client, headers, topic="Color test", num_thinkers=5
         )
-        assert conv_response.status_code == 200
-        conversation_id = conv_response.json()["id"]
 
         # Try to add a 6th thinker (should fail)
         add_response = await client.put(
             f"/api/conversations/{conversation_id}/thinkers",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
             json=[
                 {
                     "name": "Thinker6",
@@ -138,41 +91,15 @@ class TestConversationAPIErrorHandling:
 
     async def test_send_message_with_empty_content(self, client: AsyncClient) -> None:
         """Test that sending a message with empty content is handled."""
-        register_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "emptymsg",
-                "password": "password123",
-                "display_name": "Empty Msg Test",
-            },
+        headers = await get_auth_headers(client, "emptymsg", "password123")
+        conversation_id = await create_conversation_with_thinker(
+            client, headers, topic="Empty message test", thinker_name="Kant"
         )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers={"Authorization": f"Bearer {session_token}"},
-            json={
-                "topic": "Empty message test",
-                "thinkers": [
-                    {
-                        "name": "Kant",
-                        "bio": "German philosopher",
-                        "positions": "Ethics",
-                        "style": "Categorical",
-                        "color": "#6366f1",
-                    }
-                ],
-            },
-        )
-        assert conv_response.status_code == 200
-        conversation_id = conv_response.json()["id"]
 
         # Try to send empty message
         response = await client.post(
             f"/api/conversations/{conversation_id}/messages",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
             json={"content": ""},
         )
         # Should either reject (400/422) or accept empty (200)
@@ -185,19 +112,13 @@ class TestAdminAPIErrorHandling:
 
     async def test_update_spend_limit_for_nonexistent_user(self, client: AsyncClient) -> None:
         """Test that updating spend limit for non-existent user returns 404."""
-        # Create admin user
-        register_response = await client.post(
-            "/api/auth/register",
-            json={"username": "admin", "password": "admin123", "display_name": "Admin"},
-        )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
+        headers = await get_auth_headers(client, "admin", "admin123")
 
         # Try to update spend limit for fake user
         fake_user_id = str(uuid.uuid4())
         response = await client.patch(
             f"/api/admin/users/{fake_user_id}/spend-limit",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
             json={"spend_limit": 50.00},  # dollars, not cents
         )
         # Should return 404 or 403 (depending on auth)
@@ -205,23 +126,10 @@ class TestAdminAPIErrorHandling:
 
     async def test_get_user_stats_without_admin_privileges(self, client: AsyncClient) -> None:
         """Test that non-admin users cannot access user stats."""
-        # Create regular user
-        register_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "regular",
-                "password": "password123",
-                "display_name": "Regular User",
-            },
-        )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
+        headers = await get_auth_headers(client, "regular", "password123")
 
         # Try to get user stats (should fail if not admin)
-        response = await client.get(
-            "/api/admin/users",
-            headers={"Authorization": f"Bearer {session_token}"},
-        )
+        response = await client.get("/api/admin/users", headers=headers)
         # Should return 403 Forbidden (or 200 if no admin check implemented)
         assert response.status_code in [200, 403]
 
@@ -349,42 +257,16 @@ class TestMessageEdgeCases:
 
     async def test_send_message_with_extreme_unicode_characters(self, client: AsyncClient) -> None:
         """Test sending messages with emoji, mathematical symbols, and rare Unicode."""
-        register_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "unicodetest",
-                "password": "password123",
-                "display_name": "Unicode Test",
-            },
+        headers = await get_auth_headers(client, "unicodetest", "password123")
+        conversation_id = await create_conversation_with_thinker(
+            client, headers, topic="Unicode test", thinker_name="Confucius"
         )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
-
-        # Create conversation
-        conv_response = await client.post(
-            "/api/conversations",
-            headers={"Authorization": f"Bearer {session_token}"},
-            json={
-                "topic": "Unicode test",
-                "thinkers": [
-                    {
-                        "name": "Confucius",
-                        "bio": "Chinese philosopher",
-                        "positions": "Ethics",
-                        "style": "Analects",
-                        "color": "#6366f1",
-                    }
-                ],
-            },
-        )
-        assert conv_response.status_code == 200
-        conversation_id = conv_response.json()["id"]
 
         # Send message with various Unicode characters
         unicode_content = "Hello 👋 Math: ∑∫∂ Greek: αβγ Chinese: 你好 Emoji: 🔥💯"
         response = await client.post(
             f"/api/conversations/{conversation_id}/messages",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
             json={"content": unicode_content},
         )
         assert response.status_code == 200
@@ -393,49 +275,20 @@ class TestMessageEdgeCases:
 
     async def test_conversation_list_with_zero_cost_messages(self, client: AsyncClient) -> None:
         """Test that conversation list correctly handles messages with None or 0 cost."""
-        register_response = await client.post(
-            "/api/auth/register",
-            json={
-                "username": "costtest",
-                "password": "password123",
-                "display_name": "Cost Test",
-            },
+        headers = await get_auth_headers(client, "costtest", "password123")
+        conversation_id = await create_conversation_with_thinker(
+            client, headers, topic="Cost calculation test", thinker_name="Descartes"
         )
-        assert register_response.status_code == 200
-        session_token = register_response.json()["access_token"]
-
-        # Create conversation and send message
-        conv_response = await client.post(
-            "/api/conversations",
-            headers={"Authorization": f"Bearer {session_token}"},
-            json={
-                "topic": "Cost calculation test",
-                "thinkers": [
-                    {
-                        "name": "Descartes",
-                        "bio": "French philosopher",
-                        "positions": "Rationalism",
-                        "style": "Methodical doubt",
-                        "color": "#6366f1",
-                    }
-                ],
-            },
-        )
-        assert conv_response.status_code == 200
-        conversation_id = conv_response.json()["id"]
 
         # Send message (cost will be None by default)
         await client.post(
             f"/api/conversations/{conversation_id}/messages",
-            headers={"Authorization": f"Bearer {session_token}"},
+            headers=headers,
             json={"content": "Test message"},
         )
 
         # List conversations and verify cost calculation doesn't crash
-        list_response = await client.get(
-            "/api/conversations",
-            headers={"Authorization": f"Bearer {session_token}"},
-        )
+        list_response = await client.get("/api/conversations", headers=headers)
         assert list_response.status_code == 200
         conversations = list_response.json()
         assert len(conversations) > 0
