@@ -7524,3 +7524,39 @@ partials are the SSR `typeof window === 'undefined'` guards).
   error; an aborted external `AbortSignal` instead yields `Request cancelled`.
 - `suggestThinkers` wires an external `AbortSignal` through to the request
   (verified via an `addEventListener('abort', …)` spy).
+
+## 32. Edge Cases (Saturday QA, Jun 13, 2026) — `test_edge_cases_saturday_jun13_2026.py`
+
+Backend coverage was already at 99.43%. This session closed the remaining
+*reachable* partial-branch gaps in the streaming-thinking event loop and the
+database initialiser. (`thinker.py:733`, the `continue` for an empty
+post-split sentence, is unreachable — `re.split(r"(?<=[.!?])\s+", text)` on a
+stripped string cannot produce empty fragments — so it is deliberately left
+alone.)
+
+### 32.1 `TestStreamingThinkingEdgeBranches`
+
+Exercises the per-event branches inside
+`ThinkerService.generate_response_with_streaming_thinking`:
+
+- `test_second_thinking_delta_is_throttled` — a second thinking delta arriving
+  within the update interval is throttled, so exactly one thinking update is
+  sent (covers `636->616`).
+- `test_short_thinking_delta_sends_no_update` — a thinking delta under 80 chars
+  yields an empty display preview, so the throttle passes but no update is sent
+  (covers `641->645`).
+- `test_empty_delta_is_ignored` — a `content_block_delta` carrying neither
+  `thinking` nor `text` is a no-op and does not affect the response (covers
+  `646->616`).
+- `test_message_delta_without_usage_is_ignored` — a `message_delta` event with
+  `usage = None` does not update token counts; final usage still comes from
+  `get_final_message()` (covers `649->616`).
+- `test_non_thinking_block_does_not_add_thinking_cost` — a final-message content
+  block that is not a `ThinkingBlock` adds no thinking tokens, so cost equals
+  input + output cost exactly (covers `662->661`).
+
+### 32.2 `TestInitDbNoAlembic`
+
+- `test_init_db_uses_create_all_when_no_alembic_ini` — when `alembic.ini` is
+  absent, `init_db()` skips `run_migrations()` entirely and falls back to
+  `create_all` via `engine.begin().run_sync` (covers `database.py` `98->107`).
