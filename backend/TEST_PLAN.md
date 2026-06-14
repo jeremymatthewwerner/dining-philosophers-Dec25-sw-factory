@@ -95,6 +95,53 @@ After this run: overall backend coverage **99.40%** (+0.46pp), `app/api/websocke
 
 ---
 
+## Regression Prevention - Sunday QA (Added 2026-06-14)
+
+**Focus**: Source-level invariants for shipped fixes / features that earlier Sunday regression suites did not explicitly pin. Backend coverage is already ~99% (496 branches), so the highest-leverage QA work continues to be "if you change the implementation, this test breaks" guards for fixes whose current behavioral tests don't structurally enforce them.
+
+### Analysis Results
+
+Cross-referencing every `test_regression_prevention_*.py` file against the merged commit history shows fixes #144, #163, #214, #257, #275, #299, #336, #367, #455, #459, #483, #533, #570 already have source-level guards. **Not yet guarded**: #332 (username in feedback submissions), #17 / #12 (`/api/version` endpoint + `VERSION` constant), and the in-app feedback form contract bounds from #193 / #218 (message length policy, pending-feedback query ordering/filter/limit, mark-processed URL bounds).
+
+### Tests Added (test_regression_prevention_jun14_2026.py)
+
+**File**: `tests/test_regression_prevention_jun14_2026.py` (18 new tests, all pass 3x stable in ~1.2s)
+
+Bug fixes / features covered:
+- **#332** feat(feedback): include username in feedback submissions (commit `d1a8123`) — model column, request/admin schema, and source-level persistence/passthrough plumbing
+- **#17 / #12** feat(backend): `/api/version` endpoint + `VERSION` constant (commits `9636b45`, `8c6473d`) — endpoint reports the live constant and documented app name
+- **#193 / #218** feat(feedback): in-app feedback form + feedback-to-issue conversion (commits `a8e9a53`, `bad4303`) — message length bounds, pending-query invariants, mark-processed URL bounds
+
+#### TestFeedbackUsernameWiringContract (5 tests) — #332
+1. `test_feedback_model_has_username_string50_nullable` — `Feedback.username` is a nullable `String(50)` column (cap matches the schema; nullable so anonymous submissions still work).
+2. `test_feedback_create_schema_has_username_optional_max50` — `FeedbackCreate.username` is optional (default None) with `max_length=50`. Without the schema field, the API would strip submitted usernames before persisting.
+3. `test_feedback_detail_schema_exposes_username` — `FeedbackDetail` (pending/admin view) surfaces `username` so the feedback-to-issue workflow can attribute issues.
+4. `test_submit_feedback_source_persists_username` — `submit_feedback` threads `username=data.username` into the `Feedback(...)` constructor (else every row lands with NULL username).
+5. `test_get_pending_feedback_source_passes_username_through` — `get_pending_feedback` maps `username=fb.username` into each `FeedbackDetail` (else the stored username is hidden from the workflow's last hop).
+
+#### TestVersionEndpointContract (4 tests) — #17 / #12
+1. `test_version_constant_is_defined_and_nonempty` — `app.VERSION` is a non-empty string (single source of truth for the probe).
+2. `test_version_endpoint_returns_version_constant` — `version()` returns the live `VERSION` constant under the `version` key (not a stale inlined literal).
+3. `test_version_endpoint_returns_documented_app_name` — `version()` returns `name="Dining Philosophers API"` (public contract for consumers/dashboards).
+4. `test_version_endpoint_source_reads_version_constant` — source references `VERSION` so inlining a literal reads as a regression, not a style choice.
+
+#### TestFeedbackMessageBoundsContract (3 tests) — #193
+1. `test_feedback_message_requires_min_length_10` — `FeedbackCreate.message` requires `min_length=10` (filters trivial/empty spam from the pipeline).
+2. `test_feedback_message_allows_max_length_5000` — `message` caps at `max_length=5000` (the Text column is uncapped at the DB, so this schema bound is the only guard).
+3. `test_feedback_create_rejects_too_short_and_accepts_valid` — behavioral boundary check: 9 chars rejected, 10 chars accepted.
+
+#### TestPendingFeedbackQueryContract (4 tests) — #218
+1. `test_pending_filters_to_new_status_only` — query filters `status == FeedbackStatus.NEW` (else processed feedback is re-issued as duplicates).
+2. `test_pending_orders_oldest_first` — `order_by(created_at.asc())` so old feedback isn't starved.
+3. `test_pending_limit_param_clamped_1_to_50` — `limit` `Query` carries `Ge(1)`/`Le(50)` (0 = no-op; unbounded = backlog drain + timeout).
+4. `test_pending_default_limit_is_10` — `limit` defaults to 10 (documented per-run batch size).
+
+#### TestMarkProcessedRequestContract (2 tests) — #218
+1. `test_github_issue_url_requires_min_length_1` — `MarkProcessedRequest.github_issue_url` requires `min_length=1` (no marking processed without a traceable link).
+2. `test_github_issue_url_caps_at_max_length_500` — caps at `max_length=500` to match the `Feedback.github_issue_url String(500)` column (else over-long URLs pass validation then fail at commit).
+
+---
+
 ## Regression Prevention - Sunday QA (Added 2026-05-31)
 
 **Focus**: Source-level invariants for past bug fixes / features that earlier Sunday regression suites did not explicitly pin. Backend coverage is at **98.94%** (496 branches across 2153 stmts), so the highest-leverage QA work is pinning down "if you change the implementation, this test breaks" guards for fixes that current behavioral tests don't structurally enforce.
