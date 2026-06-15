@@ -7560,3 +7560,57 @@ Exercises the per-event branches inside
 - `test_init_db_uses_create_all_when_no_alembic_ini` — when `alembic.ini` is
   absent, `init_db()` skips `run_migrations()` entirely and falls back to
   `create_all` via `engine.begin().run_sync` (covers `database.py` `98->107`).
+
+## 33. Coverage Sprint (Monday QA, Jun 15, 2026) — `src/middleware.ts`
+
+**Focus**: Monday QA (coverage-sprint). The backend is exhaustively covered
+(websocket.py 95%, thinker.py ~99%), and the previous coverage-sprint (#951)
+had already moved to the frontend. A fresh `jest --coverage` run confirmed the
+lowest-coverage file is now the Next.js cache-control middleware.
+
+**Target**: `frontend/src/middleware.ts` — **0% → 100%** statements/branches/
+functions/lines.
+
+**Why it was at 0%**: `src/__tests__/middleware.test.ts` was a placeholder that
+only asserted string constants and never invoked `middleware()` ("tested in E2E
+instead"). Next.js middleware runs in the Edge Runtime, which exposes the web
+`Request`/`Response` globals; the default jsdom test environment does not define
+`Request`, so importing `next/server` there throws. The placeholder side-stepped
+this entirely, leaving the cache-control logic with no unit coverage.
+
+**Enabling change**: the new test file opts into `@jest-environment node` (Node
+18+ provides the web fetch globals natively). `jest.setup.ts` was hardened to
+guard browser-only globals (`Element`, `window`) behind `typeof … !== 'undefined'`
+so node-environment test files can share the global setup without
+`ReferenceError`s. Under jsdom these guards are always true, so all 671 pre-existing
+browser tests are unaffected.
+
+### 33.1 `cache-control middleware` — `src/__tests__/middleware.test.ts`
+
+Replaces the placeholder. Invokes `middleware()` with real `NextRequest`s and
+asserts the resulting `Cache-Control`/`Pragma`/`Expires` headers, covering every
+branch:
+
+- **Hashed static assets (`/_next/static/…`)** — JS and CSS receive
+  `public, max-age=31536000, immutable`; the no-cache HTML headers are *not* set.
+  A `.png` under `/_next/static/` still resolves to the immutable policy,
+  pinning the branch *ordering* (the static check precedes the image check).
+- **HTML pages / root / extensionless routes** — `/`, `/about.html`, `/login`
+  and `/admin/users` all receive `no-cache, no-store, must-revalidate, max-age=0`
+  plus `Pragma: no-cache` and `Expires: 0`. This covers the three OR'd
+  sub-conditions (`endsWith('.html')`, `=== '/'`, `!includes('.')`).
+- **Public images & fonts** — a parametrised list (`jpg, jpeg, png, gif, ico,
+  svg, woff, woff2, ttf, eot`) each receives `public, max-age=3600,
+  must-revalidate` and no `Pragma`.
+- **Case-sensitivity guard** — `/Banner.PNG` (uppercase extension) does *not*
+  match the case-sensitive extension regex and falls through with no
+  `Cache-Control`, pinning current behavior.
+- **Fallthrough** — extensioned paths that match nothing (`/data.json`,
+  `/notes.txt`, `/archive.zip`, `/feed.xml`) return the pass-through response
+  with no cache headers at all.
+- **Exported `config.matcher`** — asserts the matcher excludes `api` and
+  `_next/webpack-hmr` routes.
+
+**Result**: `middleware.ts` 0% → 100% (all metrics); overall frontend statement
+coverage 88.41% → 89.1%; full suite 695 passed (was 675), verified stable across
+3 consecutive runs.
