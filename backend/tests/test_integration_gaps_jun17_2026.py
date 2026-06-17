@@ -118,7 +118,7 @@ def _make_message(sender_name: str, content: str, sender_type: str = "user") -> 
 
 def _prompt_from(stream_mock: MagicMock) -> str:
     """Extract the user prompt the streaming client was invoked with."""
-    return stream_mock.call_args.kwargs["messages"][0]["content"]
+    return str(stream_mock.call_args.kwargs["messages"][0]["content"])
 
 
 def _patch_manager() -> Any:
