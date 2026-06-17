@@ -7614,3 +7614,37 @@ branch:
 **Result**: `middleware.ts` 0% → 100% (all metrics); overall frontend statement
 coverage 88.41% → 89.1%; full suite 695 passed (was 675), verified stable across
 3 consecutive runs.
+
+## 34. Integration Gaps (Wednesday QA, Jun 17, 2026) — `test_integration_gaps_jun17_2026.py`
+
+All backend API endpoints (`app/api/*`) already sit at 100% line + branch
+coverage, so this Wednesday "integration-gaps" run targets the last reachable
+*behavioral* gap in the streaming response path of `app/services/thinker.py`.
+
+### 34.1 `TestStreamingFirstMessageInstruction`
+
+`generate_response_with_streaming_thinking` embeds a one-time
+"CRITICAL FOR FIRST MESSAGE - DO NOT INTRODUCE YOURSELF" instruction that must
+appear only for the opening message of a conversation (`len(messages) <= 1`).
+The non-streaming sibling `generate_response` already had both-branch coverage
+(`test_regression_prevention.py`), but the streaming method carries its **own
+copy** of that logic (`thinker.py:557`). Every prior streaming test passed an
+empty history, leaving the non-initial branch (`557->563`) an untested partial.
+
+Both tests drive the method through a fake Anthropic stream and read back the
+exact prompt handed to `client.messages.stream(...)`:
+
+- **`test_initial_message_includes_no_introduce_instruction`** — with empty
+  history the prompt contains the anti-self-introduction block and the
+  `Do NOT say things like "I am <name>"` clause (the `is_initial_message` True
+  branch).
+- **`test_non_initial_message_omits_no_introduce_instruction`** — with a
+  two-message history the instruction is **absent** and the prior exchange
+  ("What is justice?" / "Justice is harmony of the soul.") is threaded into the
+  prompt as conversation context. This closes the previously-untested
+  `557->563` branch.
+
+**Result**: `app/services/thinker.py` partial branches 8 → 7 (`557->563`
+closed); backend overall holds at 99% with no regressions; full suite
+1796 passed / 10 skipped, and the new tests verified stable across 3
+consecutive runs.
