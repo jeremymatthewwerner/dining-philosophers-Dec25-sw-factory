@@ -2,6 +2,63 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.30 E2E Performance Regression Guards: untimed API & reject paths (Added 2026-06-18)
+
+**Focus**: Thursday QA (e2e-performance). Audited the E2E suite for the classic
+slow-test anti-patterns and found it already in excellent shape: **0** real
+`page.waitForTimeout()` calls across all 24 spec files (the lone grep hit is a
+comment), `playwright.config.ts` already uses `fullyParallel: true` +
+`workers: 4` + bounded `expect.timeout`, and every `networkidle` wait is either
+bounded with `.catch()` or lives in a `test.describe.skip` suite. There were no
+`waitForTimeout` anti-patterns left to remove.
+
+The highest-value perf work was therefore to **extend the regression-guard
+suite** (`frontend/e2e/performance.spec.ts`, 46 → 54 active tests) to lock in
+latency baselines for perf-sensitive backend paths that were not yet timed.
+These tests time direct API calls via `page.request` (bypassing browser
+overhead) so a future latency regression trips a test instead of reaching users.
+
+**New tests — `Settings & Mutation API Performance` describe block (4 tests):**
+- `PATCH /api/auth/language responds within 2 seconds` — language-preference
+  save; the UI re-renders all translated strings on the response, so the write
+  must stay fast. Guards against a synchronous translation reload or unindexed
+  write being added to this path.
+- `POST /api/auth/change-password responds within 3 seconds` — the most
+  CPU-heavy auth op (bcrypt verify + hash). Generous 3s budget still catches a
+  bumped cost-factor or a slow side-effect (e.g. sync email) added to the path.
+- `PUT /api/conversations/{id}/thinkers responds within 2 seconds` — adding a
+  thinker inserts a row and *triggers* background knowledge research
+  (fire-and-forget). Trips if a regression makes the endpoint await that
+  research instead of returning immediately.
+- `5 parallel single-conversation reads complete within 3 seconds` — fires 5
+  `GET /api/conversations/{id}` reads concurrently; verifies the backend serves
+  parallel reads close to the slowest single read, not serialized 5×.
+
+**New tests — `Reject & Not-Found Path Performance` describe block (4 tests):**
+- `unauthenticated GET /api/conversations returns 401 within 1 second` — the
+  auth-reject path must short-circuit before any list query runs.
+- `GET non-existent conversation returns 404 within 2 seconds` — the not-found
+  path must not eager-load messages/thinkers before checking existence.
+- `DELETE non-existent conversation returns 404 within 2 seconds` — stale-client
+  / double-click deletes must fail fast (404), never hang or 500.
+- `fresh user empty conversation list returns within 2 seconds` — the
+  per-conversation message-count aggregation must be a no-op on the empty set.
+
+**Verification**:
+- All 8 new tests pass; ran the two new describe blocks 3× back-to-back with
+  zero failures (no flakiness introduced), ~13s per run with 4 workers.
+- Full `performance.spec.ts` (54 tests) green locally against a real
+  SQLite-backed backend. (One *pre-existing* test — "browser back navigation
+  is instant", a tight 1500ms budget — flaked once under parallel dev-server
+  load and passed on retry; unrelated to this change and covered by CI
+  `retries: 2`.)
+- `prettier --check` + `eslint` clean on the spec file.
+
+**File changed**: `frontend/e2e/performance.spec.ts` (+8 tests, 2 new describe
+blocks).
+
+---
+
 ## 1.29 Test Refactoring: `test_regression_prevention_jan25_2026.py` → conftest helpers (Added 2026-06-12)
 
 **Focus**: Friday QA (test-refactoring). Audited every backend test file for inline
