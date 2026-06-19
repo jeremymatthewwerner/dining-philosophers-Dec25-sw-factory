@@ -35,6 +35,7 @@ from tests.conftest import (
     create_conversation_with_thinker,
     get_auth_headers,
     make_simple_thinker_list,
+    patch_feedback_processor_secret,
     register_and_get_token,
 )
 
@@ -1022,8 +1023,7 @@ class TestFeedbackEdgeCases:
 
         Boundary condition: limit has ge=1.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = "test-secret"
+        with patch_feedback_processor_secret("test-secret"):
             response = await client.get("/api/feedback/pending?secret=test-secret&limit=1")
         assert response.status_code == 200
 
@@ -1032,8 +1032,7 @@ class TestFeedbackEdgeCases:
 
         Boundary condition: limit has le=50.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = "test-secret"
+        with patch_feedback_processor_secret("test-secret"):
             response = await client.get("/api/feedback/pending?secret=test-secret&limit=50")
         assert response.status_code == 200
 
@@ -1042,8 +1041,7 @@ class TestFeedbackEdgeCases:
 
         Boundary condition: limit has le=50, so 51 must fail.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = "test-secret"
+        with patch_feedback_processor_secret("test-secret"):
             response = await client.get("/api/feedback/pending?secret=test-secret&limit=51")
         assert_validation_error(response)
 
@@ -1052,8 +1050,7 @@ class TestFeedbackEdgeCases:
 
         Error path: FEEDBACK_PROCESSOR_SECRET not set -> 503 Service Unavailable.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = ""
+        with patch_feedback_processor_secret(""):
             response = await client.patch(
                 "/api/feedback/some-id/processed?secret=any-secret",
                 json={"github_issue_url": "https://github.com/test/test/issues/1"},

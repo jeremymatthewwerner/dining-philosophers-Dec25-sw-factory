@@ -25,6 +25,7 @@ from tests.conftest import (
     assert_success_response,
     create_admin_headers,
     create_admin_user,
+    patch_feedback_processor_secret,
     register_and_get_token,
 )
 
@@ -480,9 +481,7 @@ class TestFeedbackWorkflowIntegration:
         3. PATCH /api/feedback/{id}/processed marks it as processed.
         4. GET /api/feedback/pending no longer lists it.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = TEST_FEEDBACK_SECRET
-
+        with patch_feedback_processor_secret(TEST_FEEDBACK_SECRET):
             # Submit feedback
             submit_response = await client.post(
                 "/api/feedback",
@@ -523,9 +522,7 @@ class TestFeedbackWorkflowIntegration:
         Validates ordering of secret-check vs lookup: secret is verified
         BEFORE the lookup, so a valid secret + bad id yields 404.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = TEST_FEEDBACK_SECRET
-
+        with patch_feedback_processor_secret(TEST_FEEDBACK_SECRET):
             response = await client.patch(
                 f"/api/feedback/nonexistent-id/processed?secret={TEST_FEEDBACK_SECRET}",
                 json={"github_issue_url": "https://github.com/example/issues/1"},
@@ -534,9 +531,7 @@ class TestFeedbackWorkflowIntegration:
 
     async def test_pending_endpoint_rejects_wrong_secret(self, client: AsyncClient) -> None:
         """Wrong secret on /pending returns 403 even with submitted feedback present."""
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = TEST_FEEDBACK_SECRET
-
+        with patch_feedback_processor_secret(TEST_FEEDBACK_SECRET):
             await client.post(
                 "/api/feedback",
                 json={

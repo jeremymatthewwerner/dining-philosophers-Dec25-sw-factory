@@ -23,6 +23,7 @@ from tests.conftest import (
     create_admin_headers,
     create_test_conversation,
     get_auth_headers,
+    patch_feedback_processor_secret,
     register_and_get_token,
 )
 
@@ -470,9 +471,7 @@ class TestFeedbackIntegrationPaths:
 
     async def test_get_pending_feedback_returns_submitted_items(self, client: AsyncClient) -> None:
         """get_pending_feedback returns items from DB (lines 160-182)."""
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = "test-secret-pend"
-
+        with patch_feedback_processor_secret("test-secret-pend"):
             # Submit feedback with a distinct IP to keep it isolated
             await client.post(
                 "/api/feedback",
@@ -503,9 +502,7 @@ class TestFeedbackIntegrationPaths:
 
     async def test_get_pending_feedback_with_limit_parameter(self, client: AsyncClient) -> None:
         """get_pending_feedback respects the limit parameter."""
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = "test-secret-lim"
-
+        with patch_feedback_processor_secret("test-secret-lim"):
             # Submit multiple feedback items from different IPs
             for i in range(3):
                 await client.post(
@@ -528,9 +525,7 @@ class TestFeedbackIntegrationPaths:
 
     async def test_mark_feedback_processed_success(self, client: AsyncClient) -> None:
         """mark_feedback_processed updates status and returns response (lines 201-220)."""
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = "proc-secret-ok"
-
+        with patch_feedback_processor_secret("proc-secret-ok"):
             # Submit feedback
             submit_response = await client.post(
                 "/api/feedback",
@@ -558,9 +553,7 @@ class TestFeedbackIntegrationPaths:
 
     async def test_mark_feedback_processed_not_found_404(self, client: AsyncClient) -> None:
         """mark_feedback_processed returns 404 for non-existent feedback."""
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = "proc-secret-nf"
-
+        with patch_feedback_processor_secret("proc-secret-nf"):
             response = await client.patch(
                 "/api/feedback/nonexistent-feedback-id/processed",
                 params={"secret": "proc-secret-nf"},

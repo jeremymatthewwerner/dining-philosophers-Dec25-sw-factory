@@ -27,6 +27,7 @@ from app.models import Conversation, Message, Session, User
 from app.models.message import SenderType
 from tests.conftest import (
     create_admin_headers,
+    patch_feedback_processor_secret,
     register_and_get_token,
 )
 
@@ -635,9 +636,7 @@ class TestFeedbackWorkflowIntegration:
         Tests the full integration chain: POST /api/feedback → GET /api/feedback/pending.
         """
         secret = "test-feedback-secret"
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = secret
-
+        with patch_feedback_processor_secret(secret):
             # Submit feedback (no secret needed for submit)
             submit_response = await client.post(
                 "/api/feedback",
@@ -666,9 +665,7 @@ class TestFeedbackWorkflowIntegration:
         Tests that feedback moves from NEW to REVIEWED state.
         """
         secret = "integration-test-secret"
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            mock_settings.return_value.feedback_processor_secret = secret
-
+        with patch_feedback_processor_secret(secret):
             # Step 1: Submit feedback
             submit = await client.post(
                 "/api/feedback",
