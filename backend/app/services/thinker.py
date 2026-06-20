@@ -312,7 +312,7 @@ Return ONLY the JSON array, no other text.{language_instruction}"""
 
         try:
             response = await self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=self.settings.anthropic_model,
                 max_tokens=1000,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -412,7 +412,7 @@ Return ONLY the JSON, no other text.{language_instruction}"""
 
         try:
             response = await self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=self.settings.anthropic_model,
                 max_tokens=500,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -605,7 +605,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
             paused_during_stream = False
             async with self.client.messages.stream(
-                model="claude-sonnet-4-20250514",
+                model=self.settings.anthropic_model,
                 max_tokens=max_tokens + 2000,  # Extra for thinking budget
                 thinking={
                     "type": "enabled",
@@ -1038,7 +1038,7 @@ Respond with ONLY what you would say as {thinker.name}, nothing else.{language_i
 
         try:
             response = await self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=self.settings.anthropic_model,
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -1524,7 +1524,7 @@ Respond with ONLY what you would say, nothing else.{language_instruction}"""
 
         try:
             response = await self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=self.settings.anthropic_model,
                 max_tokens=60,
                 messages=[{"role": "user", "content": prompt}],
             )

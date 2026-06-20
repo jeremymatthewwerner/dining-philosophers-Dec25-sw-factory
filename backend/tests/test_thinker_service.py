@@ -295,6 +295,32 @@ class TestValidateThinker:
         assert is_valid is False
         assert profile is None
 
+    async def test_validate_uses_configured_anthropic_model(self) -> None:
+        """The API call must use the centralized configured model, not a hardcoded id.
+
+        Regression guard for issue #973: the dated snapshot
+        ``claude-sonnet-4-20250514`` was retired (404). The model id is now sourced
+        from ``settings.anthropic_model`` so a single config value drives every call.
+        """
+        valid_response_json = """{
+                "valid": true,
+                "profile": {
+                    "name": "Socrates",
+                    "bio": "Ancient Greek philosopher",
+                    "positions": "Socratic method",
+                    "style": "Questions everything"
+                }
+            }"""
+        service, mock_client = make_service_with_mock_response(valid_response_json)
+        service.settings.anthropic_model = "claude-test-model-xyz"
+
+        await service.validate_thinker("Socrates")
+
+        mock_client.messages.create.assert_awaited()
+        used_model = mock_client.messages.create.call_args.kwargs["model"]
+        assert used_model == "claude-test-model-xyz"
+        assert used_model != "claude-sonnet-4-20250514"
+
 
 class TestGenerateResponse:
     """Tests for generate_response method."""
