@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     # Anthropic API
     anthropic_api_key: str = ""
 
+    # Anthropic model id for thinker suggestion/response/validation calls.
+    # Centralized here so there is a single source of truth instead of hardcoding
+    # a dated model snapshot in multiple call sites (which silently rots when the
+    # snapshot is retired and starts returning 404). See issue #973.
+    anthropic_model: str = "claude-sonnet-4-6"
+
     # Application settings
     debug: bool = False
 

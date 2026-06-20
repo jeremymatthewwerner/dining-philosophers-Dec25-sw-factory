@@ -29,6 +29,27 @@ class TestAsyncDatabaseUrl:
         assert settings.async_database_url == "postgresql+asyncpg://user:pass@host:5432/db"
 
 
+class TestAnthropicModel:
+    """Tests for the centralized Anthropic model id (issue #973)."""
+
+    def test_default_model_is_a_current_non_dated_id(self) -> None:
+        """Default model must be a current alias, not a retired dated snapshot.
+
+        The dated snapshot ``claude-sonnet-4-20250514`` was retired and started
+        returning 404 from the Anthropic API, breaking all suggestion/validation
+        paths. Guard against re-introducing a hardcoded dead snapshot.
+        """
+        settings = Settings()
+        assert settings.anthropic_model == "claude-sonnet-4-6"
+        # Never the retired snapshot that 404s.
+        assert settings.anthropic_model != "claude-sonnet-4-20250514"
+
+    def test_model_is_overridable_via_env(self) -> None:
+        """The model id should be configurable via environment override."""
+        settings = Settings(anthropic_model="claude-opus-4-8")
+        assert settings.anthropic_model == "claude-opus-4-8"
+
+
 class TestTestMode:
     """Tests for test mode configuration."""
 
