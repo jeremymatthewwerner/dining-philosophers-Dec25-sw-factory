@@ -2,6 +2,41 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.30 Coverage Sprint: `src/app/page.tsx` Home page (Added 2026-06-22)
+
+**Focus**: Monday QA (coverage-sprint). The backend is effectively saturated
+(99.66% with only unreachable async-loop branches remaining), so the sprint
+targeted the single largest frontend gap: **`src/app/page.tsx` was at 0%
+coverage** — 333 lines of the main application shell with no unit tests at all.
+
+**New test file**: `frontend/src/__tests__/app/home.test.tsx` (34 tests).
+
+The `Home` component is the app's top-level orchestrator: it owns all
+conversation state, wires the WebSocket hook into the message list, and renders
+the `Sidebar` / `ChatArea` / `ResizeDivider` / `NewChatModal`. The tests mock the
+child components (capturing their props so callbacks can be invoked directly) and
+mock `@/hooks` (`useWebSocket`), `@/contexts` (`useAuth`, `useLanguage`),
+`@/lib/api`, and `next/navigation`.
+
+**What the tests validate**:
+
+| Area | Cases |
+|------|-------|
+| Rendering states | loading indicator while auth loads; redirect to `/login` when unauthenticated; renders `null` once auth is lost after load settles; full shell when authenticated |
+| Conversation loading | loads on mount and passes summaries to Sidebar; logs + recovers when the load fails |
+| Selection | loads/displays selected conversation; closes sidebar on mobile widths; logs on failure |
+| Deletion | removes from list; clears current conversation when it is the deleted one; logs on failure |
+| Sending messages | no-op without a current conversation; sends + notifies WebSocket; surfaces non-401 errors; swallows 401 errors (no banner) |
+| Creating conversations | prepends new conversation and makes it current; closes sidebar on mobile widths |
+| Thinker suggest/validate | delegates `suggestThinkers` with current locale; returns profile when valid; returns `null` when invalid |
+| Logout | calls `logout()` then navigates to `/login` |
+| WebSocket onMessage | appends messages + accumulates session cost; bumps matching sidebar summary for thinker messages; leaves non-matching summaries untouched; does not bump count for free user messages |
+| WebSocket onError | flags spend-limit on spend-limit errors; sets generic error otherwise; dismiss callback clears the banner |
+| Sidebar width / toggle | restores valid saved width from localStorage; ignores out-of-range width; persists new width on resize; toggles open state; opens the new-chat modal |
+
+**Coverage impact**: `src/app/page.tsx` 0% → **100% statements / 100% lines /
+94.4% branches**. Tests verified stable across 3 consecutive runs (no flakiness).
+
 ## 1.29 Test Refactoring: `test_regression_prevention_jan25_2026.py` → conftest helpers (Added 2026-06-12)
 
 **Focus**: Friday QA (test-refactoring). Audited every backend test file for inline
