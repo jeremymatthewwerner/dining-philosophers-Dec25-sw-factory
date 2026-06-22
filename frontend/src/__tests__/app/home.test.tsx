@@ -63,7 +63,9 @@ const mockWsConfig: {
     onMessage: (message: Message) => void;
     onError: (message: string) => void;
   };
-} = { current: { conversationId: null, onMessage: () => {}, onError: () => {} } };
+} = {
+  current: { conversationId: null, onMessage: () => {}, onError: () => {} },
+};
 const mockWs = {
   isConnected: true,
   isPaused: false,
