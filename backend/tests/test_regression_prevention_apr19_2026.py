@@ -63,6 +63,7 @@ from app.models.feedback import FeedbackStatus
 from app.models.feedback import FeedbackType as FeedbackTypeModel
 from tests.conftest import (
     get_auth_headers,
+    patch_feedback_processor_secret,
     register_and_get_token,
 )
 
@@ -188,11 +189,7 @@ class TestFeedbackSecretValidation:
         is removed, an unconfigured server would accept ANY secret string
         (including empty string) and expose all pending feedback.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            settings = MagicMock()
-            settings.feedback_processor_secret = ""  # Not configured
-            mock_settings.return_value = settings
-
+        with patch_feedback_processor_secret(""):  # Not configured
             response = await client.get("/api/feedback/pending?secret=any-secret")
         assert response.status_code == 503
         assert "not configured" in response.json()["detail"].lower()
@@ -206,11 +203,7 @@ class TestFeedbackSecretValidation:
         unauthorized callers can enumerate all pending user feedback,
         potentially exposing email addresses and private bug reports.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            settings = MagicMock()
-            settings.feedback_processor_secret = "correct-secret"
-            mock_settings.return_value = settings
-
+        with patch_feedback_processor_secret("correct-secret"):
             response = await client.get("/api/feedback/pending?secret=wrong-secret")
         assert response.status_code == 403
         assert "Invalid secret" in response.json()["detail"]
@@ -223,11 +216,7 @@ class TestFeedbackSecretValidation:
         Regression guard: Same as get_pending, the mark-processed endpoint also
         requires the secret. Both endpoints share verify_feedback_processor_secret().
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            settings = MagicMock()
-            settings.feedback_processor_secret = ""
-            mock_settings.return_value = settings
-
+        with patch_feedback_processor_secret(""):
             response = await client.patch(
                 "/api/feedback/nonexistent-id/processed?secret=any-secret",
                 json={"github_issue_url": "https://github.com/org/repo/issues/1"},
@@ -241,11 +230,7 @@ class TestFeedbackSecretValidation:
         must be rejected. Without this check, the GitHub issue URL field could
         be overwritten by unauthorized callers to point to malicious URLs.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            settings = MagicMock()
-            settings.feedback_processor_secret = "correct-secret"
-            mock_settings.return_value = settings
-
+        with patch_feedback_processor_secret("correct-secret"):
             response = await client.patch(
                 "/api/feedback/nonexistent-id/processed?secret=wrong-secret",
                 json={"github_issue_url": "https://github.com/org/repo/issues/1"},
@@ -259,11 +244,7 @@ class TestFeedbackSecretValidation:
         must return 404. If the not-found check is removed, the endpoint would
         try to set status on a None object, causing a 500 error.
         """
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            settings = MagicMock()
-            settings.feedback_processor_secret = "test-secret"
-            mock_settings.return_value = settings
-
+        with patch_feedback_processor_secret("test-secret"):
             response = await client.patch(
                 "/api/feedback/does-not-exist/processed?secret=test-secret",
                 json={"github_issue_url": "https://github.com/org/repo/issues/1"},
@@ -292,11 +273,7 @@ class TestFeedbackSecretValidation:
         await db_session.refresh(feedback)
 
         github_url = "https://github.com/org/repo/issues/99"
-        with patch("app.api.feedback.get_settings") as mock_settings:
-            settings = MagicMock()
-            settings.feedback_processor_secret = "test-secret"
-            mock_settings.return_value = settings
-
+        with patch_feedback_processor_secret("test-secret"):
             response = await client.patch(
                 f"/api/feedback/{feedback.id}/processed?secret=test-secret",
                 json={"github_issue_url": github_url},

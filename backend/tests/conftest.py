@@ -2,6 +2,7 @@
 
 import gc
 from collections.abc import AsyncGenerator, Generator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -950,6 +951,60 @@ def mock_feedback_processor_secret() -> Generator[str, None, None]:
     with patch("app.api.feedback.get_settings") as mock_settings:
         mock_settings.return_value.feedback_processor_secret = TEST_FEEDBACK_PROCESSOR_SECRET
         yield TEST_FEEDBACK_PROCESSOR_SECRET
+
+
+@contextmanager
+def patch_feedback_processor_secret(
+    secret: str = TEST_FEEDBACK_PROCESSOR_SECRET,
+) -> Generator[str, None, None]:
+    """Patch app.api.feedback.get_settings to return the given processor secret.
+
+    Context-manager form of the ``mock_feedback_processor_secret`` fixture, for
+    the common inline pattern that wraps one or more requests with a specific
+    secret value. It replaces both the 1-line shape:
+
+        with patch("app.api.feedback.get_settings") as mock_settings:
+            mock_settings.return_value.feedback_processor_secret = "my-secret"
+            response = await client.get("/api/feedback/pending?secret=my-secret")
+
+    and the verbose 4-line shape:
+
+        with patch("app.api.feedback.get_settings") as mock_settings:
+            settings = MagicMock()
+            settings.feedback_processor_secret = "my-secret"
+            mock_settings.return_value = settings
+            response = await client.get("/api/feedback/pending?secret=my-secret")
+
+    with a single intent-revealing line:
+
+        with patch_feedback_processor_secret("my-secret"):
+            response = await client.get("/api/feedback/pending?secret=my-secret")
+
+    This inline pattern appeared 19+ times across test_regression_prevention_apr19_2026.py,
+    test_integration_gaps_feb25_2026.py, test_edge_cases_apr4_2026.py,
+    test_integration_gaps_may6_2026.py, and test_integration_gaps_apr22_2026.py.
+
+    Unlike the fixture (which forces TEST_FEEDBACK_PROCESSOR_SECRET at whole-test
+    scope), this context manager takes the secret as an argument and only patches
+    for the duration of the ``with`` block, so a single test can exercise both the
+    "configured" and "unconfigured" branches.
+
+    Args:
+        secret: The feedback_processor_secret value to expose (default:
+            TEST_FEEDBACK_PROCESSOR_SECRET). Pass "" to simulate an
+            unconfigured server (the 503 branch).
+
+    Yields:
+        The configured secret string, so callers can interpolate it into the
+        request URL without re-declaring the literal.
+
+    Example:
+        >>> with patch_feedback_processor_secret("s3cret") as secret:
+        ...     resp = await client.get(f"/api/feedback/pending?secret={secret}")
+    """
+    with patch("app.api.feedback.get_settings") as mock_settings:
+        mock_settings.return_value.feedback_processor_secret = secret
+        yield secret
 
 
 @pytest.fixture

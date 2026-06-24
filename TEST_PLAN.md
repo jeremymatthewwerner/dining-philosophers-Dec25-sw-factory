@@ -2,6 +2,38 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.30 Test Refactoring: `patch_feedback_processor_secret` context manager (Added 2026-06-19)
+
+**Focus**: Friday QA (test-refactoring). Centralized the inline
+`with patch("app.api.feedback.get_settings") as mock_settings:` ladder used to
+stub the feedback processor secret. This boilerplate appeared **19 times across
+5 test files**, in two shapes: a terse 1-line variant
+(`mock_settings.return_value.feedback_processor_secret = "..."`) and a verbose
+4-line `settings = MagicMock(); ...; mock_settings.return_value = settings`
+variant.
+
+**New helper** (`backend/tests/conftest.py`):
+- `patch_feedback_processor_secret(secret=TEST_FEEDBACK_PROCESSOR_SECRET)` — a
+  `@contextmanager` that patches `app.api.feedback.get_settings` to expose the
+  given `feedback_processor_secret` for the duration of the `with` block, and
+  yields the secret for URL interpolation. Complements the existing
+  `mock_feedback_processor_secret` fixture (whole-test scope, fixed secret) by
+  allowing a per-block, parametrized secret — including `""` for the
+  "unconfigured server → 503" branch.
+
+**Call sites refactored** (pure refactor, no behavior change — all 185 tests in
+the affected files pass, verified 3×):
+| File | Occurrences | Shape collapsed |
+|------|-------------|-----------------|
+| `test_regression_prevention_apr19_2026.py` | 6 | 4-line `MagicMock` ladder → 1 line |
+| `test_integration_gaps_feb25_2026.py` | 4 | 2-line inline patch → 1 line |
+| `test_edge_cases_apr4_2026.py` | 4 | 2-line inline patch → 1 line |
+| `test_integration_gaps_may6_2026.py` | 3 | 2-line inline patch → 1 line |
+| `test_integration_gaps_apr22_2026.py` | 2 | 2-line inline patch → 1 line |
+
+Each test now reads as intent (`with patch_feedback_processor_secret("s3cret"):`)
+instead of repeating the mock-wiring boilerplate.
+
 ## 1.29 Test Refactoring: `test_regression_prevention_jan25_2026.py` → conftest helpers (Added 2026-06-12)
 
 **Focus**: Friday QA (test-refactoring). Audited every backend test file for inline
