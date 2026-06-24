@@ -1169,3 +1169,242 @@ test.describe('Settings Page Rendering Performance', () => {
     }
   });
 });
+
+test.describe('Settings & Mutation API Performance', () => {
+  test.describe.configure({ mode: 'parallel' });
+
+  test('PATCH /api/auth/language responds within 2 seconds', async ({
+    page,
+  }) => {
+    // Language preference is saved with a single PATCH whenever the user
+    // switches locale in settings. The UI re-renders all translated strings
+    // on the response, so a slow write makes the whole app feel laggy. Guards
+    // against a regression that adds a synchronous translation reload or an
+    // unindexed write to this path.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+    expect(token).toBeTruthy();
+
+    const startTime = Date.now();
+    const response = await page.request.patch(
+      'http://localhost:8000/api/auth/language',
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { language_preference: 'es' },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(INTERACTION_TIMEOUT);
+  });
+
+  test('POST /api/auth/change-password responds within 3 seconds', async ({
+    page,
+  }) => {
+    // Password change runs bcrypt verify + hash, the most CPU-heavy auth
+    // operation. 3s is a generous budget that still catches a regression
+    // bumping the bcrypt cost factor too high or adding a slow side-effect
+    // (e.g., a synchronous email send) to the change-password path.
+    await page.goto('/');
+    const username = `pwperf_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
+    const oldPassword = 'testpass123';
+    const registerResp = await page.request.post(
+      'http://localhost:8000/api/auth/register',
+      {
+        data: { username, display_name: 'Pw Perf', password: oldPassword },
+      }
+    );
+    expect(registerResp.ok()).toBe(true);
+    const token = (await registerResp.json()).access_token as string;
+
+    const startTime = Date.now();
+    const response = await page.request.post(
+      'http://localhost:8000/api/auth/change-password',
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          current_password: oldPassword,
+          new_password: 'newtestpass456',
+        },
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(API_TIMEOUT);
+  });
+
+  test('PUT /api/conversations/{id}/thinkers responds within 2 seconds', async ({
+    page,
+  }) => {
+    // Adding a thinker to an existing conversation inserts a row and kicks off
+    // background knowledge research (fire-and-forget). The endpoint must not
+    // block on that research — if a regression makes thinker-add await the
+    // research call, this test trips. Guards the "add another voice" UX.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+    const conv = await createConversationViaAPI(page, 'Add-thinker perf', [
+      'Socrates',
+    ]);
+
+    const startTime = Date.now();
+    const response = await page.request.put(
+      `http://localhost:8000/api/conversations/${conv.id}/thinkers`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        data: [
+          {
+            name: 'Hypatia',
+            bio: 'A notable thinker.',
+            positions: 'Various positions',
+            style: 'Analytical',
+          },
+        ],
+      }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    expect(elapsed).toBeLessThan(INTERACTION_TIMEOUT);
+  });
+
+  test('5 parallel single-conversation reads complete within 3 seconds', async ({
+    page,
+  }) => {
+    // The sidebar can issue several GET /api/conversations/{id} reads in quick
+    // succession (e.g., prefetch on hover, or a user clicking through threads
+    // fast). Firing 5 in parallel should complete close to the slowest single
+    // read, not 5x — this verifies the backend serves concurrent reads without
+    // serializing them behind a single connection or lock.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+
+    // Create 5 conversations to read back
+    const convs = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        createConversationViaAPI(page, `Parallel-read perf #${i + 1}`, [
+          'Plato',
+        ])
+      )
+    );
+
+    const startTime = Date.now();
+    const responses = await Promise.all(
+      convs.map((c) =>
+        page.request.get(`http://localhost:8000/api/conversations/${c.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      )
+    );
+    const elapsed = Date.now() - startTime;
+
+    for (const response of responses) {
+      expect(response.ok()).toBe(true);
+    }
+    // 5 sequential reads at ~1s each = 5s; parallel should be well under that
+    expect(elapsed).toBeLessThan(API_TIMEOUT);
+  });
+});
+
+test.describe('Reject & Not-Found Path Performance', () => {
+  test.describe.configure({ mode: 'parallel' });
+
+  test('unauthenticated GET /api/conversations returns 401 within 1 second', async ({
+    page,
+  }) => {
+    // The auth-reject path on a protected list endpoint must be cheap: no DB
+    // query for the conversation list should run before the token check fails.
+    // A regression that moves the auth dependency after the query (or queries
+    // on a missing session) would slow this down.
+    await page.goto('/');
+
+    const startTime = Date.now();
+    const response = await page.request.get(
+      'http://localhost:8000/api/conversations'
+    );
+    const elapsed = Date.now() - startTime;
+
+    // No/invalid token → 401 (or 403 depending on dependency); never a 5xx
+    expect([401, 403]).toContain(response.status());
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  test('GET non-existent conversation returns 404 within 2 seconds', async ({
+    page,
+  }) => {
+    // The not-found path still runs the ownership query but must return
+    // quickly. Guards against a regression that eager-loads messages/thinkers
+    // before checking existence, turning a cheap 404 into an expensive query.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+
+    const startTime = Date.now();
+    const response = await page.request.get(
+      'http://localhost:8000/api/conversations/nonexistent-id-12345',
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.status()).toBe(404);
+    expect(elapsed).toBeLessThan(INTERACTION_TIMEOUT);
+  });
+
+  test('DELETE non-existent conversation returns 404 within 2 seconds', async ({
+    page,
+  }) => {
+    // Deleting an already-gone conversation (e.g., a double-click race, or a
+    // stale sidebar) must fail fast with 404, not hang or 500. Guards the
+    // idempotency of the delete path under stale client state.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+
+    const startTime = Date.now();
+    const response = await page.request.delete(
+      'http://localhost:8000/api/conversations/nonexistent-id-67890',
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.status()).toBe(404);
+    expect(elapsed).toBeLessThan(INTERACTION_TIMEOUT);
+  });
+
+  test('fresh user empty conversation list returns within 2 seconds', async ({
+    page,
+  }) => {
+    // A brand-new user has zero conversations. The list endpoint must return
+    // an empty array fast — the per-conversation message-count aggregation
+    // should be a no-op when there are no rows. Guards against a regression
+    // that runs an expensive join even on the empty set.
+    await setupAuthenticatedUser(page);
+    const token = await page.evaluate(() =>
+      localStorage.getItem('access_token')
+    );
+
+    const startTime = Date.now();
+    const response = await page.request.get(
+      'http://localhost:8000/api/conversations',
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const elapsed = Date.now() - startTime;
+
+    expect(response.ok()).toBe(true);
+    const body = await response.json();
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBe(0);
+    expect(elapsed).toBeLessThan(INTERACTION_TIMEOUT);
+  });
+});
