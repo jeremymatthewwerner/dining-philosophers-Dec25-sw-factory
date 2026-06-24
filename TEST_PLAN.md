@@ -2,6 +2,53 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.30 Edge Cases: Bug-report UA parsing + export mention rendering (Added 2026-06-20)
+
+**Focus**: Saturday QA (edge-cases). Backend coverage is already at 99.66%, with the only
+remaining gaps being effectively unreachable defensive branches in `app/services/thinker.py`
+(the empty-sentence `continue` in `_split_response_into_bubbles` cannot trigger because the
+input is `.strip()`ed, and the async `_thinker_loop` throttle/idle branches are not unit-testable
+in isolation). The genuine edge-case opportunity was in two frontend pure-function utilities with
+low branch coverage.
+
+### New tests in `frontend/src/utils/__tests__/bugReport.test.ts` (`getBrowserInfo` via `generateBugReportUrl`)
+
+Brought `bugReport.ts` from **96.22% stmts / 74.28% branch → 100% / 100%**.
+
+- **Windows NT version mapping** (parametrized): `10.0 → Windows 10/11`, `6.3 → Windows 8.1`,
+  `6.2 → Windows 8`, `6.1 → Windows 7` — covers each explicit version branch.
+- **Unknown Windows NT version** (`NT 5.1`/XP) falls back to generic `Windows`.
+- **Windows NT with no version digits** (`Windows NT)`) — regex match is null, `version=''`
+  falls through to generic `Windows`.
+- **Unrecognized OS keyword** → `Unknown OS`.
+- **Browser version-regex fallbacks** (parametrized + individual): `Edg/`, `Chrome/`,
+  `Firefox/`, and `Safari/` present but with no parseable version → bare browser name, no
+  version suffix appended.
+- **Unrecognized browser** → `Unknown Browser`.
+- **OS version-regex fallbacks** (parametrized): `Android`, `iPhone`/iOS, and `Mac OS X`
+  present without a version → bare OS name.
+
+### New tests in `frontend/src/__tests__/lib/export.test.ts`
+
+Brought `export.ts` from **90.93% stmts / 73.8% branch → 99.52% / 81.13%** (remaining
+lines 86-87 are unreachable — a regex-matched mention name is always a key in the thinker map).
+
+- **Mention rendering — initial avatar**: message content mentioning a thinker with no
+  `image_url` produces a `mention` + `mention-initial` highlight span with the thinker's initial.
+- **Mention rendering — image avatar**: a thinker with an `image_url` produces a `mention-avatar`
+  `<img>` in the highlighted mention.
+- **No thinkers**: `renderMentionsHtml` falls back to plain HTML-escaping (no `mention` spans)
+  while still escaping unsafe markup.
+- **`exportAsHtml` / `exportAsMarkdown`**: trigger a file download with a sanitized filename
+  (`Philosophy-Discussion-export.html` / `.md`) and a click on the download link.
+- **Long-topic filename truncation**: an 80-char topic is sliced to 50 chars in the export
+  filename.
+
+### Verification
+
+All 56 tests in the two suites pass, run 3× with no flakiness. Full frontend suite: 716 passed
+(up from 695). Backend unchanged at 99.66%.
+
 ## 1.29 Test Refactoring: `test_regression_prevention_jan25_2026.py` → conftest helpers (Added 2026-06-12)
 
 **Focus**: Friday QA (test-refactoring). Audited every backend test file for inline
