@@ -7614,3 +7614,54 @@ branch:
 **Result**: `middleware.ts` 0% → 100% (all metrics); overall frontend statement
 coverage 88.41% → 89.1%; full suite 695 passed (was 675), verified stable across
 3 consecutive runs.
+
+## 34. Integration Gaps (Wednesday QA, Jun 24, 2026) — `src/__tests__/components/FeedbackModal.integration-gaps.test.tsx`
+
+The existing `FeedbackModal.test.tsx` covered the happy-path file upload,
+validation errors, and submission flow, but left the screenshot **drag-and-drop**,
+**clipboard paste**, **FileReader error**, and **modal-close cleanup** paths
+untested — `FeedbackModal.tsx` sat at 87.7% statements / **54.9% branch**. These
+are all real user-facing integration flows. This file adds end-to-end tests that
+fire the actual DOM events and drive the FileReader callbacks.
+
+### 34.1 Clipboard paste (`handlePaste`)
+
+- **Pastes an image** — fires a `paste` event whose `clipboardData.items`
+  contains an `image/png` item, drives `FileReader.onload`, and asserts the
+  preview renders with the auto-generated `screenshot-<timestamp>.png` filename.
+- **No clipboard items** — `clipboardData.items` is `undefined`; the early
+  return leaves the dropzone untouched (no preview).
+- **Only non-image items** — a `text/plain` item is ignored (the loop never
+  calls `getAsFile`), no preview appears.
+
+### 34.2 Drag and drop (`handleDragOver` / `handleDragLeave` / `handleDrop`)
+
+- **Drag over highlights, drag leave reverts** — `dragOver` flips the dropzone
+  into the "Drop image here" state; a `dragLeave` whose `relatedTarget` is
+  outside the dropzone reverts it to "Upload screenshot".
+- **Dropped image is processed** — `drop` with an `image/png` file in
+  `dataTransfer.files` drives `FileReader.onload` and renders the filename.
+- **Drop with no files** — empty `dataTransfer.files` is a no-op.
+- **Drop of a disallowed type** — a `text/plain` file is skipped by the
+  `ALLOWED_TYPES` guard; the dropzone remains and no preview is created.
+
+### 34.3 FileReader error (`processFile` `reader.onerror`)
+
+- **File read failure** — drives `FileReader.onerror`, asserts the
+  "Failed to read screenshot file" error renders and the preview object URL is
+  revoked (`URL.revokeObjectURL`), guarding against memory leaks on failure.
+
+### 34.4 File input edge case (`handleFileChange`)
+
+- **Dialog cancelled (no file)** — a `change` event with an empty `files` list
+  takes the no-file branch (clears screenshot / resets upload state) and leaves
+  the dropzone in place.
+
+### 34.5 Modal close cleanup (reset `useEffect`)
+
+- **Object URL revoked on close** — uploads a screenshot, then re-renders with
+  `isOpen={false}`; the reset effect revokes the preview object URL.
+
+**Result**: `FeedbackModal.tsx` 87.7% → **96.48%** statements, 54.9% → **62.71%**
+branch, functions **100%**. Remaining uncovered lines are defensive i18n `||`
+fallback strings. Verified stable across 3 consecutive runs (10/10 passing).
