@@ -16,14 +16,18 @@
  *   1. No `page.waitForTimeout(...)` calls   (arbitrary sleeps — top anti-pattern)
  *   2. Every `waitForLoadState('networkidle')` is bounded with a `{ timeout }`
  *      (an unbounded networkidle wait can hang an entire worker)
- *   3. No per-test `test.setTimeout(...)` above 120s
- *   4. No per-call `{ timeout: N }` above 60s
- *   5. playwright.config keeps CI parallelism: fullyParallel + >=4 CI workers,
+ *   3. networkidle waits are bounded BELOW a sane cap (networkidle is the
+ *      slowest/most-fragile wait type; a 60s networkidle is a known anti-pattern)
+ *   4. No per-test `test.setTimeout(...)` above 120s
+ *   5. No per-call `{ timeout: N }` above 60s
+ *   6. playwright.config keeps CI parallelism: fullyParallel + >=4 CI workers,
  *      a bounded global test timeout, and a bounded expect timeout
- *   6. No spec opts into serial mode (`mode: 'serial'` / `test.describe.serial`),
+ *   7. No spec opts into serial mode (`mode: 'serial'` / `test.describe.serial`),
  *      which overrides fullyParallel and silently serializes a whole file
- *   7. playwright.config retries on CI so a single transient flake doesn't fail
+ *   8. playwright.config retries on CI so a single transient flake doesn't fail
  *      the whole E2E job and force an expensive full re-run
+ *   9. playwright.config does not enable always-on tracing (`trace: 'on'`), which
+ *      records a trace for EVERY test and materially slows the whole suite
  *
  * Thresholds have headroom over the current suite so legitimate tests are not
  * penalised — they exist to catch runaway values, not to micro-manage.
@@ -39,6 +43,10 @@ const PLAYWRIGHT_CONFIG = join(__dirname, '..', '..', 'playwright.config.ts');
 const MAX_TEST_TIMEOUT_MS = 120_000;
 const MAX_CALL_TIMEOUT_MS = 60_000;
 const MAX_GLOBAL_TEST_TIMEOUT_MS = 120_000;
+// networkidle is the slowest/most-fragile wait type, so it gets a tighter cap
+// than generic per-call timeouts. Current suite max is 15s; 30s leaves headroom
+// while still catching the 60s networkidle anti-pattern.
+const MAX_NETWORKIDLE_TIMEOUT_MS = 30_000;
 
 /** Strip // line comments and block comments so call-site checks ignore prose. */
 function stripComments(src: string): string {
@@ -82,6 +90,24 @@ describe('E2E performance-hygiene guard', () => {
         const unbounded =
           code.match(/waitForLoadState\(\s*(['"`])networkidle\1\s*\)/g) ?? [];
         expect(unbounded).toHaveLength(0);
+      }
+    );
+  });
+
+  describe('networkidle waits stay below a sane cap', () => {
+    it.each(listSpecFiles().map((f) => [f]))(
+      '%s has no networkidle wait above the cap',
+      (file) => {
+        const code = stripComments(readFileSync(file, 'utf-8'));
+        const offenders: number[] = [];
+        // Match waitForLoadState('networkidle', { timeout: N }) and capture N.
+        const re =
+          /waitForLoadState\(\s*(['"`])networkidle\1\s*,\s*\{[^}]*?timeout:\s*(\d+)/g;
+        for (const m of code.matchAll(re)) {
+          const value = Number(m[2]);
+          if (value > MAX_NETWORKIDLE_TIMEOUT_MS) offenders.push(value);
+        }
+        expect(offenders).toEqual([]);
       }
     );
   });
@@ -165,6 +191,16 @@ describe('E2E performance-hygiene guard', () => {
       expect(m).not.toBeNull();
       expect(Number(m?.[1])).toBeGreaterThan(0);
       expect(Number(m?.[1])).toBeLessThanOrEqual(MAX_CALL_TIMEOUT_MS);
+    });
+
+    it('does not enable always-on tracing', () => {
+      // `trace: 'on'` records a Playwright trace for EVERY test, which adds
+      // significant per-test overhead across the whole suite. Conditional modes
+      // like 'on-first-retry' or 'retain-on-failure' only pay that cost when a
+      // test actually fails, so they are the performant choice.
+      const m = config.match(/trace:\s*(['"`])([^'"`]+)\1/);
+      expect(m).not.toBeNull();
+      expect(m?.[2]).not.toBe('on');
     });
   });
 });
