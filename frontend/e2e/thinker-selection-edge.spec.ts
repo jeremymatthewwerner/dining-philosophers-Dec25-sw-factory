@@ -35,14 +35,17 @@ test.describe('Thinker Selection Edge Cases', () => {
     const addButton = page.getByTestId('add-custom-thinker');
     await addButton.click();
 
-    // Wait for either thinker added OR error - use Promise.race with longer timeout
+    // Wait for either thinker added OR error. The two element-based waits below
+    // are the real signals and already bound at 60s (real Claude API validation
+    // is slow). A `waitForLoadState('networkidle', { timeout: 60000 })` was
+    // previously also raced here, but it was redundant (same 60s ceiling, no
+    // extra signal) and networkidle is the slowest/most-fragile wait type.
     const thinkerSelector = page.getByTestId('selected-thinker');
     const errorSelector = page.locator('text=/invalid|not found|too long|error/i');
 
     await Promise.race([
       thinkerSelector.waitFor({ timeout: 60000 }).catch(() => {}),
       errorSelector.waitFor({ timeout: 60000 }).catch(() => {}),
-      page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {}),
     ]);
 
     // Either validation rejects it, or it's accepted (possibly truncated)
@@ -209,14 +212,15 @@ test.describe('Thinker Selection Edge Cases', () => {
 
     await page.getByTestId('add-custom-thinker').click();
 
-    // Wait for either thinker added OR error - use Promise.race with longer timeout
+    // Wait for either thinker added OR error. As above, the two element-based
+    // waits are the real signals (bounded at 60s for slow real-API validation);
+    // the previously-raced 60s networkidle wait was redundant and removed.
     const thinkerSelector = page.getByTestId('selected-thinker');
     const errorSelector = page.locator('text=/invalid|not found|error/i');
 
     await Promise.race([
       thinkerSelector.waitFor({ timeout: 60000 }).catch(() => {}),
       errorSelector.waitFor({ timeout: 60000 }).catch(() => {}),
-      page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {}),
     ]);
 
     // Should either accept or reject

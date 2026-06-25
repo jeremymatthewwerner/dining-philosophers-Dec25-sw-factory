@@ -2,6 +2,43 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.30 E2E Performance: Remove 60s networkidle anti-pattern + Guard Caps (Added 2026-06-25)
+
+**Focus**: Thursday QA (e2e-performance). The Playwright suite is already in
+excellent shape — **0** real `page.waitForTimeout()` calls, all 24 spec files
+on `mode: 'parallel'`, `fullyParallel: true` + 4 CI workers — and the co-located
+jest guard `e2e-performance-guard.test.ts` (§1.28) already locks most of that in.
+This session removed the **last remaining slow-wait anti-pattern** and tightened
+the guard so it can't come back.
+
+**Anti-pattern fixed** (`frontend/e2e/thinker-selection-edge.spec.ts`):
+- Two `Promise.race([...])` blocks (the "very long thinker name" and "special
+  characters" cases) raced a `page.waitForLoadState('networkidle', { timeout:
+  60000 })` alongside two element-based waits that *also* bound at 60s. The
+  networkidle leg was **redundant** (identical 60s ceiling, no extra signal) and
+  networkidle is the slowest / most-fragile wait type. Removed both; the
+  element-based success/error waits remain the real signals. Behaviour-preserving
+  (same 60s worst-case ceiling, same assertions), but drops the redundant
+  network-settle wait that could otherwise stall a manual run for the full 60s.
+- After the fix, the max networkidle timeout anywhere in the suite is **15s**
+  (down from 60s).
+
+**Guard extended** (`frontend/src/__tests__/e2e-performance-guard.test.ts`,
+now 151 assertions, browser-less static analysis):
+
+| New check | What It Validates |
+|-----------|-------------------|
+| networkidle ≤ 30s cap (per spec file) | Every `waitForLoadState('networkidle', { timeout: N })` keeps `N ≤ 30000`. networkidle gets a tighter cap than the generic 60s per-call cap because it is the slowest wait type; this catches the 60s-networkidle anti-pattern at PR time. Headroom over the current 15s max. |
+| no always-on tracing (config) | `playwright.config.ts` `trace` is not `'on'`. Always-on tracing records a trace for *every* test and materially slows the whole suite; conditional modes like `'on-first-retry'` only pay that cost on failure. |
+
+**Verification**:
+- Jest guard passes **3 runs in a row** (151 assertions, no browser/backend), ~0.55s each.
+- New regexes spot-checked against synthetic violations: the networkidle cap flags
+  `timeout: 60000` and ignores `timeout: 15000`; the trace check flags `trace: 'on'`
+  and passes `trace: 'on-first-retry'`.
+- `npm run typecheck` clean; the edited spec still parses (comments-only change to
+  the surrounding prose, redundant wait removed).
+
 ## 1.29 Test Refactoring: `test_regression_prevention_jan25_2026.py` → conftest helpers (Added 2026-06-12)
 
 **Focus**: Friday QA (test-refactoring). Audited every backend test file for inline
