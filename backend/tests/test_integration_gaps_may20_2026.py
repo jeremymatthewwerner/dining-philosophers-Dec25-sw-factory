@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tests.conftest import (
     assert_error_response,
     assert_success_response,
+    bearer_header,
     create_admin_headers,
     get_auth_headers,
     register_and_get_token,
@@ -392,7 +393,7 @@ class TestLanguagePreferenceCrossFlowIntegration:
         )
         data = assert_success_response(reg, 200)
         assert data["user"]["language_preference"] == "fr"
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         me = await client.get("/api/auth/me", headers=headers)
         assert me.json()["language_preference"] == "fr"
@@ -453,7 +454,7 @@ class TestAdminSpendLimitVisibilityIntegration:
         user_data = await register_and_get_token(client, "spend_target", "Password1!")
         user_id = user_data["user"]["id"]
         username = user_data["user"]["username"]
-        user_headers = {"Authorization": f"Bearer {user_data['access_token']}"}
+        user_headers = bearer_header(user_data)
 
         # Admin updates the spend limit to a specific value
         new_limit = 42.50

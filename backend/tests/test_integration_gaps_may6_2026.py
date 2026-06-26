@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tests.conftest import (
     assert_error_response,
     assert_success_response,
+    bearer_header,
     create_admin_headers,
     create_admin_user,
     register_and_get_token,
@@ -49,7 +50,7 @@ class TestAuthLifecycleIntegration:
         a subsequent GET /api/auth/me call.
         """
         data = await register_and_get_token(client, "lifecycle_user1", "Password1!")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         new_name = "Updated Display Name"
         patch_response = await client.patch(
@@ -76,7 +77,7 @@ class TestAuthLifecycleIntegration:
         username = "pw_change_user"
 
         data = await register_and_get_token(client, username, old_password)
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         change_response = await client.post(
             "/api/auth/change-password",
@@ -117,7 +118,7 @@ class TestAuthLifecycleIntegration:
             json={"username": username, "password": original_password},
         )
         token = login.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         bad_attempt = await client.post(
             "/api/auth/change-password",
@@ -142,7 +143,7 @@ class TestAuthLifecycleIntegration:
         username = "lang_persist_user"
         password = "Password3!"
         data = await register_and_get_token(client, username, password)
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         await client.patch(
             "/api/auth/language",
@@ -168,7 +169,7 @@ class TestAuthLifecycleIntegration:
         new_password = "NewStateless2!"
 
         data = await register_and_get_token(client, username, old_password)
-        old_headers = {"Authorization": f"Bearer {data['access_token']}"}
+        old_headers = bearer_header(data)
 
         change_response = await client.post(
             "/api/auth/change-password",
@@ -229,7 +230,7 @@ class TestAdminPermissionCascadeIntegration:
         After the failed delete, the admin can still authenticate via /me.
         """
         admin_data = await create_admin_user(client, db_session, "self_del_admin", "AdminPass2!")
-        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        admin_headers = bearer_header(admin_data)
         admin_id = admin_data["user"]["id"]
 
         delete_response = await client.delete(f"/api/admin/users/{admin_id}", headers=admin_headers)
@@ -251,7 +252,7 @@ class TestAdminPermissionCascadeIntegration:
         admin_headers = await create_admin_headers(client, db_session, "spend_admin", "AdminPass3!")
 
         target = await register_and_get_token(client, "spend_target", "TargetPass2!")
-        target_headers = {"Authorization": f"Bearer {target['access_token']}"}
+        target_headers = bearer_header(target)
         target_id = target["user"]["id"]
 
         new_limit = 25.50
@@ -273,7 +274,7 @@ class TestAdminPermissionCascadeIntegration:
         Verifies require_admin dependency is consistently applied.
         """
         data = await register_and_get_token(client, "non_admin_user", "RegularPass1!")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
         user_id = data["user"]["id"]
 
         endpoints = [
@@ -566,7 +567,7 @@ class TestSessionsIntegration:
         /api/sessions/me decodes the JWT and returns it.
         """
         data = await register_and_get_token(client, "session_me_user", "SessionPass1!")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         response = await client.get("/api/sessions/me", headers=headers)
         session_data = assert_success_response(response, 200)
@@ -610,7 +611,7 @@ class TestAuthAdminBoundaryIntegration:
 
         # Register as regular user
         data = await register_and_get_token(client, "future_admin", "FuturePass1!")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
         user_id = data["user"]["id"]
 
         # Confirm denied access first

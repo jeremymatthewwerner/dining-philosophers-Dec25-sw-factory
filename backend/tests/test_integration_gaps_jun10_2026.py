@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import (
     assert_success_response,
+    bearer_header,
     create_admin_headers,
     create_conversation_with_thinker,
     register_and_get_token,
@@ -56,7 +57,7 @@ class TestSpendReflectsRestCreatedConversations:
         )
 
         user = await register_and_get_token(client, "multi_conv_user", "UserPw1!")
-        user_headers = {"Authorization": f"Bearer {user['access_token']}"}
+        user_headers = bearer_header(user)
         user_id = user["user"]["id"]
 
         topics = ["Ethics of AI", "Free will debate", "Nature of beauty"]
@@ -90,11 +91,11 @@ class TestSpendReflectsRestCreatedConversations:
         )
 
         user_a = await register_and_get_token(client, "spend_alice", "AlicePw1!")
-        headers_a = {"Authorization": f"Bearer {user_a['access_token']}"}
+        headers_a = bearer_header(user_a)
         id_a = user_a["user"]["id"]
 
         user_b = await register_and_get_token(client, "spend_bob", "BobPw1!")
-        headers_b = {"Authorization": f"Bearer {user_b['access_token']}"}
+        headers_b = bearer_header(user_b)
 
         await create_conversation_with_thinker(client, headers_a, "Alice only")
         await create_conversation_with_thinker(client, headers_b, "Bob one")
@@ -126,7 +127,7 @@ class TestUserMessagesDoNotInflateSpend:
         admin_headers = await create_admin_headers(client, db_session, "msg_admin_j10", "AdminPw3!")
 
         user = await register_and_get_token(client, "msg_user", "UserPw2!")
-        user_headers = {"Authorization": f"Bearer {user['access_token']}"}
+        user_headers = bearer_header(user)
         user_id = user["user"]["id"]
 
         conv_id = await create_conversation_with_thinker(client, user_headers, "Costless topic")
@@ -169,7 +170,7 @@ class TestDeleteConversationDropsFromSpend:
         admin_headers = await create_admin_headers(client, db_session, "del_admin_j10", "AdminPw4!")
 
         user = await register_and_get_token(client, "del_spend_user", "UserPw3!")
-        user_headers = {"Authorization": f"Bearer {user['access_token']}"}
+        user_headers = bearer_header(user)
         user_id = user["user"]["id"]
 
         keep_id = await create_conversation_with_thinker(client, user_headers, "Keep me")
@@ -218,7 +219,7 @@ class TestSessionIdConsistencyAcrossEndpoints:
         )
 
         user = await register_and_get_token(client, "link_user", "UserPw4!")
-        user_headers = {"Authorization": f"Bearer {user['access_token']}"}
+        user_headers = bearer_header(user)
         user_id = user["user"]["id"]
 
         # Session id as reported by /sessions/me.

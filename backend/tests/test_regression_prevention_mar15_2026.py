@@ -44,7 +44,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import get_auth_headers, register_and_get_token
+from tests.conftest import bearer_header, get_auth_headers, register_and_get_token
 
 
 class TestThinkerColorAssignment:
@@ -350,7 +350,7 @@ class TestSpendAPIEndpoints:
         Non-admin users should get 403, not 200 with data or 401.
         """
         data = await register_and_get_token(client, username="spendtest1", password="testpass123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
         user_id = data["user"]["id"]
 
         response = await client.get(f"/api/spend/{user_id}", headers=headers)
@@ -385,7 +385,7 @@ class TestSpendAPIEndpoints:
             admin_token = create_access_token(
                 data={"sub": admin_data["user"]["id"], "session_id": "fake-session"}
             )
-            admin_headers = {"Authorization": f"Bearer {admin_token}"}
+            admin_headers = bearer_header(admin_token)
 
             # Use a fake user ID that definitely doesn't exist
             fake_user_id = "00000000-0000-0000-0000-000000000000"
@@ -453,7 +453,7 @@ class TestAuthFlows:
         # Verify the token actually works
         me_response = await client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {data['access_token']}"},
+            headers=bearer_header(data),
         )
         assert me_response.status_code == 200
         assert me_response.json()["username"] == "nosession_user"
@@ -545,7 +545,7 @@ class TestAuthFlows:
         # Fetch /me to verify it persisted
         me_response = await client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {data['access_token']}"},
+            headers=bearer_header(data),
         )
         assert me_response.status_code == 200
         assert me_response.json()["language_preference"] == "es", (

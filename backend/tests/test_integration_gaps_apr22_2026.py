@@ -26,6 +26,7 @@ from app.api.websocket import (
 from app.models import Conversation, Message, Session, User
 from app.models.message import SenderType
 from tests.conftest import (
+    bearer_header,
     create_admin_headers,
     register_and_get_token,
 )
@@ -794,7 +795,7 @@ class TestSessionConversationIntegrationChain:
         )
         assert register_response.status_code == 200
         token = register_response.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Step 2: Get current session
         session_response = await client.get("/api/sessions/me", headers=headers)

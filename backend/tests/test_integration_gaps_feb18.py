@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Conversation, ConversationThinker, Message, Session, User
 from app.models.message import SenderType
-from tests.conftest import create_test_conversation, get_auth_headers
+from tests.conftest import bearer_header, create_test_conversation, get_auth_headers
 
 
 class TestConversationsIntegration:
@@ -341,7 +341,7 @@ class TestAdminIntegration:
         from app.core.auth import create_access_token
 
         admin_token = create_access_token({"sub": admin.id, "session_id": admin_session.id})
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # Create a regular user with multiple sessions
         user = User(
@@ -392,7 +392,7 @@ class TestAdminIntegration:
         await async_session.commit()
 
         admin_token = create_access_token({"sub": admin.id, "session_id": admin_session.id})
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # Create a regular user
         user = User(
@@ -465,7 +465,7 @@ class TestAdminIntegration:
         await async_session.commit()
 
         admin_token = create_access_token({"sub": admin.id, "session_id": admin_sess.id})
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # Create the user to delete with all related data
         user = User(username="deleteuser_casc", password_hash=get_password_hash("userpass"))

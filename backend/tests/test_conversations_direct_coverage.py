@@ -13,7 +13,7 @@ Issue: #544
 
 from httpx import AsyncClient
 
-from tests.conftest import create_thinker_input, get_auth_headers
+from tests.conftest import bearer_header, create_thinker_input, get_auth_headers
 
 
 class TestCreateConversationThinkerLoop:
@@ -228,7 +228,7 @@ class TestSendMessageEndpoint:
             },
         )
         token = reg_resp.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Create conversation
         conv_resp = await client.post(

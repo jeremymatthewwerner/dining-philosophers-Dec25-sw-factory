@@ -24,6 +24,7 @@ from app.models.message import SenderType
 from app.services.thinker import thinker_service
 from tests.conftest import (
     assert_success_response,
+    bearer_header,
     create_admin_headers,
     get_auth_headers,
     register_and_get_token,
@@ -96,7 +97,7 @@ class TestSpendHierarchyIntegration:
         # Create the regular user
         user_data = await register_and_get_token(client, "spend_target_user", "Password1!")
         user_id = user_data["user"]["id"]
-        user_headers = {"Authorization": f"Bearer {user_data['access_token']}"}
+        user_headers = bearer_header(user_data)
 
         create = await client.post(
             "/api/conversations",
@@ -134,7 +135,7 @@ class TestSpendHierarchyIntegration:
         """
         user_data = await register_and_get_token(client, "spend_cost_user", "Password1!")
         user_id = user_data["user"]["id"]
-        user_headers = {"Authorization": f"Bearer {user_data['access_token']}"}
+        user_headers = bearer_header(user_data)
 
         create = await client.post(
             "/api/conversations",
@@ -347,7 +348,7 @@ class TestDeleteCascadeSpendVisibility:
         """
         user_data = await register_and_get_token(client, "delete_spend_user", "Password1!")
         user_id = user_data["user"]["id"]
-        user_headers = {"Authorization": f"Bearer {user_data['access_token']}"}
+        user_headers = bearer_header(user_data)
 
         create = await client.post(
             "/api/conversations",
@@ -485,7 +486,7 @@ class TestAuthorizationBoundaryAcrossEndpoints:
         """
         user_data = await register_and_get_token(client, "boundary_user", "Password1!")
         user_id = user_data["user"]["id"]
-        headers = {"Authorization": f"Bearer {user_data['access_token']}"}
+        headers = bearer_header(user_data)
 
         # /me succeeds
         me_resp = await client.get("/api/auth/me", headers=headers)

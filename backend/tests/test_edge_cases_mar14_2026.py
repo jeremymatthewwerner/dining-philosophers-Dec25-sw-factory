@@ -26,6 +26,7 @@ from tests.conftest import (
     assert_not_found,
     assert_unauthorized,
     assert_validation_error,
+    bearer_header,
     get_auth_headers,
 )
 
@@ -343,7 +344,7 @@ class TestAuthJWTEdgeCases:
 
         response = await client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {expired_token}"},
+            headers=bearer_header(expired_token),
         )
         assert_unauthorized(response)
 
@@ -375,7 +376,7 @@ class TestAuthJWTEdgeCases:
 
         response = await client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=bearer_header(token),
         )
         assert_unauthorized(response)
 
@@ -401,7 +402,7 @@ class TestAuthJWTEdgeCases:
         token = reg_response.json()["access_token"]
         response = await client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=bearer_header(token),
         )
         assert response.status_code == 200
 
@@ -422,7 +423,7 @@ class TestSessionsTokenEdgeCases:
 
         response = await client.get(
             "/api/sessions/me",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=bearer_header(token),
         )
         # Should get 401 for missing session_id
         assert_unauthorized(response, "Invalid token")
@@ -442,7 +443,7 @@ class TestSessionsTokenEdgeCases:
 
         response = await client.get(
             "/api/sessions/me",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=bearer_header(token),
         )
         assert_not_found(response)
 
@@ -459,7 +460,7 @@ class TestSessionsTokenEdgeCases:
 
         response = await client.get(
             "/api/conversations",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=bearer_header(token),
         )
         assert_unauthorized(response)
 

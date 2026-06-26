@@ -33,10 +33,10 @@ class TestConversationKnowledgeResearch:
         - Validates: knowledge_service.trigger_research() is called for each thinker
         """
         # Import the helper function directly
-        from tests.conftest import register_and_get_token
+        from tests.conftest import bearer_header, register_and_get_token
 
         data = await register_and_get_token(client)
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         # Mock the knowledge service to verify trigger_research is called
         # knowledge_service is imported inside the function, so patch at import site
@@ -89,10 +89,10 @@ class TestConversationKnowledgeResearch:
 
         Edge case: Single thinker conversation should still trigger research.
         """
-        from tests.conftest import register_and_get_token
+        from tests.conftest import bearer_header, register_and_get_token
 
         data = await register_and_get_token(client)
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         with patch(
             "app.services.knowledge_research.knowledge_service.trigger_research"
@@ -132,10 +132,10 @@ class TestConversationKnowledgeResearch:
 
         Edge case: All 5 thinkers should have research triggered.
         """
-        from tests.conftest import register_and_get_token
+        from tests.conftest import bearer_header, register_and_get_token
 
         data = await register_and_get_token(client)
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         with patch(
             "app.services.knowledge_research.knowledge_service.trigger_research"

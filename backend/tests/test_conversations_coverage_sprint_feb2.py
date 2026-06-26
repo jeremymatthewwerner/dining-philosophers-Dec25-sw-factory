@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 
 from httpx import AsyncClient
 
-from tests.conftest import get_auth_headers
+from tests.conftest import bearer_header, get_auth_headers
 
 
 class TestCreateConversationColorCycling:
@@ -692,7 +692,7 @@ class TestSendMessageDisplayName:
         )
         assert login_response.status_code == 200
         token = login_response.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Create conversation
         conv_response = await client.post(

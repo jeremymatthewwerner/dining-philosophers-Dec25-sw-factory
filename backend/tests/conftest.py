@@ -254,6 +254,37 @@ async def client(engine: AsyncEngine) -> AsyncGenerator["AsyncClient", None]:
 
 
 # Test helper functions
+def bearer_header(token_or_data: "str | dict[str, Any]") -> dict[str, str]:
+    """Build an ``Authorization: Bearer <token>`` header dict.
+
+    Centralizes the idiom that appears 50+ times across the test suite:
+
+        headers = {"Authorization": f"Bearer {data['access_token']}"}
+
+    Accepts either a raw token string or an auth-response dict (as returned by
+    :func:`register_and_get_token`), so call sites that already hold the
+    registration ``data`` can pass it directly without indexing ``access_token``:
+
+        data = await register_and_get_token(client, "user", "pass")
+        headers = bearer_header(data)          # dict form
+        headers = bearer_header(data["access_token"])  # token-string form
+
+    Args:
+        token_or_data: A JWT string, or a dict containing an ``access_token`` key.
+
+    Returns:
+        A dict with a single ``Authorization`` header.
+
+    Example:
+        >>> bearer_header("abc")
+        {'Authorization': 'Bearer abc'}
+        >>> bearer_header({"access_token": "xyz"})
+        {'Authorization': 'Bearer xyz'}
+    """
+    token = token_or_data["access_token"] if isinstance(token_or_data, dict) else token_or_data
+    return {"Authorization": f"Bearer {token}"}
+
+
 async def register_and_get_token(
     client: "AsyncClient",
     username: str = "testuser",
@@ -303,7 +334,7 @@ async def get_auth_headers(
         Dictionary with Authorization header
     """
     data = await register_and_get_token(client, username, password)
-    return {"Authorization": f"Bearer {data['access_token']}"}
+    return bearer_header(data)
 
 
 async def create_test_conversation(
@@ -870,7 +901,7 @@ async def create_admin_headers(
         >>> response = await client.get("/api/admin/users", headers=headers)
     """
     admin_data = await create_admin_user(client, db_session, username, password)
-    return {"Authorization": f"Bearer {admin_data['access_token']}"}
+    return bearer_header(admin_data)
 
 
 # Feedback test helpers (test refactoring - Friday QA focus, 2026-05-29)

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_password_hash
 from app.models import Conversation, Session, User
-from tests.conftest import assert_error_response, assert_success_response
+from tests.conftest import assert_error_response, assert_success_response, bearer_header
 
 # Test secret for DevOps API
 TEST_DEVOPS_SECRET = "test-devops-secret"
@@ -86,7 +86,7 @@ class TestAdminIntegration:
             json={"username": "admin_list_test", "password": "AdminPassword123!"},
         )
         admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # List users
         response = await client.get("/api/admin/users", headers=admin_headers)
@@ -134,7 +134,7 @@ class TestAdminIntegration:
             json={"username": "admin_no_conv", "password": "AdminPassword123!"},
         )
         admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # List users
         response = await client.get("/api/admin/users", headers=admin_headers)
@@ -169,7 +169,7 @@ class TestAdminIntegration:
             json={"username": "admin_delete_test", "password": "AdminPassword123!"},
         )
         admin_token = login_response.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # Try to delete nonexistent user
         response = await client.delete(
