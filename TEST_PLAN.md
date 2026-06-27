@@ -7702,3 +7702,62 @@ fire the actual DOM events and drive the FileReader callbacks.
 **Result**: `FeedbackModal.tsx` 87.7% → **96.48%** statements, 54.9% → **62.71%**
 branch, functions **100%**. Remaining uncovered lines are defensive i18n `||`
 fallback strings. Verified stable across 3 consecutive runs (10/10 passing).
+
+## 35. Edge Cases (Saturday QA, Jun 27, 2026) — `src/__tests__/components/NewChatModal.edge-cases.test.tsx`
+
+Targets the error and edge branches of `NewChatModal.tsx`, which sat at
+**84.28%** statements with most non-happy-path logic uncovered. The base
+`NewChatModal.test.tsx` already covered open/close, the topic → thinker-step
+flow, and a successful create.
+
+### 35.1 Escape key handling
+
+- **Escape closes the modal** — a `keydown` with `key: 'Escape'` invokes
+  `onClose` (lines 80-84).
+- **Other keys are ignored** — `Enter` and printable keys do not trigger
+  `onClose`.
+- **No listener when closed** — with `isOpen={false}` the Escape handler is
+  never registered, so `onClose` is not called.
+
+### 35.2 `handleCreate` error handling
+
+- **`Failed to fetch` → friendly network message** — a rejected `onCreate`
+  whose message contains "failed to fetch" surfaces the localized network
+  error and leaves the modal open for retry (lines 141-147).
+- **`network` substring → network message** — any message containing
+  "network" is treated as a connectivity failure.
+- **Generic Error → verbatim message** — a non-network `Error` message is shown
+  as-is (line 148).
+- **Non-Error rejection → default message** — rejecting with a plain string
+  falls back to `errorCreateConversation` (line 149).
+
+### 35.3 `handleSelectThinker` auto-fetch replacement
+
+- **Appends a fresh suggestion** — selecting a thinker triggers a 1-item
+  replacement fetch with the selected name excluded, and the unique result is
+  appended to the visible suggestions (lines 160-191).
+- **Dedupes duplicate replacement** — a replacement matching an existing name
+  is filtered out rather than appended (lines 179-189).
+- **Silently ignores a failed fetch** — a rejected replacement fetch is
+  swallowed with no error banner; the selection still succeeds (lines 192-196).
+
+### 35.4 `handleRemoveThinker`
+
+- **Removes a selected thinker** — clicking the remove control drops the
+  thinker from the selected list (lines 202-204).
+
+### 35.5 `handleRefreshSuggestion`
+
+- **Replaces with a fresh unique suggestion** — refreshing swaps the stale
+  suggestion for a new unique one (lines 206-242).
+- **Removes stale when no unique replacement** — a non-unique replacement
+  causes the original suggestion to be dropped (lines 240-241).
+- **Error path surfaces a message** — a rejected refresh fetch shows the
+  error message (lines 243-248).
+- **Non-Error rejection → default message** — rejecting with a plain string
+  falls back to `errorGetReplacement` (line 247).
+
+**Result**: `NewChatModal.tsx` 84.28% → **99%** statements, 86% → **92.2%**
+branch, functions **100%**. Remaining uncovered lines are an unreachable
+disabled-button guard (121-123) and a defensive i18n `||` fallback (147).
+Verified stable across 3 consecutive runs (15/15 passing).
