@@ -1,3 +1,49 @@
+## Regression Prevention - Sunday QA (Added 2026-06-28)
+
+**Focus**: Pin the behavioral and source-level invariants of the *freshest*
+shipped fix that no earlier Sunday regression suite has had a chance to guard.
+Backend coverage is already ~99.7% (496 branches), so the highest-leverage QA
+work continues to be "if you change the implementation, this test breaks"
+guards for fixes whose current tests don't structurally enforce them.
+
+The newest merged `fix(...)` commit is **#978** (commit 6860aa4, June 20 2026):
+*centralize Anthropic model id, replace retired 404ing snapshot*. The hardcoded
+`claude-sonnet-4-20250514` was retired and 404'd from every thinker
+suggestion/response/streaming/validation call. The fix replaced **five**
+hardcoded copies in `thinker.py` with a single source of truth,
+`settings.anthropic_model`. The merged fix only pinned the config default and
+*one* of the five call sites (`validate_thinker`), leaving a real regression
+gap: nothing fails if a future refactor re-hardcodes a dated snapshot at any of
+the other four call sites — that breakage would only surface against the live
+API, long after a green CI run.
+
+### Tests Added (test_regression_prevention_jun28_2026.py)
+
+**File**: `tests/test_regression_prevention_jun28_2026.py` (13 new tests, all pass 3x stable in ~1.5s)
+
+**TestAnthropicModelConfigContract** (4 tests) — the config field that is the single source of truth:
+- `test_settings_exposes_anthropic_model_as_str`: the centralized `anthropic_model` field exists and is a non-empty `str`; its absence would `AttributeError` every call site.
+- `test_default_model_is_not_any_dated_snapshot`: the default is a rolling alias, not *any* 8-digit dated snapshot (`claude-...-YYYYMMDD`) — guards the regression *class*, since every dated snapshot eventually retires and 404s.
+- `test_anthropic_model_overridable_via_environment`: the `ANTHROPIC_MODEL` env var overrides the field (the path Railway actually uses, which the merged suite never exercised).
+- `test_thinker_service_reads_model_from_its_settings`: a fresh `ThinkerService` exposes the field on `self.settings`, tying the config field to the call-site access path.
+
+**TestThinkerModelCentralizationSource** (5 tests) — AST/source-level guards proving centralization is total:
+- `test_retired_snapshot_literal_absent_from_source`: the specific retired 404ing literal appears nowhere in `thinker.py`.
+- `test_no_dated_snapshot_literal_in_any_string_constant`: no string constant in the module's AST is a dated Anthropic snapshot.
+- `test_every_anthropic_call_passes_model_from_settings`: *every* `messages.create`/`messages.stream` call reads `self.settings.anthropic_model` (not a constant) — covers all five sites at once, including the streaming path that is impractical to exercise behaviorally.
+- `test_all_anthropic_calls_carry_an_explicit_model_kwarg`: no Anthropic call relies on an implicit/default model.
+- `test_expected_centralized_model_call_site_count`: exactly five call sites are centralized — a new uncentralized site (count rises) or a dropped one (count falls) both surface as a reviewed change.
+
+**TestThinkerModelCentralizationBehavioral** (4 tests) — per-call-site proof the configured model reaches the API kwargs, for the four sites the merged fix never pinned:
+- `test_suggest_thinkers_single_batch_uses_configured_model`: small-count `suggest_thinkers` (`_suggest_single_batch`, line 314).
+- `test_suggest_thinkers_parallel_batches_use_configured_model`: every fan-out call in the count>2 parallel path uses the config model.
+- `test_generate_response_uses_configured_model`: the non-streaming fallback (line 1040).
+- `test_generate_user_prompt_uses_configured_model`: the "invite the quiet user back" prompt (line 1526).
+
+**Verification**: mutation-tested by re-introducing the retired snapshot at a call site — the source, count, and behavioral guards all fail as intended, then pass once reverted. Full suite collects cleanly (1820 tests).
+
+---
+
 ## Integration Gaps - Wednesday QA (Added 2026-06-10)
 
 **Focus**: Cross-endpoint workflows centered on the spend aggregation endpoint
