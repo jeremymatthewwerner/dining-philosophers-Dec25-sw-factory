@@ -7702,3 +7702,86 @@ fire the actual DOM events and drive the FileReader callbacks.
 **Result**: `FeedbackModal.tsx` 87.7% → **96.48%** statements, 54.9% → **62.71%**
 branch, functions **100%**. Remaining uncovered lines are defensive i18n `||`
 fallback strings. Verified stable across 3 consecutive runs (10/10 passing).
+
+## 35. Coverage Sprint: Home page (`src/app/page.tsx`) 0% → 100% (Added 2026-06-29)
+
+**Focus**: Monday QA (coverage-sprint). The backend is effectively maxed out
+(99.66%), so the largest remaining gap was the entire Home/chat orchestration
+page — **`src/app/page.tsx`, previously 0% across 333 lines**. It is the surface
+that wires together the auth redirect, conversation loading, the WebSocket
+message/error callbacks, the send/create/delete/select handlers, sidebar width
+persistence and the spend-limit display, yet had no unit coverage at all.
+
+New test file: `frontend/src/__tests__/app/page.test.tsx` (39 tests). Child
+components (`Sidebar`, `ChatArea`, `NewChatModal`, `ResizeDivider`), the
+`useWebSocket` hook, the auth/language contexts and the `@/lib/api` layer are
+mocked so the tests exercise the page's own logic in isolation. The mocked
+children expose buttons/`data-testid`s that invoke the page's callbacks, and the
+`useWebSocket` mock captures the `onMessage`/`onError` options so those callbacks
+can be driven directly.
+
+### 35.1 Loading & auth gating
+- **Loading state** — renders "Loading..." while `authLoading` is true; sidebar
+  absent.
+- **Unauthenticated redirect** — `router.replace('/login')` fires and
+  conversations are not fetched.
+- **Null render after logout** — an authenticated session that flips to
+  unauthenticated (after loading completed) renders nothing and redirects.
+- **Main layout** — once conversations load, Sidebar/ChatArea/NewChatModal render
+  with the conversation count and username.
+
+### 35.2 Conversation list loading
+- **Populates sidebar** from `api.getConversations`.
+- **Error finally path** — a failed fetch still clears the loading state and
+  logs the error.
+
+### 35.3 Sidebar width persistence (localStorage)
+- **Restore valid** saved width; **ignore out-of-range** width (keeps 288px
+  default); **default** when nothing saved; **save on resize** persists the new
+  width to localStorage.
+
+### 35.4 Selecting a conversation
+- **Loads conversation + messages**; **closes sidebar on mobile**
+  (`innerWidth < 1024`); **stays open on desktop**; **error path** logs and
+  leaves no active conversation.
+
+### 35.5 Deleting a conversation
+- **Removes non-active** conversation; **clears the active** conversation and its
+  messages when the current one is deleted; **error path** logs and keeps the
+  conversation.
+
+### 35.6 Sending messages
+- **No active conversation** → early return, no API call; **success** sends via
+  API + notifies over WebSocket and appends the message; **non-401 error**
+  surfaces an error banner; **401 error** stays silent (handled by redirect).
+
+### 35.7 Creating conversations
+- **Prepend + activate** the new conversation with an empty message list;
+  **closes sidebar on mobile** after creation.
+
+### 35.8 Thinker suggestions & validation
+- **Suggest** forwards the current `locale` to `api.suggestThinkers`;
+  **validate** returns the profile for a valid thinker and `null` for an invalid
+  one.
+
+### 35.9 Modal, logout & toggles
+- **Modal open/close**, **sidebar toggle**, and **logout** (calls `logout` then
+  `router.push('/login')`).
+
+### 35.10 WebSocket callbacks
+- **onMessage** — appends the message and accrues cost to session spend; updates
+  the matching conversation summary only for thinker messages; user messages
+  still accrue cost but skip the summary update; no-cost messages leave spend
+  unchanged; non-matching conversation ids are appended without crashing.
+- **onError** — flags `spendLimitExceeded` for "spend limit" errors, shows a
+  generic message otherwise, and supports dismissal.
+
+### 35.11 Spend display
+- Passes combined `userTotalSpend` (`total_spend + sessionCost`) and
+  `userSpendLimit` to ChatArea; falls back to the default limit (10) and zero
+  spend when user fields are absent/falsy.
+
+**Result**: `src/app/page.tsx` **0% → 100% statements / 98.66% branch**
+(the only uncovered branch is a structurally-unreachable defensive
+`if (!isAuthenticated) return` guard inside the load effect). Full frontend
+suite 730 → **769 tests passing**. Verified stable across 3 consecutive runs.
