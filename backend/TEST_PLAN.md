@@ -2034,3 +2034,45 @@ All 20 tests verified passing across 5 consecutive runs (~1.3s each, no flakines
 ### Stability Verification
 
 All 7 tests verified passing across 3 consecutive runs (~0.8s each, no flakiness). Mutation check (`speed_mult**0.3` → `**0.5`) confirmed 3 tests fail on the regression and all 7 pass again once reverted. The full backend suite (1758 passed, 10 skipped) runs cleanly with the new tests included. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
+
+---
+
+## Flaky Test Hunt - Tuesday QA (Added 2026-06-30)
+
+**Issue**: #997
+**Focus**: Pin the cap-override **interactions** in `_should_respond` (`thinker.py:1576-1600`) — behaviors produced by the *order* in which the probability-mutating statements run, which no single-boundary test exercises.
+
+### Analysis Results
+
+- Full backend suite: **1807 tests collected**, runs clean (0 failures observed).
+- The random/timing-prone subset (357 tests matching `flaky`, `random`, `bubble`, `split`, `should_respond`, `should_prompt`, `thinking_display`, `choose_response`, `choose_style`, `strategy`, `randint`, `mention`, `silence`, `addressed`) ran **5× back-to-back** — 357 passed, 1 skipped every run (~25s). **No flakiness detected.**
+- **Gap found**: prior sessions pinned every *individual* boundary and cap of `_should_respond`, but the **cap-override interactions** — where one block's cap silently overrides another's — were unguarded. `_should_respond` computes its probability via a sequence of mutating statements; the order is load-bearing:
+  - `was_addressed` caps at **0.95**, but the silence block runs *afterward* and re-caps at **0.9** → adding `consecutive_silence ≥ 3` to an addressed thinker *lowers* its response probability (0.95 → 0.9). Verified: roll 0.91 responds when addressed-alone but stays silent once silence is added.
+  - `@mention` is **immune** to the silence boost (`and not was_at_mentioned`) → stays at 0.98 regardless of `consecutive_silence`.
+  - the self-last-message **0.05 floor** is applied *after* the silence boost → it wins; a thinker whose own message is last stays at 0.05 even at `consecutive_silence=100`.
+
+### Tests Added (test_flaky_hunt_jun30_2026.py)
+
+**File**: `tests/test_flaky_hunt_jun30_2026.py` (12 new tests)
+
+#### TestAddressedSilenceCapInteraction
+1. `test_addressed_alone_threshold_is_0_95` — addressed, silence=0 → roll 0.94 responds (cap 0.95).
+2. `test_addressed_alone_roll_0_96_stays_silent` — addressed, silence=0 → roll 0.96 > 0.95 → silent.
+3. `test_addressed_plus_silence_recaps_at_0_9_responds_below` — addressed + silence=3 → roll 0.89 responds (cap drops to 0.9).
+4. `test_addressed_plus_silence_recaps_at_0_9_silent_above` — addressed + silence=3 → roll 0.91 > 0.9 → silent. The crux: 0.91 responds addressed-alone but is silenced once silence lowers the cap. A reorder of the addressed/silence blocks flips this.
+5. `test_silence_lowers_addressed_probability_is_directional` — same roll 0.91: responds addressed-alone, silent addressed+silence. Pins the *direction* of the interaction independent of exact cap values.
+
+#### TestAtMentionImmuneToSilence
+6. `test_at_mention_threshold_0_98_unaffected_by_zero_silence` — @mention, silence=0 → roll 0.97 responds, 0.99 silent (cap 0.98).
+7. `test_at_mention_threshold_0_98_unchanged_at_high_silence` — @mention, silence=100 → roll 0.97 still responds. Dropping the `and not was_at_mentioned` guard would boost toward 0.9 and flip this.
+8. `test_at_mention_roll_0_99_silent_even_at_high_silence` — @mention, silence=100 → roll 0.99 silent (silence does not raise the 0.98 cap).
+
+#### TestSelfMessageOverrideWinsOverSilence
+9. `test_self_message_floor_0_05_responds_below` — self-message, silence=0 → roll 0.04 responds (floor 0.05).
+10. `test_self_message_floor_0_05_silent_above` — self-message, silence=0 → roll 0.06 silent.
+11. `test_self_message_floor_survives_high_silence` — self-message, silence=100 → roll 0.06 STILL silent (0.05 floor applied after the silence boost wins). Reordering the two statements would let the boost override the floor and flip this.
+12. `test_self_message_floor_responds_at_004_high_silence` — self-message, silence=100 → roll 0.04 responds (floor stays exactly 0.05, not boosted).
+
+### Stability Verification
+
+All 12 tests verified passing across 3 consecutive runs (~1s each, no flakiness). Each interaction was confirmed by direct computation against the live `_should_respond` before writing the assertion. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
