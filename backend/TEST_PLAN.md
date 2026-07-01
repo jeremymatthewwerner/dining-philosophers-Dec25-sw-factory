@@ -2076,3 +2076,25 @@ All 7 tests verified passing across 3 consecutive runs (~0.8s each, no flakiness
 ### Stability Verification
 
 All 12 tests verified passing across 3 consecutive runs (~1s each, no flakiness). Each interaction was confirmed by direct computation against the live `_should_respond` before writing the assertion. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
+
+## Integration Gaps - Wednesday QA (Added 2026-07-01)
+
+### Analysis Results
+
+Backend coverage was already at **99.66%** with every `app/api/*` endpoint file at 100% — no wholly-untested endpoints remained. The remaining reachable *integration* gaps were branch paths inside `app/services/thinker.py` that the existing suite never drove through a real code path. A brute-force search (200k random inputs) confirmed `thinker.py:733` (`if not sentence: continue` in `_split_response_into_bubbles`) is effectively unreachable dead defensive code and was intentionally left uncovered.
+
+### Tests Added (test_integration_gaps_jul1_2026.py)
+
+**File**: `tests/test_integration_gaps_jul1_2026.py` (4 new tests)
+
+#### TestStreamingInitialMessageBranch
+- `test_multi_message_history_omits_introduce_instruction` — Covers `thinker.py:557->563`. Drives `generate_response_with_streaming_thinking` with a real two-message history so `is_initial_message` is False; asserts the first-message-only "DO NOT INTRODUCE YOURSELF" instruction is absent and the actual conversation history is woven into the prompt handed to Anthropic's streaming client.
+- `test_single_message_history_includes_introduce_instruction` — Pins the True side of the same branch: a single opening message is still treated as the initial message, so the guard instruction is present. Together the two tests exercise both sides of the branch.
+
+#### TestSuggestThinkersMalformedTaskResult
+- `test_non_list_task_result_is_skipped` — Covers `thinker.py:250->242`. Patches `_suggest_single_batch` so one parallel batch resolves to a malformed `None` (neither a `list` nor an `Exception`); asserts the aggregation loop skips it without crashing and returns only the valid batch's suggestions.
+- `test_all_non_list_results_yield_empty` — Both parallel batches resolve to `None`; asserts `suggest_thinkers` returns `[]` rather than raising, confirming robustness when every gathered result is malformed.
+
+### Stability Verification
+
+All 4 tests verified passing across 3 consecutive runs (~0.6s each, no flakiness). Branch coverage confirmed via `--cov-report=term-missing`: both `557->563` and `250->242` no longer appear as partial branches. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
