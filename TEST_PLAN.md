@@ -2,6 +2,42 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.31 E2E Performance: Remove last CI-executing networkidle waits (Added 2026-07-02)
+
+**Focus**: Thursday QA (e2e-performance). Audit confirms the suite is already
+highly optimized — **0** real `page.waitForTimeout()` calls (only the single
+policy-anchor comment), all `test.describe` blocks on `mode: 'parallel'`,
+`fullyParallel: true` + 4 CI workers, and API fast-path fixtures. Of the 30
+`waitForLoadState('networkidle')` occurrences, **all but two live in
+`test.describe.skip` suites or `test.skip` cases** and never execute. CI runs
+`--project=chromium` only (`ci.yml`), so the only networkidle waits that actually
+ran were the two `Promise.race` fallbacks in `settings-edge-cases.spec.ts`.
+
+**Anti-pattern fixed** (`frontend/e2e/settings-edge-cases.spec.ts`):
+- `should reject password change with same password as current` and
+  `should handle very long display name (500 chars)` each raced a
+  `page.waitForLoadState('networkidle', { timeout: 10000 })` alongside two
+  element-based success/error `waitFor` arms that *also* bound at 10s. The
+  networkidle arm was **redundant** (same 10s ceiling, no extra signal) and,
+  worse, could win the race the instant the network settled — potentially
+  *before* the success/error message rendered, leaving the subsequent
+  point-in-time `isVisible()` checks racing the render. Removed both networkidle
+  arms; the element-based waits are now the sole signal, so the race resolves
+  only when the real UI message appears (or the 10s fallback fires).
+- Behaviour-preserving (same assertions, same 10s worst-case ceiling) but more
+  deterministic — mirrors the guidance in `performance.spec.ts:307-315` to prefer
+  event-driven waits over `networkidle` on pages with polling/WebSocket traffic.
+- After this change there are **0 executing `networkidle` waits** in the CI
+  (chromium) e2e run; the remaining occurrences are confined to skipped suites.
+
+**Verification**:
+- Backend guard `tests/test_e2e_performance_guards.py`: **20/20 pass** (including
+  the `waitForTimeout`-substring-count and policy-anchor-comment checks — the
+  anchor comment was preserved as a single `// ...Promise.race...waitForTimeout...`
+  line).
+- Frontend guard `e2e-performance-guard.test.ts`: **151/151 pass**.
+- `npm run typecheck` clean, `eslint` clean on the file, Prettier formatted.
+
 ## 1.30 E2E Performance: Remove 60s networkidle anti-pattern + Guard Caps (Added 2026-06-25)
 
 **Focus**: Thursday QA (e2e-performance). The Playwright suite is already in
