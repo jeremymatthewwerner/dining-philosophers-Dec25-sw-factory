@@ -7785,3 +7785,41 @@ can be driven directly.
 (the only uncovered branch is a structurally-unreachable defensive
 `if (!isAuthenticated) return` guard inside the load effect). Full frontend
 suite 730 → **769 tests passing**. Verified stable across 3 consecutive runs.
+
+## 36. Test Refactoring: shared mock factories (Friday QA, Jul 3, 2026) — `backend/tests/mock_factories.py`
+
+**Focus:** Friday test-refactoring — improve readability, reduce duplication.
+
+**Problem:** The backend `MagicMock` builders `_make_thinker`, `_make_message`,
+`_make_event`, `_make_delta`, and `_make_text_delta` had each been copy-pasted
+into many test modules (the flaky-hunt suites, edge-case suites, and thinker
+streaming coverage suites). The bodies were near-identical but had drifted
+slightly, so a fix to one copy could silently miss the others.
+
+**Change:** Introduced `backend/tests/mock_factories.py` as the single home for
+these builders and refactored the duplicating modules to import them, aliasing
+back to the local `_make_*` names so every existing call site is unchanged:
+
+- `make_thinker(name="Socrates", *, bio, positions, style)` — unifies the two
+  prior flavors (name-only and full-profile). Defaults populate `bio`/`positions`
+  /`style` with real strings so tests reading them get values, not auto-mocks.
+- `make_message(content, sender_name="User")` — replaces four divergent copies.
+- `make_streaming_event(event_type, **fields)` — replaces three byte-identical
+  `_make_event` copies used by the streaming handler tests.
+- `make_content_delta(*, thinking=None, text=None)` — replaces two identical
+  `_make_delta` copies; `spec` limits attributes so `hasattr` branch probing in
+  the streaming handler behaves correctly.
+- `make_text_delta(text)` — replaces the `_make_text_delta` copy.
+
+**Files refactored (10):** `test_flaky_hunt_jun2_2026.py`,
+`test_flaky_hunt_may26_2026.py`, `test_flaky_hunt_may19_2026.py`,
+`test_flaky_hunt_jun30_2026.py`, `test_edge_cases_saturday_may30_2026.py`,
+`test_edge_cases_may23_2026.py`, `test_integration_gaps_jul1_2026.py`,
+`test_thinker_coverage_sprint_may11_2026.py`,
+`test_thinker_coverage_sprint_may18_2026.py`,
+`test_edge_cases_saturday_jun13_2026.py`.
+
+**Result:** ~14 duplicate helper definitions removed in favor of one shared
+module. No test behavior changed (pure de-duplication): all 176 affected tests
+plus the full backend suite pass, verified stable across 3 consecutive runs.
+`ruff check`, `ruff format`, and `mypy` all clean.

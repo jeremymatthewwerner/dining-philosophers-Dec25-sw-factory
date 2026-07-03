@@ -32,26 +32,13 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.thinker import ThinkerService
+from tests.mock_factories import make_streaming_event as _make_event
+from tests.mock_factories import make_text_delta as _make_text_delta
+from tests.mock_factories import make_thinker as _make_thinker
 
 # ---------------------------------------------------------------------------
 # Streaming fakes (mirrors test_edge_cases_saturday_jun13_2026.py)
 # ---------------------------------------------------------------------------
-
-
-def _make_event(event_type: str, **fields: Any) -> MagicMock:
-    """Build a streaming event mock with the given attributes."""
-    event = MagicMock()
-    event.type = event_type
-    for key, value in fields.items():
-        setattr(event, key, value)
-    return event
-
-
-def _make_text_delta(text: str) -> MagicMock:
-    """A content_block_delta delta exposing only ``text`` (no ``thinking``)."""
-    delta = MagicMock(spec=["text"])
-    delta.text = text
-    return delta
 
 
 class _FakeStream:
@@ -100,15 +87,6 @@ def _service_with_capturing_stream(events: list[MagicMock]) -> tuple[ThinkerServ
     service = ThinkerService()
     service._client = mock_client
     return service, stream_mock
-
-
-def _make_thinker() -> MagicMock:
-    t = MagicMock()
-    t.name = "Socrates"
-    t.bio = "Classical philosopher"
-    t.positions = "Question everything"
-    t.style = "Dialectic"
-    return t
 
 
 def _make_message(sender_type: str, sender_name: str, content: str) -> MagicMock:

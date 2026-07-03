@@ -32,15 +32,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.thinker import ThinkerService
-
-
-def _make_thinker() -> MagicMock:
-    t = MagicMock()
-    t.name = "Socrates"
-    t.bio = "Classical philosopher"
-    t.positions = "Question everything"
-    t.style = "Dialectic"
-    return t
+from tests.mock_factories import make_thinker as _make_thinker
 
 
 def _make_user_message() -> MagicMock:

@@ -26,39 +26,13 @@ from anthropic.types import ThinkingBlock
 from app.api.websocket import SpendLimitExceeded
 from app.exceptions import BillingError, ThinkerAPIError
 from app.services.thinker import ThinkerService
+from tests.mock_factories import make_content_delta as _make_delta
+from tests.mock_factories import make_streaming_event as _make_event
+from tests.mock_factories import make_thinker as _make_thinker
 
 # ---------------------------------------------------------------------------
 # Streaming-thinking event handler tests (lines 616-672)
 # ---------------------------------------------------------------------------
-
-
-def _make_event(event_type: str, **fields: Any) -> MagicMock:
-    """Build a streaming event mock with the given attributes."""
-    event = MagicMock()
-    event.type = event_type
-    for key, value in fields.items():
-        setattr(event, key, value)
-    return event
-
-
-def _make_delta(*, thinking: str | None = None, text: str | None = None) -> MagicMock:
-    """Build a content_block_delta delta with only the requested fields.
-
-    The streaming handler does ``hasattr(delta, "thinking")`` and ``hasattr(delta, "text")``.
-    Because MagicMock auto-creates attributes on access, we use ``spec`` to limit which
-    attributes exist so each branch can be exercised in isolation.
-    """
-    spec = []
-    if thinking is not None:
-        spec.append("thinking")
-    if text is not None:
-        spec.append("text")
-    delta = MagicMock(spec=spec)
-    if thinking is not None:
-        delta.thinking = thinking
-    if text is not None:
-        delta.text = text
-    return delta
 
 
 class _FakeStream:
@@ -107,15 +81,6 @@ def _service_with_fake_stream(
     service = ThinkerService()
     service._client = mock_client
     return service, mock_client
-
-
-def _make_thinker() -> MagicMock:
-    t = MagicMock()
-    t.name = "Socrates"
-    t.bio = "Classical philosopher"
-    t.positions = "Question everything"
-    t.style = "Dialectic"
-    return t
 
 
 def _patch_manager() -> Any:

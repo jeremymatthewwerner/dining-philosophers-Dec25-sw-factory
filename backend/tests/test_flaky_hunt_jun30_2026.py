@@ -53,24 +53,11 @@ flakiness) and asserts the exact threshold direction.
 """
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.services.thinker import ThinkerService
-
-
-def _make_message(content: str, sender: str = "User") -> MagicMock:
-    """Create a mock message with content and sender_name."""
-    msg = MagicMock()
-    msg.content = content
-    msg.sender_name = sender
-    return msg
-
-
-def _make_thinker(name: str = "Socrates") -> MagicMock:
-    thinker = MagicMock()
-    thinker.name = name
-    return thinker
-
+from tests.mock_factories import make_message as _make_message
+from tests.mock_factories import make_thinker as _make_thinker
 
 # ---------------------------------------------------------------------------
 # 1. addressed + silence: the 0.9 silence cap overrides the 0.95 addressed cap
