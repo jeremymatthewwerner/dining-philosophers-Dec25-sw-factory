@@ -44,31 +44,13 @@ mocks (no seed-based luck, no real wall-clock dependency):
 """
 
 from typing import Any
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 
 from app.services.thinker import ThinkerService
-
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_thinker(name: str = "Socrates") -> Any:
-    """Build a MagicMock thinker with a stable ``.name`` attribute."""
-    thinker = MagicMock()
-    thinker.name = name
-    return thinker
-
-
-def _make_message(content: str, sender_name: str) -> Any:
-    """Build a MagicMock message with ``.content`` and ``.sender_name``."""
-    msg = MagicMock()
-    msg.content = content
-    msg.sender_name = sender_name
-    return msg
-
+from tests.mock_factories import make_message as _make_message
+from tests.mock_factories import make_thinker as _make_thinker
 
 # ---------------------------------------------------------------------------
 # 1. _choose_response_style — was_addressed branches, deterministic roll

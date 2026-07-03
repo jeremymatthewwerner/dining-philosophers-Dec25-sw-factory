@@ -23,39 +23,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.thinker import ThinkerService
+from tests.mock_factories import make_content_delta as _make_delta
+from tests.mock_factories import make_streaming_event as _make_event
+from tests.mock_factories import make_thinker as _make_thinker
 
 # ---------------------------------------------------------------------------
 # Streaming helpers (mirrors test_thinker_coverage_sprint_may11_2026.py)
 # ---------------------------------------------------------------------------
-
-
-def _make_event(event_type: str, **fields: Any) -> MagicMock:
-    """Build a streaming event mock with the given attributes."""
-    event = MagicMock()
-    event.type = event_type
-    for key, value in fields.items():
-        setattr(event, key, value)
-    return event
-
-
-def _make_delta(*, thinking: str | None = None, text: str | None = None) -> MagicMock:
-    """Build a content_block_delta delta exposing only the requested fields.
-
-    The streaming handler probes ``hasattr(delta, "thinking")`` and
-    ``hasattr(delta, "text")``; ``spec`` limits which attributes exist so an
-    "empty" delta (neither field) can be constructed for the else-fall-through.
-    """
-    spec = []
-    if thinking is not None:
-        spec.append("thinking")
-    if text is not None:
-        spec.append("text")
-    delta = MagicMock(spec=spec)
-    if thinking is not None:
-        delta.thinking = thinking
-    if text is not None:
-        delta.text = text
-    return delta
 
 
 class _FakeStream:
@@ -104,15 +78,6 @@ def _service_with_fake_stream(
     service = ThinkerService()
     service._client = mock_client
     return service
-
-
-def _make_thinker() -> MagicMock:
-    t = MagicMock()
-    t.name = "Socrates"
-    t.bio = "Classical philosopher"
-    t.positions = "Question everything"
-    t.style = "Dialectic"
-    return t
 
 
 def _patch_manager() -> Any:

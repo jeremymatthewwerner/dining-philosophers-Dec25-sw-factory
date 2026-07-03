@@ -53,6 +53,7 @@ from app.services.thinker import (
     extract_mentions,
     is_mentioned,
 )
+from tests.mock_factories import make_thinker as _make_thinker
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -77,12 +78,6 @@ def _make_msg(
     msg.sender_name = sender_name
     msg.content = content
     return msg
-
-
-def _make_thinker(name: str = "Socrates") -> MagicMock:
-    t = MagicMock()
-    t.name = name
-    return t
 
 
 # ---------------------------------------------------------------------------
