@@ -2098,3 +2098,23 @@ Backend coverage was already at **99.66%** with every `app/api/*` endpoint file 
 ### Stability Verification
 
 All 4 tests verified passing across 3 consecutive runs (~0.6s each, no flakiness). Branch coverage confirmed via `--cov-report=term-missing`: both `557->563` and `250->242` no longer appear as partial branches. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
+
+## Edge Cases - Saturday QA (Added 2026-07-04)
+
+### Analysis Results
+
+Backend coverage was already at **99.74%** (2154 stmts, 496 branches). Every `app/api/*`, `app/models/*`, and `app/schemas/*` file sat at 100%. The only reachable uncovered code was four *edge* branches in the `_run_thinker_agent` timing/idle-gating logic in `app/services/thinker.py` — the existing suite covered the "gate fires" side of each but never the opposite (edge) side. Two remaining partials (`733`, `763->767`) in `_split_response_into_bubbles` are unreachable defensive branches: the sentence `re.split` with a greedy `\s+` delimiter can never yield an empty middle piece (verified by direct probing), and non-empty text always produces at least one non-empty bubble — intentionally left uncovered.
+
+### Tests Added (test_edge_cases_thinker_idle_gating_jul4_2026.py)
+
+**File**: `tests/test_edge_cases_thinker_idle_gating_jul4_2026.py` (4 new tests)
+
+#### TestRunThinkerAgentIdleGatingEdges
+- `test_min_interval_gate_not_fired_when_elapsed_exceeds_interval` — Covers branch `1185->1190`. With `get_speed_multiplier` returning 0.0 (so `min_interval` = 0.0s), the second loop iteration's `elapsed` is never `< min_interval`, so the min-interval sleep gate does NOT fire and the loop proceeds to `_should_respond` again. Asserts `_should_respond` is reached on both iterations and two bubbles are sent.
+- `test_idle_detection_disabled_skips_idle_block` — Covers branch `1194->1230`. Patches `settings.idle_timeout_seconds` to 0 so `idle_timeout > 0` is False; even with a 1-hour-old user timestamp the entire idle-pause block is skipped straight to `_should_respond`. Asserts `pause_for_idle` never fires.
+- `test_recent_user_activity_does_not_trigger_idle_pause` — Covers branch `1198->1230`. User's last message is timestamped "now" so `idle_duration` (~0) is under the 300s timeout; the idle-pause block is skipped. Asserts `pause_for_idle` never fires.
+- `test_already_idle_paused_skips_repause` — Covers branch `1200->1226`. An old (10-min) user timestamp with a 60s timeout makes `idle_duration >= idle_timeout` True, but `is_idle_paused` returns True, so the `not is_idle_paused` guard is False and the re-pause/broadcast block is skipped (loop just sleeps and continues). Asserts `pause_for_idle` and the PAUSED broadcast never fire and `_should_respond` is never reached.
+
+### Stability Verification
+
+All 4 tests verified passing across 3 consecutive runs (~0.6s each, no flakiness). Branch coverage confirmed via `--cov-report=term-missing` against the full thinker-loop test subset: `1185->1190`, `1194->1230`, `1198->1230`, and `1200->1226` no longer appear as partial branches. The `idle_timeout_seconds` override uses `patch.object` (auto-restored) rather than direct assignment, since `get_settings()` returns a cached singleton — direct mutation would leak into other tests. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
