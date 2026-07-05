@@ -2,6 +2,56 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.31 Regression Prevention: Anthropic model-id centralization guards (Added 2026-07-05)
+
+**Focus**: Sunday QA (regression-prevention). Reviewed recent bug fixes; the most
+recent real fix is **#978** `fix(thinker): centralize Anthropic model id, replace
+retired 404ing snapshot`. The dated snapshot `claude-sonnet-4-20250514` was retired
+by Anthropic and returned `404 not_found_error` from *every* thinker call, breaking
+~9 E2E tests and the suggestion feature in production. The fix replaced **5 hardcoded
+copies** of the model id in `app/services/thinker.py` with a single source of truth,
+`settings.anthropic_model` (`app/core/config.py`).
+
+**Gap closed**: the shipped fix only guarded **2 of the 5** call sites
+(`validate_thinker` in `test_thinker_service.py` + the config default in
+`test_config.py`). The other four call sites — and the source at large — had no guard
+against re-hardcoding a (future) dead snapshot.
+
+### Tests Added (test_regression_prevention_jul5_2026.py)
+
+7 tests, all pure-unit (no DB, no network), stable across 3 runs.
+
+#### `TestModelCentralizationPerCallSite` (3 tests) — #978
+- `test_suggest_thinkers_uses_configured_model` — drives `suggest_thinkers` with a
+  sentinel `settings.anthropic_model` and asserts the outgoing `messages.create`
+  used that value, never the retired snapshot (call site thinker.py ~315).
+- `test_generate_response_uses_configured_model` — same guard for `generate_response`
+  (call site ~1041).
+- `test_generate_user_prompt_uses_configured_model` — same guard for
+  `generate_user_prompt` (call site ~1527).
+
+#### `TestModelCentralizationStreaming` (1 test) — #978
+- `test_streaming_response_uses_configured_model` — the streaming path uses
+  `client.messages.stream` (not `messages.create`); drives
+  `generate_response_with_streaming_thinking` with a fake stream and asserts the
+  `model` kwarg handed to `stream` came from `settings.anthropic_model` (call site ~608).
+
+#### `TestNoHardcodedModelInSource` (3 tests) — #978
+- `test_thinker_has_no_hardcoded_dated_snapshot` — static scan: no `claude-…-YYYYMMDD`
+  literal may appear in `thinker.py` (matches the *pattern*, so it catches any future
+  dated snapshot, not just the one retired id).
+- `test_no_app_source_references_retired_model` — no file under `app/` contains the
+  exact retired id `claude-sonnet-4-20250514`.
+- `test_every_model_kwarg_in_thinker_uses_settings` — every `model=` argument in
+  `thinker.py` equals `self.settings.anthropic_model`, and there are exactly 5 such
+  call sites (a new call site forces an explicit review).
+
+### Stability & Regression Verification
+- New file passes **3 runs in a row** (7 tests, ~0.9s each).
+- Negative check: reintroducing `claude-sonnet-4-20250514` at one call site fails
+  4 of the 7 tests (per-call-site + all three source guards) — the guards bite.
+- `ruff format`, `ruff check`, and `mypy` all clean.
+
 ## 1.30 E2E Performance: Remove 60s networkidle anti-pattern + Guard Caps (Added 2026-06-25)
 
 **Focus**: Thursday QA (e2e-performance). The Playwright suite is already in
