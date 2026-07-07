@@ -2077,6 +2077,41 @@ All 7 tests verified passing across 3 consecutive runs (~0.8s each, no flakiness
 
 All 12 tests verified passing across 3 consecutive runs (~1s each, no flakiness). Each interaction was confirmed by direct computation against the live `_should_respond` before writing the assertion. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
 
+## Flaky Hunt - Tuesday Sprint (Added 2026-07-07)
+
+### Analysis Results
+
+The full backend suite was run before adding tests: **1813 passed, 10 skipped** (exit 0), with no order- or timing-dependent failures. `pytest-randomly`/`pytest-xdist` are not installed, so collection order is deterministic.
+
+Prior flaky-hunt sessions (mar17 → jun30) exhaustively pinned every *single-function* random-roll boundary and probability cap in `app/services/thinker.py` (`_should_respond`, `_choose_response_style`, `_split_response_into_bubbles`, `_should_prompt_user`) plus the `extract_mentions`/`is_mentioned` parsing primitives. The remaining un-pinned gap is a **cross-function window-size discrepancy**: `_should_respond` detects @mention/name-addressing over the last **3** messages (`messages[-3:]`, thinker.py:1570-1574), while `_choose_response_style` detects the same over the last **2** (`recent_messages[-2:]`, thinker.py:459-471). A thinker mentioned/addressed exactly 3 messages from the end is "addressed" to one function and "not addressed" to the other. No existing test pins these two windows *together*, so a refactor unifying them would silently change conversation behavior.
+
+### Tests Added (test_flaky_hunt_jul7_2026.py)
+
+**File**: `tests/test_flaky_hunt_jul7_2026.py` (11 new tests)
+
+All tests mock `random.random` deterministically. `_should_respond` uses `random==0.8` with `new_message_count==1` (base 0.37) so only an @mention (0.98) or name-address (0.87) boost clears 0.8 — isolating *detection* from base probability. `_choose_response_style` uses `roll==0.18`, which returns 60 max_tokens when addressed and 30 when not, so the token count reveals which window was used.
+
+#### TestShouldRespondMentionWindowIsLastThree
+1. `test_mention_at_minus_two_is_seen` — @mention at index -2 → responds.
+2. `test_mention_at_minus_three_is_seen` — @mention at index -3 (last-3 boundary) → responds. The cell where the two functions diverge.
+3. `test_mention_at_minus_four_is_not_seen` — @mention at index -4 (outside last 3) → base prob only → no response. Pins the outer edge; extending to last-4 flips it.
+4. `test_name_address_at_minus_three_is_seen` — name-addressing (no @) at index -3 is inside the last-3 window (base 0.87) → responds.
+5. `test_name_address_at_minus_four_is_not_seen` — name-addressing at index -4 is outside the window → no boost → no response.
+
+#### TestChooseResponseStyleMentionWindowIsLastTwo
+6. `test_mention_at_minus_two_is_seen` — @mention at index -2 inside last-2 window → addressed style (60 tokens).
+7. `test_mention_at_minus_three_is_not_seen` — @mention at index -3 outside last-2 window → not-addressed style (30 tokens). Contrast with `_should_respond`, which DOES see -3.
+8. `test_name_address_at_minus_two_is_seen` — name-addressing at index -2 → addressed style (60).
+9. `test_name_address_at_minus_three_is_not_seen` — name-addressing at index -3 → not-addressed style (30).
+
+#### TestMentionWindowDiscrepancyAtIndexMinusThree
+10. `test_should_respond_yes_but_style_is_not_addressed` — Same message list, both functions: `_should_respond` responds (sees @mention at -3) while `_choose_response_style` returns the not-addressed style. Asserts the divergence directly; unifying the windows flips exactly one assertion.
+11. `test_name_address_same_discrepancy_at_minus_three` — Identical last-3-vs-last-2 split for name-addressing without the @ symbol.
+
+### Stability Verification
+
+All 11 tests verified passing across 3 consecutive runs (~1.3s each, no flakiness). Every boundary was confirmed by direct computation against the live `_should_respond`/`_choose_response_style` before writing the assertions. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
+
 ## Integration Gaps - Wednesday QA (Added 2026-07-01)
 
 ### Analysis Results
