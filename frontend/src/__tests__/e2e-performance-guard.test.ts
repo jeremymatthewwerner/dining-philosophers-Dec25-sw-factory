@@ -28,9 +28,17 @@
  *      the whole E2E job and force an expensive full re-run
  *   9. playwright.config does not enable always-on tracing (`trace: 'on'`), which
  *      records a trace for EVERY test and materially slows the whole suite
+ *  10. The suite-wide count of `waitForLoadState('networkidle')` calls stays at
+ *      or below a budget. Each bounded networkidle wait is individually fine, but
+ *      networkidle is the slowest/most-fragile wait type, so its total footprint
+ *      is a ratchet: it should only ever trend DOWN as tests migrate to
+ *      element-/response-driven waits. New tests must reach for a deterministic
+ *      wait rather than adding to the networkidle count.
  *
  * Thresholds have headroom over the current suite so legitimate tests are not
- * penalised — they exist to catch runaway values, not to micro-manage.
+ * penalised — they exist to catch runaway values, not to micro-manage. The one
+ * intentionally tight threshold is the networkidle count budget (a ratchet):
+ * lower it whenever a session removes networkidle waits so the gains stick.
  */
 
 import { readFileSync, readdirSync } from 'fs';
@@ -47,6 +55,14 @@ const MAX_GLOBAL_TEST_TIMEOUT_MS = 120_000;
 // than generic per-call timeouts. Current suite max is 15s; 30s leaves headroom
 // while still catching the 60s networkidle anti-pattern.
 const MAX_NETWORKIDLE_TIMEOUT_MS = 30_000;
+
+// Ratchet: the suite-wide budget for `waitForLoadState('networkidle')` calls.
+// networkidle is the slowest wait type, so its total footprint should only ever
+// shrink. This is a tight budget (zero headroom over the current count) BY
+// DESIGN — it forces new tests toward element-/response-driven waits and forces
+// this number DOWN whenever a session removes networkidle waits. If you legitly
+// remove some, lower this to the new count so the win is locked in.
+const MAX_NETWORKIDLE_CALLS = 14;
 
 /** Strip // line comments and block comments so call-site checks ignore prose. */
 function stripComments(src: string): string {
@@ -110,6 +126,34 @@ describe('E2E performance-hygiene guard', () => {
         expect(offenders).toEqual([]);
       }
     );
+  });
+
+  describe('suite-wide networkidle footprint stays within budget (ratchet)', () => {
+    // Count every non-comment `waitForLoadState('networkidle')` call across all
+    // specs. Per-call caps above ensure each wait is bounded and reasonable;
+    // this asserts the TOTAL number does not grow. networkidle is the slowest
+    // wait type, so the aggregate is a ratchet that should only trend down.
+    function countNetworkidleCalls(): number {
+      const re = /waitForLoadState\(\s*(['"`])networkidle\1/g;
+      return specFiles.reduce((sum, file) => {
+        const code = stripComments(readFileSync(file, 'utf-8'));
+        return sum + (code.match(re)?.length ?? 0);
+      }, 0);
+    }
+
+    it(`has at most ${MAX_NETWORKIDLE_CALLS} networkidle calls across the suite`, () => {
+      expect(countNetworkidleCalls()).toBeLessThanOrEqual(
+        MAX_NETWORKIDLE_CALLS
+      );
+    });
+
+    it('keeps the budget tight (no silent headroom above the actual count)', () => {
+      // A ratchet only works if the budget tracks reality. If this fails, a
+      // session removed networkidle waits without lowering MAX_NETWORKIDLE_CALLS
+      // — drop the constant to the new count so the reduction is locked in and
+      // cannot silently regress back up to the stale budget.
+      expect(countNetworkidleCalls()).toBe(MAX_NETWORKIDLE_CALLS);
+    });
   });
 
   describe('per-test timeouts stay bounded', () => {
