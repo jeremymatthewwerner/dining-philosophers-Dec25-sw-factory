@@ -26,87 +26,19 @@ from anthropic.types import ThinkingBlock
 from app.api.websocket import SpendLimitExceeded
 from app.exceptions import BillingError, ThinkerAPIError
 from app.services.thinker import ThinkerService
+from tests.streaming_helpers import (
+    make_delta,
+    make_event,
+    service_with_fake_stream,
+)
 
 # ---------------------------------------------------------------------------
 # Streaming-thinking event handler tests (lines 616-672)
+#
+# The streaming test doubles (make_event / make_delta / FakeStream /
+# service_with_fake_stream) live in tests/streaming_helpers.py so they are
+# shared with the other thinker-streaming suites instead of copy-pasted.
 # ---------------------------------------------------------------------------
-
-
-def _make_event(event_type: str, **fields: Any) -> MagicMock:
-    """Build a streaming event mock with the given attributes."""
-    event = MagicMock()
-    event.type = event_type
-    for key, value in fields.items():
-        setattr(event, key, value)
-    return event
-
-
-def _make_delta(*, thinking: str | None = None, text: str | None = None) -> MagicMock:
-    """Build a content_block_delta delta with only the requested fields.
-
-    The streaming handler does ``hasattr(delta, "thinking")`` and ``hasattr(delta, "text")``.
-    Because MagicMock auto-creates attributes on access, we use ``spec`` to limit which
-    attributes exist so each branch can be exercised in isolation.
-    """
-    spec = []
-    if thinking is not None:
-        spec.append("thinking")
-    if text is not None:
-        spec.append("text")
-    delta = MagicMock(spec=spec)
-    if thinking is not None:
-        delta.thinking = thinking
-    if text is not None:
-        delta.text = text
-    return delta
-
-
-class _FakeStream:
-    """An async context manager + async iterator mimicking anthropic streaming."""
-
-    def __init__(self, events: list[MagicMock], final_message: MagicMock) -> None:
-        self._events = events
-        self._final_message = final_message
-
-    async def __aenter__(self) -> _FakeStream:
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        return None
-
-    def __aiter__(self) -> _FakeStream:
-        self._iter = iter(self._events)
-        return self
-
-    async def __anext__(self) -> MagicMock:
-        try:
-            return next(self._iter)
-        except StopIteration as exc:
-            raise StopAsyncIteration from exc
-
-    async def get_final_message(self) -> MagicMock:
-        return self._final_message
-
-
-def _service_with_fake_stream(
-    events: list[MagicMock],
-    final_content: list[Any] | None = None,
-    input_tokens: int = 50,
-    output_tokens: int = 30,
-) -> tuple[ThinkerService, MagicMock]:
-    """Build a ThinkerService whose Anthropic client returns a FakeStream."""
-    final_message = MagicMock()
-    final_message.usage.input_tokens = input_tokens
-    final_message.usage.output_tokens = output_tokens
-    final_message.content = final_content if final_content is not None else []
-
-    fake_stream = _FakeStream(events, final_message)
-    mock_client = MagicMock()
-    mock_client.messages.stream = MagicMock(return_value=fake_stream)
-
-    service = ThinkerService()
-    service._client = mock_client
-    return service, mock_client
 
 
 def _make_thinker() -> MagicMock:
@@ -144,11 +76,11 @@ class TestStreamingThinkingEventBranches:
     async def test_text_delta_accumulates_response_text(self) -> None:
         """A content_block_delta with a text delta should append to response_text."""
         events = [
-            _make_event("content_block_start"),
-            _make_event("content_block_delta", delta=_make_delta(text="Hello ")),
-            _make_event("content_block_delta", delta=_make_delta(text="world")),
+            make_event("content_block_start"),
+            make_event("content_block_delta", delta=make_delta(text="Hello ")),
+            make_event("content_block_delta", delta=make_delta(text="world")),
         ]
-        service, _ = _service_with_fake_stream(events)
+        service, _ = service_with_fake_stream(events)
         thinker = _make_thinker()
 
         patcher, _mock_manager = _patch_manager()
@@ -172,10 +104,10 @@ class TestStreamingThinkingEventBranches:
             "This requires more thought than initially apparent."
         )
         events = [
-            _make_event("content_block_delta", delta=_make_delta(thinking=long_thought)),
-            _make_event("content_block_delta", delta=_make_delta(text="Answer")),
+            make_event("content_block_delta", delta=make_delta(thinking=long_thought)),
+            make_event("content_block_delta", delta=make_delta(text="Answer")),
         ]
-        service, _ = _service_with_fake_stream(events)
+        service, _ = service_with_fake_stream(events)
         thinker = _make_thinker()
 
         patcher, mock_manager = _patch_manager()
@@ -196,10 +128,10 @@ class TestStreamingThinkingEventBranches:
     @pytest.mark.asyncio
     async def test_pause_during_stream_sends_stopped_typing_once(self) -> None:
         """When paused mid-stream, send_thinker_stopped_typing fires exactly once."""
-        service, _ = _service_with_fake_stream(
+        service, _ = service_with_fake_stream(
             [
-                _make_event("content_block_delta", delta=_make_delta(text="Start")),
-                _make_event("content_block_delta", delta=_make_delta(text="More")),
+                make_event("content_block_delta", delta=make_delta(text="Start")),
+                make_event("content_block_delta", delta=make_delta(text="More")),
             ]
         )
         thinker = _make_thinker()
@@ -229,9 +161,9 @@ class TestStreamingThinkingEventBranches:
             signature="sig",
         )
         events = [
-            _make_event("content_block_delta", delta=_make_delta(text="Final answer.")),
+            make_event("content_block_delta", delta=make_delta(text="Final answer.")),
         ]
-        service, _ = _service_with_fake_stream(
+        service, _ = service_with_fake_stream(
             events,
             final_content=[thinking_block],
             input_tokens=100,
@@ -259,10 +191,10 @@ class TestStreamingThinkingEventBranches:
         message_delta_event.usage = MagicMock(output_tokens=42)
 
         events = [
-            _make_event("content_block_delta", delta=_make_delta(text="Hi")),
+            make_event("content_block_delta", delta=make_delta(text="Hi")),
             message_delta_event,
         ]
-        service, _ = _service_with_fake_stream(events)
+        service, _ = service_with_fake_stream(events)
         thinker = _make_thinker()
 
         patcher, _mock_manager = _patch_manager()
