@@ -32,74 +32,13 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.thinker import ThinkerService
+from tests.streaming_helpers import make_delta, make_event, service_with_fake_stream
 
 # ---------------------------------------------------------------------------
-# Streaming fakes (mirrors test_edge_cases_saturday_jun13_2026.py)
+# Streaming fakes now live in tests/streaming_helpers.py (shared with the
+# other thinker-streaming suites). service_with_fake_stream returns
+# ``(service, stream_mock)`` so these tests can inspect the streamed prompt.
 # ---------------------------------------------------------------------------
-
-
-def _make_event(event_type: str, **fields: Any) -> MagicMock:
-    """Build a streaming event mock with the given attributes."""
-    event = MagicMock()
-    event.type = event_type
-    for key, value in fields.items():
-        setattr(event, key, value)
-    return event
-
-
-def _make_text_delta(text: str) -> MagicMock:
-    """A content_block_delta delta exposing only ``text`` (no ``thinking``)."""
-    delta = MagicMock(spec=["text"])
-    delta.text = text
-    return delta
-
-
-class _FakeStream:
-    """An async context manager + async iterator mimicking anthropic streaming."""
-
-    def __init__(self, events: list[MagicMock], final_message: MagicMock) -> None:
-        self._events = events
-        self._final_message = final_message
-
-    async def __aenter__(self) -> _FakeStream:
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        return None
-
-    def __aiter__(self) -> _FakeStream:
-        self._iter = iter(self._events)
-        return self
-
-    async def __anext__(self) -> MagicMock:
-        try:
-            return next(self._iter)
-        except StopIteration as exc:
-            raise StopAsyncIteration from exc
-
-    async def get_final_message(self) -> MagicMock:
-        return self._final_message
-
-
-def _service_with_capturing_stream(events: list[MagicMock]) -> tuple[ThinkerService, MagicMock]:
-    """Build a ThinkerService whose client records the ``stream`` call args.
-
-    Returns ``(service, stream_mock)`` so tests can inspect the prompt that was
-    handed to Anthropic via ``stream_mock.call_args``.
-    """
-    final_message = MagicMock()
-    final_message.usage.input_tokens = 50
-    final_message.usage.output_tokens = 30
-    final_message.content = []
-
-    fake_stream = _FakeStream(events, final_message)
-    stream_mock = MagicMock(return_value=fake_stream)
-    mock_client = MagicMock()
-    mock_client.messages.stream = stream_mock
-
-    service = ThinkerService()
-    service._client = mock_client
-    return service, stream_mock
 
 
 def _make_thinker() -> MagicMock:
@@ -154,8 +93,8 @@ class TestStreamingInitialMessageBranch:
         yourself" block must NOT appear in the prompt, and the actual
         conversation history should be threaded in instead.
         """
-        events = [_make_event("content_block_delta", delta=_make_text_delta("A reply."))]
-        service, stream_mock = _service_with_capturing_stream(events)
+        events = [make_event("content_block_delta", delta=make_delta(text="A reply."))]
+        service, stream_mock = service_with_fake_stream(events)
         thinker = _make_thinker()
         messages = [
             _make_message("user", "Alice", "What is virtue?"),
@@ -185,8 +124,8 @@ class TestStreamingInitialMessageBranch:
         (``len(messages) <= 1``), so the "do not introduce yourself" block is
         present. This pins the branch's two sides against each other.
         """
-        events = [_make_event("content_block_delta", delta=_make_text_delta("Hello there."))]
-        service, stream_mock = _service_with_capturing_stream(events)
+        events = [make_event("content_block_delta", delta=make_delta(text="Hello there."))]
+        service, stream_mock = service_with_fake_stream(events)
         thinker = _make_thinker()
         messages = [_make_message("user", "Alice", "Kick things off.")]
 

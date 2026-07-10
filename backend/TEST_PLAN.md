@@ -2098,3 +2098,43 @@ Backend coverage was already at **99.66%** with every `app/api/*` endpoint file 
 ### Stability Verification
 
 All 4 tests verified passing across 3 consecutive runs (~0.6s each, no flakiness). Branch coverage confirmed via `--cov-report=term-missing`: both `557->563` and `250->242` no longer appear as partial branches. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
+
+## Test Refactoring - Friday QA (Issue #1017, Added 2026-07-10)
+
+**Focus**: Friday QA focus - reduce duplication in the Anthropic streaming test doubles.
+**Coverage Impact**: None (pure structural refactor; all 24 affected tests unchanged in behavior).
+**New file**: `backend/tests/streaming_helpers.py`
+
+### Problem
+
+Three separate thinker-streaming suites each carried their own copy of the same
+Anthropic streaming test doubles. The duplication was explicit — the source
+comments literally read *"mirrors test_edge_cases_saturday_jun13_2026.py"* and
+*"mirrors test_thinker_coverage_sprint_may11_2026.py"*:
+
+- `_make_event(...)` — byte-identical in all 3 files
+- `_make_delta(...)` / `_make_text_delta(...)` — identical in 2 files, a subset in the 3rd
+- `class _FakeStream` (async context-manager + async iterator) — byte-identical in all 3 files
+- `_service_with_fake_stream(...)` / `_service_with_capturing_stream(...)` — 3 near-identical variants
+
+### Solution
+
+Extracted one canonical, documented set of helpers into
+`backend/tests/streaming_helpers.py`:
+
+| Helper | Purpose |
+|--------|---------|
+| `make_event(event_type, **fields)` | Build a streaming-event mock with `.type` and arbitrary attributes. |
+| `make_delta(thinking=None, text=None)` | Build a `content_block_delta` delta that (via `spec`) exposes only the requested fields, so thinking-only / text-only / empty-delta branches can each be exercised in isolation. Subsumes the old `_make_text_delta`. |
+| `class FakeStream` | Async context-manager + async iterator mimicking `client.messages.stream(...)`. |
+| `service_with_fake_stream(events, final_content=None, input_tokens=50, output_tokens=30)` | Build a `ThinkerService` whose client returns a `FakeStream`; returns `(service, stream_mock)` so callers can both drive the handler and assert on the streamed prompt via `stream_mock.call_args`. Unifies both prior variants. |
+
+### Files refactored to import the shared helpers
+
+- `backend/tests/test_thinker_coverage_sprint_may11_2026.py` (14 tests)
+- `backend/tests/test_edge_cases_saturday_jun13_2026.py` (6 tests)
+- `backend/tests/test_integration_gaps_jul1_2026.py` (4 tests)
+
+Net effect: ~120 lines of duplicated helper code removed; a single source of
+truth for the streaming fakes. All 24 tests verified passing across 3
+consecutive runs with no behavior change.
