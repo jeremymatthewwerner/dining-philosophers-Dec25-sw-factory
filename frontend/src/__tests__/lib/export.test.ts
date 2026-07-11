@@ -7,6 +7,8 @@ import {
   generateHtmlExport,
   generateMarkdownExport,
   downloadFile,
+  exportAsHtml,
+  exportAsMarkdown,
 } from '@/lib/export';
 
 describe('Export utilities', () => {
@@ -279,6 +281,165 @@ describe('Export utilities', () => {
       downloadFile('content', 'file.txt', 'text/plain');
 
       expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Mention highlighting inside exported HTML (renderMentionsHtml edge cases)
+  // -------------------------------------------------------------------------
+  describe('mention highlighting in HTML export (edge cases)', () => {
+    it('wraps a thinker name that appears in message content in a mention span', () => {
+      // The default mock messages never mention another thinker by name, so
+      // the mention-matching loop (lines 68-90) was previously never exercised.
+      // Here Aristotle's reply references "Socrates", which must be highlighted.
+      const messagesWithMention: Message[] = [
+        {
+          id: 'msg-mention',
+          conversation_id: 'conv-1',
+          sender_type: 'thinker',
+          sender_name: 'Aristotle',
+          content: 'I must disagree with Socrates on this point.',
+          cost: 0.001,
+          created_at: '2024-01-01T12:05:00Z',
+        },
+      ];
+
+      const html = generateHtmlExport(mockConversation, messagesWithMention);
+      // The matched name is wrapped in the mention span with the thinker color.
+      expect(html).toContain('class="mention"');
+      expect(html).toContain('Socrates');
+      // Socrates has no image_url in the mock → the initial-letter fallback
+      // (line 81) must render, not an <img> avatar.
+      expect(html).toContain('class="mention-initial"');
+    });
+
+    it('renders an image avatar for a mentioned thinker that has an image_url', () => {
+      // Exercises the image_url branch (line 80) of the mention renderer.
+      const conversationWithAvatar: Conversation = {
+        ...mockConversation,
+        thinkers: [
+          { ...mockConversation.thinkers[0], image_url: 'https://img/soc.png' },
+          mockConversation.thinkers[1],
+        ],
+      };
+      const messagesWithMention: Message[] = [
+        {
+          id: 'msg-avatar',
+          conversation_id: 'conv-1',
+          sender_type: 'thinker',
+          sender_name: 'Aristotle',
+          content: 'As Socrates would say, know thyself.',
+          cost: 0.001,
+          created_at: '2024-01-01T12:06:00Z',
+        },
+      ];
+
+      const html = generateHtmlExport(
+        conversationWithAvatar,
+        messagesWithMention
+      );
+      expect(html).toContain('class="mention-avatar"');
+      expect(html).toContain('src="https://img/soc.png"');
+    });
+
+    it('escapes content and skips mention markup when the conversation has no thinkers', () => {
+      // Exercises the early-return no-thinkers guard (lines 35-37): content is
+      // HTML-escaped but no mention spans are produced.
+      const conversationNoThinkers: Conversation = {
+        ...mockConversation,
+        thinkers: [],
+      };
+      const messagesWithHtml: Message[] = [
+        {
+          id: 'msg-noth',
+          conversation_id: 'conv-1',
+          sender_type: 'user',
+          sender_name: 'Jeremy',
+          content: 'Consider <script>alert(1)</script> & "quotes".',
+          cost: null,
+          created_at: '2024-01-01T12:07:00Z',
+        },
+      ];
+
+      const html = generateHtmlExport(conversationNoThinkers, messagesWithHtml);
+      // Dangerous HTML is escaped...
+      expect(html).toContain('&lt;script&gt;');
+      expect(html).not.toContain('<script>alert(1)</script>');
+      // ...and no mention span is added.
+      expect(html).not.toContain('class="mention"');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // exportAsHtml / exportAsMarkdown convenience wrappers
+  // -------------------------------------------------------------------------
+  describe('exportAsHtml / exportAsMarkdown wrappers', () => {
+    let capturedContent: string;
+    let capturedFilename: string;
+    let capturedMime: string;
+
+    beforeEach(() => {
+      capturedContent = '';
+      capturedFilename = '';
+      capturedMime = '';
+      global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+      global.URL.revokeObjectURL = jest.fn();
+      const mockLink = {
+        href: '',
+        set download(v: string) {
+          capturedFilename = v;
+        },
+        get download() {
+          return capturedFilename;
+        },
+        click: jest.fn(),
+      } as unknown as HTMLAnchorElement;
+      jest.spyOn(document, 'createElement').mockReturnValue(mockLink);
+      jest
+        .spyOn(document.body, 'appendChild')
+        .mockImplementation(() => mockLink);
+      jest
+        .spyOn(document.body, 'removeChild')
+        .mockImplementation(() => mockLink);
+      jest
+        .spyOn(global, 'Blob')
+        .mockImplementation((parts?: BlobPart[], opts?: BlobPropertyBag) => {
+          capturedContent = (parts?.[0] as string) ?? '';
+          capturedMime = opts?.type ?? '';
+          return { size: capturedContent.length } as Blob;
+        });
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('exportAsHtml downloads HTML with a slugified filename and text/html mime', () => {
+      exportAsHtml(mockConversation, mockMessages);
+
+      // Topic "Philosophy Discussion" → "Philosophy-Discussion-export.html"
+      expect(capturedFilename).toBe('Philosophy-Discussion-export.html');
+      expect(capturedMime).toBe('text/html');
+      expect(capturedContent).toContain('<!DOCTYPE html>');
+    });
+
+    it('exportAsMarkdown downloads Markdown with a slugified filename and text/markdown mime', () => {
+      exportAsMarkdown(mockConversation, mockMessages);
+
+      expect(capturedFilename).toBe('Philosophy-Discussion-export.md');
+      expect(capturedMime).toBe('text/markdown');
+      expect(capturedContent).toContain('# Philosophy Discussion');
+    });
+
+    it('truncates a very long topic to 50 chars for the HTML filename', () => {
+      // Boundary check on the `.slice(0, 50)` in the filename builder.
+      const longTopic = 'a'.repeat(120);
+      const longConv: Conversation = { ...mockConversation, topic: longTopic };
+
+      exportAsHtml(longConv, mockMessages);
+
+      // 50 'a's + fixed suffix; non-alphanumerics are replaced with '-'.
+      expect(capturedFilename).toBe(`${'a'.repeat(50)}-export.html`);
     });
   });
 });

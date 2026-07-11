@@ -7785,3 +7785,48 @@ can be driven directly.
 (the only uncovered branch is a structurally-unreachable defensive
 `if (!isAuthenticated) return` guard inside the load effect). Full frontend
 suite 730 → **769 tests passing**. Verified stable across 3 consecutive runs.
+
+## 36. Edge Cases (Saturday QA, Jul 11, 2026) — frontend error/boundary paths
+
+Backend already sits at 99% line coverage; the only remaining `thinker.py`
+gaps (`_split_response_into_bubbles` line 733 `if not sentence: continue`,
+branch `763->767`) are **genuinely unreachable defensive guards** — verified
+empirically that Python `str.strip()` and regex `\s` cover the identical
+whitespace set (U+0000–U+3000), so `re.split(r"(?<=[.!?])\s+", text)` on
+already-stripped text can never emit an empty sentence. Effort therefore
+targeted real frontend edge/boundary gaps.
+
+### 36.1 `bugReport.ts` — user-agent parsing boundaries (`src/utils/__tests__/bugReport.test.ts`)
+- **Windows NT version mapping** — `10.0`→"Windows 10/11", `6.3`→"Windows 8.1",
+  `6.2`→"Windows 8", `6.1`→"Windows 7" (parametrized boundary branches).
+- **Unrecognized Windows NT version** (e.g. `5.1`/XP) and a **`Windows NT`
+  token with no parseable version** both fall through to the bare "Windows"
+  label without crashing.
+- **Browser name fallback without version** — Firefox / Chrome / Edge / Safari
+  each detected but with an unparseable version string resolve to the bare
+  browser name (no numeric suffix appended).
+- **Mobile/Mac OS fallback without version** — Android / iOS / macOS detected
+  but with no version token resolve to the bare OS name.
+
+**Result**: `src/utils/bugReport.ts` **96.22% → 100% statements, 74.28% → 100%
+branch**.
+
+### 36.2 `export.ts` — mention highlighting & export wrappers (`src/__tests__/lib/export.test.ts`)
+- **Mention highlighting in HTML export** — a message whose content names
+  another thinker ("Socrates") is wrapped in a `class="mention"` span; the
+  **initial-letter avatar** fallback renders when the thinker has no
+  `image_url`, and an **`<img class="mention-avatar">`** renders when it does.
+- **No-thinkers escape path** — with an empty `thinkers` array, content is
+  HTML-escaped (`<script>` → `&lt;script&gt;`) and no mention markup is emitted.
+- **`exportAsHtml` / `exportAsMarkdown` wrappers** — download the generated
+  document with a slugified `<topic>-export.html` / `.md` filename and the
+  correct MIME type (`text/html` / `text/markdown`); a **>50-char topic is
+  truncated** to 50 chars in the filename (`.slice(0, 50)` boundary).
+
+**Result**: `src/lib/export.ts` **90.93% → 99.52% statements, 73.8% → 80.76%
+branch** (the single remaining uncovered `else` at lines 86-87 is a
+structurally-unreachable defensive branch — the matched name is always a
+`thinkerMap` key by construction).
+
+**Overall**: +12 frontend edge-case tests, all deterministic (mocked
+`navigator`, `Blob`, and DOM), verified stable across 3 consecutive runs.
