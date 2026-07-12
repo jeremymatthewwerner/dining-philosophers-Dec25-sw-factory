@@ -2,6 +2,73 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## Regression Prevention - Sunday QA (Added 2026-07-12)
+
+**Focus**: Sunday QA (regression-prevention). Lock in the centralized
+Anthropic-model fix (#978, commit `6860aa4`) across **all five** thinker API
+call sites, not just the one #978 itself guarded.
+**File**: `backend/tests/test_regression_prevention_jul12_2026.py`
+**Coverage Impact**: `app/services/thinker.py` and `app/core/config.py` already
+at 99%/100% statements; this adds *regression* guards (not line coverage) around
+an invariant that behavioral tests don't otherwise pin.
+
+### Problem
+
+`thinker.py` calls the Anthropic API from five paths (`_suggest_single_batch`,
+`validate_thinker`, `generate_response_with_streaming_thinking`,
+`generate_response`, `generate_user_prompt`). Before #978 each hard-coded the
+dated snapshot `claude-sonnet-4-20250514`; Anthropic retired it, so every call
+began returning `404 not_found_error` — taking down thinker suggestions in
+production and ~9 E2E tests. #978 replaced all five literals with a single
+source of truth (`settings.anthropic_model`) but shipped a guard for only **one**
+call site (`validate_thinker`) plus the config default. A refactor could
+re-hardcode a dated snapshot in any of the other four sites and stay green.
+
+### Tests Added (test_regression_prevention_jul12_2026.py — 12 tests)
+
+#### TestAnthropicModelSingleSourceOfTruth (4 — structural)
+- `test_no_hardcoded_dated_model_snapshot_in_thinker`: no `claude-*-YYYYMMDD`
+  literal anywhere in `thinker.py` (the failure pattern that 404s).
+- `test_retired_snapshot_string_absent_from_thinker`: the exact retired id
+  `claude-sonnet-4-20250514` is gone (rejects a pre-fix copy-paste).
+- `test_every_messages_api_call_uses_configured_model`: **AST walk** finds all 5
+  `messages.create`/`.stream` call sites and asserts each passes
+  `model=self.settings.anthropic_model` — catches a re-hardcode in *any* site.
+- `test_configured_model_expression_used_five_times`: plain-text count of the
+  centralized expression equals the 5 call sites (brackets the AST check).
+
+#### TestThinkerCallSitesUseConfiguredModel (5 — behavioral)
+- `test_suggest_single_batch_uses_configured_model`: the path that 404'd in
+  production forwards the configured model to the API call.
+- `test_generate_response_uses_configured_model`: non-streaming reply fallback
+  forwards the configured model.
+- `test_generate_user_prompt_uses_configured_model`: invite-the-user path
+  forwards the configured model.
+- `test_call_sites_share_one_model_value`: one sentinel drives three different
+  code paths and is observed identically on every API call — proving a shared
+  source of truth, not coincidentally-equal literals.
+- `test_generate_response_without_client_makes_no_api_call`: complements the
+  above by pinning the `if not self.client` short-circuit.
+
+#### TestAnthropicModelDefaultContract (3 — config)
+- `test_default_model_is_not_a_dated_snapshot`: default is never a dated
+  `-YYYYMMDD` snapshot (the whole outage class), a stronger shape invariant than
+  #978's exact-value check.
+- `test_default_model_is_a_nonempty_claude_id`: default is a usable Claude id.
+- `test_model_is_overridable_and_reaches_service`: an override propagates
+  end-to-end from `Settings` to the actual API call.
+
+### Stability Verification
+
+- All 12 tests pass across 3 consecutive runs (no flakiness).
+- **Mutation-verified**: re-hardcoding a call site to
+  `claude-sonnet-4-20250514` makes 4 structural guards fail (the AST guard
+  pinpoints `line 314: model='claude-sonnet-4-20250514'`), confirming the guards
+  actually catch the regression.
+- An autouse fixture snapshots/restores the `@lru_cache`d
+  `settings.anthropic_model` so the sentinel mutations don't leak; verified by
+  running alongside `test_config.py` + `test_thinker_service.py` (118 passed).
+
 ## 1.30 E2E Performance: Remove 60s networkidle anti-pattern + Guard Caps (Added 2026-06-25)
 
 **Focus**: Thursday QA (e2e-performance). The Playwright suite is already in
