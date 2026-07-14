@@ -2138,3 +2138,34 @@ Extracted one canonical, documented set of helpers into
 Net effect: ~120 lines of duplicated helper code removed; a single source of
 truth for the streaming fakes. All 24 tests verified passing across 3
 consecutive runs with no behavior change.
+
+## Flaky Test Hunt - Tuesday QA (Issue #1024, Added 2026-07-14)
+
+**Focus**: Tuesday QA focus — run the suite repeatedly to confirm no flakiness, then pin the remaining unpinned nondeterminism *interactions* in `app/services/thinker.py`.
+
+### Analysis Results
+
+- Baseline full suite: **1813 passed, 10 skipped** (~5 min). Re-ran the full suite 5× back-to-back — no order/timing-dependent failures. No `pytest-randomly` / `pytest-xdist` plugin is installed, so tests run in a fixed order; the only nondeterminism in `app/` is the `random.*` branch selection in `thinker.py` and the `datetime.now()` staleness math in `knowledge_research.py` (both already exhaustively pinned by earlier sessions).
+- Prior flaky-hunt sessions (mar17 … jun30) pinned every *individual* random-roll boundary and probability cap. What remained unpinned were the **interaction** behaviors: outcomes produced by two flags being true together, or by the *number* of `random.random()` draws a function makes.
+
+### Tests Added (test_flaky_hunt_jul14_2026.py)
+
+**File**: `tests/test_flaky_hunt_jul14_2026.py` (8 new tests)
+
+#### TestChooseResponseStyleJustSpokePrecedence
+1. `test_just_spoke_wins_over_addressed_at_low_roll` — Covers `thinker.py:476-496`. When a thinker's own last message ALSO addresses it by name, BOTH `just_spoke` and `was_addressed` are true; at `roll=0.10` the `if just_spoke and roll < 0.4` branch (checked first) must WIN → 50 tokens, not the addressed branch's 30. Catches a reorder of the `if`/`elif` blocks that every single-flag test misses.
+2. `test_just_spoke_and_addressed_falls_to_addressed_at_boundary` — Same both-flags-true setup at `roll=0.40`; the strict `<` fails so control falls through to `elif was_addressed` → 120 tokens. Pins the fall-through path and the strict-`<` boundary direction.
+
+#### TestShouldRespondDrawCountContract
+3. `test_addressed_thinker_makes_exactly_one_draw` — Covers the short-circuit veto at `thinker.py:1597`. An addressed thinker makes `not was_addressed` False, so the `random.random() < 0.15` veto is never evaluated → exactly **1** `random.random()` draw (asserted via `MagicMock.call_count`).
+4. `test_not_addressed_thinker_makes_two_draws_when_veto_misses` — Not-addressed + first draw `0.50 >= 0.15` (veto misses) → both the veto and `base_probability` draws happen → **2** draws.
+5. `test_not_addressed_veto_fires_makes_one_draw_and_returns_false` — Not-addressed + first draw `0.10 < 0.15` fires the veto → early `return False` before the second draw → **1** draw, result `False`.
+6. `test_at_mentioned_thinker_makes_exactly_one_draw` — `@Socrates` sets `was_at_mentioned` → veto skipped → **1** draw compared against the 0.98 @mention probability (`0.50 < 0.98` → responds). Together tests 3–6 pin the state-dependent draw count; hoisting the veto random out of the `and` would desync the RNG stream and break them.
+
+#### TestSplitBubblesLeadingTransition
+7. `test_leading_transition_produces_no_empty_bubble` — Covers the `if current_bubble and (...)` guard at `thinker.py:751`. Text starting with `"However,"` must not emit a leading empty bubble; every returned bubble is non-empty and the first opens with the transition word.
+8. `test_mid_text_transition_still_forces_new_bubble` — Complement: a transition word MID-text (non-empty `current_bubble`) DOES force a split into two bubbles, proving the `starts_with_transition` arm of the OR is live.
+
+### Stability Verification
+
+All 8 tests verified passing across 3 consecutive runs (~0.6s each, no flakiness). Every interaction was confirmed by direct computation against the live functions before writing the assertion. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
