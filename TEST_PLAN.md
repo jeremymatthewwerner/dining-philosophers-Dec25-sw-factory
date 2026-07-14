@@ -2,6 +2,48 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.31 Integration Gaps: `useWebSocket` real-time message handling (Added 2026-07-08)
+
+**Focus:** integration-gaps (issue #1012)
+
+The frontend real-time WebSocket integration hook (`src/hooks/useWebSocket.ts`) had
+uncovered message-handling paths. Backend was already at 99.74% with all API endpoints
+at 100%, so the meaningful integration gap was the client-side socket layer.
+
+**New tests** (`src/__tests__/hooks/useWebSocket.integration-gaps.test.tsx`, 16 tests):
+
+### `thinker_thinking` streaming preview (3 tests)
+- Populates `thinkingContent` map and invokes `onThinkerThinking` for a streaming preview
+- Ignores `thinker_thinking` messages missing the `content` field (guard short-circuit)
+- Clears a thinker's `thinkingContent` entry on `thinker_stopped_typing`
+
+### `speed_changed` updates (3 tests)
+- Updates `speedMultiplier` from a `speed_changed` message
+- Accepts a `speed_multiplier` of `0` (verifies `!== undefined` guard, not truthiness)
+- Ignores `speed_changed` messages that omit the multiplier
+
+### `sendSetSpeed` command (2 tests)
+- Sends a `set_speed` frame with the requested multiplier
+- Skips sending when the socket is not `OPEN`
+
+### Cross-conversation message filtering (2 tests)
+- Drops messages tagged with a different `conversation_id` (stale after a switch)
+- Still processes messages that omit `conversation_id`
+
+### Partial thinker message fields (3 tests)
+- Applies fallbacks (`sender_name` null, `content` '', `cost` null, generated timestamp)
+  when optional fields are absent
+- Does not deliver a message when `sender_type` is not `thinker`
+- Falls back to `'Unknown error'` for an `error` message without `content`
+
+### Inactive-connection handling (3 tests)
+- Closes the socket if `onopen` fires after the effect was torn down
+- Ignores a message arriving after teardown (`isActive` false)
+- Does not schedule a reconnect when `close` fires after teardown
+
+**Coverage impact:** `src/hooks/useWebSocket.ts` 93.89% → **100%** lines,
+75.36% → **91.56%** branch. Verified passing 3x with no flakiness.
+
 ## 1.30 E2E Performance: Remove 60s networkidle anti-pattern + Guard Caps (Added 2026-06-25)
 
 **Focus**: Thursday QA (e2e-performance). The Playwright suite is already in
