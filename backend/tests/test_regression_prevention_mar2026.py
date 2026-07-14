@@ -42,7 +42,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import register_and_get_token
+from tests.conftest import bearer_header, register_and_get_token
 
 
 class TestThinkerSuggestAPIPath:
@@ -355,7 +355,7 @@ class TestJWTTokenEdgeCases:
 
         # Create a token with no 'sub' field - only has other fields
         token_no_sub = create_access_token(data={"username": "someone", "role": "user"})
-        headers = {"Authorization": f"Bearer {token_no_sub}"}
+        headers = bearer_header(token_no_sub)
 
         # /api/auth/me uses require_user → get_current_user (checks 'sub' field)
         response = await client.get("/api/auth/me", headers=headers)
@@ -373,7 +373,7 @@ class TestJWTTokenEdgeCases:
 
         # Empty string is falsy in Python - should be caught by `if not user_id`
         token_empty_sub = create_access_token(data={"sub": ""})
-        headers = {"Authorization": f"Bearer {token_empty_sub}"}
+        headers = bearer_header(token_empty_sub)
 
         response = await client.get("/api/auth/me", headers=headers)
         assert response.status_code == 401, (
@@ -391,7 +391,7 @@ class TestJWTTokenEdgeCases:
         data = await register_and_get_token(
             client, username="jwt_sub_test_user", password="testpass123"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         response = await client.get("/api/auth/me", headers=headers)
         assert response.status_code == 200

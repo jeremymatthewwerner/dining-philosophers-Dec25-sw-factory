@@ -8,6 +8,7 @@ from tests.conftest import (
     assert_not_found,
     assert_unauthorized,
     assert_validation_error,
+    bearer_header,
     create_admin_user,
     create_conversation_with_thinker,
     get_auth_headers,
@@ -285,7 +286,7 @@ class TestSessionAPI:
 
         # Create a token without session_id (only user_id)
         token = create_access_token({"sub": "some-user-id"})
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
         response = await client.get("/api/sessions/me", headers=headers)
         assert_unauthorized(response)
         assert "no session" in response.json()["detail"].lower()
@@ -299,7 +300,7 @@ class TestSessionAPI:
         # Create a token with a non-existent session_id
         fake_session_id = str(uuid4())
         token = create_access_token({"sub": "some-user-id", "session_id": fake_session_id})
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
         response = await client.get("/api/sessions/me", headers=headers)
         assert_not_found(response, "Session not found")
 
@@ -747,7 +748,7 @@ class TestAdminAPI:
     async def test_list_users_as_admin(self, client: AsyncClient, db_session: AsyncSession) -> None:
         """Test that admins can list all users."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         # Create some additional users
         await register_and_get_token(client, "user1", "password123")
@@ -776,7 +777,7 @@ class TestAdminAPI:
     ) -> None:
         """Test that admins can delete users."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         # Create a user to delete
         user_data = await register_and_get_token(client, "todelete", "password123")
@@ -797,7 +798,7 @@ class TestAdminAPI:
     ) -> None:
         """Test that admins cannot delete themselves."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
         admin_id = admin_data["user"]["id"]
 
         response = await client.delete(f"/api/admin/users/{admin_id}", headers=headers)
@@ -819,7 +820,7 @@ class TestAdminAPI:
     ) -> None:
         """Test deleting a non-existent user."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         response = await client.delete("/api/admin/users/nonexistent-id", headers=headers)
         assert_not_found(response)
@@ -829,7 +830,7 @@ class TestAdminAPI:
     ) -> None:
         """Test that admins can update a user's spend limit."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         # Create a user to update
         user_data = await register_and_get_token(client, "limituser", "password123")
@@ -864,7 +865,7 @@ class TestAdminAPI:
     ) -> None:
         """Test 404 when updating non-existent user's spend limit."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         response = await client.patch(
             "/api/admin/users/nonexistent-id/spend-limit",
@@ -894,7 +895,7 @@ class TestAdminAPI:
         Tests multiple invalid values: zero, negative, large negative.
         """
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         user_data = await register_and_get_token(client, "validationuser", "password123")
         user_id = user_data["user"]["id"]
@@ -911,7 +912,7 @@ class TestAdminAPI:
     ) -> None:
         """Test that updated spend limit persists and shows in user list."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         user_data = await register_and_get_token(client, "persistuser", "password123")
         user_id = user_data["user"]["id"]
@@ -935,7 +936,7 @@ class TestAdminAPI:
     ) -> None:
         """Test that user list includes spend_limit field."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         response = await client.get("/api/admin/users", headers=headers)
         assert response.status_code == 200
@@ -951,7 +952,7 @@ class TestSpendAPI:
     async def test_get_spend_as_admin(self, client: AsyncClient, db_session: AsyncSession) -> None:
         """Test that admins can get user spend data."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         # Create a user to check spend for
         user_data = await register_and_get_token(client, "spenduser", "password123")
@@ -972,12 +973,12 @@ class TestSpendAPI:
     ) -> None:
         """Test spend data includes conversation details."""
         admin_data = await create_admin_user(client, db_session)
-        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        admin_headers = bearer_header(admin_data)
 
         # Create a user with conversations
         user_data = await register_and_get_token(client, "convspenduser", "password123")
         user_id = user_data["user"]["id"]
-        user_headers = {"Authorization": f"Bearer {user_data['access_token']}"}
+        user_headers = bearer_header(user_data)
 
         # Create a conversation using helper to avoid repeating inline thinker dict
         await create_conversation_with_thinker(client, user_headers, "Test topic for spend")
@@ -994,7 +995,7 @@ class TestSpendAPI:
     ) -> None:
         """Test 404 when user doesn't exist."""
         admin_data = await create_admin_user(client, db_session)
-        headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        headers = bearer_header(admin_data)
 
         response = await client.get("/api/spend/nonexistent-user-id", headers=headers)
         assert_not_found(response, "User not found")

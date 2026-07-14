@@ -19,6 +19,7 @@ from app.models import Session, User
 from tests.conftest import (
     assert_error_response,
     assert_success_response,
+    bearer_header,
     create_admin_headers,
     create_admin_user,
     get_auth_headers,
@@ -348,7 +349,7 @@ class TestSendMessageIntegration:
         )
         assert register_response.status_code == 200
         token = register_response.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Create conversation
         create_response = await client.post(
@@ -510,7 +511,7 @@ class TestAdminDeleteUserIntegration:
         Coverage: admin.py lines 104-109
         """
         admin_data = await create_admin_user(client, db_session, "admin_self_del", "adminpass123")
-        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        admin_headers = bearer_header(admin_data)
         admin_id = admin_data["user"]["id"]
 
         # Try to delete self

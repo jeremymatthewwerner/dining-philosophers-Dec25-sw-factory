@@ -22,6 +22,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import (
+    bearer_header,
     create_admin_headers,
     create_conversation_with_thinker,
     register_and_get_token,
@@ -48,7 +49,7 @@ class TestProfileUpdatePropagatesToMessageSenderName:
         data = await register_and_get_token(
             client, "profileuser", "profilepass123", display_name="Original Name"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         # Update the display name via the profile endpoint.
         patch_resp = await client.patch(
@@ -73,7 +74,7 @@ class TestProfileUpdatePropagatesToMessageSenderName:
         data = await register_and_get_token(
             client, "doubleupdate", "profilepass123", display_name="First"
         )
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         for name in ("Second", "Third"):
             resp = await client.patch(
@@ -106,9 +107,9 @@ class TestConversationListCrossUserIsolation:
 
     async def test_each_user_sees_only_their_own_conversations(self, client: AsyncClient) -> None:
         user_a = await register_and_get_token(client, "alice", "alicepass123")
-        headers_a = {"Authorization": f"Bearer {user_a['access_token']}"}
+        headers_a = bearer_header(user_a)
         user_b = await register_and_get_token(client, "bob", "bobpass123")
-        headers_b = {"Authorization": f"Bearer {user_b['access_token']}"}
+        headers_b = bearer_header(user_b)
 
         a_conv_1 = await create_conversation_with_thinker(client, headers_a, "Alice One")
         a_conv_2 = await create_conversation_with_thinker(client, headers_a, "Alice Two")
@@ -129,9 +130,9 @@ class TestConversationListCrossUserIsolation:
     async def test_other_users_message_not_counted_in_my_list(self, client: AsyncClient) -> None:
         """A message Bob sends to his conversation must not alter Alice's list."""
         user_a = await register_and_get_token(client, "alice2", "alicepass123")
-        headers_a = {"Authorization": f"Bearer {user_a['access_token']}"}
+        headers_a = bearer_header(user_a)
         user_b = await register_and_get_token(client, "bob2", "bobpass123")
-        headers_b = {"Authorization": f"Bearer {user_b['access_token']}"}
+        headers_b = bearer_header(user_b)
 
         a_conv = await create_conversation_with_thinker(client, headers_a, "Alice topic")
         b_conv = await create_conversation_with_thinker(client, headers_b, "Bob topic")

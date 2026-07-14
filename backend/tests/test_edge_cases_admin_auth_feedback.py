@@ -9,6 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import (
+    bearer_header,
     create_admin_headers,
     create_admin_user,
     get_auth_headers,
@@ -103,7 +104,7 @@ class TestAdminEdgeCases:
         """
         # Use create_admin_user to get both the data and auth headers
         admin_data = await create_admin_user(client, db_session, "only_admin", "adminpass")
-        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        admin_headers = bearer_header(admin_data)
 
         # List users
         response = await client.get("/api/admin/users", headers=admin_headers)
@@ -127,7 +128,7 @@ class TestAdminEdgeCases:
         Edge case: Self-referential operation prevention
         """
         admin_data = await create_admin_user(client, db_session, "admin_self_delete", "adminpass")
-        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        admin_headers = bearer_header(admin_data)
 
         # We need the original user ID - re-fetch it since create_admin_user
         # registers and then logs in again (so data has the same user id)

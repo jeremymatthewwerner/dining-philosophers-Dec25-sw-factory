@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from httpx import AsyncClient
 
-from tests.conftest import get_auth_headers
+from tests.conftest import bearer_header, get_auth_headers
 
 
 class TestLanguagePreferencePersistence:
@@ -76,7 +76,7 @@ class TestLanguagePreferencePersistence:
         )
         assert login_response.status_code == 200
         new_token = login_response.json()["access_token"]
-        new_headers = {"Authorization": f"Bearer {new_token}"}
+        new_headers = bearer_header(new_token)
 
         # Verify language preference persists in new session
         me_response = await client.get("/api/auth/me", headers=new_headers)

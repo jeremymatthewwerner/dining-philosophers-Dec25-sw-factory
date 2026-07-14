@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tests.conftest import (
     assert_not_found,
     assert_unauthorized,
+    bearer_header,
     create_admin_headers,
     get_auth_headers,
     make_simple_thinker_list,
@@ -366,7 +367,7 @@ class TestAuthLanguageUpdatePersistence:
         # Register user
         data = await register_and_get_token(client, "langpersist_user", "pass123abc")
         token = data["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Update language to Spanish
         response = await client.patch(
@@ -391,7 +392,7 @@ class TestAuthLanguageUpdatePersistence:
         """
         data = await register_and_get_token(client, "langall_user", "pass123abc")
         token = data["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Test each supported language
         for lang in ["en", "es", "fr", "de"]:
@@ -443,7 +444,7 @@ class TestAdminDeleteUserCascade:
         # Verify target user can access their account before deletion
         me_resp = await client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {target_token}"},
+            headers=bearer_header(target_token),
         )
         assert me_resp.status_code == 200
 
@@ -688,7 +689,7 @@ class TestAuthLoginResponseIntegration:
         # New token should work for authenticated endpoints
         me_resp = await client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {new_token}"},
+            headers=bearer_header(new_token),
         )
         assert me_resp.status_code == 200
         assert me_resp.json()["username"] == "newsess_login_user"

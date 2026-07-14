@@ -17,7 +17,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import User
-from tests.conftest import get_auth_headers, register_and_get_token
+from tests.conftest import bearer_header, get_auth_headers, register_and_get_token
 
 
 class TestConversationCreateFullFlow:
@@ -687,7 +687,7 @@ class TestSendMessageEdgeCases:
         )
         assert response.status_code == 200
         token = response.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         conv_resp = await client.post(
             "/api/conversations",
@@ -741,7 +741,7 @@ class TestAdminListUsersFullFlow:
         reg_data = await register_and_get_token(
             client, username="regular_user_feb28", password="testpass123"
         )
-        reg_headers = {"Authorization": f"Bearer {reg_data['access_token']}"}
+        reg_headers = bearer_header(reg_data)
 
         await client.post(
             "/api/conversations",
@@ -766,7 +766,7 @@ class TestAdminListUsersFullFlow:
             json={"username": "admin_list_feb28", "password": "adminpass123"},
         )
         admin_token = login_resp.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # List users as admin
         response = await client.get("/api/admin/users", headers=admin_headers)
@@ -803,7 +803,7 @@ class TestAdminListUsersFullFlow:
             json={"username": "admin_only_feb28", "password": "adminpass123"},
         )
         admin_token = login_resp.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         response = await client.get("/api/admin/users", headers=admin_headers)
         assert response.status_code == 200
@@ -835,7 +835,7 @@ class TestAdminDeleteUserEdgeCases:
             json={"username": "admin_self_del_feb28", "password": "adminpass123"},
         )
         admin_token = login_resp.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         # Try to delete own account
         response = await client.delete(f"/api/admin/users/{admin_id}", headers=admin_headers)
@@ -868,7 +868,7 @@ class TestAdminDeleteUserEdgeCases:
             json={"username": "admin_del_succ_feb28", "password": "adminpass123"},
         )
         admin_token = login_resp.json()["access_token"]
-        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        admin_headers = bearer_header(admin_token)
 
         response = await client.delete(f"/api/admin/users/{target_id}", headers=admin_headers)
         assert response.status_code == 200
@@ -890,7 +890,7 @@ class TestAuthEdgeCases:
 
         # Create token without 'sub' field
         token_no_sub = create_access_token(data={"session_id": "some-session"})
-        headers = {"Authorization": f"Bearer {token_no_sub}"}
+        headers = bearer_header(token_no_sub)
 
         # Accessing a protected endpoint - should fail with 401
         response = await client.get("/api/conversations", headers=headers)
@@ -940,7 +940,7 @@ class TestAuthEdgeCases:
         Edge case: Token format validation - covers decode_access_token None path.
         """
         malformed_token = "not.a.valid.jwt.token"
-        headers = {"Authorization": f"Bearer {malformed_token}"}
+        headers = bearer_header(malformed_token)
 
         response = await client.get("/api/conversations", headers=headers)
         assert response.status_code in [401, 422]

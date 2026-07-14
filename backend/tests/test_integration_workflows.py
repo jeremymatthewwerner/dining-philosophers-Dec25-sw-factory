@@ -2,6 +2,8 @@
 
 from httpx import AsyncClient
 
+from tests.conftest import bearer_header
+
 
 class TestFullUserJourney:
     """Test complete user workflows from registration to conversation management."""
@@ -21,7 +23,7 @@ class TestFullUserJourney:
         register_data = register_response.json()
         assert "access_token" in register_data
         token = register_data["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Step 2: Verify we can get user info
         me_response = await client.get("/api/auth/me", headers=headers)
@@ -126,7 +128,7 @@ class TestFullUserJourney:
             },
         )
         user1_token = user1_response.json()["access_token"]
-        user1_headers = {"Authorization": f"Bearer {user1_token}"}
+        user1_headers = bearer_header(user1_token)
 
         user2_response = await client.post(
             "/api/auth/register",
@@ -137,7 +139,7 @@ class TestFullUserJourney:
             },
         )
         user2_token = user2_response.json()["access_token"]
-        user2_headers = {"Authorization": f"Bearer {user2_token}"}
+        user2_headers = bearer_header(user2_token)
 
         # Each user creates a conversation
         conv1_response = await client.post(
@@ -217,7 +219,7 @@ class TestFullUserJourney:
         assert login_data["user"]["display_name"] == "Login Test"
 
         # Verify token works
-        headers = {"Authorization": f"Bearer {login_data['access_token']}"}
+        headers = bearer_header(login_data)
         me_response = await client.get("/api/auth/me", headers=headers)
         assert me_response.status_code == 200
         assert me_response.json()["username"] == "loginaftereq"

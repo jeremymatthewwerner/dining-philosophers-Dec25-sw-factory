@@ -62,6 +62,7 @@ from app.models import Feedback, User
 from app.models.feedback import FeedbackStatus
 from app.models.feedback import FeedbackType as FeedbackTypeModel
 from tests.conftest import (
+    bearer_header,
     get_auth_headers,
     register_and_get_token,
 )
@@ -330,7 +331,7 @@ class TestAuthChangePassword:
         user could change their password to anything without knowing the original.
         """
         data = await register_and_get_token(client, "pwdtestuser", "original123")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         response = await client.post(
             "/api/auth/change-password",
@@ -353,7 +354,7 @@ class TestAuthChangePassword:
         to succeed but the old password remains valid.
         """
         data = await register_and_get_token(client, "pwdtestuser2", "original456")
-        headers = {"Authorization": f"Bearer {data['access_token']}"}
+        headers = bearer_header(data)
 
         response = await client.post(
             "/api/auth/change-password",

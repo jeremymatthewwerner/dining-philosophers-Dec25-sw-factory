@@ -2,6 +2,58 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.31 Test Refactoring: centralize Bearer-header idiom via `bearer_header()` (Added 2026-06-26)
+
+**Focus**: Friday QA (test-refactoring). The single most-duplicated idiom in the
+backend test suite was the Authorization-header construction:
+
+```python
+headers = {"Authorization": f"Bearer {data['access_token']}"}
+```
+
+It appeared **59+ times across 16 files** in the `{...['access_token']}` form alone,
+plus dozens more in the `f"Bearer {token}"` form — every integration/regression test
+that authenticates a request re-spelled it inline.
+
+**New helper** (`tests/conftest.py`):
+
+| Helper | Purpose |
+|--------|---------|
+| `bearer_header(token_or_data)` | Build `{"Authorization": "Bearer <token>"}` from either a raw JWT string **or** an auth-response dict (auto-extracts `access_token`). One idiom, one place. |
+
+The existing `get_auth_headers()` and `create_admin_headers()` helpers were updated
+to delegate to `bearer_header()` (dogfooding), so the construction now lives in
+exactly one expression.
+
+**Refactor applied** (behaviour-preserving — same header dict produced):
+
+| Inline pattern | Sites replaced | Replaced with |
+|----------------|----------------|---------------|
+| `{"Authorization": f"Bearer {VAR['access_token']}"}` | ~57 | `bearer_header(VAR)` |
+| `{"Authorization": f"Bearer {token}"}` | ~52 | `bearer_header(token)` |
+
+Net: **114 call sites** across 25 test files now route through the helper; the only
+remaining inline occurrences are the docstring examples in `conftest.py` that
+illustrate the pattern. Imports were added/extended per file (module-level or the
+existing function-local `from tests.conftest import ...` blocks).
+
+**New unit tests** (`tests/test_conftest_helpers.py`, 15 tests): the shared conftest
+helpers had no direct coverage of their own. These pin down the contract of the pure
+(non-fixture) helpers so future conftest refactors can't silently change behavior:
+
+| Test class | Validates |
+|------------|-----------|
+| `TestBearerHeader` | token-string and auth-dict inputs are equivalent; exactly one `Authorization` key; a fresh, independently-mutable dict is returned each call |
+| `TestMakeSimpleThinkerList` | documented placeholder defaults; single-element list; name override leaves other fields intact |
+| `TestCreateThinkerInput` | name-derived defaults; explicit fields take precedence; list-valued positions pass through |
+| `TestCreateMockThinkerProfile` | name-derived defaults and overrides |
+| `TestCreateMockThinkerSuggestionJson` | output is valid JSON shaped as a suggest_thinkers payload; custom reason reflected |
+
+**Verification**:
+- Full backend suite: **1812 passed, 10 skipped** (no regressions from the sweep).
+- New helper tests + two representative refactored files: **38 passed, 3 runs in a row** (no flakiness).
+- `ruff format` + `ruff check` clean across `tests/`.
+
 ## 1.30 E2E Performance: Remove 60s networkidle anti-pattern + Guard Caps (Added 2026-06-25)
 
 **Focus**: Thursday QA (e2e-performance). The Playwright suite is already in

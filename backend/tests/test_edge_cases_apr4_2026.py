@@ -31,6 +31,7 @@ from tests.conftest import (
     assert_not_found,
     assert_unauthorized,
     assert_validation_error,
+    bearer_header,
     create_admin_headers,
     create_conversation_with_thinker,
     get_auth_headers,
@@ -66,7 +67,7 @@ class TestAuthEdgeCases:
             data={"sub": "fake-user-id"},
             expires_delta=timedelta(seconds=-1),
         )
-        headers = {"Authorization": f"Bearer {expired_token}"}
+        headers = bearer_header(expired_token)
         response = await client.get("/api/auth/me", headers=headers)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -843,7 +844,7 @@ class TestSessionsEdgeCases:
         """
         # Create token without session_id
         token = create_access_token(data={"sub": "some-user-id"})
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
 
         # Try to access conversations (which uses get_session_from_token)
         response = await client.get("/api/conversations", headers=headers)
@@ -857,7 +858,7 @@ class TestSessionsEdgeCases:
         token = create_access_token(
             data={"sub": "some-user-id", "session_id": "nonexistent-session-xyz"}
         )
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = bearer_header(token)
         response = await client.get("/api/conversations", headers=headers)
         assert_not_found(response, "Session not found")
 
@@ -890,7 +891,7 @@ class TestAdminEdgeCases:
         """
         admin_data = await register_and_get_token(client, "selfdelete_admin", "adminpass123")
         admin_user_id = admin_data["user"]["id"]
-        admin_headers = {"Authorization": f"Bearer {admin_data['access_token']}"}
+        admin_headers = bearer_header(admin_data)
 
         # Promote to admin
         from sqlalchemy import update

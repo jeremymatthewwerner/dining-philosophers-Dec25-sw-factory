@@ -7,7 +7,7 @@ These tests cover edge cases beyond basic validation (covered in test_api_edge_c
 from fastapi import status
 from httpx import AsyncClient
 
-from tests.conftest import get_auth_headers
+from tests.conftest import bearer_header, get_auth_headers
 
 
 class TestConversationsAPIErrorPaths:
@@ -123,9 +123,7 @@ class TestAuthAPIErrorPaths:
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.invalid_signature"
         )
 
-        response = await client.get(
-            "/api/auth/me", headers={"Authorization": f"Bearer {fake_token}"}
-        )
+        response = await client.get("/api/auth/me", headers=bearer_header(fake_token))
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
