@@ -1,3 +1,36 @@
+## Flaky Hunt - Tuesday QA: transition-word bubble split (Added 2026-06-16)
+
+**Focus**: Tuesday QA (flaky-hunt). Verified the suite is flake-free, then pinned
+the last un-guarded probabilistic branch in `_split_response_into_bubbles`.
+
+**Flakiness verification (primary deliverable)**: The full backend suite
+(1794 passed, 10 skipped) ran clean. The random/timing-prone subset (380 tests
+matching `flaky`/`random`/`bubble`/`split`/`should_respond`/`should_prompt`/
+`thinking_display`/`choose_*`/`strategy`/`randint`/`mention`/`speed`) was run
+**5× back-to-back** and again under `PYTHONHASHSEED` 0/1/12345 — 379 passed every
+run, identical results. **No flaky tests found.**
+
+**Gap pinned** — `tests/test_flaky_hunt_jun16_2026.py`
+(`app/services/thinker.py:736-760`):
+
+`_split_response_into_bubbles` forces a sentence into a fresh chat bubble when it
+*starts* with one of a 10-word transition list (`But `, `However,`, `Although `,
+`On the other hand,`, `That said,`, `Nevertheless,`, `Yet `, `Still,`, `Though `,
+`Conversely,`). Prior sessions only ever exercised `However,`; the other nine
+words — and the exact casing/trailing-space of each entry — were unguarded.
+
+| Test | What it validates |
+|------|-------------------|
+| `test_transition_word_forces_new_bubble` (parametrized ×10) | Each listed word, with `random.random`→0.5 and `random.randint`→500 (target_size so large size never forces a split), still produces a 2nd bubble starting with that word. Dropping a word or altering its casing/trailing-space would merge the sentences and fail. |
+| `test_neutral_leading_word_stays_single_bubble` | Negative control: a neutral leading word (`Indeed `) under the same huge target_size stays a single bubble — proving the parametrized splits are caused by the transition word, not by size. |
+| `test_transition_match_is_case_sensitive` | Lowercase `but ` does NOT split — pins that the `startswith` match is case-sensitive (a `.lower()` regression would wrongly split and fail). |
+
+**Why deterministic isolation**: mocking both `random.random` (branch selection)
+and `random.randint` (target size) removes all randomness, so the transition word
+is the sole possible cause of a second bubble — no seed search, no flake risk.
+
+---
+
 ## Integration Gaps - Wednesday QA (Added 2026-06-10)
 
 **Focus**: Cross-endpoint workflows centered on the spend aggregation endpoint
