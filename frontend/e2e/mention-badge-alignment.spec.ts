@@ -40,9 +40,13 @@ test.describe.skip('Regression: @mention badge alignment (Issue #494)', () => {
 
     // Navigate to the conversation
     await page.goto(`/?conversation=${conversation.id}`);
-    // Bounded networkidle: an unbounded wait can hang the whole suite if the
-    // network never goes idle (e.g. polling/websocket). Cap it and move on.
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    // Element-driven readiness wait: the message composer only renders once the
+    // conversation view has loaded, so waiting for it is both deterministic and
+    // faster than a networkidle wait (which idles for 500ms after ALL network
+    // activity and can burn its full budget on a polling/websocket page).
+    await page
+      .getByTestId('message-textarea')
+      .waitFor({ state: 'visible', timeout: 10000 });
 
     // Send a message mentioning the thinker's name
     // Note: The app highlights thinker names automatically (word boundary match)
@@ -90,8 +94,11 @@ test.describe.skip('Regression: @mention badge alignment (Issue #494)', () => {
     );
 
     await page.goto(`/?conversation=${conversation.id}`);
-    // Bounded networkidle (see note above) to avoid hanging if traffic never settles.
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    // Element-driven readiness wait (see note above): faster and more
+    // deterministic than a networkidle wait before an auto-waiting fill().
+    await page
+      .getByTestId('message-textarea')
+      .waitFor({ state: 'visible', timeout: 10000 });
 
     // Send message with mention in middle of sentence (most visible alignment issue)
     const messageTextarea = page.getByTestId('message-textarea');
@@ -131,8 +138,11 @@ test.describe.skip('Regression: @mention badge alignment (Issue #494)', () => {
     );
 
     await page.goto(`/?conversation=${conversation.id}`);
-    // Bounded networkidle (see note above) to avoid hanging if traffic never settles.
-    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    // Element-driven readiness wait (see note above): faster and more
+    // deterministic than a networkidle wait before an auto-waiting fill().
+    await page
+      .getByTestId('message-textarea')
+      .waitFor({ state: 'visible', timeout: 10000 });
 
     // Send message with mention
     const messageTextarea = page.getByTestId('message-textarea');

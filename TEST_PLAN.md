@@ -2,6 +2,45 @@
 
 This document outlines all features requiring testing, their test cases, and edge conditions.
 
+## 1.31 E2E Performance: Drop redundant networkidle waits + count-budget ratchet (Added 2026-07-09)
+
+**Focus**: Thursday QA (e2e-performance). Building on §1.30, the suite has **0**
+real `page.waitForTimeout()` calls and every remaining `networkidle` wait is
+already bounded (≤15s). The one lever left was the *total number* of networkidle
+waits — networkidle is the slowest / most-fragile wait type, so its aggregate
+footprint should only ever shrink. This session removed the redundant ones it
+could prove behaviour-preserving, then added a ratchet so the count can't creep
+back up.
+
+**Anti-pattern fixed** (`frontend/e2e/mention-badge-alignment.spec.ts`):
+- Three tests (`correct vertical alignment CSS`, `align with surrounding text
+  visually`, `mobile viewport maintain alignment`) ran
+  `page.goto('/?conversation=…')` → `waitForLoadState('networkidle', { timeout:
+  5000 }).catch()` → `messageTextarea.fill(...)`. Playwright's `.fill()`
+  auto-waits for the textarea to be visible/actionable, and the textarea only
+  renders once the conversation view has loaded — so the networkidle leg was
+  **redundant readiness signalling** that could burn its full 5s budget on a
+  page with polling/websocket traffic. Replaced each with a deterministic
+  `getByTestId('message-textarea').waitFor({ state: 'visible' })`. Cannot make a
+  passing test fail (the following `.fill()` already required that element), and
+  removes up to 5s of dead wait per case × 2 browser projects.
+- Suite-wide non-comment networkidle calls: **17 → 14**.
+
+**Guard extended** (`frontend/src/__tests__/e2e-performance-guard.test.ts`,
+now 153 assertions, browser-less static analysis):
+
+| New check | What It Validates |
+|-----------|-------------------|
+| networkidle count ≤ budget (suite-wide ratchet) | Total non-comment `waitForLoadState('networkidle')` calls across all specs is `≤ MAX_NETWORKIDLE_CALLS` (14). Unlike the per-call caps, this is intentionally **zero-headroom** — a ratchet that forces new tests toward element-/response-driven waits and only ever moves down. |
+| budget tracks reality (no stale headroom) | The actual count `=== MAX_NETWORKIDLE_CALLS`. If a future session removes networkidle waits without lowering the constant, this fails and prompts them to lock the reduction in, so the win can't silently regress back up to a stale budget. |
+
+**Verification**:
+- Jest guard passes **3 runs in a row** (153 assertions, no browser/backend), ~0.6s each.
+- Full frontend jest suite green: **41 suites / 771 tests**.
+- `npm run typecheck` clean; `npx playwright test --list` parses the edited spec
+  (all 6 test entries enumerate). Behaviour-preserving edit (redundant wait swapped
+  for a stricter element wait already implied by the subsequent `.fill()`).
+
 ## 1.30 E2E Performance: Remove 60s networkidle anti-pattern + Guard Caps (Added 2026-06-25)
 
 **Focus**: Thursday QA (e2e-performance). The Playwright suite is already in
