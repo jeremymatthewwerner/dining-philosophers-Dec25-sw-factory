@@ -2138,3 +2138,22 @@ Extracted one canonical, documented set of helpers into
 Net effect: ~120 lines of duplicated helper code removed; a single source of
 truth for the streaming fakes. All 24 tests verified passing across 3
 consecutive runs with no behavior change.
+
+## Integration Gaps - Wednesday QA (Issue #1026, Added 2026-07-15)
+
+### Analysis Results
+
+Backend coverage was already at **99.74%** with every `app/api/*` endpoint at 100% line coverage — no wholly-untested endpoints remained. The only reachable *integration* gaps were negative branch paths inside the autonomous conversation loop `ThinkerService._run_thinker_agent` (`app/services/thinker.py`). The happy-path bubble-send and the positive "user is idle → pause" path were already covered by earlier sprints; the three *negative* idle-timeout decision branches (feature disabled, user active, already-paused) had never been driven.
+
+### Tests Added (test_integration_gaps_jul15_2026.py)
+
+**File**: `tests/test_integration_gaps_jul15_2026.py` (3 new tests)
+
+#### TestIdleTimeoutNegativeBranches
+- `test_idle_timeout_disabled_skips_idle_logic` — Covers branch `thinker.py:1194->1230`. Patches `settings.idle_timeout_seconds` to `0` and supplies an ancient user message that would otherwise trigger an idle pause; asserts the idle block is skipped entirely (conversation never idle-paused, no `IDLE_TIMEOUT` broadcast) and the loop proceeds to `_should_respond`.
+- `test_recent_user_activity_does_not_idle_pause` — Covers branch `thinker.py:1198->1230`. Supplies a user message timestamped ~now (idle_duration ≪ 300s timeout); asserts `idle_duration >= idle_timeout` is False, so no idle pause happens and neither `IDLE_TIMEOUT` nor `PAUSED` is broadcast.
+- `test_already_idle_paused_conversation_does_not_rebroadcast` — Covers branch `thinker.py:1200->1226`. Reconstructs the realistic state where `is_paused` is False but `is_idle_paused` is True (idle-paused, then `resume_conversation` cleared only the manual-pause flag). With the user still past the idle timeout, asserts the loop just sleeps+continues without re-broadcasting `IDLE_TIMEOUT`/`PAUSED` or re-sending stopped-typing — the idle pause is announced exactly once.
+
+### Stability Verification
+
+All 3 tests verified passing across 3 consecutive runs (~0.5s each, no flakiness). The loop is driven for a single iteration using the established "cancel on the second `is_conversation_active` check via `CancelledError`" pattern with `asyncio.sleep` no-opped. Branch coverage confirmed via `--cov-report=term-missing`: `1194->1230`, `1198->1230`, and `1200->1226` no longer appear as partial branches. Tests use only mocks/patches — no real network, DB, or background-task dependencies.
